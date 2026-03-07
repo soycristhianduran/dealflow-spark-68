@@ -75,6 +75,7 @@ export default function DashboardPage() {
     contactsTotal: 0, contactsNew: 0, contactsQualified: 0,
     dealsOpen: 0, dealsWon: 0, dealsLost: 0,
     pipelineValue: 0, pipelineCurrency: 'USD',
+    wonValue: 0, wonCurrency: 'USD',
     meetingsScheduled: 0, meetingsCompleted: 0, tasksPending: 0,
   });
   const [upcomingMeetings, setUpcomingMeetings] = useState<MeetingRow[]>([]);
