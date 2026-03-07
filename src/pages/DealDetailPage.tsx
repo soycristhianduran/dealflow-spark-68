@@ -354,7 +354,7 @@ export default function DealDetailPage() {
               <Select value={editForm.contact_id} onValueChange={v => setEditForm(f => ({ ...f, contact_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin contacto</SelectItem>
+                  <SelectItem value="none">Sin contacto</SelectItem>
                   {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
                 </SelectContent>
               </Select>
