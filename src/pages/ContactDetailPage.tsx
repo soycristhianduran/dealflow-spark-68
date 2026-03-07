@@ -34,6 +34,47 @@ export default function ContactDetailPage() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "" });
+
+  const startEditing = () => {
+    setEditForm({
+      first_name: contact?.first_name || "",
+      last_name: contact?.last_name || "",
+      primary_phone: contact?.primary_phone || "",
+      primary_email: contact?.primary_email || "",
+      birthday: contact?.birthday || "",
+    });
+    setEditingContact(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingContact(false);
+  };
+
+  const saveContactInfo = async () => {
+    if (!id) return;
+    setSavingContact(true);
+    const fullName = [editForm.first_name.trim(), editForm.last_name.trim()].filter(Boolean).join(" ") || contact.full_name;
+    const { error } = await supabase.from("contacts").update({
+      first_name: editForm.first_name.trim() || null,
+      last_name: editForm.last_name.trim() || null,
+      full_name: fullName,
+      primary_phone: editForm.primary_phone.trim() || null,
+      primary_email: editForm.primary_email.trim() || null,
+      birthday: editForm.birthday || null,
+    }).eq("id", id);
+    if (error) {
+      toast.error("Error al guardar: " + error.message);
+    } else {
+      toast.success("Contacto actualizado");
+      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+      setContact(data);
+      setEditingContact(false);
+    }
+    setSavingContact(false);
+  };
 
   const fetchRelated = async () => {
     if (!id) return;
@@ -129,51 +170,95 @@ export default function ContactDetailPage() {
           <div className="space-y-4">
             <Card className="border-none shadow-sm">
               <CardContent className="p-5">
-                <div className="flex items-center gap-3 mb-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
-                      {contact.full_name.split(' ').map((n: string) => n[0]).join('')}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h2 className="text-lg font-bold text-foreground">{contact.full_name}</h2>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <Badge variant={status.variant}>{status.label}</Badge>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-14 w-14">
+                      <AvatarFallback className="bg-primary/10 text-primary text-lg font-semibold">
+                        {contact.full_name.split(' ').map((n: string) => n[0]).join('')}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <h2 className="text-lg font-bold text-foreground">{contact.full_name}</h2>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <Badge variant={status.variant}>{status.label}</Badge>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div className="space-y-3">
-                  {contact.primary_phone && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Phone className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{contact.primary_phone}</span>
-                    </div>
-                  )}
-                  {contact.primary_email && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Mail className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{contact.primary_email}</span>
-                    </div>
-                  )}
-                  {contact.preferred_channel && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground capitalize">{contact.preferred_channel}</span>
-                    </div>
-                  )}
-                  {(contact.city || contact.country) && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{[contact.city, contact.country].filter(Boolean).join(', ')}</span>
-                    </div>
-                  )}
-                  {contact.birthday && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Cake className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                  {!editingContact ? (
+                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" onClick={startEditing}>
+                      <Pencil className="h-3 w-3" /> Editar
+                    </Button>
+                  ) : (
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={cancelEditing}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                      <Button size="sm" variant="default" className="h-7 text-xs px-2 gap-1" onClick={saveContactInfo} disabled={savingContact}>
+                        <Check className="h-3 w-3" /> {savingContact ? "..." : "Guardar"}
+                      </Button>
                     </div>
                   )}
                 </div>
+
+                {editingContact ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Nombre</label>
+                        <Input value={editForm.first_name} onChange={e => setEditForm(p => ({ ...p, first_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Apellido</label>
+                        <Input value={editForm.last_name} onChange={e => setEditForm(p => ({ ...p, last_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Teléfono</label>
+                      <Input value={editForm.primary_phone} onChange={e => setEditForm(p => ({ ...p, primary_phone: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="+52 55 1234 5678" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Email</label>
+                      <Input type="email" value={editForm.primary_email} onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="email@ejemplo.com" />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground">Cumpleaños</label>
+                      <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {contact.primary_phone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground">{contact.primary_phone}</span>
+                      </div>
+                    )}
+                    {contact.primary_email && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground">{contact.primary_email}</span>
+                      </div>
+                    )}
+                    {contact.preferred_channel && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground capitalize">{contact.preferred_channel}</span>
+                      </div>
+                    )}
+                    {(contact.city || contact.country) && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground">{[contact.city, contact.country].filter(Boolean).join(', ')}</span>
+                      </div>
+                    )}
+                    {contact.birthday && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Cake className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {contact.score != null && (
                   <div className="mt-4 p-3 rounded-lg bg-muted/50">
