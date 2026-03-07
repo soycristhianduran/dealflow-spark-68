@@ -37,7 +37,7 @@ type DealFull = {
 
 type Stage = { id: string; name: string; color: string; order: number };
 type Contact = { id: string; full_name: string };
-type Activity = { id: string; event_type: string; summary: string; created_at: string; payload: any; related_entity_type: string; related_entity_id: string };
+type Activity = { id: string; event_type: string; summary: string; created_at: string; payload: any; related_entity_type: "company" | "contact" | "deal" | "meeting" | "task"; related_entity_id: string };
 type Task = { id: string; title: string; priority: string; status: string; due_date: string | null };
 type Meeting = { id: string; title: string; start_at: string; status: string };
 
