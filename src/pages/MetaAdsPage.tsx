@@ -265,8 +265,7 @@ export default function MetaAdsPage() {
                   Sin datos
                 </div>
               ) : (
-                <div className="h-[300px]">
-                  <ResponsiveContainer width="100%" height="100%">
+              <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <PieChart>
                       <Pie
                         data={pieData}
@@ -284,7 +283,7 @@ export default function MetaAdsPage() {
                       </Pie>
                       <ChartTooltip content={<ChartTooltipContent />} />
                     </PieChart>
-                  </ResponsiveContainer>
+                  </ChartContainer>
                   <div className="flex flex-wrap gap-2 justify-center -mt-4">
                     {pieData.slice(0, 5).map((item, i) => (
                       <div key={item.name} className="flex items-center gap-1.5 text-xs">
