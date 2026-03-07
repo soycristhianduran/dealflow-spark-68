@@ -21,6 +21,8 @@ import IntegrationsPage from "./pages/IntegrationsPage";
 import MorePage from "./pages/MorePage";
 import MetaAdsPage from "./pages/MetaAdsPage";
 import NotFound from "./pages/NotFound";
+import DataDeletionPage from "./pages/DataDeletionPage";
+import PrivacyPage from "./pages/PrivacyPage";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +55,8 @@ function AppRoutes() {
       <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
       <Route path="/meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
       <Route path="/more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
+      <Route path="/data-deletion" element={<DataDeletionPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
