@@ -18,8 +18,10 @@ Deno.serve(async (req) => {
     const error = url.searchParams.get("error");
 
     if (error) {
-      return new Response(`<html><body><script>window.opener?.postMessage({type:'fb-oauth-error',error:'${error}'},'*');window.close();</script></body></html>`, {
-        headers: { "Content-Type": "text/html" },
+      const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": `${appUrl}/integrations?fb_error=${encodeURIComponent(error)}` },
       });
     }
 
