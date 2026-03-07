@@ -21,6 +21,8 @@ interface DashboardStats {
   dealsLost: number;
   pipelineValue: number;
   pipelineCurrency: string;
+  wonValue: number;
+  wonCurrency: string;
   meetingsScheduled: number;
   meetingsCompleted: number;
   tasksPending: number;
