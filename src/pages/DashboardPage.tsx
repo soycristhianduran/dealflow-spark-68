@@ -148,6 +148,7 @@ export default function DashboardPage() {
 
     setActiveDeals((activeDealsRes.data || []).map((d: any) => ({
       id: d.id, title: d.title, value: d.value, currency: d.currency,
+      status: d.status,
       expected_close_date: d.expected_close_date,
       contact_name: d.contacts?.full_name || null,
       stage_name: d.pipeline_stages?.name || null,
