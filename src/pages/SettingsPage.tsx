@@ -421,6 +421,56 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-4">
+            {/* Logo Card */}
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold">Logo de la empresa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-md">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 overflow-hidden shrink-0">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Sube el logo de tu empresa. Se mostrará en el menú lateral del CRM.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Tamaño recomendado:</strong> 200×200px o 400×100px (horizontal). Formatos: PNG, JPG, SVG. Máximo 2MB. Fondo transparente recomendado.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingLogo ? "Subiendo..." : "Subir logo"}
+                      </Button>
+                      {logoUrl && (
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={handleRemoveLogo}>
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-none shadow-sm">
               <CardHeader>
                 <CardTitle className="text-sm font-semibold">Configuración general</CardTitle>
