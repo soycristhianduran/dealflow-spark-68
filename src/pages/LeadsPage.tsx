@@ -59,7 +59,7 @@ export default function LeadsPage() {
               {filtered.map((lead) => {
                 const status = statusMap[lead.status];
                 return (
-                  <tr key={lead.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
+                  <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3 font-medium text-foreground">{lead.full_name}</td>
                     <td className="px-4 py-3 text-muted-foreground">{lead.email || '-'}</td>
                     <td className="px-4 py-3 text-muted-foreground">{lead.phone || '-'}</td>
