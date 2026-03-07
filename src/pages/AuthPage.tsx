@@ -70,6 +70,7 @@ export default function AuthPage() {
           phone: fullPhone,
           industry,
           company_size: companySize,
+          job_title: jobTitle,
         },
       },
     });
