@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN") || "";
+    const VERIFY_TOKEN = (Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN") || "").trim();
     const receivedToken = token || "";
     console.log("ENV token length:", VERIFY_TOKEN.length, "Received token length:", receivedToken.length, "Match:", VERIFY_TOKEN === receivedToken);
 
