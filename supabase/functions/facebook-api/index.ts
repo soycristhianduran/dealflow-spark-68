@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
           .single();
         if (!pageData) throw new Error("Page not found");
 
-        const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data&access_token=${pageData.page_access_token}`);
+        const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data,ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name&access_token=${pageData.page_access_token}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
 
