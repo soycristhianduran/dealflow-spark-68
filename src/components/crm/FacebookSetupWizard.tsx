@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { cn } from "@/lib/utils";
 
@@ -12,11 +14,30 @@ interface FacebookSetupWizardProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "pages" | "forms" | "messenger" | "campaigns" | "done";
+type Step = "pages" | "forms" | "mapping" | "messenger" | "campaigns" | "done";
 
 interface PageItem { id: string; name: string; access_token: string; category?: string; selected: boolean }
-interface FormItem { id: string; name: string; status: string; selected: boolean }
+interface FormItem { id: string; name: string; status: string; selected: boolean; questions?: { key: string; label: string; type: string }[] }
 interface AdAccountItem { id: string; name: string; selected: boolean }
+interface FieldMapping { fb_field_name: string; fb_field_label: string; contact_field: string; is_custom_field: boolean }
+
+// Standard contact fields available for mapping
+const STANDARD_CONTACT_FIELDS = [
+  { value: "full_name", label: "Nombre completo" },
+  { value: "primary_email", label: "Email" },
+  { value: "primary_phone", label: "Teléfono" },
+  { value: "city", label: "Ciudad" },
+  { value: "country", label: "País" },
+  { value: "language", label: "Idioma" },
+  { value: "notes", label: "Notas" },
+  { value: "utm_source", label: "UTM Source" },
+  { value: "utm_medium", label: "UTM Medium" },
+  { value: "utm_campaign", label: "UTM Campaign" },
+  { value: "utm_content", label: "UTM Content" },
+  { value: "landing_page", label: "Landing Page" },
+  { value: "adset", label: "Ad Set" },
+  { value: "ad", label: "Ad" },
+];
 
 export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardProps) {
   const fb = useFacebookIntegration();
@@ -30,9 +51,18 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   // Forms
   const [forms, setForms] = useState<FormItem[]>([]);
 
+  // Field mapping
+  const [currentFormIndex, setCurrentFormIndex] = useState(0);
+  const [allFormMappings, setAllFormMappings] = useState<Record<string, FieldMapping[]>>({});
+  const [newCustomField, setNewCustomField] = useState("");
+
   // Ad accounts & campaigns
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
   const [importedCount, setImportedCount] = useState(0);
+
+  const selectedForms = useMemo(() => forms.filter(f => f.selected), [forms]);
+  const currentForm = selectedForms[currentFormIndex] || null;
+  const currentMappings = currentForm ? (allFormMappings[currentForm.id] || []) : [];
 
   useEffect(() => {
     if (open) {
@@ -54,9 +84,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     setLoading(true);
     await fb.savePages(selected.map(p => ({ page_id: p.id, page_name: p.name, page_access_token: p.access_token })));
     setSelectedPageId(selected[0].id);
-    // Load forms for first selected page
     const fetchedForms = await fb.getLeadForms(selected[0].id);
-    setForms(fetchedForms.map(f => ({ id: f.id, name: f.name, status: f.status, selected: true })));
+    setForms(fetchedForms.map(f => ({ id: f.id, name: f.name, status: f.status, selected: true, questions: f.questions })));
     setLoading(false);
     setStep("forms");
   };
@@ -66,8 +95,82 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     setLoading(true);
     const selected = forms.filter(f => f.selected);
     await fb.saveLeadForms(selectedPageId, selected.map(f => ({ form_id: f.id, form_name: f.name, form_status: f.status })));
+
+    // Initialize mappings for each selected form from its questions
+    const mappingsInit: Record<string, FieldMapping[]> = {};
+    for (const form of selected) {
+      if (form.questions && form.questions.length > 0) {
+        mappingsInit[form.id] = form.questions.map(q => ({
+          fb_field_name: q.key,
+          fb_field_label: q.label || q.key,
+          contact_field: autoMapField(q.key),
+          is_custom_field: false,
+        }));
+      }
+    }
+    setAllFormMappings(mappingsInit);
+    setCurrentFormIndex(0);
     setLoading(false);
-    setStep("messenger");
+
+    // If any form has questions, go to mapping step
+    const hasQuestions = selected.some(f => f.questions && f.questions.length > 0);
+    if (hasQuestions) {
+      setStep("mapping");
+    } else {
+      setStep("messenger");
+    }
+  };
+
+  // Auto-map common FB field keys to contact fields
+  function autoMapField(key: string): string {
+    const k = key.toLowerCase();
+    if (k === "full_name" || k === "nombre_completo" || k === "name" || k === "nombre") return "full_name";
+    if (k === "email" || k === "correo" || k === "correo_electrónico") return "primary_email";
+    if (k === "phone_number" || k === "telefono" || k === "teléfono" || k === "phone" || k === "número_de_teléfono") return "primary_phone";
+    if (k === "city" || k === "ciudad") return "city";
+    if (k === "country" || k === "país") return "country";
+    return "__skip__";
+  }
+
+  const updateMapping = (formId: string, fbFieldName: string, contactField: string, isCustom: boolean) => {
+    setAllFormMappings(prev => ({
+      ...prev,
+      [formId]: (prev[formId] || []).map(m =>
+        m.fb_field_name === fbFieldName ? { ...m, contact_field: contactField, is_custom_field: isCustom } : m
+      ),
+    }));
+  };
+
+  const handleAddCustomField = () => {
+    if (!newCustomField.trim() || !currentForm) return;
+    const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
+    // This just adds it as an option - we don't modify the mapping here
+    setNewCustomField("");
+    // Auto-select the new custom field for the first unmapped field
+    // (user can manually assign it via the dropdown)
+  };
+
+  const handleSaveMappings = async () => {
+    if (!currentForm) return;
+    setLoading(true);
+
+    const mappingsToSave = currentMappings
+      .filter(m => m.contact_field !== "__skip__")
+      .map(m => ({
+        fb_field_name: m.fb_field_name,
+        contact_field: m.contact_field,
+        is_custom_field: m.is_custom_field,
+      }));
+
+    await fb.saveFieldMappings(currentForm.id, mappingsToSave);
+
+    // Move to next form or next step
+    if (currentFormIndex < selectedForms.length - 1) {
+      setCurrentFormIndex(prev => prev + 1);
+    } else {
+      setStep("messenger");
+    }
+    setLoading(false);
   };
 
   const handleMessengerNext = () => {
@@ -96,11 +199,24 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     setStep("done");
   };
 
-  const stepIndex = { pages: 0, forms: 1, messenger: 2, campaigns: 3, done: 4 };
+  // Collect all custom fields defined across mappings for dropdown options
+  const customFieldOptions = useMemo(() => {
+    const customs = new Set<string>();
+    Object.values(allFormMappings).forEach(mappings => {
+      mappings.forEach(m => {
+        if (m.is_custom_field && m.contact_field !== "__skip__") {
+          customs.add(m.contact_field);
+        }
+      });
+    });
+    return Array.from(customs);
+  }, [allFormMappings]);
+
+  const stepIndex: Record<Step, number> = { pages: 0, forms: 1, mapping: 2, messenger: 3, campaigns: 4, done: 5 };
   const steps = [
     { key: "pages", label: "Páginas", icon: Facebook },
     { key: "forms", label: "Formularios", icon: FileText },
-    { key: "messenger", label: "Messenger", icon: MessageCircle },
+    { key: "mapping", label: "Mapeo", icon: Settings2 },
     { key: "campaigns", label: "Campañas", icon: BarChart3 },
   ];
 
@@ -208,7 +324,10 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                       />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground">{form.name}</p>
-                        <Badge variant="outline" className="text-xs mt-0.5">{form.status}</Badge>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <Badge variant="outline" className="text-xs">{form.status}</Badge>
+                          {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
+                        </div>
                       </div>
                     </label>
                   ))}
@@ -223,6 +342,131 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                   Continuar <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
+            </div>
+          )}
+
+          {/* FIELD MAPPING */}
+          {step === "mapping" && currentForm && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">
+                  Mapeo de campos: <span className="text-primary">{currentForm.name}</span>
+                </p>
+                {selectedForms.length > 1 && (
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Formulario {currentFormIndex + 1} de {selectedForms.length}
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Asigna cada campo del formulario de Facebook al campo del contacto donde quieres guardar la información.
+                </p>
+              </div>
+
+              {/* Mapping rows */}
+              <div className="space-y-2">
+                {currentMappings.map((mapping) => (
+                  <div key={mapping.fb_field_name} className="flex items-center gap-2 rounded-lg border p-2.5">
+                    {/* FB field label */}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{mapping.fb_field_label}</p>
+                      <p className="text-[10px] text-muted-foreground font-mono">{mapping.fb_field_name}</p>
+                    </div>
+
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+
+                    {/* Contact field selector */}
+                    <Select
+                      value={mapping.contact_field}
+                      onValueChange={(value) => {
+                        const isCustom = !STANDARD_CONTACT_FIELDS.some(f => f.value === value);
+                        updateMapping(currentForm.id, mapping.fb_field_name, value, isCustom);
+                      }}
+                    >
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Seleccionar campo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__skip__">
+                          <span className="text-muted-foreground">— Omitir —</span>
+                        </SelectItem>
+                        {STANDARD_CONTACT_FIELDS.map(f => (
+                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                        ))}
+                        {customFieldOptions.length > 0 && (
+                          <>
+                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Campos personalizados</div>
+                            {customFieldOptions.map(cf => (
+                              <SelectItem key={`custom_${cf}`} value={cf}>
+                                <span className="flex items-center gap-1">
+                                  <Plus className="h-3 w-3" /> {cf}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add custom field */}
+              <div className="rounded-lg border border-dashed p-3 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">¿Necesitas un campo personalizado?</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Ej: presupuesto, interés..."
+                    value={newCustomField}
+                    onChange={(e) => setNewCustomField(e.target.value)}
+                    className="text-sm h-8"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        if (!newCustomField.trim()) return;
+                        const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
+                        // Find first unmapped field and assign it
+                        const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
+                        if (firstUnmapped) {
+                          updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
+                        }
+                        setNewCustomField("");
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs shrink-0"
+                    disabled={!newCustomField.trim()}
+                    onClick={() => {
+                      const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
+                      const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
+                      if (firstUnmapped) {
+                        updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
+                      }
+                      setNewCustomField("");
+                    }}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Crear campo
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => {
+                  if (currentFormIndex > 0) setCurrentFormIndex(prev => prev - 1);
+                  else setStep("forms");
+                }} className="flex-1">
+                  <ArrowLeft className="h-4 w-4 mr-1" /> Atrás
+                </Button>
+                <Button className="flex-1" onClick={handleSaveMappings} disabled={loading}>
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                  {currentFormIndex < selectedForms.length - 1 ? "Siguiente formulario" : "Continuar"} <ArrowRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+              <Button variant="ghost" className="w-full text-xs" onClick={() => setStep("messenger")}>
+                Omitir mapeo
+              </Button>
             </div>
           )}
 
@@ -248,7 +492,15 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep("forms")} className="flex-1">
+                <Button variant="outline" onClick={() => {
+                  const hasQuestions = selectedForms.some(f => f.questions && f.questions.length > 0);
+                  if (hasQuestions) {
+                    setCurrentFormIndex(selectedForms.length - 1);
+                    setStep("mapping");
+                  } else {
+                    setStep("forms");
+                  }
+                }} className="flex-1">
                   <ArrowLeft className="h-4 w-4 mr-1" /> Atrás
                 </Button>
                 <Button className="flex-1" onClick={handleMessengerNext}>
@@ -327,7 +579,13 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Formularios sincronizados</span>
-                  <span className="font-medium text-foreground">{forms.filter(f => f.selected).length}</span>
+                  <span className="font-medium text-foreground">{selectedForms.length}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Campos mapeados</span>
+                  <span className="font-medium text-foreground">
+                    {Object.values(allFormMappings).reduce((sum, m) => sum + m.filter(f => f.contact_field !== "__skip__").length, 0)}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Messenger</span>

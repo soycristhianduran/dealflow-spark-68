@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ===== GET LEAD FORMS FOR A PAGE =====
+      // ===== GET LEAD FORMS FOR A PAGE (with fields) =====
       case "get_lead_forms": {
         const { page_id } = body;
         const { data: pageData } = await supabase
@@ -78,10 +78,36 @@ Deno.serve(async (req) => {
           .single();
         if (!pageData) throw new Error("Page not found");
 
-        const res = await fetch(`${GRAPH_API}/${page_id}/leadgen_forms?fields=id,name,status&access_token=${pageData.page_access_token}`);
+        const res = await fetch(`${GRAPH_API}/${page_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageData.page_access_token}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
         return new Response(JSON.stringify({ forms: data.data || [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== SAVE FIELD MAPPINGS =====
+      case "save_field_mappings": {
+        const { form_id, mappings } = body; // mappings: [{fb_field_name, contact_field, is_custom_field}]
+        // Delete old mappings for this form
+        await supabase
+          .from("facebook_field_mappings")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("form_id", form_id);
+        // Insert new mappings
+        if (mappings && mappings.length > 0) {
+          await supabase.from("facebook_field_mappings").insert(
+            mappings.map((m: any) => ({
+              user_id: user.id,
+              form_id,
+              fb_field_name: m.fb_field_name,
+              contact_field: m.contact_field,
+              is_custom_field: m.is_custom_field || false,
+            }))
+          );
+        }
+        return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -117,6 +143,15 @@ Deno.serve(async (req) => {
 
         const fbLeads = data.data || [];
 
+        // Load user-defined field mappings for this form
+        const { data: userMappings } = await supabase
+          .from("facebook_field_mappings")
+          .select("fb_field_name, contact_field, is_custom_field")
+          .eq("user_id", user.id)
+          .eq("form_id", form_id);
+
+        const hasCustomMappings = userMappings && userMappings.length > 0;
+
         // Get first pipeline and its first stage for auto-deal creation
         const { data: pipeline } = await supabase
           .from("pipelines")
@@ -137,6 +172,14 @@ Deno.serve(async (req) => {
           firstStageId = stage?.id || null;
         }
 
+        // Standard contact columns that can be mapped
+        const standardColumns = new Set([
+          "full_name", "primary_email", "primary_phone", "city", "country",
+          "language", "timezone", "preferred_channel", "notes", "source",
+          "campaign", "adset", "ad", "landing_page",
+          "utm_source", "utm_medium", "utm_campaign", "utm_content",
+        ]);
+
         let createdContacts = 0;
         let createdDeals = 0;
 
@@ -147,15 +190,46 @@ Deno.serve(async (req) => {
             fields[key] = (fd.values || [])[0] || "";
           }
 
-          // Flexible field mapping for common FB lead form fields
-          const fullName = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
-          const email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || null;
-          const phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || null;
-          const city = fields["city"] || fields["ciudad"] || null;
-          const country = fields["country"] || fields["país"] || null;
+          let contactData: Record<string, any> = {
+            source: "facebook",
+            campaign: form_id,
+            status: "new",
+            owner_id: user.id,
+          };
+          let customFields: Record<string, string> = {};
+
+          if (hasCustomMappings) {
+            // Use user-defined mappings
+            for (const mapping of userMappings!) {
+              const value = fields[mapping.fb_field_name.toLowerCase()] || "";
+              if (!value) continue;
+              if (mapping.is_custom_field) {
+                customFields[mapping.contact_field] = value;
+              } else if (standardColumns.has(mapping.contact_field)) {
+                contactData[mapping.contact_field] = value;
+              }
+            }
+            // Ensure full_name exists
+            if (!contactData.full_name) {
+              contactData.full_name = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
+            }
+          } else {
+            // Fallback: auto-detect common fields
+            contactData.full_name = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
+            contactData.primary_email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || null;
+            contactData.primary_phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || null;
+            contactData.city = fields["city"] || fields["ciudad"] || null;
+            contactData.country = fields["country"] || fields["país"] || null;
+          }
+
+          if (Object.keys(customFields).length > 0) {
+            contactData.custom_fields = customFields;
+          }
 
           // Dedup: check if contact already exists by email or phone
           let existingContactId: string | null = null;
+          const email = contactData.primary_email;
+          const phone = contactData.primary_phone;
           if (email) {
             const { data: byEmail } = await supabase
               .from("contacts")
@@ -175,22 +249,12 @@ Deno.serve(async (req) => {
             existingContactId = byPhone?.id || null;
           }
 
-          if (existingContactId) continue; // Already imported
+          if (existingContactId) continue;
 
           // Create new contact
           const { data: newContact, error: contactErr } = await supabase
             .from("contacts")
-            .insert({
-              full_name: fullName,
-              primary_email: email,
-              primary_phone: phone,
-              city,
-              country,
-              source: "facebook",
-              campaign: form_id,
-              status: "new",
-              owner_id: user.id,
-            })
+            .insert(contactData)
             .select("id")
             .single();
 
@@ -205,7 +269,7 @@ Deno.serve(async (req) => {
             const { error: dealErr } = await supabase
               .from("deals")
               .insert({
-                title: `Lead FB - ${fullName}`,
+                title: `Lead FB - ${contactData.full_name}`,
                 contact_id: newContact.id,
                 pipeline_id: pipeline.id,
                 stage_id: firstStageId,

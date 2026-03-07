@@ -40,6 +40,7 @@ export interface Contact {
   utm_content?: string;
   country?: string;
   city?: string;
+  custom_fields?: Record<string, string>;
   created_at: string;
   updated_at: string;
   company?: Company;
