@@ -9,12 +9,17 @@ export async function closeDeal(
   contactId: string | null,
   userId?: string
 ) {
-  // Get deal's pipeline to find the matching closing stage
+  // Get deal's pipeline and value to validate
   const { data: deal } = await supabase
     .from("deals")
-    .select("pipeline_id")
+    .select("pipeline_id, value")
     .eq("id", dealId)
     .single();
+
+  // Require value > 0 to mark as won
+  if (newStatus === "won" && (!deal || Number(deal.value) <= 0)) {
+    throw new Error("El deal debe tener un presupuesto asignado (valor > 0) para marcarse como ganado");
+  }
 
   const updatePayload: Record<string, unknown> = { status: newStatus };
 
