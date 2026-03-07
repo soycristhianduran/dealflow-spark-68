@@ -128,6 +128,11 @@ export default function PipelinePage() {
     supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
       if (data) setContacts(data);
     });
+
+    // Refetch when tab/window regains focus
+    const handleFocus = () => fetchData();
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
   }, [fetchData]);
 
   // Deal creation
