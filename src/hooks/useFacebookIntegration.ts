@@ -90,7 +90,6 @@ export function useFacebookIntegration() {
     }
   }, [checkConnection]);
 
-  }, [checkConnection]);
 
   const connect = useCallback(() => {
     if (!user || !metaAppId) {
