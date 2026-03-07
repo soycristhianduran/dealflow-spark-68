@@ -11,7 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical } from "lucide-react";
+import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle } from "lucide-react";
+import { closeDeal } from "@/lib/deal-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
