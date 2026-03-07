@@ -90,21 +90,6 @@ export function useFacebookIntegration() {
     }
   }, [checkConnection]);
 
-  // Listen for OAuth popup result
-  useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.data?.type === "fb-oauth-success") {
-        setIsConnected(true);
-        setConnecting(false);
-        toast.success("Facebook conectado exitosamente");
-        checkConnection();
-      } else if (event.data?.type === "fb-oauth-error") {
-        setConnecting(false);
-        toast.error("Error al conectar con Facebook: " + (event.data.error || "desconocido"));
-      }
-    };
-    window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
   }, [checkConnection]);
 
   const connect = useCallback(() => {
@@ -121,11 +106,8 @@ export function useFacebookIntegration() {
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
 
-    const w = 600;
-    const h = 700;
-    const left = window.screenX + (window.innerWidth - w) / 2;
-    const top = window.screenY + (window.innerHeight - h) / 2;
-    window.open(oauthUrl, "fb-oauth", `width=${w},height=${h},left=${left},top=${top}`);
+    // Use direct redirect instead of popup (cross-origin popup doesn't work)
+    window.location.href = oauthUrl;
   }, [user, metaAppId]);
 
   const disconnect = useCallback(async () => {
