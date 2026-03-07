@@ -118,9 +118,13 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label>Nombre completo *</Label>
-              <Input value={form.full_name} onChange={e => update("full_name", e.target.value)} placeholder="Ej: Carlos Mendoza" />
+            <div className="space-y-2">
+              <Label>Nombre *</Label>
+              <Input value={form.first_name} onChange={e => update("first_name", e.target.value)} placeholder="Carlos" />
+            </div>
+            <div className="space-y-2">
+              <Label>Apellido</Label>
+              <Input value={form.last_name} onChange={e => update("last_name", e.target.value)} placeholder="Mendoza" />
             </div>
             <div className="space-y-2">
               <Label>Teléfono</Label>
