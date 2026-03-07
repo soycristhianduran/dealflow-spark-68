@@ -57,6 +57,7 @@ interface DealRow {
   title: string;
   value: number;
   currency: string;
+  status: string;
   expected_close_date: string | null;
   contact_name: string | null;
   stage_name: string | null;
