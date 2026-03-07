@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus, Search } from "lucide-react";
+import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus, Search, Download } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { cn } from "@/lib/utils";
 
@@ -62,6 +62,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
   const [importedCount, setImportedCount] = useState(0);
   const [formSearch, setFormSearch] = useState("");
+  const [syncingLeads, setSyncingLeads] = useState(false);
+  const [leadsImported, setLeadsImported] = useState<{ contacts: number; deals: number } | null>(null);
 
   const selectedForms = useMemo(() => forms.filter(f => f.selected), [forms]);
   const filteredForms = useMemo(() => {
@@ -668,7 +670,43 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                     <span className="font-medium text-foreground">{importedCount}</span>
                   </div>
                 )}
+                {leadsImported && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Leads importados</span>
+                    <span className="font-medium text-foreground">{leadsImported.contacts} contactos, {leadsImported.deals} deals</span>
+                  </div>
+                )}
               </div>
+
+              {/* Sync leads button */}
+              {selectedForms.length > 0 && selectedPageId && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={syncingLeads}
+                  onClick={async () => {
+                    setSyncingLeads(true);
+                    let totalContacts = 0;
+                    let totalDeals = 0;
+                    for (const form of selectedForms) {
+                      const result = await fb.fetchLeads(form.id, selectedPageId!);
+                      if (result?.imported) {
+                        totalContacts += result.imported.contacts;
+                        totalDeals += result.imported.deals;
+                      }
+                    }
+                    setLeadsImported({ contacts: totalContacts, deals: totalDeals });
+                    setSyncingLeads(false);
+                  }}
+                >
+                  {syncingLeads ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Importando leads...</>
+                  ) : (
+                    <><Download className="h-4 w-4 mr-1" /> Importar leads ahora</>
+                  )}
+                </Button>
+              )}
+
               <Button className="w-full" onClick={() => onOpenChange(false)}>
                 Cerrar
               </Button>
