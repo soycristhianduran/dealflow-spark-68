@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Clock, Loader2, Search, X } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Search, X, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 
 interface EditingMeeting {
   id: string;
@@ -54,6 +55,7 @@ export function CreateMeetingDialog({
   editingMeeting,
 }: CreateMeetingDialogProps) {
   const { session } = useAuth();
+  const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
@@ -64,11 +66,12 @@ export function CreateMeetingDialog({
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [contactId, setContactId] = useState("");
-  const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
+  const [contacts, setContacts] = useState<{ id: string; full_name: string; primary_email: string | null }[]>([]);
   const [dateOpen, setDateOpen] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [contactDropdownOpen, setContactDropdownOpen] = useState(false);
   const [status, setStatus] = useState("scheduled");
+  const [syncToGcal, setSyncToGcal] = useState(true);
 
   const isEditing = !!editingMeeting;
 
@@ -93,8 +96,9 @@ export function CreateMeetingDialog({
       setStartTime(defaultStartTime || "09:00");
       setEndTime(defaultEndTime || "10:00");
       setContactSearch("");
+      setSyncToGcal(true);
 
-      supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
+      supabase.from("contacts").select("id, full_name, primary_email").order("full_name").then(({ data }) => {
         if (data) setContacts(data);
       });
     }
@@ -106,9 +110,9 @@ export function CreateMeetingDialog({
     return contacts.filter(c => c.full_name.toLowerCase().includes(q));
   }, [contacts, contactSearch]);
 
-  const selectedContactName = useMemo(() => {
+  const selectedContact = useMemo(() => {
     if (!contactId) return null;
-    return contacts.find(c => c.id === contactId)?.full_name || null;
+    return contacts.find(c => c.id === contactId) || null;
   }, [contactId, contacts]);
 
   const handleSave = async () => {
@@ -138,6 +142,24 @@ export function CreateMeetingDialog({
         advisor_id: session?.user?.id || null,
       }));
     }
+
+    // Sync to Google Calendar (only for new meetings, not edits)
+    if (!error && !isEditing && gcal.isConnected && syncToGcal) {
+      const gcalResult = await gcal.createEvent({
+        title: title.trim(),
+        start_at: `${dateStr}T${startTime}:00`,
+        end_at: `${dateStr}T${endTime}:00`,
+        description: notes.trim() || undefined,
+        location: location.trim() || undefined,
+        attendee_email: selectedContact?.primary_email || undefined,
+      });
+      if (gcalResult) {
+        toast.success("También se agregó a Google Calendar", {
+          icon: "📅",
+        });
+      }
+    }
+
     setSaving(false);
     if (error) {
       toast.error(`Error al ${isEditing ? "actualizar" : "crear"} cita: ${error.message}`);
@@ -253,9 +275,9 @@ export function CreateMeetingDialog({
           <div className="space-y-2">
             <Label>Contacto</Label>
             <div className="relative">
-              {selectedContactName && !contactDropdownOpen ? (
+              {selectedContact && !contactDropdownOpen ? (
                 <div className="flex items-center h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  <span className="flex-1 truncate">{selectedContactName}</span>
+                  <span className="flex-1 truncate">{selectedContact.full_name}</span>
                   <button
                     type="button"
                     onClick={() => { setContactId(""); setContactSearch(""); }}
@@ -313,6 +335,32 @@ export function CreateMeetingDialog({
             <Label>Notas</Label>
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas adicionales..." rows={2} />
           </div>
+
+          {/* Google Calendar sync toggle */}
+          {!isEditing && gcal.isConnected && (
+            <div
+              className={cn(
+                "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                syncToGcal ? "border-primary/30 bg-primary/5" : "border-border"
+              )}
+              onClick={() => setSyncToGcal(!syncToGcal)}
+            >
+              <CalendarDays className={cn("h-5 w-5 shrink-0", syncToGcal ? "text-primary" : "text-muted-foreground")} />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-foreground">Agregar a Google Calendar</p>
+                <p className="text-xs text-muted-foreground">Se creará automáticamente en tu calendario</p>
+              </div>
+              <div className={cn(
+                "h-5 w-9 rounded-full transition-colors relative",
+                syncToGcal ? "bg-primary" : "bg-muted"
+              )}>
+                <div className={cn(
+                  "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  syncToGcal ? "translate-x-4" : "translate-x-0.5"
+                )} />
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>

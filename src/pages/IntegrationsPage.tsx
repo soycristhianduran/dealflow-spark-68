@@ -4,8 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight } from "lucide-react";
+import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 
 type Integration = {
   id: string;
@@ -27,18 +28,16 @@ const integrations: Integration[] = [
     icon: CalendarDays,
     color: "hsl(217, 91%, 60%)",
     features: [
-      "Sincronización bidireccional de citas",
       "Creación automática de eventos al agendar reuniones",
-      "Notificaciones y recordatorios",
-      "Disponibilidad en tiempo real",
+      "Sincronización directa con tu calendario principal",
+      "Notificaciones y recordatorios de Google",
     ],
     setupSteps: [
       "Haz clic en 'Conectar' para iniciar sesión con tu cuenta de Google",
       "Autoriza el acceso a Google Calendar",
-      "Selecciona los calendarios que deseas sincronizar",
-      "¡Listo! Tus citas se sincronizarán automáticamente",
+      "¡Listo! Tus citas se crearán automáticamente en Google Calendar",
     ],
-    requirements: ["Cuenta de Google activa", "Permisos de calendario"],
+    requirements: ["Cuenta de Google activa"],
     docsUrl: "https://calendar.google.com",
   },
   {
@@ -129,19 +128,38 @@ const integrations: Integration[] = [
 
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
-  // Simulated connection states stored in localStorage
-  const [connectedIds, setConnectedIds] = useState<string[]>(() => {
+  const gcal = useGoogleCalendar();
+
+  // For non-Google integrations, keep localStorage simulation
+  const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("crm_connected_integrations") || "[]");
     } catch { return []; }
   });
 
-  const toggleConnection = (id: string) => {
-    setConnectedIds(prev => {
+  const isIntegrationConnected = (id: string) => {
+    if (id === "google-calendar") return gcal.isConnected;
+    return otherConnectedIds.includes(id);
+  };
+
+  const toggleOtherConnection = (id: string) => {
+    setOtherConnectedIds(prev => {
       const next = prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id];
       localStorage.setItem("crm_connected_integrations", JSON.stringify(next));
       return next;
     });
+  };
+
+  const handleConnect = (integration: Integration) => {
+    if (integration.id === "google-calendar") {
+      if (gcal.isConnected) {
+        gcal.disconnect();
+      } else {
+        gcal.connect();
+      }
+    } else {
+      toggleOtherConnection(integration.id);
+    }
   };
 
   return (
@@ -150,7 +168,8 @@ export default function IntegrationsPage() {
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {integrations.map((integration) => {
-            const isConnected = connectedIds.includes(integration.id);
+            const isConnected = isIntegrationConnected(integration.id);
+            const isGcalConnecting = integration.id === "google-calendar" && gcal.connecting;
             return (
               <Card
                 key={integration.id}
@@ -181,10 +200,23 @@ export default function IntegrationsPage() {
                     size="sm"
                     variant={isConnected ? "outline" : "default"}
                     className="w-full"
-                    onClick={(e) => { e.stopPropagation(); setSelectedIntegration(integration); }}
+                    disabled={isGcalConnecting}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isConnected) {
+                        setSelectedIntegration(integration);
+                      } else {
+                        handleConnect(integration);
+                      }
+                    }}
                   >
-                    {isConnected ? "Ver detalles" : "Conectar"}
-                    <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                    {isGcalConnecting ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
+                    ) : isConnected ? (
+                      <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                    ) : (
+                      <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                    )}
                   </Button>
                 </CardContent>
               </Card>
@@ -213,7 +245,7 @@ export default function IntegrationsPage() {
               {/* Status */}
               <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                 <div className="flex items-center gap-2 text-sm">
-                  {connectedIds.includes(selectedIntegration.id) ? (
+                  {isIntegrationConnected(selectedIntegration.id) ? (
                     <>
                       <CheckCircle2 className="h-4 w-4 text-green-500" />
                       <span className="font-medium text-foreground">Conectado</span>
@@ -227,12 +259,28 @@ export default function IntegrationsPage() {
                 </div>
                 <Button
                   size="sm"
-                  variant={connectedIds.includes(selectedIntegration.id) ? "destructive" : "default"}
-                  onClick={() => toggleConnection(selectedIntegration.id)}
+                  variant={isIntegrationConnected(selectedIntegration.id) ? "destructive" : "default"}
+                  disabled={selectedIntegration.id === "google-calendar" && gcal.connecting}
+                  onClick={() => handleConnect(selectedIntegration)}
                 >
-                  {connectedIds.includes(selectedIntegration.id) ? "Desconectar" : "Conectar"}
+                  {selectedIntegration.id === "google-calendar" && gcal.connecting ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
+                  ) : isIntegrationConnected(selectedIntegration.id) ? (
+                    "Desconectar"
+                  ) : (
+                    "Conectar"
+                  )}
                 </Button>
               </div>
+
+              {/* Google Calendar specific info */}
+              {selectedIntegration.id === "google-calendar" && gcal.isConnected && (
+                <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-3">
+                  <p className="text-sm text-green-700 dark:text-green-400">
+                    ✅ Las reuniones que crees en el CRM se agregarán automáticamente a tu Google Calendar.
+                  </p>
+                </div>
+              )}
 
               {/* Features */}
               <div>
