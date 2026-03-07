@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
 
       // ===== GET AD ACCOUNTS =====
       case "get_ad_accounts": {
-        const res = await fetch(`${GRAPH_API}/me/adaccounts?fields=id,name,account_status,currency&access_token=${fbToken}`);
+        const res = await fetch(`${GRAPH_API}/me/adaccounts?fields=id,name,account_status,currency&limit=500&access_token=${fbToken}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
         return new Response(JSON.stringify({ ad_accounts: data.data || [] }), {
