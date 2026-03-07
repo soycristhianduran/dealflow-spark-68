@@ -267,13 +267,37 @@ export default function PipelinePage() {
               return (
                 <div
                   key={stage.id}
+                  draggable={manageMode}
+                  onDragStart={(e) => {
+                    if (!manageMode) return;
+                    setDraggedStageId(stage.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => { setDraggedStageId(null); setDragOverStageCol(null); }}
                   className={cn(
-                    "flex w-72 flex-col rounded-lg bg-muted/50 transition-colors",
-                    dragOverStage === stage.id && "ring-2 ring-primary/40 bg-primary/5"
+                    "flex w-72 flex-col rounded-lg bg-muted/50 transition-all",
+                    !manageMode && dragOverStage === stage.id && "ring-2 ring-primary/40 bg-primary/5",
+                    manageMode && dragOverStageCol === stage.id && draggedStageId !== stage.id && "ring-2 ring-primary/40",
+                    manageMode && draggedStageId === stage.id && "opacity-50 scale-95",
+                    manageMode && "cursor-grab active:cursor-grabbing"
                   )}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage.id); }}
-                  onDragLeave={() => setDragOverStage(null)}
-                  onDrop={() => handleDrop(stage.id)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedStageId && manageMode) {
+                      setDragOverStageCol(stage.id);
+                    } else if (draggedDeal) {
+                      setDragOverStage(stage.id);
+                    }
+                  }}
+                  onDragLeave={() => { setDragOverStage(null); setDragOverStageCol(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedStageId && manageMode) {
+                      handleStageDrop(stage.id);
+                    } else if (draggedDeal) {
+                      handleDrop(stage.id);
+                    }
+                  }}
                 >
                   {/* Stage header */}
                   <div className="flex items-center justify-between px-3 py-3 border-b">
