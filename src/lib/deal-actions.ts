@@ -9,10 +9,33 @@ export async function closeDeal(
   contactId: string | null,
   userId?: string
 ) {
-  // Update deal status
+  // Get deal's pipeline to find the matching closing stage
+  const { data: deal } = await supabase
+    .from("deals")
+    .select("pipeline_id")
+    .eq("id", dealId)
+    .single();
+
+  const updatePayload: Record<string, unknown> = { status: newStatus };
+
+  if (deal?.pipeline_id) {
+    // Find the appropriate closing stage by name convention
+    const stageName = newStatus === "won" ? "Cerrado ganado" : "Cerrado perdido";
+    const { data: closingStage } = await supabase
+      .from("pipeline_stages")
+      .select("id")
+      .eq("pipeline_id", deal.pipeline_id)
+      .eq("name", stageName)
+      .single();
+
+    if (closingStage) {
+      updatePayload.stage_id = closingStage.id;
+    }
+  }
+
   const { error } = await supabase
     .from("deals")
-    .update({ status: newStatus })
+    .update(updatePayload)
     .eq("id", dealId);
 
   if (error) throw error;
