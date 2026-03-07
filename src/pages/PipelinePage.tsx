@@ -54,6 +54,8 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [draggedDeal, setDraggedDeal] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
+  const [dragOverStageCol, setDragOverStageCol] = useState<string | null>(null);
 
   // Pipeline info
   const [pipelineId, setPipelineId] = useState<string | null>(null);
