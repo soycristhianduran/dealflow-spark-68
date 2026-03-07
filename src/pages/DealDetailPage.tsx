@@ -104,7 +104,7 @@ export default function DealDetailPage() {
       title: editForm.title,
       value: Number(editForm.value) || 0,
       currency: editForm.currency,
-      contact_id: editForm.contact_id || null,
+      contact_id: editForm.contact_id && editForm.contact_id !== "none" ? editForm.contact_id : null,
       stage_id: editForm.stage_id || null,
       expected_close_date: editForm.expected_close_date || null,
       close_probability: editForm.close_probability ? Number(editForm.close_probability) : null,
@@ -354,7 +354,7 @@ export default function DealDetailPage() {
               <Select value={editForm.contact_id} onValueChange={v => setEditForm(f => ({ ...f, contact_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin contacto</SelectItem>
+                  <SelectItem value="none">Sin contacto</SelectItem>
                   {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
                 </SelectContent>
               </Select>
