@@ -56,13 +56,42 @@ Deno.serve(async (req) => {
       // ===== SAVE SELECTED PAGES =====
       case "save_pages": {
         const { pages } = body; // [{page_id, page_name, page_access_token}]
+        const subscriptionResults: { page_id: string; subscribed: boolean; error?: string }[] = [];
+
         for (const page of pages) {
           await supabase.from("facebook_pages").upsert(
             { user_id: user.id, page_id: page.page_id, page_name: page.page_name, page_access_token: page.page_access_token },
             { onConflict: "user_id,page_id" }
           );
+
+          // Auto-subscribe the page to the app's webhook for leadgen
+          try {
+            const subRes = await fetch(
+              `${GRAPH_API}/${page.page_id}/subscribed_apps`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  subscribed_fields: ["leadgen"],
+                  access_token: page.page_access_token,
+                }),
+              }
+            );
+            const subData = await subRes.json();
+            if (subData.success) {
+              console.log(`Page ${page.page_id} subscribed to webhook`);
+              subscriptionResults.push({ page_id: page.page_id, subscribed: true });
+            } else {
+              console.error(`Failed to subscribe page ${page.page_id}:`, subData);
+              subscriptionResults.push({ page_id: page.page_id, subscribed: false, error: JSON.stringify(subData.error || subData) });
+            }
+          } catch (subErr) {
+            console.error(`Error subscribing page ${page.page_id}:`, subErr);
+            subscriptionResults.push({ page_id: page.page_id, subscribed: false, error: String(subErr) });
+          }
         }
-        return new Response(JSON.stringify({ success: true }), {
+
+        return new Response(JSON.stringify({ success: true, subscriptions: subscriptionResults }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
