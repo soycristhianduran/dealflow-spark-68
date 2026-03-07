@@ -2,19 +2,43 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { mockCompanies } from "@/data/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 import { Plus, Search, Building2, Globe, MapPin } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+type Company = {
+  id: string;
+  name: string;
+  industry: string | null;
+  company_size: string | null;
+  city: string | null;
+  country: string | null;
+  website: string | null;
+};
 
 export default function CompaniesPage() {
   const [search, setSearch] = useState("");
-  const filtered = mockCompanies.filter(c =>
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetch = async () => {
+      const { data } = await supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
+      setCompanies((data as any) || []);
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  const filtered = companies.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
     <AppLayout>
-      <AppHeader title="Empresas" subtitle={`${mockCompanies.length} empresas`} actions={
+      <AppHeader title="Empresas" subtitle={`${companies.length} empresas`} actions={
         <Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nueva empresa</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
@@ -38,7 +62,7 @@ export default function CompaniesPage() {
             </thead>
             <tbody>
               {filtered.map((company) => (
-                <tr key={company.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
+                <tr key={company.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(`/companies/${company.id}`)}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
@@ -56,11 +80,14 @@ export default function CompaniesPage() {
                   </td>
                   <td className="px-4 py-3">
                     {company.website ? (
-                      <span className="flex items-center gap-1 text-primary"><Globe className="h-3 w-3" />{company.website.replace('https://', '')}</span>
+                      <span className="flex items-center gap-1 text-primary"><Globe className="h-3 w-3" />{company.website.replace(/^https?:\/\//, '')}</span>
                     ) : '-'}
                   </td>
                 </tr>
               ))}
+              {!loading && filtered.length === 0 && (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Sin empresas</td></tr>
+              )}
             </tbody>
           </table>
         </div>
