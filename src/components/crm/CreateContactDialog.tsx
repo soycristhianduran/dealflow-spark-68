@@ -93,7 +93,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nuevo contacto</DialogTitle>
+          <DialogTitle>Nuevo lead</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
