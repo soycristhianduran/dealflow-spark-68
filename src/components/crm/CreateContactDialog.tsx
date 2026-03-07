@@ -1,0 +1,118 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
+
+interface CreateContactDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onCreated: () => void;
+}
+
+const sources = ["Facebook Ads", "Google Ads", "WhatsApp", "Referral", "Landing Page", "Instagram", "Otro"];
+const channels = ["whatsapp", "email", "phone", "sms"];
+
+export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
+  const [loading, setLoading] = useState(false);
+  const [form, setForm] = useState({
+    full_name: "",
+    primary_phone: "",
+    primary_email: "",
+    source: "",
+    preferred_channel: "",
+    country: "",
+    city: "",
+    notes: "",
+  });
+
+  const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.full_name.trim()) { toast.error("El nombre es requerido"); return; }
+    
+    setLoading(true);
+    const { error } = await supabase.from("contacts").insert({
+      full_name: form.full_name.trim(),
+      primary_phone: form.primary_phone || null,
+      primary_email: form.primary_email || null,
+      source: form.source || null,
+      preferred_channel: form.preferred_channel || null,
+      country: form.country || null,
+      city: form.city || null,
+      notes: form.notes || null,
+      status: "new",
+      score: 0,
+    });
+
+    if (error) {
+      toast.error("Error al crear contacto: " + error.message);
+    } else {
+      toast.success("Contacto creado exitosamente");
+      setForm({ full_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "" });
+      onOpenChange(false);
+      onCreated();
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Nuevo contacto</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2 col-span-2">
+              <Label>Nombre completo *</Label>
+              <Input value={form.full_name} onChange={e => update("full_name", e.target.value)} placeholder="Ej: Carlos Mendoza" />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input value={form.primary_phone} onChange={e => update("primary_phone", e.target.value)} placeholder="+52 55 1234 5678" />
+            </div>
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input type="email" value={form.primary_email} onChange={e => update("primary_email", e.target.value)} placeholder="carlos@email.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Origen</Label>
+              <Select value={form.source} onValueChange={v => update("source", v)}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                <SelectContent>
+                  {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Canal preferido</Label>
+              <Select value={form.preferred_channel} onValueChange={v => update("preferred_channel", v)}>
+                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                <SelectContent>
+                  {channels.map(c => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>País</Label>
+              <Input value={form.country} onChange={e => update("country", e.target.value)} placeholder="México" />
+            </div>
+            <div className="space-y-2">
+              <Label>Ciudad</Label>
+              <Input value={form.city} onChange={e => update("city", e.target.value)} placeholder="CDMX" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button type="submit" disabled={loading}>{loading ? "Creando..." : "Crear contacto"}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
