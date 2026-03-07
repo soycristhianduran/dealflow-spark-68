@@ -165,7 +165,15 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   };
 
   const handleSaveMappings = async () => {
-    if (!currentForm) return;
+    // If no form or no mappings, just move on
+    if (!currentForm) {
+      if (currentFormIndex < selectedForms.length - 1) {
+        setCurrentFormIndex(prev => prev + 1);
+      } else {
+        setStep("messenger");
+      }
+      return;
+    }
     setLoading(true);
 
     const mappingsToSave = currentMappings
