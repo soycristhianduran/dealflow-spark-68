@@ -178,19 +178,64 @@ export default function MetaAdsPage() {
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
         {/* Filters */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="ACTIVE">Activas</SelectItem>
                 <SelectItem value="PAUSED">Pausadas</SelectItem>
                 <SelectItem value="DELETED">Eliminadas</SelectItem>
                 <SelectItem value="ARCHIVED">Archivadas</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Objetivo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los objetivos</SelectItem>
+                {uniqueObjectives.map(obj => (
+                  <SelectItem key={obj} value={obj}>{obj}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Date From */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Desde"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={es} />
+              </PopoverContent>
+            </Popover>
+
+            {/* Date To */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                  {dateTo ? format(dateTo, "dd/MM/yyyy") : "Hasta"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={es} />
+              </PopoverContent>
+            </Popover>
+
+            {(dateFrom || dateTo || objectiveFilter !== "all" || statusFilter !== "all") && (
+              <Button size="sm" variant="ghost" onClick={() => { setStatusFilter("all"); setObjectiveFilter("all"); setDateFrom(undefined); setDateTo(undefined); }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Limpiar
+              </Button>
+            )}
+
             <Badge variant="secondary" className="text-xs">
               {filtered.length} campañas
             </Badge>
