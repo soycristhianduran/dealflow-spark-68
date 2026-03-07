@@ -75,24 +75,18 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" }
     );
 
-    // Success - redirect back to app or close popup
+    // Success - redirect back to app directly
     const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
-    return new Response(
-      `<html><body><script>
-        if (window.opener) {
-          window.opener.postMessage({type:'fb-oauth-success'},'*');
-          window.close();
-        } else {
-          window.location.href = '${appUrl}/integrations?fb_connected=true';
-        }
-      </script></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
+    return new Response(null, {
+      status: 302,
+      headers: { ...corsHeaders, "Location": `${appUrl}/integrations?fb_connected=true` },
+    });
   } catch (e) {
     console.error("Facebook OAuth callback error:", e);
-    return new Response(
-      `<html><body><script>window.opener?.postMessage({type:'fb-oauth-error',error:'server_error'},'*');window.close();</script></body></html>`,
-      { headers: { "Content-Type": "text/html" } }
-    );
+    const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+    return new Response(null, {
+      status: 302,
+      headers: { ...corsHeaders, "Location": `${appUrl}/integrations?fb_error=true` },
+    });
   }
 });
