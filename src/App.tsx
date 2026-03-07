@@ -17,6 +17,7 @@ import PipelinePage from "./pages/PipelinePage";
 import CalendarPage from "./pages/CalendarPage";
 import TasksPage from "./pages/TasksPage";
 import SettingsPage from "./pages/SettingsPage";
+import IntegrationsPage from "./pages/IntegrationsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ function AppRoutes() {
       <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
       <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
       <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
