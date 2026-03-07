@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { mockLeads } from "@/data/mock-data";
 import { Plus, Search, Filter } from "lucide-react";
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const statusMap: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   new: { label: "Nuevo", variant: "default" },
