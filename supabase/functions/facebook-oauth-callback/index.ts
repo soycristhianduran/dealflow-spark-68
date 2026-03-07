@@ -48,8 +48,10 @@ Deno.serve(async (req) => {
 
     if (!tokenData.access_token) {
       console.error("Token exchange failed:", tokenData);
-      return new Response(`<html><body><script>window.opener?.postMessage({type:'fb-oauth-error',error:'token_exchange_failed'},'*');window.close();</script></body></html>`, {
-        headers: { "Content-Type": "text/html" },
+      const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": `${appUrl}/integrations?fb_error=token_exchange_failed` },
       });
     }
 
