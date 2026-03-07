@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ===== GET LEAD FORMS FOR A PAGE =====
+      // ===== GET LEAD FORMS FOR A PAGE (with fields) =====
       case "get_lead_forms": {
         const { page_id } = body;
         const { data: pageData } = await supabase
@@ -78,10 +78,36 @@ Deno.serve(async (req) => {
           .single();
         if (!pageData) throw new Error("Page not found");
 
-        const res = await fetch(`${GRAPH_API}/${page_id}/leadgen_forms?fields=id,name,status&access_token=${pageData.page_access_token}`);
+        const res = await fetch(`${GRAPH_API}/${page_id}/leadgen_forms?fields=id,name,status,questions&access_token=${pageData.page_access_token}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
         return new Response(JSON.stringify({ forms: data.data || [] }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== SAVE FIELD MAPPINGS =====
+      case "save_field_mappings": {
+        const { form_id, mappings } = body; // mappings: [{fb_field_name, contact_field, is_custom_field}]
+        // Delete old mappings for this form
+        await supabase
+          .from("facebook_field_mappings")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("form_id", form_id);
+        // Insert new mappings
+        if (mappings && mappings.length > 0) {
+          await supabase.from("facebook_field_mappings").insert(
+            mappings.map((m: any) => ({
+              user_id: user.id,
+              form_id,
+              fb_field_name: m.fb_field_name,
+              contact_field: m.contact_field,
+              is_custom_field: m.is_custom_field || false,
+            }))
+          );
+        }
+        return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
