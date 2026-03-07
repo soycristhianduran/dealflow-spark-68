@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus } from "lucide-react";
+import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus, Search } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { cn } from "@/lib/utils";
 
@@ -59,8 +59,15 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   // Ad accounts & campaigns
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
   const [importedCount, setImportedCount] = useState(0);
+  const [formSearch, setFormSearch] = useState("");
 
   const selectedForms = useMemo(() => forms.filter(f => f.selected), [forms]);
+  const filteredForms = useMemo(() => {
+    if (!formSearch.trim()) return forms;
+    const q = formSearch.toLowerCase();
+    return forms.filter(f => f.name.toLowerCase().includes(q));
+  }, [forms, formSearch]);
+  const allFormsSelected = forms.length > 0 && forms.every(f => f.selected);
   const currentForm = selectedForms[currentFormIndex] || null;
   const currentMappings = currentForm ? (allFormMappings[currentForm.id] || []) : [];
 
@@ -310,28 +317,58 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                   <p className="text-sm text-muted-foreground">No se encontraron formularios de leads en esta página</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {forms.map((form) => (
-                    <label key={form.id} className={cn(
-                      "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                      form.selected ? "border-primary/30 bg-primary/5" : "hover:bg-muted/50"
-                    )}>
+                <>
+                  {/* Search + Select all */}
+                  <div className="space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        placeholder="Buscar formulario..."
+                        value={formSearch}
+                        onChange={(e) => setFormSearch(e.target.value)}
+                        className="pl-8 h-9 text-sm"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 px-1 cursor-pointer">
                       <Checkbox
-                        checked={form.selected}
+                        checked={allFormsSelected}
                         onCheckedChange={(checked) =>
-                          setForms(prev => prev.map(f => f.id === form.id ? { ...f, selected: !!checked } : f))
+                          setForms(prev => prev.map(f => ({ ...f, selected: !!checked })))
                         }
                       />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{form.name}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Badge variant="outline" className="text-xs">{form.status}</Badge>
-                          {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
-                        </div>
-                      </div>
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {allFormsSelected ? "Deseleccionar todos" : "Seleccionar todos"}
+                      </span>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">{forms.filter(f => f.selected).length}/{forms.length}</Badge>
                     </label>
-                  ))}
-                </div>
+                  </div>
+
+                  <div className="space-y-2 max-h-[240px] overflow-y-auto scrollbar-thin">
+                    {filteredForms.map((form) => (
+                      <label key={form.id} className={cn(
+                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                        form.selected ? "border-primary/30 bg-primary/5" : "hover:bg-muted/50"
+                      )}>
+                        <Checkbox
+                          checked={form.selected}
+                          onCheckedChange={(checked) =>
+                            setForms(prev => prev.map(f => f.id === form.id ? { ...f, selected: !!checked } : f))
+                          }
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{form.name}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Badge variant="outline" className="text-xs">{form.status}</Badge>
+                            {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                    {filteredForms.length === 0 && (
+                      <p className="text-xs text-muted-foreground text-center py-4">No se encontraron formularios con "{formSearch}"</p>
+                    )}
+                  </div>
+                </>
               )}
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep("pages")} className="flex-1">
