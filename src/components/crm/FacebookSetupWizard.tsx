@@ -23,9 +23,11 @@ interface FieldMapping { fb_field_name: string; fb_field_label: string; contact_
 
 // Standard contact fields available for mapping
 const STANDARD_CONTACT_FIELDS = [
-  { value: "full_name", label: "Nombre completo" },
+  { value: "first_name", label: "Nombre" },
+  { value: "last_name", label: "Apellido" },
   { value: "primary_email", label: "Email" },
   { value: "primary_phone", label: "Teléfono" },
+  { value: "birthday", label: "Fecha de nacimiento" },
   { value: "city", label: "Ciudad" },
   { value: "country", label: "País" },
   { value: "language", label: "Idioma" },

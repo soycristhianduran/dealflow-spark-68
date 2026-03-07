@@ -170,6 +170,10 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
               <Label>Ciudad</Label>
               <Input value={form.city} onChange={e => update("city", e.target.value)} placeholder="CDMX" />
             </div>
+            <div className="space-y-2">
+              <Label>Fecha de nacimiento</Label>
+              <Input type="date" value={form.birthday} onChange={e => update("birthday", e.target.value)} />
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
