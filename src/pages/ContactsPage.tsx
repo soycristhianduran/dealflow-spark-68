@@ -114,7 +114,7 @@ export default function ContactsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
