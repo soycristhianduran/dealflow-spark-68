@@ -366,6 +366,11 @@ export default function PipelinePage() {
                       <span className="text-xs font-medium text-muted-foreground">
                         ${(getStageValue(stage.id) / 1000).toFixed(0)}K
                       </span>
+                      {!manageMode && (
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openCreateDeal(stage.id); }}>
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                       {manageMode && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
