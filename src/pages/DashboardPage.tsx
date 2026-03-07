@@ -130,6 +130,8 @@ export default function DashboardPage() {
       dealsLost: deals.filter(d => d.status === "lost").length,
       pipelineValue,
       pipelineCurrency: mainCurrency,
+      wonValue,
+      wonCurrency,
       meetingsScheduled: meetings.filter(m => m.status === "scheduled").length,
       meetingsCompleted: meetings.filter(m => m.status === "completed").length,
       tasksPending: tasks.filter(t => t.status === "pending").length,
