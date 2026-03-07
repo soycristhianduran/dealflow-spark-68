@@ -22,6 +22,7 @@ Deno.serve(async (req) => {
     const challenge = url.searchParams.get("hub.challenge");
 
     const VERIFY_TOKEN = Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN");
+    console.log("DEBUG verify_token env:", JSON.stringify(VERIFY_TOKEN), "received:", JSON.stringify(token));
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("Webhook verified successfully");
