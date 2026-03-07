@@ -82,6 +82,14 @@ export default function SettingsPage() {
   const [tags, setTags] = useState(["vip", "real-estate", "healthcare", "education", "enterprise", "new", "hot-lead"]);
   const [newTag, setNewTag] = useState("");
 
+  // Pipeline state
+  const [stages, setStages] = useState<PipelineStage[]>([...defaultStages]);
+  const [editingStage, setEditingStage] = useState<PipelineStage | null>(null);
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [stageName, setStageName] = useState("");
+  const [stageColor, setStageColor] = useState(stageColorOptions[0].value);
+  const [stageProbability, setStageProbability] = useState("50");
+
   // General state
   const [orgName, setOrgName] = useState("Mi Empresa");
   const [currency, setCurrency] = useState("USD");
