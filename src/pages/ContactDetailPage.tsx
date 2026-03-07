@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useParams, useNavigate } from "react-router-dom";
 import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import type { ContactStatus } from "@/types/crm";
 
 const statusConfig: Record<ContactStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -29,6 +30,21 @@ export default function ContactDetailPage() {
   const [tasks, setTasks] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
+  const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+
+  const fetchRelated = async () => {
+    if (!id) return;
+    const [d, t, m, a] = await Promise.all([
+      supabase.from("deals").select("*").eq("contact_id", id),
+      supabase.from("tasks").select("*").eq("contact_id", id),
+      supabase.from("meetings").select("*").eq("contact_id", id).order("start_at", { ascending: false }),
+      supabase.from("activities").select("*").eq("related_entity_id", id).order("created_at", { ascending: false }),
+    ]);
+    setDeals(d.data || []);
+    setTasks(t.data || []);
+    setMeetings(m.data || []);
+    setActivities(a.data || []);
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -37,18 +53,6 @@ export default function ContactDetailPage() {
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(data);
       setLoading(false);
-    };
-    const fetchRelated = async () => {
-      const [d, t, m, a] = await Promise.all([
-        supabase.from("deals").select("*").eq("contact_id", id),
-        supabase.from("tasks").select("*").eq("contact_id", id),
-        supabase.from("meetings").select("*").eq("contact_id", id),
-        supabase.from("activities").select("*").eq("related_entity_id", id).order("created_at", { ascending: false }),
-      ]);
-      setDeals(d.data || []);
-      setTasks(t.data || []);
-      setMeetings(m.data || []);
-      setActivities(a.data || []);
     };
     fetchContact();
     fetchRelated();
@@ -164,7 +168,9 @@ export default function ContactDetailPage() {
                 <Button variant="outline" size="sm" className="gap-1.5"><Phone className="h-3.5 w-3.5" /> Llamar</Button>
                 <Button variant="outline" size="sm" className="gap-1.5"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</Button>
                 <Button variant="outline" size="sm" className="gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</Button>
-                <Button variant="outline" size="sm" className="gap-1.5"><Calendar className="h-3.5 w-3.5" /> Agendar</Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMeetingDialogOpen(true)}>
+                  <Calendar className="h-3.5 w-3.5" /> Agendar
+                </Button>
               </CardContent>
             </Card>
           </div>
@@ -301,6 +307,13 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </main>
+
+      <CreateMeetingDialog
+        open={meetingDialogOpen}
+        onOpenChange={setMeetingDialogOpen}
+        onCreated={fetchRelated}
+        defaultContactId={id}
+      />
     </AppLayout>
   );
 }
