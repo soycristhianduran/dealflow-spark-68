@@ -5,11 +5,12 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
-import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2 } from "lucide-react";
+import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { toast } from "sonner";
@@ -166,6 +167,12 @@ export default function ContactDetailPage() {
                       <span className="text-foreground">{[contact.city, contact.country].filter(Boolean).join(', ')}</span>
                     </div>
                   )}
+                  {contact.birthday && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Cake className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </div>
+                  )}
                 </div>
 
                 {contact.score != null && (
@@ -269,6 +276,7 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
+                      <InfoItem label="Cumpleaños" value={contact.birthday ? new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined} />
                       <InfoItem label="Creado" value={new Date(contact.created_at).toLocaleString()} />
                       <InfoItem label="Actualizado" value={new Date(contact.updated_at).toLocaleString()} />
                       <InfoItem label="Último contacto" value={contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString() : undefined} />
@@ -276,6 +284,14 @@ export default function ContactDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <CustomFieldsCard
+                  customFields={contact.custom_fields}
+                  contactId={contact.id}
+                  onUpdated={() => {
+                    supabase.from("contacts").select("*").eq("id", id).maybeSingle().then(({ data }) => setContact(data));
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="deals" className="mt-4 space-y-3">
@@ -354,5 +370,124 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm font-medium text-foreground mt-0.5">{value || '—'}</p>
     </div>
+  );
+}
+
+function CustomFieldsCard({ customFields, contactId, onUpdated }: { customFields?: Record<string, string> | null; contactId: string; onUpdated: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {});
+  }, [customFields]);
+
+  const hasFields = Object.keys(fields).length > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("contacts").update({ custom_fields: fields }).eq("id", contactId);
+    if (error) toast.error("Error al guardar campos");
+    else { toast.success("Campos guardados"); onUpdated(); }
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const handleAddField = () => {
+    if (!newKey.trim()) return;
+    const key = newKey.trim().toLowerCase().replace(/\s+/g, "_");
+    setFields(prev => ({ ...prev, [key]: newValue }));
+    setNewKey("");
+    setNewValue("");
+  };
+
+  const handleRemoveField = (key: string) => {
+    setFields(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  if (!hasFields && !editing) {
+    return (
+      <Card className="border-none shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">
+            <p className="text-xs text-muted-foreground mb-2">Sin campos personalizados</p>
+            <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => setEditing(true)}>
+              <Plus className="h-3 w-3" /> Agregar campo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-none shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
+          </CardTitle>
+          {!editing ? (
+            <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => setEditing(true)}>
+              <Pencil className="h-3 w-3" /> Editar
+            </Button>
+          ) : (
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setEditing(false); setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {}); }}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
+                <Check className="h-3 w-3" /> Guardar
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {Object.entries(fields).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-2">
+            {editing ? (
+              <>
+                <span className="text-xs text-muted-foreground font-mono w-28 truncate shrink-0">{key}</span>
+                <Input
+                  value={value}
+                  onChange={(e) => setFields(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="h-7 text-xs flex-1"
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => handleRemoveField(key)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </>
+            ) : (
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">{key.replace(/_/g, " ")}</p>
+                <p className="text-sm font-medium text-foreground mt-0.5">{value || "—"}</p>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {editing && (
+          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+            <Input placeholder="Nombre del campo" value={newKey} onChange={e => setNewKey(e.target.value)} className="h-7 text-xs flex-1" />
+            <Input placeholder="Valor" value={newValue} onChange={e => setNewValue(e.target.value)} className="h-7 text-xs flex-1" />
+            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1" onClick={handleAddField} disabled={!newKey.trim()}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
