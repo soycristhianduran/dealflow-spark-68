@@ -36,6 +36,14 @@ export function useFacebookIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState<FbStatus | null>(null);
+  const [metaAppId, setMetaAppId] = useState<string | null>(null);
+
+  // Fetch META_APP_ID from an edge function on mount
+  useEffect(() => {
+    supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
+      if (data?.app_id) setMetaAppId(data.app_id);
+    });
+  }, []);
 
   const checkConnection = useCallback(async () => {
     if (!user) {
@@ -51,7 +59,6 @@ export function useFacebookIntegration() {
     setIsConnected(!!data);
 
     if (data) {
-      // Get full status
       const { data: statusData } = await supabase.functions.invoke("facebook-api", {
         body: { action: "status" },
       });
@@ -82,33 +89,25 @@ export function useFacebookIntegration() {
   }, [checkConnection]);
 
   const connect = useCallback(() => {
-    if (!user) return;
-    setConnecting(true);
-
-    const appId = import.meta.env.VITE_META_APP_ID;
-    if (!appId) {
-      // Call the edge function to get the OAuth URL instead
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
-      // We'll need the app ID from the edge function, for now use a workaround
-      toast.error("Configuración de Meta App en proceso");
-      setConnecting(false);
+    if (!user || !metaAppId) {
+      toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
       return;
     }
+    setConnecting(true);
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
     const scopes = "pages_show_list,pages_read_engagement,leads_retrieval,pages_manage_ads,pages_messaging,ads_read,business_management";
     const state = user.id;
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
 
     const w = 600;
     const h = 700;
     const left = window.screenX + (window.innerWidth - w) / 2;
     const top = window.screenY + (window.innerHeight - h) / 2;
     window.open(oauthUrl, "fb-oauth", `width=${w},height=${h},left=${left},top=${top}`);
-  }, [user]);
+  }, [user, metaAppId]);
 
   const disconnect = useCallback(async () => {
     const { error } = await supabase.functions.invoke("facebook-api", {
