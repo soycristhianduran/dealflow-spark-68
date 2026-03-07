@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, Users, Building2, Handshake, 
-  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug
+  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
