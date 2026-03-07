@@ -10,8 +10,22 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, GripVertical, Trash2, X } from "lucide-react";
+import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
+import type { PipelineStage } from "@/types/crm";
+
+const stageColorOptions = [
+  { value: "hsl(220, 70%, 50%)", label: "Azul" },
+  { value: "hsl(262, 52%, 47%)", label: "Púrpura" },
+  { value: "hsl(38, 92%, 50%)", label: "Amarillo" },
+  { value: "hsl(25, 95%, 53%)", label: "Naranja" },
+  { value: "hsl(173, 58%, 39%)", label: "Teal" },
+  { value: "hsl(199, 89%, 48%)", label: "Celeste" },
+  { value: "hsl(142, 71%, 45%)", label: "Verde" },
+  { value: "hsl(0, 72%, 51%)", label: "Rojo" },
+  { value: "hsl(340, 75%, 55%)", label: "Rosa" },
+  { value: "hsl(280, 60%, 55%)", label: "Violeta" },
+];
 
 interface TeamUser {
   id: string;
