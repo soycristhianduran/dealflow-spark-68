@@ -14,6 +14,7 @@ interface FbForm {
   id: string;
   name: string;
   status: string;
+  questions?: { key: string; label: string; type: string }[];
 }
 
 interface FbAdAccount {
