@@ -133,6 +133,10 @@ export default function AuthPage() {
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
                 </div>
                 <div className="space-y-2">
+                  <Label>Nombre de la empresa</Label>
+                  <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
+                </div>
+                <div className="space-y-2">
                   <Label>Teléfono</Label>
                   <CountryPhoneInput
                     value={phone}
