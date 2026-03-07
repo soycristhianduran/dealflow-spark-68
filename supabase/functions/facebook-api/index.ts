@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
         });
       }
 
-      // ===== FETCH LEADS FROM A FORM =====
+      // ===== FETCH LEADS FROM A FORM & AUTO-CREATE CONTACTS + DEALS =====
       case "fetch_leads": {
         const { form_id, page_id } = body;
         const { data: pageData } = await supabase
@@ -114,7 +114,116 @@ Deno.serve(async (req) => {
         const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data&access_token=${pageData.page_access_token}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
-        return new Response(JSON.stringify({ leads: data.data || [] }), {
+
+        const fbLeads = data.data || [];
+
+        // Get first pipeline and its first stage for auto-deal creation
+        const { data: pipeline } = await supabase
+          .from("pipelines")
+          .select("id")
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .single();
+
+        let firstStageId: string | null = null;
+        if (pipeline) {
+          const { data: stage } = await supabase
+            .from("pipeline_stages")
+            .select("id")
+            .eq("pipeline_id", pipeline.id)
+            .order("order", { ascending: true })
+            .limit(1)
+            .single();
+          firstStageId = stage?.id || null;
+        }
+
+        let createdContacts = 0;
+        let createdDeals = 0;
+
+        for (const lead of fbLeads) {
+          const fields: Record<string, string> = {};
+          for (const fd of (lead.field_data || [])) {
+            const key = (fd.name || "").toLowerCase();
+            fields[key] = (fd.values || [])[0] || "";
+          }
+
+          // Flexible field mapping for common FB lead form fields
+          const fullName = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
+          const email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || null;
+          const phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || null;
+          const city = fields["city"] || fields["ciudad"] || null;
+          const country = fields["country"] || fields["país"] || null;
+
+          // Dedup: check if contact already exists by email or phone
+          let existingContactId: string | null = null;
+          if (email) {
+            const { data: byEmail } = await supabase
+              .from("contacts")
+              .select("id")
+              .eq("primary_email", email)
+              .limit(1)
+              .maybeSingle();
+            existingContactId = byEmail?.id || null;
+          }
+          if (!existingContactId && phone) {
+            const { data: byPhone } = await supabase
+              .from("contacts")
+              .select("id")
+              .eq("primary_phone", phone)
+              .limit(1)
+              .maybeSingle();
+            existingContactId = byPhone?.id || null;
+          }
+
+          if (existingContactId) continue; // Already imported
+
+          // Create new contact
+          const { data: newContact, error: contactErr } = await supabase
+            .from("contacts")
+            .insert({
+              full_name: fullName,
+              primary_email: email,
+              primary_phone: phone,
+              city,
+              country,
+              source: "facebook",
+              campaign: form_id,
+              status: "new",
+              owner_id: user.id,
+            })
+            .select("id")
+            .single();
+
+          if (contactErr || !newContact) {
+            console.error("Error creating contact from FB lead:", contactErr);
+            continue;
+          }
+          createdContacts++;
+
+          // Create deal in first pipeline stage
+          if (pipeline && firstStageId) {
+            const { error: dealErr } = await supabase
+              .from("deals")
+              .insert({
+                title: `Lead FB - ${fullName}`,
+                contact_id: newContact.id,
+                pipeline_id: pipeline.id,
+                stage_id: firstStageId,
+                owner_id: user.id,
+                value: 0,
+                currency: "USD",
+                status: "open",
+                source: "facebook",
+              });
+            if (!dealErr) createdDeals++;
+            else console.error("Error creating deal from FB lead:", dealErr);
+          }
+        }
+
+        return new Response(JSON.stringify({
+          leads: fbLeads,
+          imported: { contacts: createdContacts, deals: createdDeals },
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
