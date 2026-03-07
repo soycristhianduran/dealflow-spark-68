@@ -174,6 +174,7 @@ export default function DashboardPage() {
     { label: "Deals ganados", value: stats.dealsWon, icon: Trophy },
     { label: "Deals perdidos", value: stats.dealsLost, icon: XCircle },
     { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign },
+    { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
     { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays },
     { label: "Citas realizadas", value: stats.meetingsCompleted, icon: CalendarCheck },
     { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare },
