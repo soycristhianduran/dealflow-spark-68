@@ -42,8 +42,16 @@ export default function DealsPage() {
   useEffect(() => { fetchDeals(); }, []);
 
   const filtered = deals.filter(d =>
-    d.title.toLowerCase().includes(search.toLowerCase())
+    d.title.toLowerCase().includes(search.toLowerCase()) &&
+    (statusFilter === "all" || d.status === statusFilter)
   );
+
+  const counts = {
+    all: deals.length,
+    open: deals.filter(d => d.status === "open").length,
+    won: deals.filter(d => d.status === "won").length,
+    lost: deals.filter(d => d.status === "lost").length,
+  };
 
   return (
     <AppLayout>
