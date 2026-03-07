@@ -372,3 +372,122 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
     </div>
   );
 }
+
+function CustomFieldsCard({ customFields, contactId, onUpdated }: { customFields?: Record<string, string> | null; contactId: string; onUpdated: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [newKey, setNewKey] = useState("");
+  const [newValue, setNewValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {});
+  }, [customFields]);
+
+  const hasFields = Object.keys(fields).length > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("contacts").update({ custom_fields: fields }).eq("id", contactId);
+    if (error) toast.error("Error al guardar campos");
+    else { toast.success("Campos guardados"); onUpdated(); }
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const handleAddField = () => {
+    if (!newKey.trim()) return;
+    const key = newKey.trim().toLowerCase().replace(/\s+/g, "_");
+    setFields(prev => ({ ...prev, [key]: newValue }));
+    setNewKey("");
+    setNewValue("");
+  };
+
+  const handleRemoveField = (key: string) => {
+    setFields(prev => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  if (!hasFields && !editing) {
+    return (
+      <Card className="border-none shadow-sm">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-4">
+            <p className="text-xs text-muted-foreground mb-2">Sin campos personalizados</p>
+            <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => setEditing(true)}>
+              <Plus className="h-3 w-3" /> Agregar campo
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="border-none shadow-sm">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
+          </CardTitle>
+          {!editing ? (
+            <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => setEditing(true)}>
+              <Pencil className="h-3 w-3" /> Editar
+            </Button>
+          ) : (
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setEditing(false); setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {}); }}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
+                <Check className="h-3 w-3" /> Guardar
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {Object.entries(fields).map(([key, value]) => (
+          <div key={key} className="flex items-center gap-2">
+            {editing ? (
+              <>
+                <span className="text-xs text-muted-foreground font-mono w-28 truncate shrink-0">{key}</span>
+                <Input
+                  value={value}
+                  onChange={(e) => setFields(prev => ({ ...prev, [key]: e.target.value }))}
+                  className="h-7 text-xs flex-1"
+                />
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => handleRemoveField(key)}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </>
+            ) : (
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground">{key.replace(/_/g, " ")}</p>
+                <p className="text-sm font-medium text-foreground mt-0.5">{value || "—"}</p>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {editing && (
+          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+            <Input placeholder="Nombre del campo" value={newKey} onChange={e => setNewKey(e.target.value)} className="h-7 text-xs flex-1" />
+            <Input placeholder="Valor" value={newValue} onChange={e => setNewValue(e.target.value)} className="h-7 text-xs flex-1" />
+            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1" onClick={handleAddField} disabled={!newKey.trim()}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
