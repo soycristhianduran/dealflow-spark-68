@@ -1,18 +1,46 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Zap } from "lucide-react";
 import { toast } from "sonner";
+import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
+
+const industries = [
+  "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
+  "Manufactura", "Construcción", "Inmobiliaria", "Alimentos y Bebidas",
+  "Marketing y Publicidad", "Consultoría", "Legal", "Transporte y Logística",
+  "Energía", "Telecomunicaciones", "Agricultura", "Turismo y Hotelería",
+  "Seguros", "Automotriz", "Entretenimiento", "Otro",
+];
+
+const companySizes = [
+  { value: "1-10", label: "1 – 10 empleados" },
+  { value: "11-50", label: "11 – 50 empleados" },
+  { value: "51-200", label: "51 – 200 empleados" },
+  { value: "201-500", label: "201 – 500 empleados" },
+  { value: "501-1000", label: "501 – 1,000 empleados" },
+  { value: "1001+", label: "Más de 1,000 empleados" },
+];
 
 export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [countryCode, setCountryCode] = useState("MX");
+  const [industry, setIndustry] = useState("");
+  const [companySize, setCompanySize] = useState("");
+
+  useEffect(() => {
+    setCountryCode(detectCountryByTimezone());
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,11 +52,25 @@ export default function AuthPage() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!firstName.trim() || !lastName.trim()) {
+      toast.error("Nombre y apellido son requeridos");
+      return;
+    }
     setLoading(true);
+    const fullPhone = phone ? `${getDialCode(countryCode)}${phone.replace(/\s/g, "")}` : "";
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: name } },
+      options: {
+        data: {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          full_name: `${firstName.trim()} ${lastName.trim()}`,
+          phone: fullPhone,
+          industry,
+          company_size: companySize,
+        },
+      },
     });
     if (error) toast.error(error.message);
     else toast.success("Cuenta creada exitosamente");
@@ -72,16 +114,57 @@ export default function AuthPage() {
 
             <TabsContent value="register">
               <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Nombre completo</Label>
-                  <Input value={name} onChange={e => setName(e.target.value)} placeholder="Juan Pérez" required />
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Nombre *</Label>
+                    <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Apellido *</Label>
+                    <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Pérez" required />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Email</Label>
+                  <Label>Email *</Label>
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
                 </div>
                 <div className="space-y-2">
-                  <Label>Contraseña</Label>
+                  <Label>Teléfono</Label>
+                  <CountryPhoneInput
+                    value={phone}
+                    onChange={setPhone}
+                    countryCode={countryCode}
+                    onCountryChange={setCountryCode}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Industria</Label>
+                  <Select value={industry} onValueChange={setIndustry}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona tu industria" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {industries.map(i => (
+                        <SelectItem key={i} value={i}>{i}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tamaño de empresa</Label>
+                  <Select value={companySize} onValueChange={setCompanySize}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Número de empleados" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companySizes.map(s => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Contraseña *</Label>
                   <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
