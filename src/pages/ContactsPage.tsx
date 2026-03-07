@@ -4,13 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { mockContacts } from "@/data/mock-data";
-import { Plus, Search, Filter, Phone, Mail } from "lucide-react";
-import { useState } from "react";
+import { Plus, Search } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
 import type { ContactStatus } from "@/types/crm";
 
-const statusConfig: Record<ContactStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
   new: { label: "Nuevo", variant: "default" },
   contacted: { label: "Contactado", variant: "secondary" },
   qualified: { label: "Calificado", variant: "outline" },
@@ -18,7 +19,7 @@ const statusConfig: Record<ContactStatus, { label: string; variant: "default" | 
   lost: { label: "Perdido", variant: "destructive" },
 };
 
-const statusFilters: { value: ContactStatus | 'all'; label: string }[] = [
+const statusFilters: { value: string; label: string }[] = [
   { value: 'all', label: 'Todos' },
   { value: 'new', label: 'Nuevos' },
   { value: 'contacted', label: 'Contactados' },
@@ -27,22 +28,66 @@ const statusFilters: { value: ContactStatus | 'all'; label: string }[] = [
   { value: 'lost', label: 'Perdidos' },
 ];
 
+interface ContactRow {
+  id: string;
+  full_name: string;
+  primary_phone: string | null;
+  primary_email: string | null;
+  status: string;
+  score: number | null;
+  source: string | null;
+  tags: string[] | null;
+  created_at: string;
+}
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<ContactStatus | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
 
-  const filtered = mockContacts.filter(c => {
-    const matchesSearch = c.full_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.primary_email?.toLowerCase().includes(search.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const fetchContacts = useCallback(async () => {
+    setLoading(true);
+    let query = supabase.from("contacts").select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at").order("created_at", { ascending: false });
+
+    if (statusFilter !== "all") {
+      query = query.eq("status", statusFilter);
+    }
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+    if (!error && data) setContacts(data);
+    setLoading(false);
+  }, [statusFilter, search]);
+
+  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+
+  // Realtime subscription
+  useEffect(() => {
+    const channel = supabase
+      .channel("contacts-changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => {
+        fetchContacts();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchContacts]);
+
+  const statusCounts = contacts.reduce<Record<string, number>>((acc, c) => {
+    acc[c.status] = (acc[c.status] || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <AppLayout>
-      <AppHeader title="Contactos" subtitle={`${mockContacts.length} contactos en total`} actions={
-        <Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nuevo contacto</Button>
+      <AppHeader title="Contactos" subtitle={`${contacts.length} contactos`} actions={
+        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+          <Plus className="h-4 w-4" /> Nuevo contacto
+        </Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
@@ -60,11 +105,6 @@ export default function ContactsPage() {
                 onClick={() => setStatusFilter(f.value)}
               >
                 {f.label}
-                {f.value !== 'all' && (
-                  <span className="ml-1.5 text-xs opacity-70">
-                    {mockContacts.filter(c => c.status === f.value).length}
-                  </span>
-                )}
               </Button>
             ))}
           </div>
@@ -83,8 +123,12 @@ export default function ContactsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((contact) => {
-                const status = statusConfig[contact.status];
+              {loading ? (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+              ) : contacts.length === 0 ? (
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron contactos. Crea el primero.</td></tr>
+              ) : contacts.map((contact) => {
+                const status = statusConfig[contact.status] || statusConfig.new;
                 return (
                   <tr
                     key={contact.id}
@@ -95,7 +139,7 @@ export default function ContactsPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-8 w-8">
                           <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                            {contact.full_name.split(' ').map(n => n[0]).join('')}
+                            {contact.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
@@ -125,13 +169,12 @@ export default function ContactsPage() {
                   </tr>
                 );
               })}
-              {filtered.length === 0 && (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron contactos</td></tr>
-              )}
             </tbody>
           </table>
         </div>
       </main>
+
+      <CreateContactDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchContacts} />
     </AppLayout>
   );
 }
