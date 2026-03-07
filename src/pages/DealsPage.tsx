@@ -3,7 +3,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Filter } from "lucide-react";
+import { Plus, Search } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,7 @@ type DealRow = {
 
 export default function DealsPage() {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "won" | "lost">("all");
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
@@ -41,8 +43,16 @@ export default function DealsPage() {
   useEffect(() => { fetchDeals(); }, []);
 
   const filtered = deals.filter(d =>
-    d.title.toLowerCase().includes(search.toLowerCase())
+    d.title.toLowerCase().includes(search.toLowerCase()) &&
+    (statusFilter === "all" || d.status === statusFilter)
   );
+
+  const counts = {
+    all: deals.length,
+    open: deals.filter(d => d.status === "open").length,
+    won: deals.filter(d => d.status === "won").length,
+    lost: deals.filter(d => d.status === "lost").length,
+  };
 
   return (
     <AppLayout>
@@ -50,12 +60,34 @@ export default function DealsPage() {
         <Button size="sm" className="gap-1.5" onClick={() => navigate("/pipeline")}><Plus className="h-4 w-4" /> Nuevo deal</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
-          <Button variant="outline" size="sm" className="gap-1.5"><Filter className="h-4 w-4" /> Filtrar</Button>
+          <div className="flex rounded-lg border overflow-hidden">
+            {([
+              { key: "all", label: "Todos" },
+              { key: "open", label: "Abiertos" },
+              { key: "won", label: "Ganados" },
+              { key: "lost", label: "Perdidos" },
+            ] as const).map(f => (
+              <button key={f.key} onClick={() => setStatusFilter(f.key)}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium transition-colors flex items-center gap-1.5",
+                  statusFilter === f.key
+                    ? f.key === "won" ? "bg-primary text-primary-foreground"
+                    : f.key === "lost" ? "bg-destructive text-destructive-foreground"
+                    : "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-muted"
+                )}>
+                {f.label}
+                <span className={cn("text-[10px] rounded-full px-1.5 py-0.5 font-bold",
+                  statusFilter === f.key ? "bg-background/20" : "bg-muted"
+                )}>{counts[f.key]}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
