@@ -489,6 +489,65 @@ export default function PipelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Deal Creation Dialog */}
+      <Dialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo deal</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Título *</Label>
+              <Input value={dealTitle} onChange={e => setDealTitle(e.target.value)} placeholder="Ej: Venta de servicio premium" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Valor</Label>
+                <Input type="number" min={0} value={dealValue} onChange={e => setDealValue(e.target.value)} placeholder="0" />
+              </div>
+              <div className="space-y-2">
+                <Label>Moneda</Label>
+                <Select value={dealCurrency} onValueChange={setDealCurrency}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="MXN">MXN</SelectItem>
+                    <SelectItem value="COP">COP</SelectItem>
+                    <SelectItem value="ARS">ARS</SelectItem>
+                    <SelectItem value="BRL">BRL</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Contacto</Label>
+                <Select value={dealContactId} onValueChange={setDealContactId}>
+                  <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin contacto</SelectItem>
+                    {contacts.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Fecha cierre</Label>
+                <Input type="date" value={dealCloseDate} onChange={e => setDealCloseDate(e.target.value)} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDealDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateDeal} disabled={savingDeal || !dealTitle.trim()}>
+              {savingDeal && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Crear deal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
