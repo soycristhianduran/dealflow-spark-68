@@ -15,6 +15,7 @@ const navItems = [
   { title: "Calendario", url: "/calendar", icon: CalendarDays },
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
   { title: "Integraciones", url: "/integrations", icon: Plug },
+  { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
 ];
 
 const bottomItems = [
