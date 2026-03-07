@@ -69,6 +69,19 @@ export function useFacebookIntegration() {
 
   useEffect(() => {
     checkConnection();
+
+    // Handle redirect-based OAuth callback
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("fb_connected") === "true") {
+      setIsConnected(true);
+      setConnecting(false);
+      toast.success("Facebook conectado exitosamente");
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("fb_connected");
+      window.history.replaceState({}, "", url.pathname + url.search);
+      checkConnection();
+    }
   }, [checkConnection]);
 
   // Listen for OAuth popup result
