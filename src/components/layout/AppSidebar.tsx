@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, Users, Building2, Handshake, 
-  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap
+  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -14,6 +14,7 @@ const navItems = [
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },
   { title: "Calendario", url: "/calendar", icon: CalendarDays },
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
+  { title: "Integraciones", url: "/integrations", icon: Plug },
 ];
 
 const bottomItems = [
