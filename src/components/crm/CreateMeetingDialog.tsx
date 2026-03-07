@@ -7,9 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { CalendarIcon, Clock, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface CreateMeetingDialogProps {
   open: boolean;
@@ -18,8 +22,14 @@ interface CreateMeetingDialogProps {
   defaultDate?: Date;
   defaultStartTime?: string;
   defaultEndTime?: string;
-  /** Pre-select a contact */
   defaultContactId?: string;
+}
+
+const timeOptions: string[] = [];
+for (let h = 6; h <= 22; h++) {
+  for (const m of ["00", "15", "30", "45"]) {
+    timeOptions.push(`${String(h).padStart(2, "0")}:${m}`);
+  }
 }
 
 export function CreateMeetingDialog({
@@ -35,7 +45,7 @@ export function CreateMeetingDialog({
   const [saving, setSaving] = useState(false);
 
   const [title, setTitle] = useState("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState<Date | undefined>(undefined);
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("10:00");
   const [meetingType, setMeetingType] = useState("video_call");
@@ -43,11 +53,12 @@ export function CreateMeetingDialog({
   const [notes, setNotes] = useState("");
   const [contactId, setContactId] = useState("");
   const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
+  const [dateOpen, setDateOpen] = useState(false);
 
   useEffect(() => {
     if (open) {
       setTitle("");
-      setDate(defaultDate ? format(defaultDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
+      setDate(defaultDate || new Date());
       setStartTime(defaultStartTime || "09:00");
       setEndTime(defaultEndTime || "10:00");
       setMeetingType("video_call");
@@ -67,10 +78,11 @@ export function CreateMeetingDialog({
       return;
     }
     setSaving(true);
+    const dateStr = format(date, "yyyy-MM-dd");
     const { error } = await supabase.from("meetings").insert({
       title: title.trim(),
-      start_at: `${date}T${startTime}:00`,
-      end_at: `${date}T${endTime}:00`,
+      start_at: `${dateStr}T${startTime}:00`,
+      end_at: `${dateStr}T${endTime}:00`,
       meeting_type: meetingType,
       location_or_link: location.trim() || null,
       notes: notes.trim() || null,
@@ -99,20 +111,71 @@ export function CreateMeetingDialog({
             <Label>Título *</Label>
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Reunión con cliente" />
           </div>
-          <div className="grid grid-cols-3 gap-3">
+
+          {/* Date picker */}
+          <div className="space-y-2">
+            <Label>Fecha *</Label>
+            <Popover open={dateOpen} onOpenChange={setDateOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date ? format(date, "PPP", { locale: es }) : "Seleccionar fecha"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={date}
+                  onSelect={(d) => { setDate(d); setDateOpen(false); }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* Time selectors */}
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Fecha *</Label>
-              <Input type="date" value={date} onChange={e => setDate(e.target.value)} />
+              <Label>Hora inicio</Label>
+              <Select value={startTime} onValueChange={setStartTime}>
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {timeOptions.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label>Inicio</Label>
-              <Input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Fin</Label>
-              <Input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} />
+              <Label>Hora fin</Label>
+              <Select value={endTime} onValueChange={setEndTime}>
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <SelectValue />
+                  </div>
+                </SelectTrigger>
+                <SelectContent className="max-h-60">
+                  {timeOptions.map(t => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>Tipo</Label>
