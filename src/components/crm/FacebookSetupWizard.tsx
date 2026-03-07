@@ -133,9 +133,12 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   // Auto-map common FB field keys to contact fields
   function autoMapField(key: string): string {
     const k = key.toLowerCase();
-    if (k === "full_name" || k === "nombre_completo" || k === "name" || k === "nombre") return "full_name";
+    if (k === "first_name" || k === "nombre") return "first_name";
+    if (k === "last_name" || k === "apellido" || k === "apellidos") return "last_name";
+    if (k === "full_name" || k === "nombre_completo" || k === "name") return "first_name";
     if (k === "email" || k === "correo" || k === "correo_electrónico") return "primary_email";
     if (k === "phone_number" || k === "telefono" || k === "teléfono" || k === "phone" || k === "número_de_teléfono") return "primary_phone";
+    if (k === "date_of_birth" || k === "fecha_de_nacimiento" || k === "birthday" || k === "cumpleaños") return "birthday";
     if (k === "city" || k === "ciudad") return "city";
     if (k === "country" || k === "país") return "country";
     return "__skip__";
