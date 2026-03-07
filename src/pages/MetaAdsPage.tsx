@@ -65,6 +65,9 @@ export default function MetaAdsPage() {
   const fb = useFacebookIntegration();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const { data: campaigns = [], isLoading, refetch } = useQuery({
     queryKey: ["meta-campaigns", user?.id],
@@ -81,10 +84,27 @@ export default function MetaAdsPage() {
     enabled: !!user,
   });
 
+  const uniqueObjectives = useMemo(() => {
+    const objs = new Set<string>();
+    campaigns.forEach(c => { if (c.objective) objs.add(c.objective); });
+    return Array.from(objs).sort();
+  }, [campaigns]);
+
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return campaigns;
-    return campaigns.filter(c => c.status === statusFilter);
-  }, [campaigns, statusFilter]);
+    return campaigns.filter(c => {
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (objectiveFilter !== "all" && c.objective !== objectiveFilter) return false;
+      if (dateFrom && c.start_time) {
+        if (new Date(c.start_time) < dateFrom) return false;
+      }
+      if (dateTo && c.start_time) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(c.start_time) > end) return false;
+      }
+      return true;
+    });
+  }, [campaigns, statusFilter, objectiveFilter, dateFrom, dateTo]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
