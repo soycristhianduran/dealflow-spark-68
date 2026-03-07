@@ -35,7 +35,12 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    const fbToken = await getFbToken(supabase, user.id);
+    // Only fetch FB token for actions that need it
+    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns"];
+    let fbToken: string | null = null;
+    if (actionsNeedingToken.includes(action)) {
+      fbToken = await getFbToken(supabase, user.id);
+    }
 
     switch (action) {
       // ===== GET PAGES =====
