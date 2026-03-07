@@ -51,6 +51,7 @@ const stageColorOptions = [
 
 export default function PipelinePage() {
   const navigate = useNavigate();
+  const { session } = useAuth();
   const [stages, setStages] = useState<Stage[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +73,17 @@ export default function PipelinePage() {
 
   // Manage mode
   const [manageMode, setManageMode] = useState(false);
+
+  // Deal creation dialog
+  const [dealDialogOpen, setDealDialogOpen] = useState(false);
+  const [dealStageId, setDealStageId] = useState<string | null>(null);
+  const [dealTitle, setDealTitle] = useState("");
+  const [dealValue, setDealValue] = useState("");
+  const [dealCurrency, setDealCurrency] = useState("USD");
+  const [dealContactId, setDealContactId] = useState("");
+  const [dealCloseDate, setDealCloseDate] = useState("");
+  const [savingDeal, setSavingDeal] = useState(false);
+  const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
