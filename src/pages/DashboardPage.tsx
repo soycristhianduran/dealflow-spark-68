@@ -105,8 +105,8 @@ export default function DashboardPage() {
         .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3),
       supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
         .eq("status", "pending").order("due_date").limit(4),
-      supabase.from("deals").select("id, title, value, currency, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
-        .eq("status", "open").order("created_at", { ascending: false }).limit(10),
+      supabase.from("deals").select("id, title, value, currency, status, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
+        .order("created_at", { ascending: false }).limit(10),
     ]);
 
     const contacts = contactsRes.data || [];
