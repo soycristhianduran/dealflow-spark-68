@@ -98,6 +98,7 @@ export type Database = {
           company_id: string | null
           country: string | null
           created_at: string
+          custom_fields: Json | null
           full_name: string
           id: string
           landing_page: string | null
@@ -128,6 +129,7 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           full_name: string
           id?: string
           landing_page?: string | null
@@ -158,6 +160,7 @@ export type Database = {
           company_id?: string | null
           country?: string | null
           created_at?: string
+          custom_fields?: Json | null
           full_name?: string
           id?: string
           landing_page?: string | null
@@ -281,6 +284,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      facebook_field_mappings: {
+        Row: {
+          contact_field: string
+          created_at: string
+          fb_field_name: string
+          form_id: string
+          id: string
+          is_custom_field: boolean
+          user_id: string
+        }
+        Insert: {
+          contact_field: string
+          created_at?: string
+          fb_field_name: string
+          form_id: string
+          id?: string
+          is_custom_field?: boolean
+          user_id: string
+        }
+        Update: {
+          contact_field?: string
+          created_at?: string
+          fb_field_name?: string
+          form_id?: string
+          id?: string
+          is_custom_field?: boolean
+          user_id?: string
+        }
+        Relationships: []
       }
       facebook_lead_forms: {
         Row: {
