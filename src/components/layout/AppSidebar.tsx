@@ -8,7 +8,7 @@ import { useState } from "react";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Contactos", url: "/contacts", icon: Users },
+  { title: "Leads", url: "/contacts", icon: Users },
   { title: "Empresas", url: "/companies", icon: Building2 },
   { title: "Deals", url: "/deals", icon: Handshake },
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },

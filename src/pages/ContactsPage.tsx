@@ -84,16 +84,16 @@ export default function ContactsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Contactos" subtitle={`${contacts.length} contactos`} actions={
+      <AppHeader title="Leads" subtitle={`${contacts.length} leads`} actions={
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuevo contacto
+          <Plus className="h-4 w-4" /> Nuevo lead
         </Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar contactos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+            <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {statusFilters.map(f => (
@@ -114,7 +114,7 @@ export default function ContactsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
@@ -126,7 +126,7 @@ export default function ContactsPage() {
               {loading ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
               ) : contacts.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron contactos. Crea el primero.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron leads. Crea el primero.</td></tr>
               ) : contacts.map((contact) => {
                 const status = statusConfig[contact.status] || statusConfig.new;
                 return (

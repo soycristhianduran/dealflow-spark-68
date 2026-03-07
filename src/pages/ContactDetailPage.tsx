@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
-import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2 } from "lucide-react";
+import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
+import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
 
 const statusConfig: Record<ContactStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -72,10 +74,10 @@ export default function ContactDetailPage() {
   if (!contact) {
     return (
       <AppLayout>
-        <AppHeader title="Contacto no encontrado" />
+        <AppHeader title="Lead no encontrado" />
         <main className="flex-1 flex items-center justify-center flex-col gap-3">
-          <p className="text-muted-foreground">El contacto no existe.</p>
-          <Button variant="outline" onClick={() => navigate('/contacts')}>Volver a contactos</Button>
+          <p className="text-muted-foreground">El lead no existe.</p>
+          <Button variant="outline" onClick={() => navigate('/contacts')}>Volver a leads</Button>
         </main>
       </AppLayout>
     );
@@ -88,9 +90,37 @@ export default function ContactDetailPage() {
       <AppHeader
         title={contact.full_name}
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate('/contacts')} className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" /> Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar este lead?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se eliminará permanentemente a <strong>{contact.full_name}</strong> y no se podrá recuperar. Los deals, tareas y citas asociados no se eliminarán.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                    const { error } = await supabase.from("contacts").delete().eq("id", id!);
+                    if (error) { toast.error("Error al eliminar: " + error.message); return; }
+                    toast.success("Lead eliminado");
+                    navigate("/contacts");
+                  }}>
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/contacts')} className="gap-1.5">
+              <ArrowLeft className="h-4 w-4" /> Volver
+            </Button>
+          </div>
         }
       />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
