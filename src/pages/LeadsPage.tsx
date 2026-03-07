@@ -17,6 +17,7 @@ const statusMap: Record<string, { label: string; variant: "default" | "secondary
 };
 
 export default function LeadsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const filtered = mockLeads.filter(l =>
     l.full_name.toLowerCase().includes(search.toLowerCase()) ||
