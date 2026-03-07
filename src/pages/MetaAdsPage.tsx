@@ -265,7 +265,7 @@ export default function MetaAdsPage() {
                   Sin datos
                 </div>
               ) : (
-              <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                <div>
                     <PieChart>
                       <Pie
                         data={pieData}
