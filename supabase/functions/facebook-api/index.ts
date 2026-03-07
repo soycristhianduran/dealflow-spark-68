@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
           .single();
         if (!pageData) throw new Error("Page not found");
 
-        const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data&access_token=${pageData.page_access_token}`);
+        const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data,ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name&access_token=${pageData.page_access_token}`);
         const data = await res.json();
         if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
 
@@ -193,7 +193,9 @@ Deno.serve(async (req) => {
 
           let contactData: Record<string, any> = {
             source: "facebook",
-            campaign: form_id,
+            campaign: lead.campaign_name || lead.campaign_id || form_id,
+            adset: lead.adset_name || lead.adset_id || null,
+            ad: lead.ad_name || lead.ad_id || null,
             status: "new",
             owner_id: user.id,
           };
