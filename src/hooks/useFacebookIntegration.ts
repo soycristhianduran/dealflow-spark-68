@@ -155,6 +155,14 @@ export function useFacebookIntegration() {
     checkConnection();
   }, [checkConnection]);
 
+  const saveFieldMappings = useCallback(async (formId: string, mappings: { fb_field_name: string; contact_field: string; is_custom_field: boolean }[]) => {
+    const { error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "save_field_mappings", form_id: formId, mappings },
+    });
+    if (error) toast.error("Error al guardar mapeo de campos");
+    else toast.success("Mapeo de campos guardado");
+  }, []);
+
   const getConversations = useCallback(async (pageId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "get_conversations", page_id: pageId },
