@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
+import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
 
 type Integration = {
   id: string;
@@ -41,6 +43,27 @@ const integrations: Integration[] = [
     docsUrl: "https://calendar.google.com",
   },
   {
+    id: "facebook",
+    name: "Facebook Ads",
+    description: "Conecta tus páginas, formularios de leads, Messenger y campañas de Meta Ads.",
+    icon: Facebook,
+    color: "hsl(221, 44%, 41%)",
+    features: [
+      "Selecciona tus páginas de Facebook",
+      "Sincroniza formularios nativos de Lead Ads",
+      "Captura mensajes de Messenger automáticamente",
+      "Importa historial completo de campañas de Meta Ads",
+    ],
+    setupSteps: [
+      "Haz clic en 'Conectar' para autorizar con tu cuenta de Facebook",
+      "Selecciona las páginas que quieres conectar",
+      "Elige los formularios de leads a sincronizar",
+      "Importa tus campañas de Meta Ads",
+    ],
+    requirements: ["Cuenta de Facebook Business", "Página de Facebook activa"],
+    docsUrl: "https://business.facebook.com",
+  },
+  {
     id: "whatsapp",
     name: "WhatsApp Business",
     description: "Envía y recibe mensajes de WhatsApp directamente desde tu CRM.",
@@ -60,27 +83,6 @@ const integrations: Integration[] = [
     ],
     requirements: ["Cuenta de Meta Business", "WhatsApp Business API aprobada", "Número de teléfono verificado"],
     docsUrl: "https://business.whatsapp.com",
-  },
-  {
-    id: "facebook",
-    name: "Facebook Ads",
-    description: "Conecta tus campañas de Facebook Ads y captura leads automáticamente.",
-    icon: Facebook,
-    color: "hsl(221, 44%, 41%)",
-    features: [
-      "Captura automática de leads desde Lead Ads",
-      "Sincronización de formularios de Facebook",
-      "Tracking de campañas y atribución",
-      "Audiencias personalizadas desde el CRM",
-    ],
-    setupSteps: [
-      "Inicia sesión con tu cuenta de Facebook Business",
-      "Selecciona la página y cuenta publicitaria",
-      "Autoriza el acceso a tus formularios de leads",
-      "Configura el mapeo de campos del formulario",
-    ],
-    requirements: ["Cuenta de Facebook Business", "Página de Facebook activa", "Cuenta publicitaria configurada"],
-    docsUrl: "https://business.facebook.com",
   },
   {
     id: "instagram",
@@ -128,9 +130,11 @@ const integrations: Integration[] = [
 
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
+  const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const gcal = useGoogleCalendar();
+  const fb = useFacebookIntegration();
 
-  // For non-Google integrations, keep localStorage simulation
+  // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {
     try {
       return JSON.parse(localStorage.getItem("crm_connected_integrations") || "[]");
@@ -139,7 +143,14 @@ export default function IntegrationsPage() {
 
   const isIntegrationConnected = (id: string) => {
     if (id === "google-calendar") return gcal.isConnected;
+    if (id === "facebook") return fb.isConnected;
     return otherConnectedIds.includes(id);
+  };
+
+  const isIntegrationLoading = (id: string) => {
+    if (id === "google-calendar") return gcal.connecting;
+    if (id === "facebook") return fb.connecting;
+    return false;
   };
 
   const toggleOtherConnection = (id: string) => {
@@ -152,13 +163,23 @@ export default function IntegrationsPage() {
 
   const handleConnect = (integration: Integration) => {
     if (integration.id === "google-calendar") {
-      if (gcal.isConnected) {
-        gcal.disconnect();
-      } else {
-        gcal.connect();
-      }
+      if (gcal.isConnected) gcal.disconnect();
+      else gcal.connect();
+    } else if (integration.id === "facebook") {
+      if (fb.isConnected) fb.disconnect();
+      else fb.connect();
     } else {
       toggleOtherConnection(integration.id);
+    }
+  };
+
+  const handleCardAction = (integration: Integration) => {
+    if (integration.id === "facebook" && fb.isConnected) {
+      setFbWizardOpen(true); // Re-open wizard to manage
+    } else if (isIntegrationConnected(integration.id)) {
+      setSelectedIntegration(integration);
+    } else {
+      handleConnect(integration);
     }
   };
 
@@ -169,7 +190,7 @@ export default function IntegrationsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {integrations.map((integration) => {
             const isConnected = isIntegrationConnected(integration.id);
-            const isGcalConnecting = integration.id === "google-calendar" && gcal.connecting;
+            const isLoading = isIntegrationLoading(integration.id);
             return (
               <Card
                 key={integration.id}
@@ -192,6 +213,16 @@ export default function IntegrationsPage() {
                     <h3 className="text-sm font-semibold text-foreground">{integration.name}</h3>
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{integration.description}</p>
                   </div>
+
+                  {/* Facebook status summary */}
+                  {integration.id === "facebook" && fb.isConnected && fb.status && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
+                      <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
+                      <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Zap className="h-3 w-3" />
                     <span>{integration.features.length} funcionalidades</span>
@@ -200,20 +231,13 @@ export default function IntegrationsPage() {
                     size="sm"
                     variant={isConnected ? "outline" : "default"}
                     className="w-full"
-                    disabled={isGcalConnecting}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isConnected) {
-                        setSelectedIntegration(integration);
-                      } else {
-                        handleConnect(integration);
-                      }
-                    }}
+                    disabled={isLoading}
+                    onClick={(e) => { e.stopPropagation(); handleCardAction(integration); }}
                   >
-                    {isGcalConnecting ? (
+                    {isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
-                      <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                      <>{integration.id === "facebook" ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     ) : (
                       <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}
@@ -225,7 +249,10 @@ export default function IntegrationsPage() {
         </div>
       </main>
 
-      {/* Detail dialog */}
+      {/* Facebook Setup Wizard */}
+      <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
+
+      {/* Detail dialog (non-Facebook) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>
         {selectedIntegration && (
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
@@ -246,40 +273,44 @@ export default function IntegrationsPage() {
               <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                 <div className="flex items-center gap-2 text-sm">
                   {isIntegrationConnected(selectedIntegration.id) ? (
-                    <>
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      <span className="font-medium text-foreground">Conectado</span>
-                    </>
+                    <><CheckCircle2 className="h-4 w-4 text-green-500" /><span className="font-medium text-foreground">Conectado</span></>
                   ) : (
-                    <>
-                      <Circle className="h-4 w-4 text-muted-foreground" />
-                      <span className="font-medium text-foreground">No conectado</span>
-                    </>
+                    <><Circle className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-foreground">No conectado</span></>
                   )}
                 </div>
                 <Button
                   size="sm"
                   variant={isIntegrationConnected(selectedIntegration.id) ? "destructive" : "default"}
-                  disabled={selectedIntegration.id === "google-calendar" && gcal.connecting}
-                  onClick={() => handleConnect(selectedIntegration)}
+                  disabled={isIntegrationLoading(selectedIntegration.id)}
+                  onClick={() => {
+                    if (selectedIntegration.id === "facebook" && !fb.isConnected) {
+                      setSelectedIntegration(null);
+                      fb.connect();
+                    } else {
+                      handleConnect(selectedIntegration);
+                    }
+                  }}
                 >
-                  {selectedIntegration.id === "google-calendar" && gcal.connecting ? (
+                  {isIntegrationLoading(selectedIntegration.id) ? (
                     <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
-                  ) : isIntegrationConnected(selectedIntegration.id) ? (
-                    "Desconectar"
-                  ) : (
-                    "Conectar"
-                  )}
+                  ) : isIntegrationConnected(selectedIntegration.id) ? "Desconectar" : "Conectar"}
                 </Button>
               </div>
 
-              {/* Google Calendar specific info */}
+              {/* Google Calendar specific */}
               {selectedIntegration.id === "google-calendar" && gcal.isConnected && (
                 <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-3">
                   <p className="text-sm text-green-700 dark:text-green-400">
                     ✅ Las reuniones que crees en el CRM se agregarán automáticamente a tu Google Calendar.
                   </p>
                 </div>
+              )}
+
+              {/* Facebook: open wizard button */}
+              {selectedIntegration.id === "facebook" && fb.isConnected && (
+                <Button variant="outline" className="w-full" onClick={() => { setSelectedIntegration(null); setFbWizardOpen(true); }}>
+                  Gestionar páginas, formularios y campañas
+                </Button>
               )}
 
               {/* Features */}
@@ -322,13 +353,7 @@ export default function IntegrationsPage() {
                 </div>
               </div>
 
-              {/* Docs link */}
-              <a
-                href={selectedIntegration.docsUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-sm text-primary hover:underline"
-              >
+              <a href={selectedIntegration.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
                 <ExternalLink className="h-3.5 w-3.5" />
                 Ver documentación oficial
               </a>

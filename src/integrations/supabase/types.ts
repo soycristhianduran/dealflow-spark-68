@@ -282,6 +282,143 @@ export type Database = {
           },
         ]
       }
+      facebook_lead_forms: {
+        Row: {
+          created_at: string
+          form_id: string
+          form_name: string
+          form_status: string | null
+          id: string
+          is_syncing: boolean | null
+          page_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          form_id: string
+          form_name: string
+          form_status?: string | null
+          id?: string
+          is_syncing?: boolean | null
+          page_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          form_id?: string
+          form_name?: string
+          form_status?: string | null
+          id?: string
+          is_syncing?: boolean | null
+          page_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      facebook_messages: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          direction: string
+          id: string
+          message_id: string
+          message_text: string | null
+          page_id: string
+          sender_id: string
+          sender_name: string | null
+          sent_at: string
+          user_id: string
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          message_id: string
+          message_text?: string | null
+          page_id: string
+          sender_id: string
+          sender_name?: string | null
+          sent_at: string
+          user_id: string
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          message_id?: string
+          message_text?: string | null
+          page_id?: string
+          sender_id?: string
+          sender_name?: string | null
+          sent_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "facebook_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      facebook_pages: {
+        Row: {
+          created_at: string
+          id: string
+          page_access_token: string
+          page_id: string
+          page_name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_access_token: string
+          page_id: string
+          page_name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_access_token?: string
+          page_id?: string
+          page_name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      facebook_tokens: {
+        Row: {
+          access_token: string
+          connected_at: string
+          id: string
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          connected_at?: string
+          id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          connected_at?: string
+          id?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       google_calendar_tokens: {
         Row: {
           connected_at: string
@@ -377,6 +514,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meta_campaigns: {
+        Row: {
+          ad_account_id: string | null
+          campaign_id: string
+          campaign_name: string
+          clicks: number | null
+          cpl: number | null
+          created_at: string
+          daily_budget: number | null
+          id: string
+          impressions: number | null
+          leads: number | null
+          lifetime_budget: number | null
+          objective: string | null
+          spend: number | null
+          start_time: string | null
+          status: string | null
+          stop_time: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          ad_account_id?: string | null
+          campaign_id: string
+          campaign_name: string
+          clicks?: number | null
+          cpl?: number | null
+          created_at?: string
+          daily_budget?: number | null
+          id?: string
+          impressions?: number | null
+          leads?: number | null
+          lifetime_budget?: number | null
+          objective?: string | null
+          spend?: number | null
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          ad_account_id?: string | null
+          campaign_id?: string
+          campaign_name?: string
+          clicks?: number | null
+          cpl?: number | null
+          created_at?: string
+          daily_budget?: number | null
+          id?: string
+          impressions?: number | null
+          leads?: number | null
+          lifetime_budget?: number | null
+          objective?: string | null
+          spend?: number | null
+          start_time?: string | null
+          status?: string | null
+          stop_time?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       pipeline_stages: {
         Row: {
