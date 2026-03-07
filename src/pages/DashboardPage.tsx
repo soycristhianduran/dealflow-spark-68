@@ -21,6 +21,8 @@ interface DashboardStats {
   dealsLost: number;
   pipelineValue: number;
   pipelineCurrency: string;
+  wonValue: number;
+  wonCurrency: string;
   meetingsScheduled: number;
   meetingsCompleted: number;
   tasksPending: number;
@@ -55,6 +57,7 @@ interface DealRow {
   title: string;
   value: number;
   currency: string;
+  status: string;
   expected_close_date: string | null;
   contact_name: string | null;
   stage_name: string | null;
@@ -72,6 +75,7 @@ export default function DashboardPage() {
     contactsTotal: 0, contactsNew: 0, contactsQualified: 0,
     dealsOpen: 0, dealsWon: 0, dealsLost: 0,
     pipelineValue: 0, pipelineCurrency: 'USD',
+    wonValue: 0, wonCurrency: 'USD',
     meetingsScheduled: 0, meetingsCompleted: 0, tasksPending: 0,
   });
   const [upcomingMeetings, setUpcomingMeetings] = useState<MeetingRow[]>([]);
@@ -101,8 +105,8 @@ export default function DashboardPage() {
         .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3),
       supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
         .eq("status", "pending").order("due_date").limit(4),
-      supabase.from("deals").select("id, title, value, currency, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
-        .eq("status", "open").order("created_at", { ascending: false }).limit(10),
+      supabase.from("deals").select("id, title, value, currency, status, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
+        .order("created_at", { ascending: false }).limit(10),
     ]);
 
     const contacts = contactsRes.data || [];
@@ -111,8 +115,11 @@ export default function DashboardPage() {
     const tasks = tasksRes.data || [];
 
     const openDeals = deals.filter(d => d.status === "open");
+    const wonDeals = deals.filter(d => d.status === "won");
     const pipelineValue = openDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const mainCurrency = openDeals.length > 0 ? openDeals[0].currency : "USD";
+    const mainCurrency = openDeals.length > 0 ? openDeals[0].currency : (deals.length > 0 ? deals[0].currency : "USD");
+    const wonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+    const wonCurrency = wonDeals.length > 0 ? wonDeals[0].currency : mainCurrency;
 
     setStats({
       contactsTotal: contacts.length,
@@ -123,6 +130,8 @@ export default function DashboardPage() {
       dealsLost: deals.filter(d => d.status === "lost").length,
       pipelineValue,
       pipelineCurrency: mainCurrency,
+      wonValue,
+      wonCurrency,
       meetingsScheduled: meetings.filter(m => m.status === "scheduled").length,
       meetingsCompleted: meetings.filter(m => m.status === "completed").length,
       tasksPending: tasks.filter(t => t.status === "pending").length,
@@ -139,6 +148,7 @@ export default function DashboardPage() {
 
     setActiveDeals((activeDealsRes.data || []).map((d: any) => ({
       id: d.id, title: d.title, value: d.value, currency: d.currency,
+      status: d.status,
       expected_close_date: d.expected_close_date,
       contact_name: d.contacts?.full_name || null,
       stage_name: d.pipeline_stages?.name || null,
@@ -164,6 +174,7 @@ export default function DashboardPage() {
     { label: "Deals ganados", value: stats.dealsWon, icon: Trophy },
     { label: "Deals perdidos", value: stats.dealsLost, icon: XCircle },
     { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign },
+    { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
     { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays },
     { label: "Citas realizadas", value: stats.meetingsCompleted, icon: CalendarCheck },
     { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare },
@@ -284,12 +295,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Handshake className="h-4 w-4 text-primary" />
-              Deals activos
+              Deals recientes
             </CardTitle>
           </CardHeader>
           <CardContent>
             {activeDeals.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Sin deals activos</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Sin deals</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -299,6 +310,7 @@ export default function DashboardPage() {
                       <th className="pb-2 font-medium text-muted-foreground">Contacto</th>
                       <th className="pb-2 font-medium text-muted-foreground">Etapa</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">Valor</th>
+                      <th className="pb-2 font-medium text-muted-foreground">Estado</th>
                       <th className="pb-2 font-medium text-muted-foreground">Cierre esperado</th>
                     </tr>
                   </thead>
@@ -315,6 +327,11 @@ export default function DashboardPage() {
                           ) : '-'}
                         </td>
                         <td className="py-3 text-right font-medium text-foreground">${Number(deal.value).toLocaleString()} {deal.currency}</td>
+                        <td className="py-3">
+                          <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'outline'} className="text-xs">
+                            {deal.status === 'open' ? 'Abierto' : deal.status === 'won' ? 'Ganado' : 'Perdido'}
+                          </Badge>
+                        </td>
                         <td className="py-3 text-muted-foreground">{deal.expected_close_date || '-'}</td>
                       </tr>
                     ))}
