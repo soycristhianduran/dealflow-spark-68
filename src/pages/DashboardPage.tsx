@@ -327,6 +327,11 @@ export default function DashboardPage() {
                           ) : '-'}
                         </td>
                         <td className="py-3 text-right font-medium text-foreground">${Number(deal.value).toLocaleString()} {deal.currency}</td>
+                        <td className="py-3">
+                          <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'outline'} className="text-xs">
+                            {deal.status === 'open' ? 'Abierto' : deal.status === 'won' ? 'Ganado' : 'Perdido'}
+                          </Badge>
+                        </td>
                         <td className="py-3 text-muted-foreground">{deal.expected_close_date || '-'}</td>
                       </tr>
                     ))}
