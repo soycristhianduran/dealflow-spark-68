@@ -165,7 +165,15 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   };
 
   const handleSaveMappings = async () => {
-    if (!currentForm) return;
+    // If no form or no mappings, just move on
+    if (!currentForm) {
+      if (currentFormIndex < selectedForms.length - 1) {
+        setCurrentFormIndex(prev => prev + 1);
+      } else {
+        setStep("messenger");
+      }
+      return;
+    }
     setLoading(true);
 
     const mappingsToSave = currentMappings
@@ -390,6 +398,17 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
           )}
 
           {/* FIELD MAPPING */}
+          {step === "mapping" && !currentForm && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-dashed p-6 text-center">
+                <p className="text-sm text-muted-foreground">No hay campos para mapear en los formularios seleccionados</p>
+              </div>
+              <Button className="w-full" onClick={() => setStep("messenger")}>
+                Continuar <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          )}
+
           {step === "mapping" && currentForm && (
             <div className="space-y-3">
               <div>
@@ -402,8 +421,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                   )}
                 </div>
                 <p className="text-xs text-primary font-medium mt-0.5 truncate">{currentForm.name}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Asigna cada campo del formulario al campo del contacto donde quieres guardar la información.
+                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                  Asigna cada campo al contacto. Los campos en "Omitir" se ignorarán automáticamente — puedes continuar sin modificarlos.
                 </p>
               </div>
 
