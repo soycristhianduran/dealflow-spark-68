@@ -166,6 +166,19 @@ export default function AuthPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
+                  <Label>Rol / Cargo</Label>
+                  <Select value={jobTitle} onValueChange={setJobTitle}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona tu cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["CEO / Director General", "Director Comercial", "Gerente de Ventas", "Ejecutivo de Ventas", "Director de Marketing", "Gerente de Marketing", "Director de Operaciones", "Gerente de Proyecto", "Fundador / Co-fundador", "Consultor", "Freelancer", "Otro"].map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
                   <Label>Contraseña *</Label>
                   <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
                 </div>
