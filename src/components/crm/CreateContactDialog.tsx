@@ -36,7 +36,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     if (!form.full_name.trim()) { toast.error("El nombre es requerido"); return; }
     
     setLoading(true);
-    const { error } = await supabase.from("contacts").insert({
+    const { data: contact, error } = await supabase.from("contacts").insert({
       full_name: form.full_name.trim(),
       primary_phone: form.primary_phone || null,
       primary_email: form.primary_email || null,
@@ -47,12 +47,41 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       notes: form.notes || null,
       status: "new",
       score: 0,
-    });
+    }).select("id").single();
 
     if (error) {
-      toast.error("Error al crear contacto: " + error.message);
+      toast.error("Error al crear lead: " + error.message);
     } else {
-      toast.success("Contacto creado exitosamente");
+      // Auto-create deal in first pipeline stage
+      const { data: pipeline } = await supabase
+        .from("pipelines")
+        .select("id")
+        .limit(1)
+        .single();
+
+      if (pipeline) {
+        const { data: firstStage } = await supabase
+          .from("pipeline_stages")
+          .select("id")
+          .eq("pipeline_id", pipeline.id)
+          .order("order", { ascending: true })
+          .limit(1)
+          .single();
+
+        if (firstStage) {
+          await supabase.from("deals").insert({
+            title: `Deal - ${form.full_name.trim()}`,
+            contact_id: contact.id,
+            pipeline_id: pipeline.id,
+            stage_id: firstStage.id,
+            value: 0,
+            status: "open",
+            source: form.source || null,
+          });
+        }
+      }
+
+      toast.success("Lead creado y agregado al pipeline");
       setForm({ full_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "" });
       onOpenChange(false);
       onCreated();
