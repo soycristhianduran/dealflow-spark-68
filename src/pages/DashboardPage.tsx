@@ -295,12 +295,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Handshake className="h-4 w-4 text-primary" />
-              Deals activos
+              Deals recientes
             </CardTitle>
           </CardHeader>
           <CardContent>
             {activeDeals.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Sin deals activos</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Sin deals</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
