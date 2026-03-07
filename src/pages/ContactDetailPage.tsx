@@ -276,6 +276,7 @@ export default function ContactDetailPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
+                      <InfoItem label="Cumpleaños" value={contact.birthday ? new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined} />
                       <InfoItem label="Creado" value={new Date(contact.created_at).toLocaleString()} />
                       <InfoItem label="Actualizado" value={new Date(contact.updated_at).toLocaleString()} />
                       <InfoItem label="Último contacto" value={contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString() : undefined} />
@@ -283,6 +284,14 @@ export default function ContactDetailPage() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <CustomFieldsCard
+                  customFields={contact.custom_fields}
+                  contactId={contact.id}
+                  onUpdated={() => {
+                    supabase.from("contacts").select("*").eq("id", id).maybeSingle().then(({ data }) => setContact(data));
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="deals" className="mt-4 space-y-3">
