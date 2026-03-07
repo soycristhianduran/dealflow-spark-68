@@ -72,6 +72,7 @@ const roles = [
 ];
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   // Users state
   const [users, setUsers] = useState<TeamUser[]>([
     { id: "1", name: "Juan Demo", email: "juan@demo.com", role: "admin", initials: "JD" },
