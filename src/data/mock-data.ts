@@ -1,4 +1,4 @@
-import type { Lead, Contact, Company, Deal, Task, Meeting, Activity, Pipeline, PipelineStage } from '@/types/crm';
+import type { Contact, Company, Deal, Task, Meeting, Activity, Pipeline, PipelineStage } from '@/types/crm';
 
 const stageColors = [
   'hsl(220, 70%, 50%)',   // new
@@ -28,14 +28,6 @@ export const defaultPipeline: Pipeline = {
   stages: defaultStages,
 };
 
-export const mockLeads: Lead[] = [
-  { id: 'l1', first_name: 'Carlos', last_name: 'Mendoza', full_name: 'Carlos Mendoza', phone: '+52 55 1234 5678', email: 'carlos@email.com', country: 'México', city: 'CDMX', source: 'Facebook Ads', campaign: 'Q1 Real Estate', status: 'new', score: 72, created_at: '2026-03-05T10:00:00Z', updated_at: '2026-03-05T10:00:00Z' },
-  { id: 'l2', first_name: 'Ana', last_name: 'García', full_name: 'Ana García', phone: '+34 612 345 678', email: 'ana@email.com', country: 'España', city: 'Madrid', source: 'Google Ads', campaign: 'Clínica Dental', status: 'contacted', score: 85, created_at: '2026-03-04T08:00:00Z', updated_at: '2026-03-06T14:00:00Z' },
-  { id: 'l3', first_name: 'Roberto', last_name: 'Silva', full_name: 'Roberto Silva', phone: '+55 11 9876 5432', email: 'roberto@email.com', country: 'Brasil', city: 'São Paulo', source: 'Referral', status: 'qualified', score: 91, created_at: '2026-03-03T12:00:00Z', updated_at: '2026-03-06T09:00:00Z' },
-  { id: 'l4', first_name: 'María', last_name: 'López', full_name: 'María López', phone: '+57 311 234 5678', email: 'maria@email.com', country: 'Colombia', city: 'Bogotá', source: 'Landing Page', status: 'new', score: 45, created_at: '2026-03-06T16:00:00Z', updated_at: '2026-03-06T16:00:00Z' },
-  { id: 'l5', first_name: 'Javier', last_name: 'Ruiz', full_name: 'Javier Ruiz', phone: '+1 305 555 0100', email: 'javier@email.com', country: 'USA', city: 'Miami', source: 'WhatsApp', status: 'converted', score: 95, created_at: '2026-03-01T09:00:00Z', updated_at: '2026-03-05T11:00:00Z' },
-];
-
 export const mockCompanies: Company[] = [
   { id: 'co1', name: 'Inmobiliaria del Norte', industry: 'Real Estate', company_size: '11-50', city: 'Monterrey', country: 'México', website: 'https://inmobiliarianorte.com', created_at: '2026-02-15T10:00:00Z', updated_at: '2026-02-15T10:00:00Z' },
   { id: 'co2', name: 'Clínica Dental Sonrisa', industry: 'Healthcare', company_size: '1-10', city: 'Madrid', country: 'España', website: 'https://sonrisa.es', created_at: '2026-02-20T10:00:00Z', updated_at: '2026-02-20T10:00:00Z' },
@@ -43,10 +35,13 @@ export const mockCompanies: Company[] = [
 ];
 
 export const mockContacts: Contact[] = [
-  { id: 'c1', full_name: 'Carlos Mendoza', primary_phone: '+52 55 1234 5678', primary_email: 'carlos@email.com', company_id: 'co1', preferred_channel: 'whatsapp', tags: ['vip', 'real-estate'], owner_id: 'u1', last_contact_at: '2026-03-06T14:00:00Z', next_action_at: '2026-03-08T10:00:00Z', created_at: '2026-03-01T10:00:00Z', updated_at: '2026-03-06T14:00:00Z', company: mockCompanies[0] },
-  { id: 'c2', full_name: 'Ana García', primary_phone: '+34 612 345 678', primary_email: 'ana@email.com', company_id: 'co2', preferred_channel: 'email', tags: ['healthcare'], owner_id: 'u1', last_contact_at: '2026-03-05T10:00:00Z', created_at: '2026-03-02T10:00:00Z', updated_at: '2026-03-05T10:00:00Z', company: mockCompanies[1] },
-  { id: 'c3', full_name: 'Roberto Silva', primary_phone: '+55 11 9876 5432', primary_email: 'roberto@email.com', company_id: 'co3', preferred_channel: 'phone', tags: ['education', 'enterprise'], owner_id: 'u1', created_at: '2026-03-03T10:00:00Z', updated_at: '2026-03-03T10:00:00Z', company: mockCompanies[2] },
-  { id: 'c4', full_name: 'María López', primary_phone: '+57 311 234 5678', primary_email: 'maria@email.com', preferred_channel: 'whatsapp', tags: ['new'], created_at: '2026-03-04T10:00:00Z', updated_at: '2026-03-04T10:00:00Z' },
+  { id: 'c1', full_name: 'Carlos Mendoza', primary_phone: '+52 55 1234 5678', primary_email: 'carlos@email.com', company_id: 'co1', preferred_channel: 'whatsapp', tags: ['vip', 'real-estate'], owner_id: 'u1', status: 'client', score: 95, source: 'Facebook Ads', campaign: 'Q1 Real Estate', country: 'México', city: 'CDMX', last_contact_at: '2026-03-06T14:00:00Z', next_action_at: '2026-03-08T10:00:00Z', created_at: '2026-03-01T10:00:00Z', updated_at: '2026-03-06T14:00:00Z', company: mockCompanies[0] },
+  { id: 'c2', full_name: 'Ana García', primary_phone: '+34 612 345 678', primary_email: 'ana@email.com', company_id: 'co2', preferred_channel: 'email', tags: ['healthcare'], owner_id: 'u1', status: 'qualified', score: 85, source: 'Google Ads', campaign: 'Clínica Dental', country: 'España', city: 'Madrid', last_contact_at: '2026-03-05T10:00:00Z', created_at: '2026-03-02T10:00:00Z', updated_at: '2026-03-05T10:00:00Z', company: mockCompanies[1] },
+  { id: 'c3', full_name: 'Roberto Silva', primary_phone: '+55 11 9876 5432', primary_email: 'roberto@email.com', company_id: 'co3', preferred_channel: 'phone', tags: ['education', 'enterprise'], owner_id: 'u1', status: 'qualified', score: 91, source: 'Referral', country: 'Brasil', city: 'São Paulo', created_at: '2026-03-03T10:00:00Z', updated_at: '2026-03-03T10:00:00Z', company: mockCompanies[2] },
+  { id: 'c4', full_name: 'María López', primary_phone: '+57 311 234 5678', primary_email: 'maria@email.com', preferred_channel: 'whatsapp', tags: ['new'], status: 'new', score: 45, source: 'Landing Page', country: 'Colombia', city: 'Bogotá', created_at: '2026-03-06T16:00:00Z', updated_at: '2026-03-06T16:00:00Z' },
+  { id: 'c5', full_name: 'Javier Ruiz', primary_phone: '+1 305 555 0100', primary_email: 'javier@email.com', preferred_channel: 'phone', status: 'contacted', score: 72, source: 'WhatsApp', country: 'USA', city: 'Miami', created_at: '2026-03-05T10:00:00Z', updated_at: '2026-03-05T10:00:00Z' },
+  { id: 'c6', full_name: 'Lucía Fernández', primary_phone: '+52 33 9876 5432', primary_email: 'lucia@email.com', preferred_channel: 'email', tags: ['hot-lead'], status: 'new', score: 60, source: 'Facebook Ads', campaign: 'Q1 Real Estate', country: 'México', city: 'Guadalajara', created_at: '2026-03-06T10:00:00Z', updated_at: '2026-03-06T10:00:00Z' },
+  { id: 'c7', full_name: 'Pedro Castillo', primary_email: 'pedro@email.com', status: 'lost', score: 20, source: 'Google Ads', country: 'Perú', city: 'Lima', created_at: '2026-03-01T09:00:00Z', updated_at: '2026-03-04T11:00:00Z' },
 ];
 
 export const mockDeals: Deal[] = [
@@ -84,8 +79,10 @@ export const mockActivities: Activity[] = [
 ];
 
 export const dashboardStats = {
-  leadsCreated: 24,
-  contactsCreated: 18,
+  contactsTotal: 7,
+  contactsNew: 2,
+  contactsQualified: 2,
+  contactsClients: 1,
   dealsOpen: 4,
   dealsWon: 3,
   dealsLost: 1,

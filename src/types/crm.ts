@@ -11,30 +11,7 @@ export interface User {
   status: 'active' | 'inactive';
 }
 
-export interface Lead {
-  id: string;
-  first_name: string;
-  last_name: string;
-  full_name: string;
-  phone?: string;
-  email?: string;
-  country?: string;
-  city?: string;
-  source?: string;
-  campaign?: string;
-  adset?: string;
-  ad?: string;
-  landing_page?: string;
-  utm_source?: string;
-  utm_medium?: string;
-  utm_campaign?: string;
-  utm_content?: string;
-  status: 'new' | 'contacted' | 'qualified' | 'converted' | 'lost';
-  owner_id?: string;
-  score?: number;
-  created_at: string;
-  updated_at: string;
-}
+export type ContactStatus = 'new' | 'contacted' | 'qualified' | 'client' | 'lost';
 
 export interface Contact {
   id: string;
@@ -50,6 +27,19 @@ export interface Contact {
   last_contact_at?: string;
   next_action_at?: string;
   owner_id?: string;
+  status: ContactStatus;
+  score?: number;
+  source?: string;
+  campaign?: string;
+  adset?: string;
+  ad?: string;
+  landing_page?: string;
+  utm_source?: string;
+  utm_medium?: string;
+  utm_campaign?: string;
+  utm_content?: string;
+  country?: string;
+  city?: string;
   created_at: string;
   updated_at: string;
   company?: Company;
@@ -146,7 +136,7 @@ export interface Meeting {
 
 export interface Activity {
   id: string;
-  related_entity_type: 'lead' | 'contact' | 'deal' | 'company' | 'task' | 'meeting';
+  related_entity_type: 'contact' | 'deal' | 'company' | 'task' | 'meeting';
   related_entity_id: string;
   event_type: 'note' | 'call' | 'whatsapp' | 'email' | 'meeting' | 'stage_change' | 'task_created' | 'deal_created' | 'system';
   event_source?: string;
