@@ -266,6 +266,7 @@ export default function MetaAdsPage() {
                 </div>
               ) : (
                 <div>
+                  <ChartContainer config={chartConfig} className="h-[300px] w-full">
                     <PieChart>
                       <Pie
                         data={pieData}
