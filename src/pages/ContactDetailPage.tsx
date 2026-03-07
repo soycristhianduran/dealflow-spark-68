@@ -167,6 +167,12 @@ export default function ContactDetailPage() {
                       <span className="text-foreground">{[contact.city, contact.country].filter(Boolean).join(', ')}</span>
                     </div>
                   )}
+                  {contact.birthday && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Cake className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                    </div>
+                  )}
                 </div>
 
                 {contact.score != null && (
