@@ -11,9 +11,10 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor } from "lucide-react";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
+import { useTheme } from "@/components/ThemeProvider";
 
 const stageColorOptions = [
   { value: "hsl(220, 70%, 50%)", label: "Azul" },
@@ -71,6 +72,7 @@ const roles = [
 ];
 
 export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   // Users state
   const [users, setUsers] = useState<TeamUser[]>([
     { id: "1", name: "Juan Demo", email: "juan@demo.com", role: "admin", initials: "JD" },
@@ -387,6 +389,35 @@ export default function SettingsPage() {
                       {timezones.map(tz => <SelectItem key={tz.value} value={tz.value}>{tz.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Apariencia</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={theme === "light" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("light")}
+                    >
+                      <Sun className="h-4 w-4" /> Claro
+                    </Button>
+                    <Button
+                      variant={theme === "dark" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("dark")}
+                    >
+                      <Moon className="h-4 w-4" /> Oscuro
+                    </Button>
+                    <Button
+                      variant={theme === "system" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("system")}
+                    >
+                      <Monitor className="h-4 w-4" /> Sistema
+                    </Button>
+                  </div>
                 </div>
                 <Button onClick={handleSaveGeneral}>Guardar cambios</Button>
               </CardContent>

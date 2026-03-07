@@ -2,71 +2,131 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
-    --foreground: 220 25% 10%;
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
-    --card-foreground: 220 25% 10%;
+    --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 25% 10%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 220 70% 50%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
 
     --secondary: 220 14% 96%;
-    --secondary-foreground: 220 25% 10%;
+    --secondary-foreground: 222 47% 11%;
 
     --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
+    --muted-foreground: 220 9% 46%;
 
     --accent: 220 14% 93%;
-    --accent-foreground: 220 25% 10%;
+    --accent-foreground: 222 47% 11%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
 
     --success: 142 71% 45%;
-    --success-foreground: 0 0% 100%;
+    --success-foreground: 210 40% 98%;
 
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning-foreground: 222 47% 11%;
 
     --border: 220 13% 91%;
     --input: 220 13% 91%;
-    --ring: 220 70% 50%;
+    --ring: 221 83% 53%;
 
-    --radius: 0.5rem;
+    --radius: 0.625rem;
 
-    --sidebar-background: 220 25% 10%;
-    --sidebar-foreground: 220 10% 80%;
-    --sidebar-primary: 220 70% 55%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 16%;
-    --sidebar-accent-foreground: 220 10% 90%;
-    --sidebar-border: 220 20% 18%;
-    --sidebar-ring: 220 70% 55%;
-    --sidebar-muted: 220 15% 25%;
+    --sidebar-background: 222 47% 11%;
+    --sidebar-foreground: 220 14% 72%;
+    --sidebar-primary: 221 83% 58%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 222 30% 16%;
+    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-border: 222 30% 18%;
+    --sidebar-ring: 221 83% 58%;
+    --sidebar-muted: 222 20% 25%;
 
     /* Pipeline stage colors */
-    --stage-new: 220 70% 50%;
+    --stage-new: 221 83% 53%;
     --stage-contacted: 262 52% 47%;
     --stage-meeting-scheduled: 38 92% 50%;
     --stage-meeting-done: 25 95% 53%;
     --stage-proposal: 173 58% 39%;
     --stage-negotiation: 199 89% 48%;
     --stage-won: 142 71% 45%;
-    --stage-lost: 0 72% 51%;
+    --stage-lost: 0 84% 60%;
 
     /* Priority colors */
-    --priority-low: 220 10% 46%;
+    --priority-low: 220 9% 46%;
     --priority-medium: 38 92% 50%;
     --priority-high: 25 95% 53%;
-    --priority-urgent: 0 72% 51%;
+    --priority-urgent: 0 84% 60%;
+  }
+
+  .dark {
+    --background: 224 30% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 224 28% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 224 28% 10%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 221 83% 58%;
+    --primary-foreground: 222 47% 6%;
+
+    --secondary: 222 30% 16%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 222 30% 16%;
+    --muted-foreground: 220 14% 55%;
+
+    --accent: 222 30% 20%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 210 40% 98%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 222 47% 11%;
+
+    --border: 222 25% 18%;
+    --input: 222 25% 18%;
+    --ring: 221 83% 58%;
+
+    --sidebar-background: 224 32% 6%;
+    --sidebar-foreground: 220 14% 65%;
+    --sidebar-primary: 221 83% 58%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 224 28% 12%;
+    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-border: 222 25% 14%;
+    --sidebar-ring: 221 83% 58%;
+    --sidebar-muted: 222 20% 20%;
+
+    --stage-new: 221 83% 58%;
+    --stage-contacted: 262 52% 57%;
+    --stage-meeting-scheduled: 38 92% 55%;
+    --stage-meeting-done: 25 95% 58%;
+    --stage-proposal: 173 58% 45%;
+    --stage-negotiation: 199 89% 53%;
+    --stage-won: 142 71% 50%;
+    --stage-lost: 0 72% 55%;
+
+    --priority-low: 220 14% 55%;
+    --priority-medium: 38 92% 55%;
+    --priority-high: 25 95% 58%;
+    --priority-urgent: 0 72% 55%;
   }
 }
 
@@ -76,8 +136,8 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
-    font-family: 'DM Sans', system-ui, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
 }
 
@@ -98,5 +158,10 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 3px;
+  }
+
+  .glass {
+    backdrop-filter: blur(12px) saturate(180%);
+    -webkit-backdrop-filter: blur(12px) saturate(180%);
   }
 }
