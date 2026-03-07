@@ -37,6 +37,7 @@ export default function AuthPage() {
   const [countryCode, setCountryCode] = useState("MX");
   const [industry, setIndustry] = useState("");
   const [companySize, setCompanySize] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
@@ -69,6 +70,7 @@ export default function AuthPage() {
           phone: fullPhone,
           industry,
           company_size: companySize,
+          job_title: jobTitle,
         },
       },
     });
@@ -159,6 +161,19 @@ export default function AuthPage() {
                     <SelectContent>
                       {companySizes.map(s => (
                         <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rol / Cargo</Label>
+                  <Select value={jobTitle} onValueChange={setJobTitle}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona tu cargo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["CEO / Director General", "Director Comercial", "Gerente de Ventas", "Ejecutivo de Ventas", "Director de Marketing", "Gerente de Marketing", "Director de Operaciones", "Gerente de Proyecto", "Fundador / Co-fundador", "Consultor", "Freelancer", "Otro"].map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
