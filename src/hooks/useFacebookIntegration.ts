@@ -81,6 +81,12 @@ export function useFacebookIntegration() {
       url.searchParams.delete("fb_connected");
       window.history.replaceState({}, "", url.pathname + url.search);
       checkConnection();
+    } else if (params.get("fb_error")) {
+      setConnecting(false);
+      toast.error("Error al conectar con Facebook: " + params.get("fb_error"));
+      const url = new URL(window.location.href);
+      url.searchParams.delete("fb_error");
+      window.history.replaceState({}, "", url.pathname + url.search);
     }
   }, [checkConnection]);
 
