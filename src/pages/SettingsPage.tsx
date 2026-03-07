@@ -259,12 +259,8 @@ export default function SettingsPage() {
               </DialogContent>
             </Dialog>
           </TabsContent>
-                    <span className="text-xs text-muted-foreground">Orden: {stage.order}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
+
+
 
           <TabsContent value="users" className="space-y-4">
             <Card className="border-none shadow-sm">
