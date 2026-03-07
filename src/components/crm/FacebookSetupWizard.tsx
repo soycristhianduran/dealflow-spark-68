@@ -398,6 +398,17 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
           )}
 
           {/* FIELD MAPPING */}
+          {step === "mapping" && !currentForm && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-dashed p-6 text-center">
+                <p className="text-sm text-muted-foreground">No hay campos para mapear en los formularios seleccionados</p>
+              </div>
+              <Button className="w-full" onClick={() => setStep("messenger")}>
+                Continuar <ArrowRight className="h-4 w-4 ml-1" />
+              </Button>
+            </div>
+          )}
+
           {step === "mapping" && currentForm && (
             <div className="space-y-3">
               <div>
