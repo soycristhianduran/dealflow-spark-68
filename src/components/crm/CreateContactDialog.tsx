@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -16,8 +16,11 @@ interface CreateContactDialogProps {
 const sources = ["Facebook Ads", "Google Ads", "WhatsApp", "Referral", "Landing Page", "Instagram", "Otro"];
 const channels = ["whatsapp", "email", "phone", "sms"];
 
+type CompanyOption = { id: string; name: string };
+
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
   const [loading, setLoading] = useState(false);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [form, setForm] = useState({
     full_name: "",
     primary_phone: "",
@@ -27,7 +30,16 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     country: "",
     city: "",
     notes: "",
+    company_id: "",
   });
+
+  useEffect(() => {
+    if (open) {
+      supabase.from("companies").select("id, name").order("name").then(({ data }) => {
+        setCompanies((data as any) || []);
+      });
+    }
+  }, [open]);
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
 
@@ -36,6 +48,8 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     if (!form.full_name.trim()) { toast.error("El nombre es requerido"); return; }
     
     setLoading(true);
+    const companyId = form.company_id && form.company_id !== "none" ? form.company_id : null;
+
     const { data: contact, error } = await supabase.from("contacts").insert({
       full_name: form.full_name.trim(),
       primary_phone: form.primary_phone || null,
@@ -45,6 +59,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       country: form.country || null,
       city: form.city || null,
       notes: form.notes || null,
+      company_id: companyId,
       status: "new",
       score: 0,
     }).select("id").single();
@@ -72,6 +87,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
           await supabase.from("deals").insert({
             title: `Deal - ${form.full_name.trim()}`,
             contact_id: contact.id,
+            company_id: companyId,
             pipeline_id: pipeline.id,
             stage_id: firstStage.id,
             value: 0,
@@ -82,7 +98,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       }
 
       toast.success("Lead creado y agregado al pipeline");
-      setForm({ full_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "" });
+      setForm({ full_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "", company_id: "" });
       onOpenChange(false);
       onCreated();
     }
@@ -108,6 +124,16 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
             <div className="space-y-2">
               <Label>Email</Label>
               <Input type="email" value={form.primary_email} onChange={e => update("primary_email", e.target.value)} placeholder="carlos@email.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Empresa</Label>
+              <Select value={form.company_id} onValueChange={v => update("company_id", v)}>
+                <SelectTrigger><SelectValue placeholder="Sin empresa" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin empresa</SelectItem>
+                  {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <Label>Origen</Label>
@@ -138,7 +164,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
           </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>{loading ? "Creando..." : "Crear contacto"}</Button>
+            <Button type="submit" disabled={loading}>{loading ? "Creando..." : "Crear lead"}</Button>
           </DialogFooter>
         </form>
       </DialogContent>
