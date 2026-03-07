@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
-import { Plus, ChevronLeft, ChevronRight, Video, MapPin, Phone, Loader2 } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Video, MapPin, Phone, Loader2, Pencil } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -25,6 +25,9 @@ interface MeetingRow {
   status: string;
   meeting_type: string | null;
   location_or_link: string | null;
+  notes: string | null;
+  contact_id: string | null;
+  contact_name: string | null;
 }
 
 const meetingTypeIcons: Record<string, React.ReactNode> = {
@@ -35,6 +38,11 @@ const meetingTypeIcons: Record<string, React.ReactNode> = {
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
 
+function getMeetingDisplayTitle(m: MeetingRow) {
+  if (m.contact_name) return `${m.title} con ${m.contact_name}`;
+  return m.title;
+}
+
 export default function CalendarPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
@@ -44,14 +52,20 @@ export default function CalendarPage() {
   const [dialogDate, setDialogDate] = useState<Date>(new Date());
   const [dialogStartTime, setDialogStartTime] = useState("09:00");
   const [dialogEndTime, setDialogEndTime] = useState("10:00");
+  const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
 
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
       .from("meetings")
-      .select("id, title, start_at, end_at, status, meeting_type, location_or_link")
+      .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, contacts(full_name)")
       .order("start_at", { ascending: true });
-    if (data) setMeetings(data);
+    if (data) {
+      setMeetings(data.map((m: any) => ({
+        ...m,
+        contact_name: m.contacts?.full_name || null,
+      })));
+    }
     setLoading(false);
   }, []);
 
@@ -79,9 +93,20 @@ export default function CalendarPage() {
   const getMeetingsForDay = (day: Date) => meetings.filter(m => isSameDay(parseISO(m.start_at), day));
 
   const openCreate = (date?: Date, startTime?: string, endTime?: string) => {
+    setEditingMeeting(null);
     setDialogDate(date || currentDate);
     setDialogStartTime(startTime || "09:00");
     setDialogEndTime(endTime || "10:00");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (meeting: MeetingRow, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingMeeting(meeting);
+    const start = parseISO(meeting.start_at);
+    setDialogDate(start);
+    setDialogStartTime(format(start, "HH:mm"));
+    setDialogEndTime(format(parseISO(meeting.end_at), "HH:mm"));
     setDialogOpen(true);
   };
 
@@ -144,8 +169,9 @@ export default function CalendarPage() {
                             isSameDay(day, currentDate) && !isToday(day) && "bg-accent text-accent-foreground"
                           )}>{format(day, "d")}</span>
                           {dm.slice(0, 2).map(m => (
-                            <div key={m.id} className="mt-0.5 truncate rounded bg-primary/10 px-1 py-0.5 text-xs text-primary">
-                              {format(parseISO(m.start_at), "HH:mm")} {m.title}
+                            <div key={m.id} onClick={(e) => openEdit(m, e)}
+                              className="mt-0.5 truncate rounded bg-primary/10 px-1 py-0.5 text-xs text-primary hover:bg-primary/20 transition-colors">
+                              {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m)}
                             </div>
                           ))}
                           {dm.length > 2 && <p className="text-xs text-muted-foreground px-1">+{dm.length - 2} más</p>}
@@ -179,8 +205,9 @@ export default function CalendarPage() {
                             <div key={di} className="border-l px-1 py-0.5 cursor-pointer hover:bg-muted/30 transition-colors"
                               onClick={() => openCreate(day, `${String(hour).padStart(2,"0")}:00`, `${String(hour+1).padStart(2,"0")}:00`)}>
                               {hm.map(m => (
-                                <div key={m.id} className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary truncate mb-0.5">
-                                  {format(parseISO(m.start_at), "HH:mm")} {m.title}
+                                <div key={m.id} onClick={(e) => openEdit(m, e)}
+                                  className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary truncate mb-0.5 hover:bg-primary/25 transition-colors">
+                                  {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m)}
                                 </div>
                               ))}
                             </div>
@@ -203,12 +230,14 @@ export default function CalendarPage() {
                           <div className="px-2 py-1 text-xs text-muted-foreground text-right pr-3">{String(hour).padStart(2,"0")}:00</div>
                           <div className="border-l px-2 py-1 space-y-0.5">
                             {hm.map(m => (
-                              <div key={m.id} className="rounded-md bg-primary/15 px-2 py-1.5 text-sm text-primary flex items-center gap-2">
+                              <div key={m.id} onClick={(e) => openEdit(m, e)}
+                                className="rounded-md bg-primary/15 px-2 py-1.5 text-sm text-primary flex items-center gap-2 hover:bg-primary/25 transition-colors">
                                 {meetingTypeIcons[m.meeting_type || "video_call"]}
-                                <span className="font-medium">{m.title}</span>
+                                <span className="font-medium">{getMeetingDisplayTitle(m)}</span>
                                 <span className="text-xs text-muted-foreground ml-auto">
                                   {format(parseISO(m.start_at), "HH:mm")} – {format(parseISO(m.end_at), "HH:mm")}
                                 </span>
+                                <Pencil className="h-3 w-3 text-muted-foreground" />
                               </div>
                             ))}
                           </div>
@@ -230,19 +259,21 @@ export default function CalendarPage() {
               {selectedDayMeetings.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">Sin citas este día</p>
               ) : selectedDayMeetings.map(meeting => (
-                <Card key={meeting.id} className="p-3 border shadow-sm">
+                <Card key={meeting.id} className="p-3 border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => openEdit(meeting)}>
                   <div className="flex items-start gap-2">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
                       {meetingTypeIcons[meeting.meeting_type || "video_call"]}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">{meeting.title}</p>
+                      <p className="text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting)}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(meeting.start_at), "HH:mm")} - {format(parseISO(meeting.end_at), "HH:mm")}
                       </p>
                       {meeting.location_or_link && <p className="text-xs text-primary mt-1 truncate">{meeting.location_or_link}</p>}
                       <Badge variant="outline" className="mt-2 text-xs">{meeting.status}</Badge>
                     </div>
+                    <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
                   </div>
                 </Card>
               ))}
@@ -258,6 +289,15 @@ export default function CalendarPage() {
         defaultDate={dialogDate}
         defaultStartTime={dialogStartTime}
         defaultEndTime={dialogEndTime}
+        editingMeeting={editingMeeting ? {
+          id: editingMeeting.id,
+          title: editingMeeting.title,
+          meeting_type: editingMeeting.meeting_type,
+          location_or_link: editingMeeting.location_or_link,
+          notes: editingMeeting.notes,
+          contact_id: editingMeeting.contact_id,
+          status: editingMeeting.status,
+        } : undefined}
       />
     </AppLayout>
   );

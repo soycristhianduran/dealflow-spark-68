@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -9,11 +9,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Clock, Loader2 } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+
+interface EditingMeeting {
+  id: string;
+  title: string;
+  meeting_type: string | null;
+  location_or_link: string | null;
+  notes: string | null;
+  contact_id: string | null;
+  status: string;
+}
 
 interface CreateMeetingDialogProps {
   open: boolean;
@@ -23,6 +33,7 @@ interface CreateMeetingDialogProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   defaultContactId?: string;
+  editingMeeting?: EditingMeeting;
 }
 
 const timeOptions: string[] = [];
@@ -40,6 +51,7 @@ export function CreateMeetingDialog({
   defaultStartTime,
   defaultEndTime,
   defaultContactId,
+  editingMeeting,
 }: CreateMeetingDialogProps) {
   const { session } = useAuth();
   const [saving, setSaving] = useState(false);
@@ -54,32 +66,59 @@ export function CreateMeetingDialog({
   const [contactId, setContactId] = useState("");
   const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
   const [dateOpen, setDateOpen] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactDropdownOpen, setContactDropdownOpen] = useState(false);
+  const [status, setStatus] = useState("scheduled");
+
+  const isEditing = !!editingMeeting;
 
   useEffect(() => {
     if (open) {
-      setTitle("");
+      if (editingMeeting) {
+        setTitle(editingMeeting.title);
+        setMeetingType(editingMeeting.meeting_type || "video_call");
+        setLocation(editingMeeting.location_or_link || "");
+        setNotes(editingMeeting.notes || "");
+        setContactId(editingMeeting.contact_id || "");
+        setStatus(editingMeeting.status);
+      } else {
+        setTitle("");
+        setMeetingType("video_call");
+        setLocation("");
+        setNotes("");
+        setContactId(defaultContactId || "");
+        setStatus("scheduled");
+      }
       setDate(defaultDate || new Date());
       setStartTime(defaultStartTime || "09:00");
       setEndTime(defaultEndTime || "10:00");
-      setMeetingType("video_call");
-      setLocation("");
-      setNotes("");
-      setContactId(defaultContactId || "");
+      setContactSearch("");
 
       supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
         if (data) setContacts(data);
       });
     }
-  }, [open, defaultDate, defaultStartTime, defaultEndTime, defaultContactId]);
+  }, [open, defaultDate, defaultStartTime, defaultEndTime, defaultContactId, editingMeeting]);
 
-  const handleCreate = async () => {
+  const filteredContacts = useMemo(() => {
+    if (!contactSearch.trim()) return contacts;
+    const q = contactSearch.toLowerCase();
+    return contacts.filter(c => c.full_name.toLowerCase().includes(q));
+  }, [contacts, contactSearch]);
+
+  const selectedContactName = useMemo(() => {
+    if (!contactId) return null;
+    return contacts.find(c => c.id === contactId)?.full_name || null;
+  }, [contactId, contacts]);
+
+  const handleSave = async () => {
     if (!title.trim() || !date) {
       toast.error("Título y fecha son requeridos");
       return;
     }
     setSaving(true);
     const dateStr = format(date, "yyyy-MM-dd");
-    const { error } = await supabase.from("meetings").insert({
+    const payload = {
       title: title.trim(),
       start_at: `${dateStr}T${startTime}:00`,
       end_at: `${dateStr}T${endTime}:00`,
@@ -87,14 +126,23 @@ export function CreateMeetingDialog({
       location_or_link: location.trim() || null,
       notes: notes.trim() || null,
       contact_id: contactId && contactId !== "none" ? contactId : null,
-      advisor_id: session?.user?.id || null,
-      status: "scheduled",
-    });
+      status,
+    };
+
+    let error;
+    if (isEditing) {
+      ({ error } = await supabase.from("meetings").update(payload).eq("id", editingMeeting!.id));
+    } else {
+      ({ error } = await supabase.from("meetings").insert({
+        ...payload,
+        advisor_id: session?.user?.id || null,
+      }));
+    }
     setSaving(false);
     if (error) {
-      toast.error("Error al crear cita: " + error.message);
+      toast.error(`Error al ${isEditing ? "actualizar" : "crear"} cita: ${error.message}`);
     } else {
-      toast.success("Cita creada");
+      toast.success(isEditing ? "Cita actualizada" : "Cita creada");
       onOpenChange(false);
       onCreated?.();
     }
@@ -104,9 +152,9 @@ export function CreateMeetingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Nueva cita</DialogTitle>
+          <DialogTitle>{isEditing ? "Editar cita" : "Nueva cita"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-2">
+        <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto scrollbar-thin pr-1">
           <div className="space-y-2">
             <Label>Título *</Label>
             <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Reunión con cliente" />
@@ -119,10 +167,7 @@ export function CreateMeetingDialog({
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={cn(
-                    "w-full justify-start text-left font-normal",
-                    !date && "text-muted-foreground"
-                  )}
+                  className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {date ? format(date, "PPP", { locale: es }) : "Seleccionar fecha"}
@@ -188,19 +233,78 @@ export function CreateMeetingDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="space-y-2">
-              <Label>Contacto</Label>
-              <Select value={contactId} onValueChange={setContactId}>
-                <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Sin contacto</SelectItem>
-                  {contacts.map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
+            {isEditing && (
+              <div className="space-y-2">
+                <Label>Estado</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Programada</SelectItem>
+                    <SelectItem value="completed">Completada</SelectItem>
+                    <SelectItem value="cancelled">Cancelada</SelectItem>
+                    <SelectItem value="no_show">No asistió</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          {/* Searchable contact selector */}
+          <div className="space-y-2">
+            <Label>Contacto</Label>
+            <div className="relative">
+              {selectedContactName && !contactDropdownOpen ? (
+                <div className="flex items-center h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                  <span className="flex-1 truncate">{selectedContactName}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setContactId(""); setContactSearch(""); }}
+                    className="ml-2 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={contactSearch}
+                    onChange={e => { setContactSearch(e.target.value); setContactDropdownOpen(true); }}
+                    onFocus={() => setContactDropdownOpen(true)}
+                    placeholder="Buscar contacto..."
+                    className="pl-9"
+                  />
+                </div>
+              )}
+              {contactDropdownOpen && (
+                <div className="absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md max-h-48 overflow-y-auto scrollbar-thin">
+                  <button
+                    type="button"
+                    className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
+                    onClick={() => { setContactId(""); setContactSearch(""); setContactDropdownOpen(false); }}
+                  >
+                    Sin contacto
+                  </button>
+                  {filteredContacts.length === 0 ? (
+                    <p className="px-3 py-2 text-sm text-muted-foreground">No se encontraron contactos</p>
+                  ) : filteredContacts.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors",
+                        contactId === c.id && "bg-accent text-accent-foreground"
+                      )}
+                      onClick={() => { setContactId(c.id); setContactSearch(""); setContactDropdownOpen(false); }}
+                    >
+                      {c.full_name}
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              )}
             </div>
           </div>
+
           <div className="space-y-2">
             <Label>Ubicación / Enlace</Label>
             <Input value={location} onChange={e => setLocation(e.target.value)} placeholder="https://meet.google.com/..." />
@@ -212,9 +316,9 @@ export function CreateMeetingDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleCreate} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving}>
             {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            Crear cita
+            {isEditing ? "Guardar cambios" : "Crear cita"}
           </Button>
         </DialogFooter>
       </DialogContent>
