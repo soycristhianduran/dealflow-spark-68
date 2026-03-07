@@ -61,24 +61,14 @@ export default function IntegrationsPage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${integration.color}20` }}>
                     <integration.icon className="h-5 w-5" style={{ color: integration.color }} />
                   </div>
-                  <Badge
-                    variant={integration.status === "available" ? "default" : "secondary"}
-                    className="text-xs"
-                  >
-                    {integration.status === "available" ? "Disponible" : "Próximamente"}
-                  </Badge>
+                  <Badge variant="default" className="text-xs">Disponible</Badge>
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">{integration.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{integration.description}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant={integration.status === "available" ? "default" : "outline"}
-                  className="w-full"
-                  disabled={integration.status === "coming_soon"}
-                >
-                  {integration.status === "available" ? "Conectar" : "Próximamente"}
+                <Button size="sm" className="w-full">
+                  Conectar
                 </Button>
               </CardContent>
             </Card>
