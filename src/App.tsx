@@ -19,6 +19,7 @@ import TasksPage from "./pages/TasksPage";
 import SettingsPage from "./pages/SettingsPage";
 import IntegrationsPage from "./pages/IntegrationsPage";
 import MorePage from "./pages/MorePage";
+import MetaAdsPage from "./pages/MetaAdsPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
