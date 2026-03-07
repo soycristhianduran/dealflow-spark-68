@@ -174,7 +174,8 @@ Deno.serve(async (req) => {
 
         // Standard contact columns that can be mapped
         const standardColumns = new Set([
-          "full_name", "primary_email", "primary_phone", "city", "country",
+          "full_name", "first_name", "last_name", "primary_email", "primary_phone",
+          "birthday", "city", "country",
           "language", "timezone", "preferred_channel", "notes", "source",
           "campaign", "adset", "ad", "landing_page",
           "utm_source", "utm_medium", "utm_campaign", "utm_content",
@@ -199,7 +200,6 @@ Deno.serve(async (req) => {
           let customFields: Record<string, string> = {};
 
           if (hasCustomMappings) {
-            // Use user-defined mappings
             for (const mapping of userMappings!) {
               const value = fields[mapping.fb_field_name.toLowerCase()] || "";
               if (!value) continue;
@@ -209,18 +209,31 @@ Deno.serve(async (req) => {
                 contactData[mapping.contact_field] = value;
               }
             }
-            // Ensure full_name exists
-            if (!contactData.full_name) {
-              contactData.full_name = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
-            }
           } else {
             // Fallback: auto-detect common fields
-            contactData.full_name = fields["full_name"] || fields["nombre_completo"] || fields["name"] || fields["nombre"] || "Lead Facebook";
+            contactData.first_name = fields["first_name"] || fields["nombre"] || null;
+            contactData.last_name = fields["last_name"] || fields["apellido"] || fields["apellidos"] || null;
             contactData.primary_email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || null;
             contactData.primary_phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || null;
+            contactData.birthday = fields["date_of_birth"] || fields["fecha_de_nacimiento"] || fields["birthday"] || null;
             contactData.city = fields["city"] || fields["ciudad"] || null;
             contactData.country = fields["country"] || fields["país"] || null;
+
+            // If no first/last, try full_name
+            if (!contactData.first_name) {
+              const fullNameRaw = fields["full_name"] || fields["nombre_completo"] || fields["name"] || "";
+              if (fullNameRaw) {
+                const parts = fullNameRaw.trim().split(/\s+/);
+                contactData.first_name = parts[0] || null;
+                contactData.last_name = parts.slice(1).join(" ") || null;
+              }
+            }
           }
+
+          // Compose full_name from first + last
+          const firstName = contactData.first_name || "";
+          const lastName = contactData.last_name || "";
+          contactData.full_name = [firstName, lastName].filter(Boolean).join(" ") || "Lead Facebook";
 
           if (Object.keys(customFields).length > 0) {
             contactData.custom_fields = customFields;
