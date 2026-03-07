@@ -16,6 +16,8 @@ export type ContactStatus = 'new' | 'contacted' | 'qualified' | 'client' | 'lost
 export interface Contact {
   id: string;
   full_name: string;
+  first_name?: string;
+  last_name?: string;
   primary_phone?: string;
   primary_email?: string;
   company_id?: string;
@@ -40,6 +42,7 @@ export interface Contact {
   utm_content?: string;
   country?: string;
   city?: string;
+  birthday?: string;
   custom_fields?: Record<string, string>;
   created_at: string;
   updated_at: string;

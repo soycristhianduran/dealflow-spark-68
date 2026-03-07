@@ -93,17 +93,20 @@ export type Database = {
         Row: {
           ad: string | null
           adset: string | null
+          birthday: string | null
           campaign: string | null
           city: string | null
           company_id: string | null
           country: string | null
           created_at: string
           custom_fields: Json | null
+          first_name: string | null
           full_name: string
           id: string
           landing_page: string | null
           language: string | null
           last_contact_at: string | null
+          last_name: string | null
           next_action_at: string | null
           notes: string | null
           owner_id: string | null
@@ -124,17 +127,20 @@ export type Database = {
         Insert: {
           ad?: string | null
           adset?: string | null
+          birthday?: string | null
           campaign?: string | null
           city?: string | null
           company_id?: string | null
           country?: string | null
           created_at?: string
           custom_fields?: Json | null
+          first_name?: string | null
           full_name: string
           id?: string
           landing_page?: string | null
           language?: string | null
           last_contact_at?: string | null
+          last_name?: string | null
           next_action_at?: string | null
           notes?: string | null
           owner_id?: string | null
@@ -155,17 +161,20 @@ export type Database = {
         Update: {
           ad?: string | null
           adset?: string | null
+          birthday?: string | null
           campaign?: string | null
           city?: string | null
           company_id?: string | null
           country?: string | null
           created_at?: string
           custom_fields?: Json | null
+          first_name?: string | null
           full_name?: string
           id?: string
           landing_page?: string | null
           language?: string | null
           last_contact_at?: string | null
+          last_name?: string | null
           next_action_at?: string | null
           notes?: string | null
           owner_id?: string | null

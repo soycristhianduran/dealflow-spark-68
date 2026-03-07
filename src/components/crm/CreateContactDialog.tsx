@@ -22,7 +22,8 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [form, setForm] = useState({
-    full_name: "",
+    first_name: "",
+    last_name: "",
     primary_phone: "",
     primary_email: "",
     source: "",
@@ -31,6 +32,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     city: "",
     notes: "",
     company_id: "",
+    birthday: "",
   });
 
   useEffect(() => {
@@ -45,13 +47,16 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.full_name.trim()) { toast.error("El nombre es requerido"); return; }
+    if (!form.first_name.trim()) { toast.error("El nombre es requerido"); return; }
     
     setLoading(true);
     const companyId = form.company_id && form.company_id !== "none" ? form.company_id : null;
+    const fullName = [form.first_name.trim(), form.last_name.trim()].filter(Boolean).join(" ");
 
     const { data: contact, error } = await supabase.from("contacts").insert({
-      full_name: form.full_name.trim(),
+      full_name: fullName,
+      first_name: form.first_name.trim() || null,
+      last_name: form.last_name.trim() || null,
       primary_phone: form.primary_phone || null,
       primary_email: form.primary_email || null,
       source: form.source || null,
@@ -60,6 +65,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       city: form.city || null,
       notes: form.notes || null,
       company_id: companyId,
+      birthday: form.birthday || null,
       status: "new",
       score: 0,
     }).select("id").single();
@@ -67,7 +73,6 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     if (error) {
       toast.error("Error al crear lead: " + error.message);
     } else {
-      // Auto-create deal in first pipeline stage
       const { data: pipeline } = await supabase
         .from("pipelines")
         .select("id")
@@ -85,7 +90,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
         if (firstStage) {
           await supabase.from("deals").insert({
-            title: `Deal - ${form.full_name.trim()}`,
+            title: `Deal - ${fullName}`,
             contact_id: contact.id,
             company_id: companyId,
             pipeline_id: pipeline.id,
@@ -98,7 +103,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       }
 
       toast.success("Lead creado y agregado al pipeline");
-      setForm({ full_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "", company_id: "" });
+      setForm({ first_name: "", last_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "", company_id: "", birthday: "" });
       onOpenChange(false);
       onCreated();
     }
@@ -113,9 +118,13 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2">
-              <Label>Nombre completo *</Label>
-              <Input value={form.full_name} onChange={e => update("full_name", e.target.value)} placeholder="Ej: Carlos Mendoza" />
+            <div className="space-y-2">
+              <Label>Nombre *</Label>
+              <Input value={form.first_name} onChange={e => update("first_name", e.target.value)} placeholder="Carlos" />
+            </div>
+            <div className="space-y-2">
+              <Label>Apellido</Label>
+              <Input value={form.last_name} onChange={e => update("last_name", e.target.value)} placeholder="Mendoza" />
             </div>
             <div className="space-y-2">
               <Label>Teléfono</Label>
@@ -160,6 +169,10 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
             <div className="space-y-2">
               <Label>Ciudad</Label>
               <Input value={form.city} onChange={e => update("city", e.target.value)} placeholder="CDMX" />
+            </div>
+            <div className="space-y-2">
+              <Label>Fecha de nacimiento</Label>
+              <Input type="date" value={form.birthday} onChange={e => update("birthday", e.target.value)} />
             </div>
           </div>
           <DialogFooter>
