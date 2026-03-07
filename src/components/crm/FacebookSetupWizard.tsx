@@ -62,6 +62,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
   const [importedCount, setImportedCount] = useState(0);
   const [formSearch, setFormSearch] = useState("");
+  const [syncingLeads, setSyncingLeads] = useState(false);
+  const [leadsImported, setLeadsImported] = useState<{ contacts: number; deals: number } | null>(null);
 
   const selectedForms = useMemo(() => forms.filter(f => f.selected), [forms]);
   const filteredForms = useMemo(() => {

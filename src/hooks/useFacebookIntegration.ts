@@ -189,12 +189,26 @@ export function useFacebookIntegration() {
     return data;
   }, [checkConnection]);
 
+  const fetchLeads = useCallback(async (formId: string, pageId: string) => {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "fetch_leads", form_id: formId, page_id: pageId },
+    });
+    if (error) { toast.error("Error al importar leads"); return null; }
+    const imported = data?.imported || { contacts: 0, deals: 0 };
+    if (imported.contacts > 0) {
+      toast.success(`${imported.contacts} leads importados, ${imported.deals} deals creados`);
+    } else {
+      toast.info("No se encontraron leads nuevos para importar");
+    }
+    return data;
+  }, []);
+
   return {
     isConnected, loading, connecting, status,
     connect, disconnect, checkConnection,
     getPages, savePages,
     getLeadForms, saveLeadForms, saveFieldMappings,
     getConversations,
-    getAdAccounts, importCampaigns,
+    getAdAccounts, importCampaigns, fetchLeads,
   };
 }
