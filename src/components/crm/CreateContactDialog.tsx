@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 
 interface CreateContactDialogProps {
   open: boolean;
@@ -17,10 +18,14 @@ const sources = ["Facebook Ads", "Google Ads", "WhatsApp", "Referral", "Landing 
 const channels = ["whatsapp", "email", "phone", "sms"];
 
 type CompanyOption = { id: string; name: string };
+type CustomField = { key: string; value: string };
 
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [showCustomFields, setShowCustomFields] = useState(false);
+  const [newFieldKey, setNewFieldKey] = useState("");
   const [form, setForm] = useState({
     first_name: "",
     last_name: "",
@@ -40,10 +45,32 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       supabase.from("companies").select("id, name").order("name").then(({ data }) => {
         setCompanies((data as any) || []);
       });
+    } else {
+      setCustomFields([]);
+      setShowCustomFields(false);
+      setNewFieldKey("");
     }
   }, [open]);
 
   const update = (field: string, value: string) => setForm(prev => ({ ...prev, [field]: value }));
+
+  const addCustomField = () => {
+    const key = newFieldKey.trim();
+    if (!key) { toast.error("Escribe un nombre para el campo"); return; }
+    if (customFields.some(f => f.key.toLowerCase() === key.toLowerCase())) {
+      toast.error("Ese campo ya existe"); return;
+    }
+    setCustomFields(prev => [...prev, { key, value: "" }]);
+    setNewFieldKey("");
+  };
+
+  const updateCustomField = (index: number, value: string) => {
+    setCustomFields(prev => prev.map((f, i) => i === index ? { ...f, value } : f));
+  };
+
+  const removeCustomField = (index: number) => {
+    setCustomFields(prev => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +79,14 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     setLoading(true);
     const companyId = form.company_id && form.company_id !== "none" ? form.company_id : null;
     const fullName = [form.first_name.trim(), form.last_name.trim()].filter(Boolean).join(" ");
+
+    // Build custom_fields JSON
+    const customFieldsObj: Record<string, string> = {};
+    customFields.forEach(f => {
+      if (f.key.trim() && f.value.trim()) {
+        customFieldsObj[f.key.trim().toLowerCase().replace(/\s+/g, "_")] = f.value.trim();
+      }
+    });
 
     const { data: contact, error } = await supabase.from("contacts").insert({
       full_name: fullName,
@@ -68,6 +103,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       birthday: form.birthday || null,
       status: "new",
       score: 0,
+      custom_fields: Object.keys(customFieldsObj).length > 0 ? customFieldsObj : {},
     }).select("id").single();
 
     if (error) {
@@ -104,6 +140,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
       toast.success("Lead creado y agregado al pipeline");
       setForm({ first_name: "", last_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "", company_id: "", birthday: "" });
+      setCustomFields([]);
       onOpenChange(false);
       onCreated();
     }
@@ -112,7 +149,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Nuevo lead</DialogTitle>
         </DialogHeader>
@@ -175,6 +212,78 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
               <Input type="date" value={form.birthday} onChange={e => update("birthday", e.target.value)} />
             </div>
           </div>
+
+          {/* Custom Fields Section */}
+          <div className="border border-border rounded-lg">
+            <button
+              type="button"
+              onClick={() => setShowCustomFields(!showCustomFields)}
+              className="flex items-center justify-between w-full p-3 text-sm font-medium text-foreground hover:bg-muted/50 rounded-lg transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Plus className="h-4 w-4 text-primary" />
+                Campos personalizados
+                {customFields.length > 0 && (
+                  <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
+                    {customFields.length}
+                  </span>
+                )}
+              </span>
+              {showCustomFields ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+            </button>
+
+            {showCustomFields && (
+              <div className="px-3 pb-3 space-y-3">
+                {customFields.map((field, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">{field.key}</Label>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          value={field.value}
+                          onChange={e => updateCustomField(index, e.target.value)}
+                          placeholder="Valor"
+                          className="h-8 text-sm"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => removeCustomField(index)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <div className="flex items-center gap-2 pt-1">
+                  <Input
+                    value={newFieldKey}
+                    onChange={e => setNewFieldKey(e.target.value)}
+                    placeholder="Nombre del campo"
+                    className="h-8 text-sm flex-1"
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomField(); } }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 shrink-0"
+                    onClick={addCustomField}
+                  >
+                    <Plus className="h-3.5 w-3.5 mr-1" />
+                    Agregar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
             <Button type="submit" disabled={loading}>{loading ? "Creando..." : "Crear lead"}</Button>
