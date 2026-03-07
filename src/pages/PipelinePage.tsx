@@ -54,6 +54,8 @@ export default function PipelinePage() {
   const [loading, setLoading] = useState(true);
   const [draggedDeal, setDraggedDeal] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
+  const [dragOverStageCol, setDragOverStageCol] = useState<string | null>(null);
 
   // Pipeline info
   const [pipelineId, setPipelineId] = useState<string | null>(null);
@@ -195,6 +197,33 @@ export default function PipelinePage() {
     fetchData();
   };
 
+  const handleStageDrop = async (targetStageId: string) => {
+    if (!draggedStageId || draggedStageId === targetStageId) {
+      setDraggedStageId(null);
+      setDragOverStageCol(null);
+      return;
+    }
+    const fromIdx = stages.findIndex(s => s.id === draggedStageId);
+    const toIdx = stages.findIndex(s => s.id === targetStageId);
+    if (fromIdx < 0 || toIdx < 0) return;
+
+    // Reorder locally first for instant feedback
+    const reordered = [...stages];
+    const [moved] = reordered.splice(fromIdx, 1);
+    reordered.splice(toIdx, 0, moved);
+    setStages(reordered);
+    setDraggedStageId(null);
+    setDragOverStageCol(null);
+
+    // Persist new order
+    await Promise.all(
+      reordered.map((s, i) =>
+        supabase.from("pipeline_stages").update({ order: i + 1 }).eq("id", s.id)
+      )
+    );
+    fetchData();
+  };
+
   return (
     <AppLayout>
       <AppHeader
@@ -238,13 +267,37 @@ export default function PipelinePage() {
               return (
                 <div
                   key={stage.id}
+                  draggable={manageMode}
+                  onDragStart={(e) => {
+                    if (!manageMode) return;
+                    setDraggedStageId(stage.id);
+                    e.dataTransfer.effectAllowed = "move";
+                  }}
+                  onDragEnd={() => { setDraggedStageId(null); setDragOverStageCol(null); }}
                   className={cn(
-                    "flex w-72 flex-col rounded-lg bg-muted/50 transition-colors",
-                    dragOverStage === stage.id && "ring-2 ring-primary/40 bg-primary/5"
+                    "flex w-72 flex-col rounded-lg bg-muted/50 transition-all",
+                    !manageMode && dragOverStage === stage.id && "ring-2 ring-primary/40 bg-primary/5",
+                    manageMode && dragOverStageCol === stage.id && draggedStageId !== stage.id && "ring-2 ring-primary/40",
+                    manageMode && draggedStageId === stage.id && "opacity-50 scale-95",
+                    manageMode && "cursor-grab active:cursor-grabbing"
                   )}
-                  onDragOver={(e) => { e.preventDefault(); setDragOverStage(stage.id); }}
-                  onDragLeave={() => setDragOverStage(null)}
-                  onDrop={() => handleDrop(stage.id)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    if (draggedStageId && manageMode) {
+                      setDragOverStageCol(stage.id);
+                    } else if (draggedDeal) {
+                      setDragOverStage(stage.id);
+                    }
+                  }}
+                  onDragLeave={() => { setDragOverStage(null); setDragOverStageCol(null); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggedStageId && manageMode) {
+                      handleStageDrop(stage.id);
+                    } else if (draggedDeal) {
+                      handleDrop(stage.id);
+                    }
+                  }}
                 >
                   {/* Stage header */}
                   <div className="flex items-center justify-between px-3 py-3 border-b">
