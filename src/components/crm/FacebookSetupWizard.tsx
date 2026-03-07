@@ -670,7 +670,43 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                     <span className="font-medium text-foreground">{importedCount}</span>
                   </div>
                 )}
+                {leadsImported && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Leads importados</span>
+                    <span className="font-medium text-foreground">{leadsImported.contacts} contactos, {leadsImported.deals} deals</span>
+                  </div>
+                )}
               </div>
+
+              {/* Sync leads button */}
+              {selectedForms.length > 0 && selectedPageId && (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  disabled={syncingLeads}
+                  onClick={async () => {
+                    setSyncingLeads(true);
+                    let totalContacts = 0;
+                    let totalDeals = 0;
+                    for (const form of selectedForms) {
+                      const result = await fb.fetchLeads(form.id, selectedPageId!);
+                      if (result?.imported) {
+                        totalContacts += result.imported.contacts;
+                        totalDeals += result.imported.deals;
+                      }
+                    }
+                    setLeadsImported({ contacts: totalContacts, deals: totalDeals });
+                    setSyncingLeads(false);
+                  }}
+                >
+                  {syncingLeads ? (
+                    <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Importando leads...</>
+                  ) : (
+                    <><Download className="h-4 w-4 mr-1" /> Importar leads ahora</>
+                  )}
+                </Button>
+              )}
+
               <Button className="w-full" onClick={() => onOpenChange(false)}>
                 Cerrar
               </Button>
