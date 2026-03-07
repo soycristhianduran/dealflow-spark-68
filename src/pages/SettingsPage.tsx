@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -91,9 +92,18 @@ export default function SettingsPage() {
   const [stageProbability, setStageProbability] = useState("50");
 
   // General state
-  const [orgName, setOrgName] = useState("Mi Empresa");
+  const [orgName, setOrgName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [timezone, setTimezone] = useState("America/Mexico_City");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      const meta = data.user?.user_metadata;
+      if (meta?.company_name && !orgName) {
+        setOrgName(meta.company_name);
+      }
+    });
+  }, []);
 
   const handleAddUser = () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {

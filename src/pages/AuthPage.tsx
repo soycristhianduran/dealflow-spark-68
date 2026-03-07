@@ -38,6 +38,7 @@ export default function AuthPage() {
   const [industry, setIndustry] = useState("");
   const [companySize, setCompanySize] = useState("");
   const [jobTitle, setJobTitle] = useState("");
+  const [companyName, setCompanyName] = useState("");
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
@@ -71,6 +72,7 @@ export default function AuthPage() {
           industry,
           company_size: companySize,
           job_title: jobTitle,
+          company_name: companyName.trim(),
         },
       },
     });
@@ -129,6 +131,10 @@ export default function AuthPage() {
                 <div className="space-y-2">
                   <Label>Email *</Label>
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nombre de la empresa</Label>
+                  <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
                 </div>
                 <div className="space-y-2">
                   <Label>Teléfono</Label>
