@@ -2,10 +2,13 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Search, Building2, Globe, MapPin } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 type Company = {
   id: string;
@@ -17,20 +20,43 @@ type Company = {
   website: string | null;
 };
 
+const emptyForm = { name: "", industry: "", company_size: "", city: "", country: "", website: "" };
+
 export default function CompaniesPage() {
   const [search, setSearch] = useState("");
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetch = async () => {
-      const { data } = await supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
-      setCompanies((data as any) || []);
-      setLoading(false);
-    };
-    fetch();
+  const fetchCompanies = useCallback(async () => {
+    const { data } = await supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
+    setCompanies((data as any) || []);
+    setLoading(false);
   }, []);
+
+  useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    setSaving(true);
+    const { error } = await supabase.from("companies").insert({
+      name: form.name.trim(),
+      industry: form.industry.trim() || null,
+      company_size: form.company_size.trim() || null,
+      city: form.city.trim() || null,
+      country: form.country.trim() || null,
+      website: form.website.trim() || null,
+    });
+    setSaving(false);
+    if (error) { toast.error("Error al crear empresa"); return; }
+    toast.success("Empresa creada");
+    setForm(emptyForm);
+    setDialogOpen(false);
+    fetchCompanies();
+  };
 
   const filtered = companies.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
@@ -39,7 +65,7 @@ export default function CompaniesPage() {
   return (
     <AppLayout>
       <AppHeader title="Empresas" subtitle={`${companies.length} empresas`} actions={
-        <Button size="sm" className="gap-1.5"><Plus className="h-4 w-4" /> Nueva empresa</Button>
+        <Button size="sm" className="gap-1.5" onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4" /> Nueva empresa</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3">
@@ -92,6 +118,48 @@ export default function CompaniesPage() {
           </table>
         </div>
       </main>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nueva empresa</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Nombre *</Label>
+              <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Nombre de la empresa" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Industria</Label>
+                <Input value={form.industry} onChange={e => setForm(f => ({ ...f, industry: e.target.value }))} placeholder="Ej: Tecnología" />
+              </div>
+              <div>
+                <Label>Tamaño</Label>
+                <Input value={form.company_size} onChange={e => setForm(f => ({ ...f, company_size: e.target.value }))} placeholder="Ej: 1-10" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Ciudad</Label>
+                <Input value={form.city} onChange={e => setForm(f => ({ ...f, city: e.target.value }))} placeholder="Ciudad" />
+              </div>
+              <div>
+                <Label>País</Label>
+                <Input value={form.country} onChange={e => setForm(f => ({ ...f, country: e.target.value }))} placeholder="País" />
+              </div>
+            </div>
+            <div>
+              <Label>Website</Label>
+              <Input value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} placeholder="https://..." />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={saving || !form.name.trim()}>{saving ? "Creando..." : "Crear empresa"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
