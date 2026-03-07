@@ -4,15 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3, RefreshCw, Loader2 } from "lucide-react";
+import { DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3, RefreshCw, Loader2, CalendarIcon, X } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface Campaign {
   id: string;
