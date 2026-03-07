@@ -34,6 +34,47 @@ export default function ContactDetailPage() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+  const [editingContact, setEditingContact] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "" });
+
+  const startEditing = () => {
+    setEditForm({
+      first_name: contact?.first_name || "",
+      last_name: contact?.last_name || "",
+      primary_phone: contact?.primary_phone || "",
+      primary_email: contact?.primary_email || "",
+      birthday: contact?.birthday || "",
+    });
+    setEditingContact(true);
+  };
+
+  const cancelEditing = () => {
+    setEditingContact(false);
+  };
+
+  const saveContactInfo = async () => {
+    if (!id) return;
+    setSavingContact(true);
+    const fullName = [editForm.first_name.trim(), editForm.last_name.trim()].filter(Boolean).join(" ") || contact.full_name;
+    const { error } = await supabase.from("contacts").update({
+      first_name: editForm.first_name.trim() || null,
+      last_name: editForm.last_name.trim() || null,
+      full_name: fullName,
+      primary_phone: editForm.primary_phone.trim() || null,
+      primary_email: editForm.primary_email.trim() || null,
+      birthday: editForm.birthday || null,
+    }).eq("id", id);
+    if (error) {
+      toast.error("Error al guardar: " + error.message);
+    } else {
+      toast.success("Contacto actualizado");
+      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+      setContact(data);
+      setEditingContact(false);
+    }
+    setSavingContact(false);
+  };
 
   const fetchRelated = async () => {
     if (!id) return;
