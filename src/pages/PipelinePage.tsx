@@ -418,9 +418,41 @@ export default function PipelinePage() {
                         draggable={!manageMode}
                         onDragStart={() => setDraggedDeal(deal.id)}
                         onClick={() => !manageMode && navigate(`/deals/${deal.id}`)}
-                        className="rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
+                        className="group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
                       >
-                        <p className="text-sm font-medium text-foreground mb-1">{deal.title}</p>
+                        <div className="flex items-start justify-between mb-1">
+                          <p className="text-sm font-medium text-foreground flex-1 mr-1">{deal.title}</p>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                                <MoreVertical className="h-3.5 w-3.5" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                              <DropdownMenuItem onClick={() => navigate(`/deals/${deal.id}`)}>
+                                <Pencil className="h-3.5 w-3.5 mr-2" /> Ver / Editar
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => {
+                                try {
+                                  await closeDeal(deal.id, "won", deal.contact_id || null, session?.user?.id);
+                                  toast.success("Deal marcado como ganado 🎉");
+                                  fetchData();
+                                } catch (err: any) { toast.error(err.message); }
+                              }}>
+                                <Trophy className="h-3.5 w-3.5 mr-2 text-green-500" /> Marcar ganado
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => {
+                                try {
+                                  await closeDeal(deal.id, "lost", deal.contact_id || null, session?.user?.id);
+                                  toast.success("Deal marcado como perdido");
+                                  fetchData();
+                                } catch (err: any) { toast.error(err.message); }
+                              }}>
+                                <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> Marcar perdido
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
                         <p className="text-xs text-muted-foreground mb-2">{deal.contact_name || "Sin contacto"}</p>
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-semibold text-foreground">${Number(deal.value).toLocaleString()}</span>

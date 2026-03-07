@@ -128,9 +128,20 @@ export default function DealDetailPage() {
 
   const handleStatusChange = async (newStatus: string) => {
     if (!id) return;
-    await supabase.from("deals").update({ status: newStatus }).eq("id", id);
-    fetchDeal();
-    toast.success(`Estado cambiado a ${newStatus === "won" ? "Ganado" : newStatus === "lost" ? "Perdido" : "Abierto"}`);
+    try {
+      if (newStatus === "won" || newStatus === "lost") {
+        const { closeDeal } = await import("@/lib/deal-actions");
+        await closeDeal(id, newStatus, deal?.contact_id || null);
+      } else {
+        const { reopenDeal } = await import("@/lib/deal-actions");
+        await reopenDeal(id);
+      }
+      fetchDeal();
+      fetchRelated();
+      toast.success(`Deal ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
+    } catch (err: any) {
+      toast.error("Error: " + err.message);
+    }
   };
 
   if (loading) {
