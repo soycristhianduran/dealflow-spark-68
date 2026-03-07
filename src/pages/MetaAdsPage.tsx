@@ -4,15 +4,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
-import { DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3, RefreshCw, Loader2 } from "lucide-react";
+import { DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3, RefreshCw, Loader2, CalendarIcon, X } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface Campaign {
   id: string;
@@ -60,6 +65,9 @@ export default function MetaAdsPage() {
   const fb = useFacebookIntegration();
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
+  const [dateTo, setDateTo] = useState<Date | undefined>(undefined);
 
   const { data: campaigns = [], isLoading, refetch } = useQuery({
     queryKey: ["meta-campaigns", user?.id],
@@ -76,10 +84,27 @@ export default function MetaAdsPage() {
     enabled: !!user,
   });
 
+  const uniqueObjectives = useMemo(() => {
+    const objs = new Set<string>();
+    campaigns.forEach(c => { if (c.objective) objs.add(c.objective); });
+    return Array.from(objs).sort();
+  }, [campaigns]);
+
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return campaigns;
-    return campaigns.filter(c => c.status === statusFilter);
-  }, [campaigns, statusFilter]);
+    return campaigns.filter(c => {
+      if (statusFilter !== "all" && c.status !== statusFilter) return false;
+      if (objectiveFilter !== "all" && c.objective !== objectiveFilter) return false;
+      if (dateFrom && c.start_time) {
+        if (new Date(c.start_time) < dateFrom) return false;
+      }
+      if (dateTo && c.start_time) {
+        const end = new Date(dateTo);
+        end.setHours(23, 59, 59, 999);
+        if (new Date(c.start_time) > end) return false;
+      }
+      return true;
+    });
+  }, [campaigns, statusFilter, objectiveFilter, dateFrom, dateTo]);
 
   const totals = useMemo(() => {
     return filtered.reduce(
@@ -153,19 +178,64 @@ export default function MetaAdsPage() {
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
         {/* Filters */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="Estado" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="all">Todos los estados</SelectItem>
                 <SelectItem value="ACTIVE">Activas</SelectItem>
                 <SelectItem value="PAUSED">Pausadas</SelectItem>
                 <SelectItem value="DELETED">Eliminadas</SelectItem>
                 <SelectItem value="ARCHIVED">Archivadas</SelectItem>
               </SelectContent>
             </Select>
+
+            <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Objetivo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos los objetivos</SelectItem>
+                {uniqueObjectives.map(obj => (
+                  <SelectItem key={obj} value={obj}>{obj}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Date From */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Desde"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateFrom} onSelect={setDateFrom} initialFocus className="p-3 pointer-events-auto" locale={es} />
+              </PopoverContent>
+            </Popover>
+
+            {/* Date To */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !dateTo && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-2 h-3.5 w-3.5" />
+                  {dateTo ? format(dateTo, "dd/MM/yyyy") : "Hasta"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar mode="single" selected={dateTo} onSelect={setDateTo} initialFocus className="p-3 pointer-events-auto" locale={es} />
+              </PopoverContent>
+            </Popover>
+
+            {(dateFrom || dateTo || objectiveFilter !== "all" || statusFilter !== "all") && (
+              <Button size="sm" variant="ghost" onClick={() => { setStatusFilter("all"); setObjectiveFilter("all"); setDateFrom(undefined); setDateTo(undefined); }}>
+                <X className="h-3.5 w-3.5 mr-1" /> Limpiar
+              </Button>
+            )}
+
             <Badge variant="secondary" className="text-xs">
               {filtered.length} campañas
             </Badge>
