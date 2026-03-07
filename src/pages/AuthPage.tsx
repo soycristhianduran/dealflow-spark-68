@@ -37,6 +37,7 @@ export default function AuthPage() {
   const [countryCode, setCountryCode] = useState("MX");
   const [industry, setIndustry] = useState("");
   const [companySize, setCompanySize] = useState("");
+  const [jobTitle, setJobTitle] = useState("");
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
