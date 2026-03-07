@@ -74,10 +74,10 @@ export default function ContactDetailPage() {
   if (!contact) {
     return (
       <AppLayout>
-        <AppHeader title="Contacto no encontrado" />
+        <AppHeader title="Lead no encontrado" />
         <main className="flex-1 flex items-center justify-center flex-col gap-3">
-          <p className="text-muted-foreground">El contacto no existe.</p>
-          <Button variant="outline" onClick={() => navigate('/contacts')}>Volver a contactos</Button>
+          <p className="text-muted-foreground">El lead no existe.</p>
+          <Button variant="outline" onClick={() => navigate('/contacts')}>Volver a leads</Button>
         </main>
       </AppLayout>
     );
