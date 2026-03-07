@@ -59,8 +59,15 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   // Ad accounts & campaigns
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
   const [importedCount, setImportedCount] = useState(0);
+  const [formSearch, setFormSearch] = useState("");
 
   const selectedForms = useMemo(() => forms.filter(f => f.selected), [forms]);
+  const filteredForms = useMemo(() => {
+    if (!formSearch.trim()) return forms;
+    const q = formSearch.toLowerCase();
+    return forms.filter(f => f.name.toLowerCase().includes(q));
+  }, [forms, formSearch]);
+  const allFormsSelected = forms.length > 0 && forms.every(f => f.selected);
   const currentForm = selectedForms[currentFormIndex] || null;
   const currentMappings = currentForm ? (allFormMappings[currentForm.id] || []) : [];
 
