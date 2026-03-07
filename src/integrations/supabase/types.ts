@@ -282,6 +282,33 @@ export type Database = {
           },
         ]
       }
+      google_calendar_tokens: {
+        Row: {
+          connected_at: string
+          id: string
+          provider_refresh_token: string | null
+          provider_token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          connected_at?: string
+          id?: string
+          provider_refresh_token?: string | null
+          provider_token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          connected_at?: string
+          id?: string
+          provider_refresh_token?: string | null
+          provider_token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meetings: {
         Row: {
           advisor_id: string | null
