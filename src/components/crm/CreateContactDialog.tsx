@@ -22,7 +22,8 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [form, setForm] = useState({
-    full_name: "",
+    first_name: "",
+    last_name: "",
     primary_phone: "",
     primary_email: "",
     source: "",
@@ -31,6 +32,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     city: "",
     notes: "",
     company_id: "",
+    birthday: "",
   });
 
   useEffect(() => {
