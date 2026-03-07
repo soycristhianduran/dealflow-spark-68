@@ -7,10 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
-import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2 } from "lucide-react";
+import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
+import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
 
 const statusConfig: Record<ContactStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
