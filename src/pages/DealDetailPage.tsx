@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, DollarSign, Calendar, User, Target, Pencil, Trash2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import type { Activity } from "@/types/crm";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
