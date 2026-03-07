@@ -115,8 +115,11 @@ export default function DashboardPage() {
     const tasks = tasksRes.data || [];
 
     const openDeals = deals.filter(d => d.status === "open");
+    const wonDeals = deals.filter(d => d.status === "won");
     const pipelineValue = openDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const mainCurrency = openDeals.length > 0 ? openDeals[0].currency : "USD";
+    const mainCurrency = openDeals.length > 0 ? openDeals[0].currency : (deals.length > 0 ? deals[0].currency : "USD");
+    const wonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
+    const wonCurrency = wonDeals.length > 0 ? wonDeals[0].currency : mainCurrency;
 
     setStats({
       contactsTotal: contacts.length,
