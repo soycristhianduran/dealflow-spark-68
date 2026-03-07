@@ -421,8 +421,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                   )}
                 </div>
                 <p className="text-xs text-primary font-medium mt-0.5 truncate">{currentForm.name}</p>
-                <p className="text-[11px] text-muted-foreground mt-1">
-                  Asigna cada campo del formulario al campo del contacto donde quieres guardar la información.
+                <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                  Asigna cada campo al contacto. Los campos en "Omitir" se ignorarán automáticamente — puedes continuar sin modificarlos.
                 </p>
               </div>
 
