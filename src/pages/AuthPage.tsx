@@ -72,6 +72,7 @@ export default function AuthPage() {
           industry,
           company_size: companySize,
           job_title: jobTitle,
+          company_name: companyName.trim(),
         },
       },
     });
