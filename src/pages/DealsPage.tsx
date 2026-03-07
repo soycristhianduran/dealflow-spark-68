@@ -24,6 +24,7 @@ type DealRow = {
 
 export default function DealsPage() {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "open" | "won" | "lost">("all");
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
