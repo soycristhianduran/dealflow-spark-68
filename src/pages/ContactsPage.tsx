@@ -126,7 +126,7 @@ export default function ContactsPage() {
               {loading ? (
                 <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
               ) : contacts.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron contactos. Crea el primero.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron leads. Crea el primero.</td></tr>
               ) : contacts.map((contact) => {
                 const status = statusConfig[contact.status] || statusConfig.new;
                 return (

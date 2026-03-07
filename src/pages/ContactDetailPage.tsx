@@ -90,9 +90,37 @@ export default function ContactDetailPage() {
       <AppHeader
         title={contact.full_name}
         actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate('/contacts')} className="gap-1.5">
-            <ArrowLeft className="h-4 w-4" /> Volver
-          </Button>
+          <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>¿Eliminar este lead?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se eliminará permanentemente a <strong>{contact.full_name}</strong> y no se podrá recuperar. Los deals, tareas y citas asociados no se eliminarán.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
+                    const { error } = await supabase.from("contacts").delete().eq("id", id!);
+                    if (error) { toast.error("Error al eliminar: " + error.message); return; }
+                    toast.success("Lead eliminado");
+                    navigate("/contacts");
+                  }}>
+                    Eliminar
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/contacts')} className="gap-1.5">
+              <ArrowLeft className="h-4 w-4" /> Volver
+            </Button>
+          </div>
         }
       />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
