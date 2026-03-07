@@ -123,7 +123,47 @@ export default function PipelinePage() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
+      if (data) setContacts(data);
+    });
+  }, [fetchData]);
+
+  // Deal creation
+  const openCreateDeal = (stageId: string) => {
+    setDealStageId(stageId);
+    setDealTitle("");
+    setDealValue("");
+    setDealCurrency("USD");
+    setDealContactId("");
+    setDealCloseDate("");
+    setDealDialogOpen(true);
+  };
+
+  const handleCreateDeal = async () => {
+    if (!dealTitle.trim() || !pipelineId || !dealStageId) {
+      toast.error("El título es requerido");
+      return;
+    }
+    setSavingDeal(true);
+    const { error } = await supabase.from("deals").insert({
+      title: dealTitle.trim(),
+      value: Number(dealValue) || 0,
+      currency: dealCurrency,
+      stage_id: dealStageId,
+      pipeline_id: pipelineId,
+      contact_id: dealContactId && dealContactId !== "none" ? dealContactId : null,
+      expected_close_date: dealCloseDate || null,
+      owner_id: session?.user?.id || null,
+      status: "open",
+    });
+    setSavingDeal(false);
+    if (error) { toast.error("Error: " + error.message); return; }
+    toast.success("Deal creado");
+    setDealDialogOpen(false);
+    fetchData();
+  };
 
   // Drag & drop
   const handleDrop = async (stageId: string) => {
