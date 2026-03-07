@@ -384,84 +384,104 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
 
           {/* FIELD MAPPING */}
           {step === "mapping" && currentForm && (
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <p className="text-sm font-medium text-foreground">
-                  Mapeo de campos: <span className="text-primary">{currentForm.name}</span>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground">Mapeo de campos</p>
+                  {selectedForms.length > 1 && (
+                    <Badge variant="secondary" className="text-[10px]">
+                      {currentFormIndex + 1} / {selectedForms.length}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-primary font-medium mt-0.5 truncate">{currentForm.name}</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Asigna cada campo del formulario al campo del contacto donde quieres guardar la información.
                 </p>
-                {selectedForms.length > 1 && (
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Formulario {currentFormIndex + 1} de {selectedForms.length}
-                  </p>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  Asigna cada campo del formulario de Facebook al campo del contacto donde quieres guardar la información.
-                </p>
+              </div>
+
+              {/* Column headers */}
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-2 px-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                <span>Campo Facebook</span>
+                <span></span>
+                <span>Campo contacto</span>
               </div>
 
               {/* Mapping rows */}
-              <div className="space-y-2">
-                {currentMappings.map((mapping) => (
-                  <div key={mapping.fb_field_name} className="flex items-center gap-2 rounded-lg border p-2.5">
-                    {/* FB field label */}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{mapping.fb_field_label}</p>
-                      <p className="text-[10px] text-muted-foreground font-mono">{mapping.fb_field_name}</p>
-                    </div>
-
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-
-                    {/* Contact field selector */}
-                    <Select
-                      value={mapping.contact_field}
-                      onValueChange={(value) => {
-                        const isCustom = !STANDARD_CONTACT_FIELDS.some(f => f.value === value);
-                        updateMapping(currentForm.id, mapping.fb_field_name, value, isCustom);
-                      }}
+              <div className="space-y-1.5 max-h-[300px] overflow-y-auto scrollbar-thin pr-0.5">
+                {currentMappings.map((mapping) => {
+                  const isMapped = mapping.contact_field !== "__skip__";
+                  return (
+                    <div
+                      key={mapping.fb_field_name}
+                      className={cn(
+                        "grid grid-cols-[1fr_auto_1fr] gap-2 items-center rounded-lg border p-2.5 transition-colors",
+                        isMapped ? "border-primary/20 bg-primary/5" : "border-border"
+                      )}
                     >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Seleccionar campo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="__skip__">
-                          <span className="text-muted-foreground">— Omitir —</span>
-                        </SelectItem>
-                        {STANDARD_CONTACT_FIELDS.map(f => (
-                          <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
-                        ))}
-                        {customFieldOptions.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Campos personalizados</div>
-                            {customFieldOptions.map(cf => (
-                              <SelectItem key={`custom_${cf}`} value={cf}>
-                                <span className="flex items-center gap-1">
-                                  <Plus className="h-3 w-3" /> {cf}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ))}
+                      {/* FB field */}
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-foreground leading-tight line-clamp-2">{mapping.fb_field_label}</p>
+                        <p className="text-[9px] text-muted-foreground font-mono truncate mt-0.5">{mapping.fb_field_name}</p>
+                      </div>
+
+                      {/* Arrow */}
+                      <ArrowRight className={cn("h-3 w-3 shrink-0", isMapped ? "text-primary" : "text-muted-foreground/40")} />
+
+                      {/* Contact field selector */}
+                      <Select
+                        value={mapping.contact_field}
+                        onValueChange={(value) => {
+                          const isCustom = !STANDARD_CONTACT_FIELDS.some(f => f.value === value);
+                          updateMapping(currentForm.id, mapping.fb_field_name, value, isCustom);
+                        }}
+                      >
+                        <SelectTrigger className={cn(
+                          "h-8 text-xs w-full",
+                          !isMapped && "text-muted-foreground"
+                        )}>
+                          <SelectValue placeholder="Seleccionar..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__skip__">
+                            <span className="text-muted-foreground">— Omitir —</span>
+                          </SelectItem>
+                          {STANDARD_CONTACT_FIELDS.map(f => (
+                            <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>
+                          ))}
+                          {customFieldOptions.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">Personalizados</div>
+                              {customFieldOptions.map(cf => (
+                                <SelectItem key={`custom_${cf}`} value={cf}>
+                                  <span className="flex items-center gap-1">
+                                    <Plus className="h-3 w-3 text-primary" /> {cf}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Add custom field */}
-              <div className="rounded-lg border border-dashed p-3 space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">¿Necesitas un campo personalizado?</p>
+              <div className="rounded-lg border border-dashed p-2.5 space-y-2">
+                <p className="text-[11px] font-medium text-muted-foreground">Crear campo personalizado</p>
                 <div className="flex gap-2">
                   <Input
                     placeholder="Ej: presupuesto, interés..."
                     value={newCustomField}
                     onChange={(e) => setNewCustomField(e.target.value)}
-                    className="text-sm h-8"
+                    className="text-xs h-8"
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
                         if (!newCustomField.trim()) return;
                         const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
-                        // Find first unmapped field and assign it
                         const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
                         if (firstUnmapped) {
                           updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
@@ -484,24 +504,33 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                       setNewCustomField("");
                     }}
                   >
-                    <Plus className="h-3 w-3 mr-1" /> Crear campo
+                    <Plus className="h-3 w-3 mr-1" /> Crear
                   </Button>
                 </div>
               </div>
 
+              {/* Summary */}
+              <div className="flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
+                <span>{currentMappings.filter(m => m.contact_field !== "__skip__").length} mapeados</span>
+                <span>•</span>
+                <span>{currentMappings.filter(m => m.contact_field === "__skip__").length} omitidos</span>
+                <span>•</span>
+                <span>{currentMappings.filter(m => m.is_custom_field).length} personalizados</span>
+              </div>
+
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => {
+                <Button variant="outline" size="sm" onClick={() => {
                   if (currentFormIndex > 0) setCurrentFormIndex(prev => prev - 1);
                   else setStep("forms");
                 }} className="flex-1">
-                  <ArrowLeft className="h-4 w-4 mr-1" /> Atrás
+                  <ArrowLeft className="h-3.5 w-3.5 mr-1" /> Atrás
                 </Button>
-                <Button className="flex-1" onClick={handleSaveMappings} disabled={loading}>
-                  {loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-                  {currentFormIndex < selectedForms.length - 1 ? "Siguiente formulario" : "Continuar"} <ArrowRight className="h-4 w-4 ml-1" />
+                <Button size="sm" className="flex-1" onClick={handleSaveMappings} disabled={loading}>
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                  {currentFormIndex < selectedForms.length - 1 ? "Siguiente" : "Continuar"} <ArrowRight className="h-3.5 w-3.5 ml-1" />
                 </Button>
               </div>
-              <Button variant="ghost" className="w-full text-xs" onClick={() => setStep("messenger")}>
+              <Button variant="ghost" className="w-full text-[11px] h-7" onClick={() => setStep("messenger")}>
                 Omitir mapeo
               </Button>
             </div>
