@@ -20,7 +20,7 @@ const integrations = [
     description: "Envía y recibe mensajes de WhatsApp directamente desde tu CRM.",
     icon: MessageCircle,
     color: "hsl(142, 70%, 45%)",
-    status: "coming_soon" as const,
+    status: "available" as const,
   },
   {
     id: "facebook",
@@ -28,7 +28,7 @@ const integrations = [
     description: "Conecta tus campañas de Facebook Ads y captura leads automáticamente.",
     icon: Facebook,
     color: "hsl(221, 44%, 41%)",
-    status: "coming_soon" as const,
+    status: "available" as const,
   },
   {
     id: "instagram",
@@ -36,7 +36,7 @@ const integrations = [
     description: "Recibe mensajes de Instagram Direct y gestiona leads desde la plataforma.",
     icon: Instagram,
     color: "hsl(340, 75%, 55%)",
-    status: "coming_soon" as const,
+    status: "available" as const,
   },
   {
     id: "tiktok",
@@ -44,7 +44,7 @@ const integrations = [
     description: "Integra TikTok Ads para capturar leads de tus campañas de video.",
     icon: Music2,
     color: "hsl(0, 0%, 10%)",
-    status: "coming_soon" as const,
+    status: "available" as const,
   },
 ];
 
@@ -61,24 +61,14 @@ export default function IntegrationsPage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${integration.color}20` }}>
                     <integration.icon className="h-5 w-5" style={{ color: integration.color }} />
                   </div>
-                  <Badge
-                    variant={integration.status === "available" ? "default" : "secondary"}
-                    className="text-xs"
-                  >
-                    {integration.status === "available" ? "Disponible" : "Próximamente"}
-                  </Badge>
+                  <Badge variant="default" className="text-xs">Disponible</Badge>
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-foreground">{integration.name}</h3>
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{integration.description}</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant={integration.status === "available" ? "default" : "outline"}
-                  className="w-full"
-                  disabled={integration.status === "coming_soon"}
-                >
-                  {integration.status === "available" ? "Conectar" : "Próximamente"}
+                <Button size="sm" className="w-full">
+                  Conectar
                 </Button>
               </CardContent>
             </Card>
