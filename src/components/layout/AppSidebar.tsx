@@ -4,7 +4,7 @@ import {
   KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -22,6 +22,14 @@ const bottomItems = [
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
+    loadLogo();
+    window.addEventListener("logo-updated", loadLogo);
+    return () => window.removeEventListener("logo-updated", loadLogo);
+  }, []);
 
   return (
     <aside
@@ -32,9 +40,13 @@ export function AppSidebar() {
     >
       {/* Logo */}
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-          <Zap className="h-4 w-4 text-sidebar-primary-foreground" />
-        </div>
+        {logoUrl ? (
+          <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain shrink-0" />
+        ) : (
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shrink-0">
+            <Zap className="h-4 w-4 text-sidebar-primary-foreground" />
+          </div>
+        )}
         {!collapsed && <span className="text-base font-bold tracking-tight text-sidebar-accent-foreground">Velocity CRM</span>}
       </div>
 

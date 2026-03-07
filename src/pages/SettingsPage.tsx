@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor } from "lucide-react";
+import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
@@ -98,6 +98,11 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("USD");
   const [timezone, setTimezone] = useState("America/Mexico_City");
 
+  // Logo state
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const meta = data.user?.user_metadata;
@@ -105,7 +110,60 @@ export default function SettingsPage() {
         setOrgName(meta.company_name);
       }
     });
+    // Load saved logo URL from localStorage
+    const saved = localStorage.getItem("crm_logo_url");
+    if (saved) setLogoUrl(saved);
   }, []);
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Solo se permiten archivos de imagen");
+      return;
+    }
+
+    // Validate size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("El archivo no debe superar los 2MB");
+      return;
+    }
+
+    setUploadingLogo(true);
+    const ext = file.name.split(".").pop();
+    const fileName = `logo-${Date.now()}.${ext}`;
+
+    const { error } = await supabase.storage
+      .from("company-logos")
+      .upload(fileName, file, { upsert: true });
+
+    if (error) {
+      toast.error("Error al subir el logo");
+      setUploadingLogo(false);
+      return;
+    }
+
+    const { data: publicData } = supabase.storage
+      .from("company-logos")
+      .getPublicUrl(fileName);
+
+    const url = publicData.publicUrl;
+    setLogoUrl(url);
+    localStorage.setItem("crm_logo_url", url);
+    setUploadingLogo(false);
+    toast.success("Logo actualizado");
+    // Dispatch event so sidebar updates in real-time
+    window.dispatchEvent(new Event("logo-updated"));
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl(null);
+    localStorage.removeItem("crm_logo_url");
+    window.dispatchEvent(new Event("logo-updated"));
+    toast.success("Logo eliminado");
+  };
 
   const handleAddUser = () => {
     if (!newUserName.trim() || !newUserEmail.trim()) {
@@ -363,6 +421,56 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-4">
+            {/* Logo Card */}
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold">Logo de la empresa</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-md">
+                <div className="flex items-start gap-4">
+                  <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 overflow-hidden shrink-0">
+                    {logoUrl ? (
+                      <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                    ) : (
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Sube el logo de tu empresa. Se mostrará en el menú lateral del CRM.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <strong>Tamaño recomendado:</strong> 200×200px o 400×100px (horizontal). Formatos: PNG, JPG, SVG. Máximo 2MB. Fondo transparente recomendado.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoUpload}
+                        className="hidden"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                      >
+                        <Upload className="h-4 w-4" />
+                        {uploadingLogo ? "Subiendo..." : "Subir logo"}
+                      </Button>
+                      {logoUrl && (
+                        <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={handleRemoveLogo}>
+                          Eliminar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="border-none shadow-sm">
               <CardHeader>
                 <CardTitle className="text-sm font-semibold">Configuración general</CardTitle>
