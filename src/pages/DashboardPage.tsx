@@ -4,23 +4,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { dashboardStats, mockDeals, mockTasks, mockMeetings, mockActivities } from "@/data/mock-data";
 import { 
-  Users, UserCheck, Handshake, Trophy, XCircle, DollarSign, 
+  Users, Handshake, Trophy, XCircle, DollarSign, 
   CalendarDays, CalendarCheck, UserX, CheckSquare,
-  TrendingUp, ArrowUpRight
+  TrendingUp, ArrowUpRight, UserPlus, Star
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
 const stats = [
-  { label: "Leads creados", value: dashboardStats.leadsCreated, icon: Users, trend: "+12%" },
-  { label: "Contactos", value: dashboardStats.contactsCreated, icon: UserCheck, trend: "+8%" },
+  { label: "Contactos", value: dashboardStats.contactsTotal, icon: Users, trend: "+12%" },
+  { label: "Nuevos", value: dashboardStats.contactsNew, icon: UserPlus },
+  { label: "Calificados", value: dashboardStats.contactsQualified, icon: Star },
   { label: "Deals abiertos", value: dashboardStats.dealsOpen, icon: Handshake },
   { label: "Deals ganados", value: dashboardStats.dealsWon, icon: Trophy, trend: "+2" },
   { label: "Deals perdidos", value: dashboardStats.dealsLost, icon: XCircle },
   { label: "Valor pipeline", value: `$${(dashboardStats.pipelineValue / 1000).toFixed(0)}K`, icon: DollarSign, trend: "+15%" },
   { label: "Citas agendadas", value: dashboardStats.meetingsScheduled, icon: CalendarDays },
   { label: "Citas realizadas", value: dashboardStats.meetingsCompleted, icon: CalendarCheck },
-  { label: "No-show", value: dashboardStats.noShows, icon: UserX },
   { label: "Tareas pendientes", value: dashboardStats.tasksPending, icon: CheckSquare },
 ];
 
@@ -38,7 +38,6 @@ export default function DashboardPage() {
     <AppLayout>
       <AppHeader title="Dashboard" subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })} />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
-        {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           {stats.map((stat) => (
             <Card key={stat.label} className="border-none shadow-sm">
@@ -64,7 +63,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">
-          {/* Upcoming meetings */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -89,7 +87,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Urgent tasks */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -115,7 +112,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Recent activity */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -137,7 +133,6 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Open deals */}
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">

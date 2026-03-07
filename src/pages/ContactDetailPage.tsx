@@ -7,8 +7,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { mockContacts, mockDeals, mockTasks, mockMeetings, mockActivities } from "@/data/mock-data";
 import { useParams, useNavigate } from "react-router-dom";
-import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, Globe } from "lucide-react";
+import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Target } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
+import type { ContactStatus } from "@/types/crm";
+
+const statusConfig: Record<ContactStatus, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
+  new: { label: "Nuevo", variant: "default" },
+  contacted: { label: "Contactado", variant: "secondary" },
+  qualified: { label: "Calificado", variant: "outline" },
+  client: { label: "Cliente", variant: "default" },
+  lost: { label: "Perdido", variant: "destructive" },
+};
 
 export default function ContactDetailPage() {
   const { id } = useParams();
@@ -26,6 +35,7 @@ export default function ContactDetailPage() {
     );
   }
 
+  const status = statusConfig[contact.status];
   const contactDeals = mockDeals.filter(d => d.contact_id === contact.id);
   const contactTasks = mockTasks.filter(t => t.contact_id === contact.id);
   const contactMeetings = mockMeetings.filter(m => m.contact_id === contact.id);
@@ -59,7 +69,10 @@ export default function ContactDetailPage() {
                   </Avatar>
                   <div>
                     <h2 className="text-lg font-bold text-foreground">{contact.full_name}</h2>
-                    {contact.company && <p className="text-sm text-muted-foreground">{contact.company.name}</p>}
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                      {contact.company && <span className="text-sm text-muted-foreground">{contact.company.name}</span>}
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -81,7 +94,27 @@ export default function ContactDetailPage() {
                       <span className="text-foreground capitalize">{contact.preferred_channel}</span>
                     </div>
                   )}
+                  {(contact.city || contact.country) && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-foreground">{[contact.city, contact.country].filter(Boolean).join(', ')}</span>
+                    </div>
+                  )}
                 </div>
+
+                {/* Score */}
+                {contact.score != null && (
+                  <div className="mt-4 p-3 rounded-lg bg-muted/50">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-muted-foreground">Score</span>
+                      <span className="text-sm font-bold text-foreground">{contact.score}/100</span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${contact.score}%` }} />
+                    </div>
+                  </div>
+                )}
+
                 {contact.tags && contact.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-4">
                     {contact.tags.map(tag => (
@@ -111,17 +144,78 @@ export default function ContactDetailPage() {
             <Tabs defaultValue="timeline">
               <TabsList>
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                <TabsTrigger value="info">Info</TabsTrigger>
                 <TabsTrigger value="deals">Deals ({contactDeals.length})</TabsTrigger>
                 <TabsTrigger value="tasks">Tareas ({contactTasks.length})</TabsTrigger>
                 <TabsTrigger value="meetings">Citas ({contactMeetings.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
-                <ActivityTimeline activities={contactActivities} />
+                {contactActivities.length > 0 ? (
+                  <ActivityTimeline activities={contactActivities} />
+                ) : (
+                  <div className="text-center py-12 text-muted-foreground">
+                    <p className="text-sm">No hay actividad registrada.</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="info" className="mt-4 space-y-4">
+                {/* Marketing / Acquisition */}
+                {contact.source && (
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <Megaphone className="h-3.5 w-3.5" /> Origen y campaña
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <InfoItem label="Origen" value={contact.source} />
+                        <InfoItem label="Campaña" value={contact.campaign} />
+                        <InfoItem label="Ad Set" value={contact.adset} />
+                        <InfoItem label="Anuncio" value={contact.ad} />
+                        <InfoItem label="Landing Page" value={contact.landing_page} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {(contact.utm_source || contact.utm_medium || contact.utm_campaign) && (
+                  <Card className="border-none shadow-sm">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                        <BarChart3 className="h-3.5 w-3.5" /> UTM
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-4">
+                        <InfoItem label="utm_source" value={contact.utm_source} />
+                        <InfoItem label="utm_medium" value={contact.utm_medium} />
+                        <InfoItem label="utm_campaign" value={contact.utm_campaign} />
+                        <InfoItem label="utm_content" value={contact.utm_content} />
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <Card className="border-none shadow-sm">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fechas</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 gap-4">
+                      <InfoItem label="Creado" value={new Date(contact.created_at).toLocaleString()} />
+                      <InfoItem label="Actualizado" value={new Date(contact.updated_at).toLocaleString()} />
+                      <InfoItem label="Último contacto" value={contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString() : undefined} />
+                      <InfoItem label="Próxima acción" value={contact.next_action_at ? new Date(contact.next_action_at).toLocaleString() : undefined} />
+                    </div>
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="deals" className="mt-4 space-y-3">
-                {contactDeals.map(deal => (
+                {contactDeals.length > 0 ? contactDeals.map(deal => (
                   <Card key={deal.id} className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/deals/${deal.id}`)}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div>
@@ -136,11 +230,13 @@ export default function ContactDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                )) : (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Sin deals asociados</div>
+                )}
               </TabsContent>
 
               <TabsContent value="tasks" className="mt-4 space-y-2">
-                {contactTasks.map(task => (
+                {contactTasks.length > 0 ? contactTasks.map(task => (
                   <div key={task.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                     <div className={`h-2 w-2 rounded-full shrink-0 ${
                       task.priority === 'urgent' ? 'bg-destructive' :
@@ -152,11 +248,13 @@ export default function ContactDetailPage() {
                     </div>
                     <Badge variant="outline" className="text-xs">{task.status}</Badge>
                   </div>
-                ))}
+                )) : (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Sin tareas asociadas</div>
+                )}
               </TabsContent>
 
               <TabsContent value="meetings" className="mt-4 space-y-3">
-                {contactMeetings.map(meeting => (
+                {contactMeetings.length > 0 ? contactMeetings.map(meeting => (
                   <Card key={meeting.id} className="border shadow-sm">
                     <CardContent className="p-4">
                       <p className="text-sm font-medium text-foreground">{meeting.title}</p>
@@ -169,12 +267,23 @@ export default function ContactDetailPage() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
+                )) : (
+                  <div className="text-center py-12 text-muted-foreground text-sm">Sin citas asociadas</div>
+                )}
               </TabsContent>
             </Tabs>
           </div>
         </div>
       </main>
     </AppLayout>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-sm font-medium text-foreground mt-0.5">{value || '—'}</p>
+    </div>
   );
 }

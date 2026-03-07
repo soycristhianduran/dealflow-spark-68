@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils";
 import { 
-  LayoutDashboard, Users, UserCheck, Building2, Handshake, 
+  LayoutDashboard, Users, Building2, Handshake, 
   KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";

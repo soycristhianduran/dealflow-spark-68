@@ -136,7 +136,7 @@ export interface Meeting {
 
 export interface Activity {
   id: string;
-  related_entity_type: 'lead' | 'contact' | 'deal' | 'company' | 'task' | 'meeting';
+  related_entity_type: 'contact' | 'deal' | 'company' | 'task' | 'meeting';
   related_entity_id: string;
   event_type: 'note' | 'call' | 'whatsapp' | 'email' | 'meeting' | 'stage_change' | 'task_created' | 'deal_created' | 'system';
   event_source?: string;
