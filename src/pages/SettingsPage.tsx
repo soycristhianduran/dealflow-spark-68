@@ -131,6 +131,52 @@ export default function SettingsPage() {
     toast.success("Configuración guardada");
   };
 
+  const openAddStage = () => {
+    setEditingStage(null);
+    setStageName("");
+    setStageColor(stageColorOptions[0].value);
+    setStageProbability("50");
+    setStageDialogOpen(true);
+  };
+
+  const openEditStage = (stage: PipelineStage) => {
+    setEditingStage(stage);
+    setStageName(stage.name);
+    setStageColor(stage.color);
+    setStageProbability(String(stage.probability));
+    setStageDialogOpen(true);
+  };
+
+  const handleSaveStage = () => {
+    if (!stageName.trim()) { toast.error("El nombre es requerido"); return; }
+    const prob = Math.min(100, Math.max(0, parseInt(stageProbability) || 0));
+    if (editingStage) {
+      setStages(prev => prev.map(s => s.id === editingStage.id ? { ...s, name: stageName, color: stageColor, probability: prob } : s));
+      toast.success("Etapa actualizada");
+    } else {
+      const newOrder = stages.length + 1;
+      setStages(prev => [...prev, { id: crypto.randomUUID(), pipeline_id: "p1", name: stageName, order: newOrder, color: stageColor, probability: prob }]);
+      toast.success("Etapa agregada");
+    }
+    setStageDialogOpen(false);
+  };
+
+  const handleDeleteStage = (id: string) => {
+    setStages(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, order: i + 1 })));
+    toast.success("Etapa eliminada");
+  };
+
+  const handleMoveStage = (id: string, direction: "up" | "down") => {
+    setStages(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      if ((direction === "up" && idx === 0) || (direction === "down" && idx === prev.length - 1)) return prev;
+      const next = [...prev];
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+      return next.map((s, i) => ({ ...s, order: i + 1 }));
+    });
+  };
+
   return (
     <AppLayout>
       <AppHeader title="Configuración" />
@@ -147,17 +193,72 @@ export default function SettingsPage() {
             <Card className="border-none shadow-sm">
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle className="text-sm font-semibold">Etapas del Pipeline</CardTitle>
-                <Button size="sm" variant="outline" className="gap-1.5">
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={openAddStage}>
                   <Plus className="h-4 w-4" /> Agregar etapa
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2">
-                {defaultStages.map((stage) => (
+                {stages.map((stage, idx) => (
                   <div key={stage.id} className="flex items-center gap-3 rounded-lg border p-3">
-                    <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
-                    <div className="h-3 w-3 rounded-full" style={{ backgroundColor: stage.color }} />
+                    <div className="flex flex-col gap-0.5">
+                      <Button variant="ghost" size="icon" className="h-5 w-5" disabled={idx === 0} onClick={() => handleMoveStage(stage.id, "up")}>
+                        <ArrowUp className="h-3 w-3" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-5 w-5" disabled={idx === stages.length - 1} onClick={() => handleMoveStage(stage.id, "down")}>
+                        <ArrowDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
                     <span className="flex-1 text-sm font-medium text-foreground">{stage.name}</span>
                     <Badge variant="outline" className="text-xs">{stage.probability}%</Badge>
+                    <span className="text-xs text-muted-foreground">Orden: {stage.order}</span>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditStage(stage)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleDeleteStage(stage.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>{editingStage ? "Editar etapa" : "Nueva etapa"}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label>Nombre</Label>
+                    <Input value={stageName} onChange={e => setStageName(e.target.value)} placeholder="Ej: Propuesta enviada" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Probabilidad (%)</Label>
+                    <Input type="number" min={0} max={100} value={stageProbability} onChange={e => setStageProbability(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Color</Label>
+                    <div className="flex flex-wrap gap-2">
+                      {stageColorOptions.map(c => (
+                        <button
+                          key={c.value}
+                          onClick={() => setStageColor(c.value)}
+                          className={`h-8 w-8 rounded-full border-2 transition-all ${stageColor === c.value ? "border-foreground scale-110" : "border-transparent"}`}
+                          style={{ backgroundColor: c.value }}
+                          title={c.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setStageDialogOpen(false)}>Cancelar</Button>
+                  <Button onClick={handleSaveStage}>{editingStage ? "Guardar" : "Agregar"}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
                     <span className="text-xs text-muted-foreground">Orden: {stage.order}</span>
                   </div>
                 ))}
