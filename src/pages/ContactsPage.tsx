@@ -84,9 +84,9 @@ export default function ContactsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Contactos" subtitle={`${contacts.length} contactos`} actions={
+      <AppHeader title="Leads" subtitle={`${contacts.length} leads`} actions={
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuevo contacto
+          <Plus className="h-4 w-4" /> Nuevo lead
         </Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
