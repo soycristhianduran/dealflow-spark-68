@@ -310,6 +310,7 @@ export default function DashboardPage() {
                       <th className="pb-2 font-medium text-muted-foreground">Contacto</th>
                       <th className="pb-2 font-medium text-muted-foreground">Etapa</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">Valor</th>
+                      <th className="pb-2 font-medium text-muted-foreground">Estado</th>
                       <th className="pb-2 font-medium text-muted-foreground">Cierre esperado</th>
                     </tr>
                   </thead>
