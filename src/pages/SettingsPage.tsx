@@ -390,6 +390,35 @@ export default function SettingsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>Apariencia</Label>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={theme === "light" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("light")}
+                    >
+                      <Sun className="h-4 w-4" /> Claro
+                    </Button>
+                    <Button
+                      variant={theme === "dark" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("dark")}
+                    >
+                      <Moon className="h-4 w-4" /> Oscuro
+                    </Button>
+                    <Button
+                      variant={theme === "system" ? "default" : "outline"}
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => setTheme("system")}
+                    >
+                      <Monitor className="h-4 w-4" /> Sistema
+                    </Button>
+                  </div>
+                </div>
                 <Button onClick={handleSaveGeneral}>Guardar cambios</Button>
               </CardContent>
             </Card>
