@@ -193,7 +193,7 @@ export function useFacebookIntegration() {
     isConnected, loading, connecting, status,
     connect, disconnect, checkConnection,
     getPages, savePages,
-    getLeadForms, saveLeadForms,
+    getLeadForms, saveLeadForms, saveFieldMappings,
     getConversations,
     getAdAccounts, importCampaigns,
   };
