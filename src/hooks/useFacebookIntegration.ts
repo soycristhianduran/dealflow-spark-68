@@ -203,6 +203,22 @@ export function useFacebookIntegration() {
     return data;
   }, []);
 
+  const subscribeLeadgen = useCallback(async () => {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "subscribe_leadgen" },
+    });
+    if (error) { toast.error("Error al suscribir páginas a leadgen"); return null; }
+    if (data?.success) {
+      toast.success("Páginas suscritas a leadgen exitosamente");
+    } else {
+      const failed = (data?.results || []).filter((r: any) => !r.subscribed);
+      if (failed.length > 0) {
+        toast.error(`Error en ${failed.length} página(s): ${failed[0]?.error || "desconocido"}`);
+      }
+    }
+    return data;
+  }, []);
+
   return {
     isConnected, loading, connecting, status,
     connect, disconnect, checkConnection,
@@ -210,5 +226,6 @@ export function useFacebookIntegration() {
     getLeadForms, saveLeadForms, saveFieldMappings,
     getConversations,
     getAdAccounts, importCampaigns, fetchLeads,
+    subscribeLeadgen,
   };
 }
