@@ -216,10 +216,23 @@ export default function IntegrationsPage() {
 
                   {/* Facebook status summary */}
                   {integration.id === "facebook" && fb.isConnected && fb.status && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
-                      <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
-                      <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
+                        <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
+                        <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await fb.subscribeLeadgen();
+                        }}
+                      >
+                        <Bell className="h-3 w-3" /> Suscribir páginas a Leadgen
+                      </Button>
                     </div>
                   )}
 
