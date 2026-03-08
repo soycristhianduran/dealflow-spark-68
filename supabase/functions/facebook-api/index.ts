@@ -422,6 +422,54 @@ Deno.serve(async (req) => {
         });
       }
 
+      // ===== SUBSCRIBE PAGE TO LEADGEN WEBHOOK =====
+      case "subscribe_leadgen": {
+        const { data: userPages } = await supabase
+          .from("facebook_pages")
+          .select("page_id, page_name, page_access_token")
+          .eq("user_id", user.id);
+
+        if (!userPages || userPages.length === 0) {
+          return new Response(JSON.stringify({ error: "No pages found" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const results: { page_id: string; page_name: string; subscribed: boolean; error?: string }[] = [];
+
+        for (const page of userPages) {
+          try {
+            const subRes = await fetch(
+              `${GRAPH_API}/${page.page_id}/subscribed_apps`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  subscribed_fields: ["leadgen"],
+                  access_token: page.page_access_token,
+                }),
+              }
+            );
+            const subData = await subRes.json();
+            if (subData.success) {
+              console.log(`Page ${page.page_id} (${page.page_name}) subscribed to leadgen`);
+              results.push({ page_id: page.page_id, page_name: page.page_name, subscribed: true });
+            } else {
+              console.error(`Failed to subscribe page ${page.page_id}:`, subData);
+              results.push({ page_id: page.page_id, page_name: page.page_name, subscribed: false, error: subData.error?.message || JSON.stringify(subData) });
+            }
+          } catch (err) {
+            results.push({ page_id: page.page_id, page_name: page.page_name, subscribed: false, error: String(err) });
+          }
+        }
+
+        const allOk = results.every(r => r.subscribed);
+        return new Response(JSON.stringify({ success: allOk, results }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       // ===== DISCONNECT =====
       case "disconnect": {
         await supabase.from("facebook_lead_forms").delete().eq("user_id", user.id);

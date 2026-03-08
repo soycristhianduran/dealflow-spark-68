@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2 } from "lucide-react";
+import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell } from "lucide-react";
 import { useState } from "react";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
@@ -216,10 +216,23 @@ export default function IntegrationsPage() {
 
                   {/* Facebook status summary */}
                   {integration.id === "facebook" && fb.isConnected && fb.status && (
-                    <div className="flex flex-wrap gap-1.5">
-                      <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
-                      <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
-                      <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
+                        <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
+                        <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await fb.subscribeLeadgen();
+                        }}
+                      >
+                        <Bell className="h-3 w-3" /> Suscribir páginas a Leadgen
+                      </Button>
                     </div>
                   )}
 
