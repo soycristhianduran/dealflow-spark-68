@@ -76,20 +76,33 @@ Deno.serve(async (req) => {
           const { user_id: userId, page_access_token: pageToken } = pageData;
 
           // Fetch the lead data from Facebook
-          const leadRes = await fetch(
-            `${GRAPH_API}/${leadgenId}?access_token=${pageToken}`
-          );
-          const leadData = await leadRes.json();
+          const isTestLead = leadgenId.startsWith("TEST_");
+          let fields: Record<string, string> = {};
 
-          if (!leadRes.ok) {
-            console.error("Error fetching lead:", JSON.stringify(leadData));
-            continue;
-          }
+          if (isTestLead) {
+            console.log("Test lead detected, using placeholder data");
+            fields = {
+              full_name: "Lead de Prueba",
+              first_name: "Lead",
+              last_name: "de Prueba",
+              email: `test_${Date.now()}@test.com`,
+              phone_number: "+0000000000",
+            };
+          } else {
+            const leadRes = await fetch(
+              `${GRAPH_API}/${leadgenId}?access_token=${pageToken}`
+            );
+            const leadData = await leadRes.json();
 
-          // Parse field_data
-          const fields: Record<string, string> = {};
-          for (const fd of leadData.field_data || []) {
-            fields[(fd.name || "").toLowerCase()] = (fd.values || [])[0] || "";
+            if (!leadRes.ok) {
+              console.error("Error fetching lead:", JSON.stringify(leadData));
+              continue;
+            }
+
+            // Parse field_data
+            for (const fd of leadData.field_data || []) {
+              fields[(fd.name || "").toLowerCase()] = (fd.values || [])[0] || "";
+            }
           }
 
           // Load user-defined field mappings
