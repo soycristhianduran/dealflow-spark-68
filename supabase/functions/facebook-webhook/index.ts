@@ -21,11 +21,8 @@ Deno.serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = (Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN") || "").trim().replace(/\s+/g, '');
+    const VERIFY_TOKEN = (Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN") || "").trim();
     const receivedToken = (token || "").trim();
-    const envHex = Array.from(VERIFY_TOKEN).map(c => c.charCodeAt(0).toString(16)).join(',');
-    const recHex = Array.from(receivedToken).map(c => c.charCodeAt(0).toString(16)).join(',');
-    console.log("ENV hex:", envHex, "REC hex:", recHex, "Match:", VERIFY_TOKEN === receivedToken);
 
     if (mode === "subscribe" && receivedToken === VERIFY_TOKEN) {
       console.log("Webhook verified successfully");
