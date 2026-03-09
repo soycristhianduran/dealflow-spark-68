@@ -189,6 +189,8 @@ export function useWhatsAppIntegration() {
     loading,
     connecting,
     metaAppId,
+    pendingOAuth,
+    setPendingOAuth,
     connect,
     disconnect,
     getWabaAccounts,
