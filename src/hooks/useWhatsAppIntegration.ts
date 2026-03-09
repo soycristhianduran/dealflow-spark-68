@@ -14,16 +14,6 @@ interface WhatsAppConfig {
   created_at: string;
 }
 
-interface EmbeddedSignupResult {
-  success: boolean;
-  status: "connected" | "pending";
-  waba_id?: string;
-  waba_name?: string;
-  phone_number_id?: string;
-  display_phone?: string;
-  business_name?: string;
-  error?: string;
-}
 
 // Build OAuth redirect URL for standard WhatsApp Cloud API connection
 function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
