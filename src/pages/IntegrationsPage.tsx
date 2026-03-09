@@ -133,8 +133,10 @@ const integrations: Integration[] = [
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
+  const [waWizardOpen, setWaWizardOpen] = useState(false);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
+  const wa = useWhatsAppIntegration();
 
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {
