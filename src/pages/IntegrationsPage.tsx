@@ -155,7 +155,7 @@ export default function IntegrationsPage() {
   const isIntegrationLoading = (id: string) => {
     if (id === "google-calendar") return gcal.connecting;
     if (id === "facebook") return fb.connecting;
-    if (id === "whatsapp") return wa.saving;
+    if (id === "whatsapp") return wa.connecting;
     return false;
   };
 
