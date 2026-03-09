@@ -247,6 +247,14 @@ export default function IntegrationsPage() {
                     </div>
                   )}
 
+                  {/* WhatsApp status summary */}
+                  {integration.id === "whatsapp" && wa.isConnected && wa.config && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
+                      {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Zap className="h-3 w-3" />
                     <span>{integration.features.length} funcionalidades</span>
