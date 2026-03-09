@@ -112,7 +112,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   };
 
-  const handleEmbeddedSignup = () => {
+  const handleOAuthConnect = () => {
     wa.connect();
   };
 
