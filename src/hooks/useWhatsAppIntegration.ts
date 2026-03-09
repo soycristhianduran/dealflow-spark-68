@@ -141,35 +141,35 @@ export function useWhatsAppIntegration() {
       }
 
       try {
-        FB.login(async (response: any) => {
+        FB.login((response: any) => {
           clearTimeout(safetyTimeout);
           if (response.authResponse?.code) {
-            try {
-              const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
-                body: { code: response.authResponse.code },
-              });
-
+            supabase.functions.invoke("whatsapp-embedded-signup", {
+              body: { code: response.authResponse.code },
+            }).then(({ data, error }) => {
               if (error || data?.error) {
-                throw new Error(data?.error || error?.message || "Error en el registro");
+                console.error("Embedded Signup error:", data?.error || error?.message);
+                toast.error("Error al completar la conexión: " + (data?.error || error?.message));
+              } else {
+                const result = data as EmbeddedSignupResult;
+                if (result.status === "connected") {
+                  toast.success(`WhatsApp conectado: ${result.display_phone || result.business_name}`);
+                  fetchConfig();
+                } else if (result.status === "pending") {
+                  toast.info("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+                }
               }
-
-              const result = data as EmbeddedSignupResult;
-              
-              if (result.status === "connected") {
-                toast.success(`WhatsApp conectado: ${result.display_phone || result.business_name}`);
-                await fetchConfig();
-              } else if (result.status === "pending") {
-                toast.info("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
-              }
-            } catch (e: any) {
+              setConnecting(false);
+            }).catch((e: any) => {
               console.error("Embedded Signup error:", e);
               toast.error("Error al completar la conexión: " + e.message);
-            }
+              setConnecting(false);
+            });
           } else {
             console.log("Embedded Signup cancelled or failed:", response);
             toast.error("Conexión cancelada o fallida.");
+            setConnecting(false);
           }
-          setConnecting(false);
         }, loginParams);
       } catch (e: any) {
         clearTimeout(safetyTimeout);
