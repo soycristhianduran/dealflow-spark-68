@@ -138,6 +138,18 @@ export default function IntegrationsPage() {
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
 
+  // Auto-open WhatsApp wizard when returning from OAuth
+  useEffect(() => {
+    if (wa.pendingOAuth || wa.isConnected) {
+      const params = new URLSearchParams(window.location.search);
+      // Only auto-open if we just came back from OAuth
+      if (wa.pendingOAuth) {
+        setWaWizardOpen(true);
+        wa.setPendingOAuth(false);
+      }
+    }
+  }, [wa.pendingOAuth, wa.isConnected]);
+
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {
     try {
