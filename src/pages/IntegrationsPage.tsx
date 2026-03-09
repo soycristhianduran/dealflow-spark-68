@@ -8,7 +8,9 @@ import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2,
 import { useState } from "react";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
+import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
 
 type Integration = {
   id: string;
@@ -131,8 +133,10 @@ const integrations: Integration[] = [
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
+  const [waWizardOpen, setWaWizardOpen] = useState(false);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
+  const wa = useWhatsAppIntegration();
 
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {
@@ -144,12 +148,14 @@ export default function IntegrationsPage() {
   const isIntegrationConnected = (id: string) => {
     if (id === "google-calendar") return gcal.isConnected;
     if (id === "facebook") return fb.isConnected;
+    if (id === "whatsapp") return wa.isConnected;
     return otherConnectedIds.includes(id);
   };
 
   const isIntegrationLoading = (id: string) => {
     if (id === "google-calendar") return gcal.connecting;
     if (id === "facebook") return fb.connecting;
+    if (id === "whatsapp") return wa.saving;
     return false;
   };
 
@@ -168,6 +174,9 @@ export default function IntegrationsPage() {
     } else if (integration.id === "facebook") {
       if (fb.isConnected) fb.disconnect();
       else fb.connect();
+    } else if (integration.id === "whatsapp") {
+      if (wa.isConnected) wa.disconnect();
+      else setWaWizardOpen(true);
     } else {
       toggleOtherConnection(integration.id);
     }
@@ -175,7 +184,9 @@ export default function IntegrationsPage() {
 
   const handleCardAction = (integration: Integration) => {
     if (integration.id === "facebook" && fb.isConnected) {
-      setFbWizardOpen(true); // Re-open wizard to manage
+      setFbWizardOpen(true);
+    } else if (integration.id === "whatsapp") {
+      setWaWizardOpen(true);
     } else if (isIntegrationConnected(integration.id)) {
       setSelectedIntegration(integration);
     } else {
@@ -236,6 +247,14 @@ export default function IntegrationsPage() {
                     </div>
                   )}
 
+                  {/* WhatsApp status summary */}
+                  {integration.id === "whatsapp" && wa.isConnected && wa.config && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
+                      {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
+                    </div>
+                  )}
+
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Zap className="h-3 w-3" />
                     <span>{integration.features.length} funcionalidades</span>
@@ -250,7 +269,7 @@ export default function IntegrationsPage() {
                     {isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
-                      <>{integration.id === "facebook" ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                      <>{(integration.id === "facebook" || integration.id === "whatsapp") ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     ) : (
                       <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}
@@ -265,7 +284,10 @@ export default function IntegrationsPage() {
       {/* Facebook Setup Wizard */}
       <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
 
-      {/* Detail dialog (non-Facebook) */}
+      {/* WhatsApp Setup Wizard */}
+      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={setWaWizardOpen} />
+
+      {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>
         {selectedIntegration && (
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
