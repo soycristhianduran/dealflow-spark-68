@@ -752,6 +752,101 @@ export type Database = {
           },
         ]
       }
+      whatsapp_configs: {
+        Row: {
+          access_token: string
+          business_name: string | null
+          created_at: string
+          display_phone: string | null
+          id: string
+          is_active: boolean
+          phone_number_id: string
+          updated_at: string
+          user_id: string
+          waba_id: string
+          webhook_verified: boolean
+        }
+        Insert: {
+          access_token: string
+          business_name?: string | null
+          created_at?: string
+          display_phone?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id: string
+          updated_at?: string
+          user_id: string
+          waba_id: string
+          webhook_verified?: boolean
+        }
+        Update: {
+          access_token?: string
+          business_name?: string | null
+          created_at?: string
+          display_phone?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id?: string
+          updated_at?: string
+          user_id?: string
+          waba_id?: string
+          webhook_verified?: boolean
+        }
+        Relationships: []
+      }
+      whatsapp_messages: {
+        Row: {
+          contact_id: string | null
+          created_at: string
+          direction: string
+          id: string
+          media_url: string | null
+          message_text: string | null
+          message_type: string
+          phone_number: string
+          sent_at: string
+          status: string | null
+          user_id: string
+          wa_message_id: string | null
+        }
+        Insert: {
+          contact_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_text?: string | null
+          message_type?: string
+          phone_number: string
+          sent_at?: string
+          status?: string | null
+          user_id: string
+          wa_message_id?: string | null
+        }
+        Update: {
+          contact_id?: string | null
+          created_at?: string
+          direction?: string
+          id?: string
+          media_url?: string | null
+          message_text?: string | null
+          message_type?: string
+          phone_number?: string
+          sent_at?: string
+          status?: string | null
+          user_id?: string
+          wa_message_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whatsapp_messages_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
