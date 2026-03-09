@@ -284,7 +284,10 @@ export default function IntegrationsPage() {
       {/* Facebook Setup Wizard */}
       <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
 
-      {/* Detail dialog (non-Facebook) */}
+      {/* WhatsApp Setup Wizard */}
+      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={setWaWizardOpen} />
+
+      {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>
         {selectedIntegration && (
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
