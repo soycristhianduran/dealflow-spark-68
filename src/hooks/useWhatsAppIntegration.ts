@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -14,44 +14,12 @@ interface WhatsAppConfig {
   created_at: string;
 }
 
-interface EmbeddedSignupResult {
-  success: boolean;
-  status: "connected" | "pending";
-  waba_id?: string;
-  waba_name?: string;
-  phone_number_id?: string;
-  display_phone?: string;
-  business_name?: string;
-  error?: string;
-}
 
-// Load Facebook SDK dynamically
-function loadFacebookSDK(appId: string): Promise<void> {
-  return new Promise((resolve) => {
-    if ((window as any).FB) {
-      resolve();
-      return;
-    }
-
-    (window as any).fbAsyncInit = function () {
-      (window as any).FB.init({
-        appId,
-        cookie: true,
-        xfbml: false,
-        version: "v21.0",
-      });
-      resolve();
-    };
-
-    if (!document.getElementById("facebook-jssdk")) {
-      const script = document.createElement("script");
-      script.id = "facebook-jssdk";
-      script.src = "https://connect.facebook.net/en_US/sdk.js";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-  });
+// Build OAuth redirect URL for standard WhatsApp Cloud API connection
+function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
+  const redirectUri = `${supabaseUrl}/functions/v1/whatsapp-oauth-callback`;
+  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management";
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code`;
 }
 
 export function useWhatsAppIntegration() {
@@ -60,8 +28,6 @@ export function useWhatsAppIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
-  const [waConfigId, setWaConfigId] = useState<string | null>(null);
-  const sdkLoadedRef = useRef(false);
 
   const isConnected = !!config?.is_active && config?.phone_number_id !== "pending";
 
@@ -69,12 +35,7 @@ export function useWhatsAppIntegration() {
     supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
       if (data?.app_id) {
         setMetaAppId(data.app_id);
-        // Pre-load Facebook SDK
-        loadFacebookSDK(data.app_id).then(() => {
-          sdkLoadedRef.current = true;
-        });
       }
-      if (data?.wa_config_id) setWaConfigId(data.wa_config_id);
     });
   }, []);
 
@@ -99,99 +60,42 @@ export function useWhatsAppIntegration() {
     }
   }, [user]);
 
-  useEffect(() => { fetchConfig(); }, [fetchConfig]);
+  // Check for OAuth callback result on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("wa_token_ready") === "true") {
+      toast.success("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+      fetchConfig();
+      // Clean URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wa_token_ready");
+      window.history.replaceState({}, "", url.toString());
+    }
+    const waError = params.get("wa_error");
+    if (waError) {
+      toast.error("Error al conectar WhatsApp: " + waError);
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wa_error");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [fetchConfig]);
 
-  // Embedded Signup flow using FB.login()
+  // OAuth redirect flow
   const connect = useCallback(() => {
     if (!user || !metaAppId) {
       toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
       return;
     }
 
-    setConnecting(true);
-
-    // Safety timeout: if popup is blocked or never responds, reset after 60s
-    const safetyTimeout = setTimeout(() => {
-      setConnecting(false);
-      toast.error("No se detectó respuesta del popup de Meta. ¿Se bloqueó el popup? Permite popups e intenta de nuevo.");
-    }, 60000);
-
-    const launchEmbeddedSignup = () => {
-      const FB = (window as any).FB;
-      if (!FB) {
-        clearTimeout(safetyTimeout);
-        toast.error("Error al cargar Facebook SDK. Recarga la página.");
-        setConnecting(false);
-        return;
-      }
-
-      const loginParams: any = {
-        scope: "whatsapp_business_management,whatsapp_business_messaging,business_management",
-        extras: {
-          feature: "whatsapp_embedded_signup",
-          version: 2,
-          sessionInfoVersion: 2,
-        },
-        override_default_response_type: true,
-        response_type: "code",
-      };
-
-      if (waConfigId) {
-        loginParams.config_id = waConfigId;
-      }
-
-      try {
-        FB.login((response: any) => {
-          clearTimeout(safetyTimeout);
-          if (response.authResponse?.code) {
-            supabase.functions.invoke("whatsapp-embedded-signup", {
-              body: { code: response.authResponse.code },
-            }).then(({ data, error }) => {
-              if (error || data?.error) {
-                console.error("Embedded Signup error:", data?.error || error?.message);
-                toast.error("Error al completar la conexión: " + (data?.error || error?.message));
-              } else {
-                const result = data as EmbeddedSignupResult;
-                if (result.status === "connected") {
-                  toast.success(`WhatsApp conectado: ${result.display_phone || result.business_name}`);
-                  fetchConfig();
-                } else if (result.status === "pending") {
-                  toast.info("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
-                }
-              }
-              setConnecting(false);
-            }).catch((e: any) => {
-              console.error("Embedded Signup error:", e);
-              toast.error("Error al completar la conexión: " + e.message);
-              setConnecting(false);
-            });
-          } else {
-            console.log("Embedded Signup cancelled or failed:", response);
-            toast.error("Conexión cancelada o fallida.");
-            setConnecting(false);
-          }
-        }, loginParams);
-      } catch (e: any) {
-        clearTimeout(safetyTimeout);
-        console.error("FB.login error:", e);
-        toast.error("Error al abrir el popup de Meta: " + e.message);
-        setConnecting(false);
-      }
-    };
-
-    if (sdkLoadedRef.current) {
-      launchEmbeddedSignup();
-    } else {
-      loadFacebookSDK(metaAppId).then(() => {
-        sdkLoadedRef.current = true;
-        launchEmbeddedSignup();
-      }).catch(() => {
-        clearTimeout(safetyTimeout);
-        toast.error("No se pudo cargar el SDK de Facebook.");
-        setConnecting(false);
-      });
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!supabaseUrl) {
+      toast.error("URL del backend no configurada.");
+      return;
     }
-  }, [user, metaAppId, waConfigId, fetchConfig]);
+
+    const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, user.id);
+    window.location.href = oauthUrl;
+  }, [user, metaAppId]);
 
   const getWabaAccounts = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
