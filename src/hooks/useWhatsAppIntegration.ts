@@ -279,6 +279,7 @@ export function useWhatsAppIntegration() {
     getWabaAccounts,
     getPhoneNumbers,
     savePhoneNumber,
+    saveManualConfig,
     refreshConfig: fetchConfig,
     checkHasPendingToken,
     sendMessage,
