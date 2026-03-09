@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.send-whatsapp]
 verify_jwt = false
+
+[functions.whatsapp-embedded-signup]
+verify_jwt = false

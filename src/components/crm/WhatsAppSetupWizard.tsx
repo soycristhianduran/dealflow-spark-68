@@ -41,20 +41,21 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
-  // When wizard opens after OAuth callback (pending token state)
+  // React to connection state changes (e.g. after Embedded Signup completes)
   useEffect(() => {
     if (!open) return;
     if (wa.isConnected) {
-      setStep("done");
+      setStep("webhook");
       return;
     }
+    // Check for pending token (OAuth done but phone not auto-detected)
     wa.checkHasPendingToken().then((hasPending) => {
       if (hasPending) {
         setStep("select_waba");
         loadWabaAccounts();
       }
     });
-  }, [open]);
+  }, [open, wa.isConnected]);
 
   const loadWabaAccounts = async () => {
     setLoadingData(true);
@@ -100,6 +101,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   };
 
+  const handleEmbeddedSignup = () => {
+    wa.connect();
+    // The hook will handle the FB.login popup and auto-connect
+    // After connect resolves, wa.isConnected will update and useEffect above will advance step
+  };
+
   const copyWebhookUrl = () => {
     navigator.clipboard.writeText(webhookUrl);
     toast.success("URL copiada al portapapeles");
@@ -124,7 +131,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
             </div>
             <div>
               <DialogTitle>Configurar WhatsApp Business</DialogTitle>
-              <p className="text-xs text-muted-foreground mt-0.5">Conecta tu cuenta de Meta paso a paso</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Conecta tu cuenta de WhatsApp en segundos</p>
             </div>
           </div>
         </DialogHeader>
@@ -142,57 +149,53 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
             ))}
           </div>
 
-          {/* STEP: connect */}
+          {/* STEP: connect - Embedded Signup */}
           {step === "connect" && (
             <div className="space-y-4">
               <div className="rounded-lg border p-4 space-y-3">
-                <h4 className="text-sm font-semibold">¿Qué necesitas?</h4>
+                <h4 className="text-sm font-semibold">Conexión rápida con WhatsApp</h4>
+                <p className="text-xs text-muted-foreground">
+                  Se abrirá una ventana de Meta donde podrás seleccionar tu cuenta de WhatsApp Business 
+                  y número de teléfono directamente. Todo se configura automáticamente.
+                </p>
                 <ul className="space-y-2 text-sm text-muted-foreground">
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                    Una cuenta de <strong>Meta Business Suite</strong>
+                    Selecciona o crea tu <strong>cuenta de WhatsApp Business</strong>
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                    Al menos una <strong>cuenta de WhatsApp Business API</strong> creada
+                    Elige tu <strong>número de teléfono</strong> verificado
                   </li>
                   <li className="flex items-start gap-2">
                     <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                    Un <strong>número de teléfono verificado</strong> en la plataforma
+                    Configuración <strong>automática</strong> — sin copiar tokens
                   </li>
                 </ul>
-                <a
-                  href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                >
-                  <ExternalLink className="h-3 w-3" /> Ver guía de Meta Cloud API
-                </a>
               </div>
 
               <Button
                 className="w-full gap-2"
-                onClick={wa.connect}
+                onClick={handleEmbeddedSignup}
                 disabled={wa.connecting || !wa.metaAppId}
               >
                 {wa.connecting
-                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando con Meta...</>
-                  : <><MessageCircle className="h-4 w-4" /> Conectar con Meta</>
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Conectando con WhatsApp...</>
+                  : <><MessageCircle className="h-4 w-4" /> Conectar WhatsApp Business</>
                 }
               </Button>
               <p className="text-[11px] text-center text-muted-foreground">
-                Serás redirigido a Meta para autorizar el acceso a tu cuenta de WhatsApp Business.
+                Se abrirá un popup de Meta para autorizar y seleccionar tu cuenta.
               </p>
             </div>
           )}
 
-          {/* STEP: select_waba */}
+          {/* STEP: select_waba (fallback if auto-detection didn't find WABA) */}
           {step === "select_waba" && (
             <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-semibold mb-1">Selecciona tu cuenta de WhatsApp Business</h4>
-                <p className="text-xs text-muted-foreground">Elige la cuenta de WABA que quieres conectar al CRM.</p>
+                <p className="text-xs text-muted-foreground">No pudimos detectarla automáticamente. Elige la cuenta de WABA que quieres conectar.</p>
               </div>
 
               {loadingData ? (
@@ -202,16 +205,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
               ) : wabaAccounts.length === 0 ? (
                 <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4 text-center space-y-3">
                   <p className="text-sm text-amber-700 dark:text-amber-400">
-                    No se encontraron cuentas de WhatsApp Business asociadas a tu cuenta de Meta.
+                    No se encontraron cuentas de WhatsApp Business asociadas.
                   </p>
-                  <a
-                    href="https://business.facebook.com/wa/manage/home/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" /> Crear cuenta en Meta Business Suite
-                  </a>
                   <Button size="sm" variant="outline" onClick={loadWabaAccounts} className="gap-1.5">
                     <RefreshCw className="h-3.5 w-3.5" /> Recargar
                   </Button>
@@ -246,7 +241,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
             </div>
           )}
 
-          {/* STEP: select_phone */}
+          {/* STEP: select_phone (fallback) */}
           {step === "select_phone" && (
             <div className="space-y-4">
               <div>
@@ -265,14 +260,6 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                   <p className="text-sm text-amber-700 dark:text-amber-400">
                     No hay números verificados en esta cuenta de WABA.
                   </p>
-                  <a
-                    href="https://business.facebook.com/wa/manage/phone-numbers/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-1.5 text-xs text-primary hover:underline"
-                  >
-                    <ExternalLink className="h-3 w-3" /> Agregar número en Meta
-                  </a>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -297,9 +284,6 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                             >
                               {phone.status === "CONNECTED" ? "Verificado" : phone.status}
                             </Badge>
-                            <Badge variant="outline" className="text-[10px] h-4 px-1">
-                              Calidad: {phone.quality_rating || "N/A"}
-                            </Badge>
                           </div>
                         </div>
                       </div>
@@ -322,10 +306,25 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
                   <p className="text-sm text-green-700 dark:text-green-400 font-medium">
-                    ¡Número conectado exitosamente!
+                    ¡WhatsApp conectado exitosamente!
                   </p>
                 </div>
               </div>
+
+              {wa.config && (
+                <div className="flex flex-wrap gap-1.5">
+                  {wa.config.business_name && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <Building2 className="h-3 w-3" /> {wa.config.business_name}
+                    </Badge>
+                  )}
+                  {wa.config.display_phone && (
+                    <Badge variant="outline" className="text-xs gap-1">
+                      <Phone className="h-3 w-3" /> {wa.config.display_phone}
+                    </Badge>
+                  )}
+                </div>
+              )}
 
               <div className="rounded-lg border p-4 space-y-3">
                 <h4 className="text-sm font-semibold">Paso final: configura el Webhook</h4>
@@ -351,8 +350,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                 </a>
               </div>
 
-              <Button className="w-full gap-2" onClick={() => { setStep("done"); wa.refreshConfig(); }}>
-                Entendido, ir al dashboard <ArrowRight className="h-4 w-4" />
+              <Button className="w-full gap-2" onClick={() => { setStep("done"); onOpenChange(false); }}>
+                Entendido, cerrar <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
           )}
