@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
@@ -137,6 +137,18 @@ export default function IntegrationsPage() {
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
+
+  // Auto-open WhatsApp wizard when returning from OAuth
+  useEffect(() => {
+    if (wa.pendingOAuth || wa.isConnected) {
+      const params = new URLSearchParams(window.location.search);
+      // Only auto-open if we just came back from OAuth
+      if (wa.pendingOAuth) {
+        setWaWizardOpen(true);
+        wa.setPendingOAuth(false);
+      }
+    }
+  }, [wa.pendingOAuth, wa.isConnected]);
 
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {

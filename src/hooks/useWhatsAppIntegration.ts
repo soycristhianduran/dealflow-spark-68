@@ -28,6 +28,7 @@ export function useWhatsAppIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
+  const [pendingOAuth, setPendingOAuth] = useState(false);
 
   const isConnected = !!config?.is_active && config?.phone_number_id !== "pending";
 
@@ -63,17 +64,27 @@ export function useWhatsAppIntegration() {
   // Check for OAuth callback result on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    
+    if (params.get("wa_connected") === "true") {
+      toast.success("¡WhatsApp conectado exitosamente!");
+      fetchConfig();
+      const url = new URL(window.location.href);
+      url.searchParams.delete("wa_connected");
+      window.history.replaceState({}, "", url.toString());
+    }
+    
     if (params.get("wa_token_ready") === "true") {
       toast.success("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+      setPendingOAuth(true);
       fetchConfig();
-      // Clean URL
       const url = new URL(window.location.href);
       url.searchParams.delete("wa_token_ready");
       window.history.replaceState({}, "", url.toString());
     }
+    
     const waError = params.get("wa_error");
     if (waError) {
-      toast.error("Error al conectar WhatsApp: " + waError);
+      toast.error("Error al conectar WhatsApp: " + decodeURIComponent(waError));
       const url = new URL(window.location.href);
       url.searchParams.delete("wa_error");
       window.history.replaceState({}, "", url.toString());
@@ -178,6 +189,8 @@ export function useWhatsAppIntegration() {
     loading,
     connecting,
     metaAppId,
+    pendingOAuth,
+    setPendingOAuth,
     connect,
     disconnect,
     getWabaAccounts,

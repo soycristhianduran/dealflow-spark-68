@@ -11,3 +11,12 @@ verify_jwt = false
 
 [functions.whatsapp-embedded-signup]
 verify_jwt = false
+
+[functions.whatsapp-oauth-callback]
+verify_jwt = false
+
+[functions.whatsapp-api]
+verify_jwt = false
+
+[functions.facebook-get-app-id]
+verify_jwt = false
