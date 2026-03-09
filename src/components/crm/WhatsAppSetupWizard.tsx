@@ -45,8 +45,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
       <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-green-100 dark:bg-green-950/30">
-              <MessageCircle className="h-5 w-5 text-green-600" />
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: "hsl(142 70% 45% / 0.15)" }}>
+              <MessageCircle className="h-5 w-5" style={{ color: "hsl(142 70% 45%)" }} />
             </div>
             <div>
               <DialogTitle>Configurar WhatsApp Business</DialogTitle>
