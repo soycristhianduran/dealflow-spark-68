@@ -374,11 +374,11 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                       <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
                     </button>
 
-                    {/* Embedded Signup */}
+                    {/* OAuth con Facebook */}
                     <button
                       className="flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-primary/30 bg-card p-5 text-left transition-all hover:shadow-sm"
                       onClick={() => {
-                        setConnectionMethod("embedded");
+                        setConnectionMethod("oauth");
                         setWizardStep(2);
                       }}
                       disabled={!wa.metaAppId}
@@ -389,12 +389,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                         </svg>
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-semibold text-foreground">Continuar con Facebook</p>
-                          <Badge variant="outline" className="text-[10px] h-4 px-1.5 text-muted-foreground">BSP/TP</Badge>
-                        </div>
+                        <p className="text-sm font-semibold text-foreground">Conectar con Facebook</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          Conecta automáticamente vía Facebook Embedded Signup (requiere ser proveedor autorizado).
+                          Inicia sesión con tu cuenta de Facebook para vincular tu WhatsApp Business automáticamente.
                         </p>
                       </div>
                       <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
