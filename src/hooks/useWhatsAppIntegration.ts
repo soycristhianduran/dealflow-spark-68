@@ -223,6 +223,22 @@ export function useWhatsAppIntegration() {
     await fetchConfig();
   }, [fetchConfig]);
 
+  const saveManualConfig = useCallback(async (params: {
+    phone_number_id: string;
+    waba_id: string;
+    access_token: string;
+    display_phone?: string;
+    business_name?: string;
+  }) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "save_manual_config", ...params },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    toast.success("WhatsApp Business conectado correctamente");
+    await fetchConfig();
+    return data;
+  }, [fetchConfig]);
+
   const disconnect = useCallback(async () => {
     const { error } = await supabase.functions.invoke("whatsapp-api", {
       body: { action: "disconnect" },
@@ -263,6 +279,7 @@ export function useWhatsAppIntegration() {
     getWabaAccounts,
     getPhoneNumbers,
     savePhoneNumber,
+    saveManualConfig,
     refreshConfig: fetchConfig,
     checkHasPendingToken,
     sendMessage,

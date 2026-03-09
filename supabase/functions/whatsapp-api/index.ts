@@ -100,6 +100,43 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "save_manual_config") {
+      const { phone_number_id, waba_id, access_token, display_phone, business_name } = body;
+      if (!phone_number_id || !waba_id || !access_token) {
+        throw new Error("phone_number_id, waba_id y access_token son obligatorios");
+      }
+
+      // Validate token by making a test call
+      const testRes = await fetch(`${GRAPH_API}/${phone_number_id}?fields=display_phone_number,verified_name&access_token=${access_token}`);
+      const testData = await testRes.json();
+      if (testData.error) {
+        throw new Error("Token inválido o Phone Number ID incorrecto: " + testData.error.message);
+      }
+
+      const { error } = await supabase.from("whatsapp_configs").upsert(
+        {
+          user_id: user.id,
+          access_token,
+          phone_number_id,
+          waba_id,
+          display_phone: testData.display_phone_number || display_phone || null,
+          business_name: testData.verified_name || business_name || null,
+          is_active: true,
+          webhook_verified: false,
+        },
+        { onConflict: "user_id" }
+      );
+      if (error) throw error;
+
+      return new Response(JSON.stringify({
+        success: true,
+        display_phone: testData.display_phone_number || display_phone,
+        business_name: testData.verified_name || business_name,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "disconnect") {
       await supabase
         .from("whatsapp_configs")
