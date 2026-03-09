@@ -269,7 +269,7 @@ export default function IntegrationsPage() {
                     {isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
-                      <>{integration.id === "facebook" ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                      <>{(integration.id === "facebook" || integration.id === "whatsapp") ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     ) : (
                       <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}
