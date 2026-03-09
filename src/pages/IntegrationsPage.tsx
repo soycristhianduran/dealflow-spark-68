@@ -174,6 +174,9 @@ export default function IntegrationsPage() {
     } else if (integration.id === "facebook") {
       if (fb.isConnected) fb.disconnect();
       else fb.connect();
+    } else if (integration.id === "whatsapp") {
+      if (wa.isConnected) wa.disconnect();
+      else setWaWizardOpen(true);
     } else {
       toggleOtherConnection(integration.id);
     }
