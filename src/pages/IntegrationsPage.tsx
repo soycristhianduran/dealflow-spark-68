@@ -8,7 +8,9 @@ import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2,
 import { useState } from "react";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
+import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
 
 type Integration = {
   id: string;
