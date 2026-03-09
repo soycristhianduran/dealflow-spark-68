@@ -25,33 +25,11 @@ interface EmbeddedSignupResult {
   error?: string;
 }
 
-// Load Facebook SDK dynamically
-function loadFacebookSDK(appId: string): Promise<void> {
-  return new Promise((resolve) => {
-    if ((window as any).FB) {
-      resolve();
-      return;
-    }
-
-    (window as any).fbAsyncInit = function () {
-      (window as any).FB.init({
-        appId,
-        cookie: true,
-        xfbml: false,
-        version: "v21.0",
-      });
-      resolve();
-    };
-
-    if (!document.getElementById("facebook-jssdk")) {
-      const script = document.createElement("script");
-      script.id = "facebook-jssdk";
-      script.src = "https://connect.facebook.net/en_US/sdk.js";
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    }
-  });
+// Build OAuth redirect URL for standard WhatsApp Cloud API connection
+function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
+  const redirectUri = `${supabaseUrl}/functions/v1/whatsapp-oauth-callback`;
+  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management";
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code`;
 }
 
 export function useWhatsAppIntegration() {
