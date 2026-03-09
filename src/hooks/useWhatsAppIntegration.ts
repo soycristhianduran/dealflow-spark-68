@@ -28,6 +28,7 @@ export function useWhatsAppIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
+  const [pendingOAuth, setPendingOAuth] = useState(false);
 
   const isConnected = !!config?.is_active && config?.phone_number_id !== "pending";
 
