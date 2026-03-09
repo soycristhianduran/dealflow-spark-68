@@ -38,8 +38,6 @@ export function useWhatsAppIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
-  const [waConfigId, setWaConfigId] = useState<string | null>(null);
-  const sdkLoadedRef = useRef(false);
 
   const isConnected = !!config?.is_active && config?.phone_number_id !== "pending";
 
@@ -47,12 +45,7 @@ export function useWhatsAppIntegration() {
     supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
       if (data?.app_id) {
         setMetaAppId(data.app_id);
-        // Pre-load Facebook SDK
-        loadFacebookSDK(data.app_id).then(() => {
-          sdkLoadedRef.current = true;
-        });
       }
-      if (data?.wa_config_id) setWaConfigId(data.wa_config_id);
     });
   }, []);
 
