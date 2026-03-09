@@ -148,6 +148,7 @@ export default function IntegrationsPage() {
   const isIntegrationConnected = (id: string) => {
     if (id === "google-calendar") return gcal.isConnected;
     if (id === "facebook") return fb.isConnected;
+    if (id === "whatsapp") return wa.isConnected;
     return otherConnectedIds.includes(id);
   };
 
