@@ -11,19 +11,12 @@ Deno.serve(async (req) => {
     const errorReason = url.searchParams.get("error_reason");
     const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
 
-    console.log("WhatsApp OAuth callback received:", { 
-      hasCode: !!code, 
-      state, 
-      error, 
-      errorReason,
-      appUrl 
-    });
+    console.log("WhatsApp OAuth callback received:", { hasCode: !!code, state, error, errorReason });
 
     if (error) {
-      const errorMsg = errorReason || error;
       return new Response(null, {
         status: 302,
-        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent(errorMsg)}` },
+        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent(errorReason || error)}` },
       });
     }
 
@@ -40,7 +33,6 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     if (!META_APP_ID || !META_APP_SECRET) {
-      console.error("META_APP_ID or META_APP_SECRET not configured");
       return new Response(null, {
         status: 302,
         headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent("META_APP_ID o META_APP_SECRET no configurados")}` },
@@ -49,68 +41,62 @@ Deno.serve(async (req) => {
 
     const redirectUri = `${SUPABASE_URL}/functions/v1/whatsapp-oauth-callback`;
 
-    // Step 1: Exchange code for short-lived token
-    const tokenUrl = `${GRAPH_API}/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${META_APP_SECRET}&code=${code}`;
-    console.log("Exchanging code for token...");
-    const tokenRes = await fetch(tokenUrl);
+    // Exchange code for short-lived token
+    const tokenRes = await fetch(
+      `${GRAPH_API}/oauth/access_token?client_id=${META_APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&client_secret=${META_APP_SECRET}&code=${code}`
+    );
     const tokenData = await tokenRes.json();
 
     if (!tokenData.access_token) {
-      console.error("WA token exchange failed:", JSON.stringify(tokenData));
-      const errorDetail = tokenData.error?.message || "No se pudo intercambiar el código por un token";
+      console.error("Token exchange failed:", JSON.stringify(tokenData));
       return new Response(null, {
         status: 302,
-        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent(errorDetail)}` },
+        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent(tokenData.error?.message || "Error intercambiando token")}` },
       });
     }
 
-    console.log("Short-lived token obtained, exchanging for long-lived...");
-
-    // Step 2: Exchange for long-lived token
-    const longTokenRes = await fetch(
+    // Exchange for long-lived token
+    const longRes = await fetch(
       `${GRAPH_API}/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&fb_exchange_token=${tokenData.access_token}`
     );
-    const longTokenData = await longTokenRes.json();
-    const longLivedToken = longTokenData.access_token || tokenData.access_token;
+    const longData = await longRes.json();
+    const longLivedToken = longData.access_token || tokenData.access_token;
 
-    console.log("Long-lived token obtained. Saving config for user:", state);
-
-    // Step 3: Store token - try to find WABA and phone automatically
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Try to auto-discover WABA and phone
+    // Auto-discover WABA and phone
     let selectedWabaId = "pending";
     let selectedPhoneId = "pending";
     let displayPhone = "";
     let businessName = "";
+    let businessAccountId = "";
     let isActive = false;
 
     try {
       const bizRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${longLivedToken}`);
       const bizData = await bizRes.json();
-      const businesses = bizData.data || [];
 
-      for (const biz of businesses) {
+      for (const biz of (bizData.data || [])) {
         const wabaRes = await fetch(
           `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${longLivedToken}`
         );
         const wabaData = await wabaRes.json();
 
-        if (wabaData.data && wabaData.data.length > 0) {
+        if (wabaData.data?.length > 0) {
           for (const waba of wabaData.data) {
             const phoneRes = await fetch(
               `${GRAPH_API}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,status&access_token=${longLivedToken}`
             );
             const phoneData = await phoneRes.json();
 
-            if (phoneData.data && phoneData.data.length > 0) {
+            if (phoneData.data?.length > 0) {
               const phone = phoneData.data[0];
+              businessAccountId = biz.id;
               selectedWabaId = waba.id;
               selectedPhoneId = phone.id;
               displayPhone = phone.display_phone_number || "";
               businessName = phone.verified_name || waba.name || biz.name || "";
               isActive = true;
-              console.log("Auto-discovered phone:", displayPhone, "WABA:", selectedWabaId);
               break;
             }
           }
@@ -121,6 +107,7 @@ Deno.serve(async (req) => {
       console.error("Auto-discovery failed (non-fatal):", autoErr);
     }
 
+    // Save to whatsapp_configs (backward compatible)
     await supabase.from("whatsapp_configs").upsert(
       {
         user_id: state,
@@ -135,9 +122,28 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" }
     );
 
-    const redirectParam = isActive ? "wa_connected=true" : "wa_token_ready=true";
-    console.log("Redirecting with:", redirectParam);
+    // Also save to channels table (new modular approach)
+    if (isActive) {
+      await supabase.from("channels").upsert(
+        {
+          user_id: state,
+          type: "whatsapp",
+          provider: "meta",
+          business_account_id: businessAccountId,
+          waba_id: selectedWabaId,
+          phone_number_id: selectedPhoneId,
+          access_token: longLivedToken,
+          display_phone: displayPhone || null,
+          business_name: businessName || null,
+          is_active: true,
+          status: "connected",
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
+      );
+    }
 
+    const redirectParam = isActive ? "wa_connected=true" : "wa_token_ready=true";
     return new Response(null, {
       status: 302,
       headers: { Location: `${appUrl}/integrations?${redirectParam}` },

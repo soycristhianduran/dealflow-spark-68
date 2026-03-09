@@ -1,14 +1,14 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-  CheckCircle2, ExternalLink, Loader2, MessageCircle,
-  Copy, ArrowRight, ArrowLeft, RefreshCw, Phone, Building2,
-  ChevronRight, KeyRound, Zap, Plus, Trash2, Settings, Shield
+  CheckCircle2, Loader2, MessageCircle,
+  Copy, ArrowRight, ArrowLeft, Phone, Building2,
+  ChevronRight, KeyRound, Shield, Wifi, WifiOff,
+  ExternalLink, Settings, Trash2, RefreshCw, Smartphone
 } from "lucide-react";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { toast } from "sonner";
@@ -32,37 +32,45 @@ interface PhoneNumber {
   status: string;
 }
 
-type View = "main" | "wizard";
-type WizardStep = 1 | 2 | 3;
-type ConnectionMethod = "manual" | "oauth" | null;
+type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+
+const STEPS = [
+  { num: 1, label: "Iniciar sesión", icon: Shield },
+  { num: 2, label: "Portafolio", icon: Building2 },
+  { num: 3, label: "Cuenta WABA", icon: MessageCircle },
+  { num: 4, label: "Número", icon: Phone },
+  { num: 5, label: "Configuración", icon: Settings },
+  { num: 6, label: "¡Listo!", icon: CheckCircle2 },
+];
 
 export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardProps) {
   const wa = useWhatsAppIntegration();
-  const [view, setView] = useState<View>("main");
-  const [wizardStep, setWizardStep] = useState<WizardStep>(1);
-  const [connectionMethod, setConnectionMethod] = useState<ConnectionMethod>(null);
+  const [step, setStep] = useState<WizardStep>(1);
+  const [useManual, setUseManual] = useState(false);
 
-  // WABA/phone selection state
+  // Data state
   const [wabaAccounts, setWabaAccounts] = useState<WabaAccount[]>([]);
   const [selectedWaba, setSelectedWaba] = useState<WabaAccount | null>(null);
   const [phoneNumbers, setPhoneNumbers] = useState<PhoneNumber[]>([]);
-  const [loadingData, setLoadingData] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  // Manual form state
+  // Manual form
   const [manualPhoneId, setManualPhoneId] = useState("");
   const [manualWabaId, setManualWabaId] = useState("");
   const [manualToken, setManualToken] = useState("");
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
+  // Reset on close
   useEffect(() => {
     if (!open) {
-      // Reset wizard state when closing
       setTimeout(() => {
-        setView("main");
-        setWizardStep(1);
-        setConnectionMethod(null);
+        setStep(1);
+        setUseManual(false);
+        setWabaAccounts([]);
+        setSelectedWaba(null);
+        setPhoneNumbers([]);
         setManualPhoneId("");
         setManualWabaId("");
         setManualToken("");
@@ -70,28 +78,49 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   }, [open]);
 
+  // If already connected, show status view
+  useEffect(() => {
+    if (open && wa.isConnected) {
+      setStep(6);
+    }
+  }, [open, wa.isConnected]);
+
+  // After OAuth return with pending token, jump to step 2
+  useEffect(() => {
+    if (open && wa.pendingOAuth) {
+      setStep(2);
+      wa.setPendingOAuth(false);
+      loadWabaAccounts();
+    }
+  }, [open, wa.pendingOAuth]);
+
   const loadWabaAccounts = async () => {
-    setLoadingData(true);
+    setLoading(true);
     try {
       const accounts = await wa.getWabaAccounts();
       setWabaAccounts(accounts);
+      if (accounts.length === 1) {
+        // Auto-select if only one
+        handleSelectWaba(accounts[0]);
+      }
     } catch (e: any) {
-      toast.error("Error al cargar cuentas: " + e.message);
+      toast.error("Error al cargar portafolios: " + e.message);
     } finally {
-      setLoadingData(false);
+      setLoading(false);
     }
   };
 
   const handleSelectWaba = async (waba: WabaAccount) => {
     setSelectedWaba(waba);
-    setLoadingData(true);
+    setStep(4);
+    setLoading(true);
     try {
       const phones = await wa.getPhoneNumbers(waba.id);
       setPhoneNumbers(phones);
     } catch (e: any) {
       toast.error("Error al cargar números: " + e.message);
     } finally {
-      setLoadingData(false);
+      setLoading(false);
     }
   };
 
@@ -104,16 +133,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
         display_phone: phone.display_phone_number,
         business_name: phone.verified_name || selectedWaba?.business_name || selectedWaba?.name,
       });
-      setWizardStep(3);
+      setStep(5);
     } catch (e: any) {
       toast.error("Error al guardar: " + e.message);
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleOAuthConnect = () => {
-    wa.connect();
   };
 
   const handleManualSave = async () => {
@@ -128,7 +153,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
         waba_id: manualWabaId.trim(),
         access_token: manualToken.trim(),
       });
-      setWizardStep(3);
+      setStep(5);
     } catch (e: any) {
       toast.error("Error: " + e.message);
     } finally {
@@ -136,430 +161,480 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   };
 
-  const copyWebhookUrl = () => {
-    navigator.clipboard.writeText(webhookUrl);
-    toast.success("URL copiada al portapapeles");
-  };
-
-  const startNewConnection = () => {
-    setView("wizard");
-    setWizardStep(1);
-    setConnectionMethod(null);
-    setManualPhoneId("");
-    setManualWabaId("");
-    setManualToken("");
-  };
-
-  const qualityColor = (quality: string) => {
-    switch (quality?.toUpperCase()) {
-      case "GREEN": case "HIGH": case "ALTA": return "text-green-600 bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800";
-      case "YELLOW": case "MEDIUM": case "MEDIA": return "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30 dark:border-yellow-800";
-      case "RED": case "LOW": case "BAJA": return "text-red-600 bg-red-50 border-red-200 dark:bg-red-950/30 dark:border-red-800";
-      default: return "text-muted-foreground";
+  const goBack = () => {
+    if (step === 1) {
+      onOpenChange(false);
+    } else if (useManual && step === 4) {
+      setStep(1);
+    } else {
+      setStep((prev) => Math.max(1, prev - 1) as WizardStep);
     }
   };
 
-  const qualityLabel = (quality: string) => {
-    switch (quality?.toUpperCase()) {
-      case "GREEN": case "HIGH": return "Alta";
-      case "YELLOW": case "MEDIUM": return "Media";
-      case "RED": case "LOW": return "Baja";
-      default: return quality || "—";
-    }
+  const qualityBadge = (q: string) => {
+    const upper = q?.toUpperCase();
+    if (upper === "GREEN" || upper === "HIGH") return { label: "Alta", cls: "text-green-600 bg-green-50 border-green-200 dark:bg-green-950/30" };
+    if (upper === "YELLOW" || upper === "MEDIUM") return { label: "Media", cls: "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30" };
+    if (upper === "RED" || upper === "LOW") return { label: "Baja", cls: "text-red-600 bg-red-50 border-red-200 dark:bg-red-950/30" };
+    return { label: q || "—", cls: "text-muted-foreground" };
   };
 
-  // WIZARD STEP LABELS
-  const stepLabels = [
-    { num: 1, label: "Seleccionar método" },
-    { num: 2, label: "Conectar cuenta" },
-    { num: 3, label: "Finalizar configuración" },
-  ];
+  // Connected view (step 6 when already connected)
+  if (step === 6 && wa.isConnected && wa.config) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-br from-green-500 to-green-600 p-6 text-white">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
+                <MessageCircle className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">WhatsApp Conectado</h2>
+                <p className="text-sm text-white/80">Tu canal está activo y recibiendo mensajes</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-5">
+            {/* Channel info */}
+            <div className="rounded-xl border p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/50">
+                    <Smartphone className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">{wa.config.display_phone || wa.config.phone_number_id}</p>
+                    <p className="text-xs text-muted-foreground">{wa.config.business_name || "WhatsApp Business"}</p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
+                  <Wifi className="h-3 w-3" />
+                  Activo
+                </Badge>
+              </div>
+            </div>
+
+            {/* Webhook config */}
+            <div className="rounded-xl border p-4 space-y-3">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <Settings className="h-4 w-4 text-muted-foreground" />
+                Webhook para mensajes entrantes
+              </h4>
+              <div className="flex items-center gap-2 bg-muted rounded-lg p-2.5">
+                <code className="text-[11px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="shrink-0 h-7 w-7"
+                  onClick={() => {
+                    navigator.clipboard.writeText(webhookUrl);
+                    toast.success("URL copiada");
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 gap-2 text-destructive hover:text-destructive"
+                onClick={async () => {
+                  await wa.disconnect();
+                  onOpenChange(false);
+                }}
+              >
+                <WifiOff className="h-4 w-4" />
+                Desconectar
+              </Button>
+              <Button
+                variant="outline"
+                className="flex-1 gap-2"
+                onClick={() => {
+                  setStep(1);
+                  setUseManual(false);
+                }}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Reconectar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // Success step after new connection
+  if (step === 6) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-lg p-0 overflow-hidden">
+          <div className="bg-gradient-to-br from-green-500 to-green-600 p-8 text-white text-center">
+            <div className="flex justify-center mb-4">
+              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur animate-pulse">
+                <CheckCircle2 className="h-10 w-10" />
+              </div>
+            </div>
+            <h2 className="text-xl font-bold">¡Conexión exitosa!</h2>
+            <p className="text-sm text-white/80 mt-2 max-w-sm mx-auto">
+              Tu WhatsApp Business está conectado. Ya puedes enviar y recibir mensajes desde el CRM.
+            </p>
+          </div>
+          <div className="p-6">
+            <Button className="w-full gap-2" onClick={() => onOpenChange(false)}>
+              Comenzar a usar WhatsApp <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        {/* ========== MAIN VIEW: Connected numbers ========== */}
-        {view === "main" && (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[hsl(var(--success)/0.15)]">
-                  <MessageCircle className="h-6 w-6 text-[hsl(var(--success))]" />
-                </div>
-                <div>
-                  <DialogTitle className="text-lg">WhatsApp Business</DialogTitle>
-                  <p className="text-sm text-muted-foreground mt-0.5">
-                    Conecta tus números de WhatsApp Business y gestiónalos aquí
-                  </p>
-                </div>
-              </div>
-            </DialogHeader>
-
-            <div className="space-y-4 pt-2">
-              {/* Connected numbers table */}
-              {wa.isConnected && wa.config ? (
-                <div className="rounded-lg border overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        <TableHead className="text-xs font-semibold">Número de teléfono</TableHead>
-                        <TableHead className="text-xs font-semibold">Nombre para mostrar</TableHead>
-                        <TableHead className="text-xs font-semibold">Estado</TableHead>
-                        <TableHead className="text-xs font-semibold">Calidad</TableHead>
-                        <TableHead className="text-xs font-semibold w-[80px]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell className="text-sm font-medium">
-                          {wa.config.display_phone || wa.config.phone_number_id}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {wa.config.business_name || "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
-                            <CheckCircle2 className="h-3 w-3" />
-                            Conectado
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="text-xs">Alta</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7 text-destructive hover:text-destructive"
-                              onClick={async () => {
-                                await wa.disconnect();
-                              }}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-7 w-7"
-                              onClick={() => {
-                                setView("wizard");
-                                setWizardStep(3);
-                              }}
-                            >
-                              <Settings className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-dashed p-8 text-center space-y-3">
-                  <div className="flex justify-center">
-                    <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted">
-                      <Phone className="h-7 w-7 text-muted-foreground" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">No hay números conectados</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Conecta tu número de WhatsApp Business para enviar y recibir mensajes desde el CRM.
-                    </p>
-                  </div>
-                </div>
+      <DialogContent className="max-w-xl p-0 overflow-hidden">
+        {/* Progress header */}
+        <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              {step > 1 && (
+                <button onClick={goBack} className="text-white/70 hover:text-white transition-colors">
+                  <ArrowLeft className="h-4 w-4" />
+                </button>
               )}
-
-              <Button
-                className="gap-2"
-                onClick={startNewConnection}
-                style={{ backgroundColor: "hsl(var(--success))" }}
-              >
-                <Plus className="h-4 w-4" />
-                Conectar {wa.isConnected ? "otro número" : "un número"}
-              </Button>
+              <h2 className="text-white font-semibold text-sm">Conectar WhatsApp</h2>
             </div>
-          </>
-        )}
+            <span className="text-white/70 text-xs">Paso {step} de 6</span>
+          </div>
 
-        {/* ========== WIZARD VIEW ========== */}
-        {view === "wizard" && (
-          <>
-            <DialogHeader>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-1 text-xs text-muted-foreground hover:text-foreground -ml-2"
-                  onClick={() => {
-                    if (wizardStep === 1) {
-                      setView("main");
-                    } else {
-                      setWizardStep((prev) => Math.max(1, prev - 1) as WizardStep);
-                    }
-                  }}
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Volver
-                </Button>
-              </div>
-            </DialogHeader>
+          {/* Step indicators */}
+          <div className="flex gap-1">
+            {STEPS.map((s) => (
+              <div
+                key={s.num}
+                className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                  s.num <= step ? "bg-white" : "bg-white/20"
+                }`}
+              />
+            ))}
+          </div>
+        </div>
 
-            {/* Step indicators */}
-            <div className="flex items-center gap-2 pb-2">
-              {stepLabels.map((s, i) => {
-                const isActive = wizardStep === s.num;
-                const isDone = wizardStep > s.num;
-                return (
-                  <div key={s.num} className="flex items-center gap-2">
-                    {i > 0 && <div className={`h-px w-6 ${isDone ? "bg-[hsl(var(--success))]" : "bg-border"}`} />}
-                    <div className="flex items-center gap-1.5">
-                      <div className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
-                        isDone
-                          ? "bg-[hsl(var(--success))] text-white"
-                          : isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground"
-                      }`}>
-                        {isDone ? <CheckCircle2 className="h-3.5 w-3.5" /> : s.num}
-                      </div>
-                      <span className={`text-xs hidden sm:inline ${isActive ? "font-semibold text-foreground" : "text-muted-foreground"}`}>
-                        {s.label}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
+        <div className="p-6">
+          {/* ===== STEP 1: Choose method ===== */}
+          {step === 1 && (
             <div className="space-y-5">
-              {/* ===== STEP 1: Select method ===== */}
-              {wizardStep === 1 && (
-                <div className="space-y-4">
-                  <div className="text-center space-y-2 py-2">
-                    <div className="flex justify-center">
-                      <div className="relative">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[hsl(var(--success)/0.1)]">
-                          <MessageCircle className="h-10 w-10 text-[hsl(var(--success))]" />
-                        </div>
-                      </div>
-                    </div>
-                    <h3 className="text-base font-semibold text-foreground">
-                      ¿Cómo quieres conectar WhatsApp?
-                    </h3>
-                    <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                      Vincula tu WhatsApp Business existente o configúralo manualmente con tus credenciales de Meta.
-                    </p>
-                  </div>
-
-                  <div className="grid gap-3">
-                    {/* Manual connection */}
-                    <button
-                      className="flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-primary/30 bg-card p-5 text-left transition-all hover:shadow-sm"
-                      onClick={() => {
-                        setConnectionMethod("manual");
-                        setWizardStep(2);
-                      }}
-                    >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shrink-0">
-                        <KeyRound className="h-6 w-6 text-primary" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-foreground">Configuración manual</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Ingresa tu Phone Number ID, WABA ID y Access Token desde el panel de Meta Business.
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                    </button>
-
-                    {/* OAuth con Facebook */}
-                    <button
-                      className="flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-primary/30 bg-card p-5 text-left transition-all hover:shadow-sm"
-                      onClick={() => {
-                        setConnectionMethod("oauth");
-                        setWizardStep(2);
-                      }}
-                      disabled={!wa.metaAppId}
-                    >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0" style={{ backgroundColor: "#1877F2" + "1a" }}>
-                        <svg className="h-6 w-6" viewBox="0 0 24 24" fill="#1877F2">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-semibold text-foreground">Conectar con Facebook</p>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          Inicia sesión con tu cuenta de Facebook para vincular tu WhatsApp Business automáticamente.
-                        </p>
-                      </div>
-                      <ChevronRight className="h-5 w-5 text-muted-foreground shrink-0" />
-                    </button>
+              <div className="text-center space-y-2">
+                <div className="flex justify-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-100 dark:bg-green-950/50">
+                    <MessageCircle className="h-8 w-8 text-green-600" />
                   </div>
                 </div>
-              )}
+                <h3 className="text-lg font-bold text-foreground">Conecta tu WhatsApp Business</h3>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  Vincula tu cuenta para enviar y recibir mensajes directamente desde el CRM.
+                </p>
+              </div>
 
-              {/* ===== STEP 2: Connect account ===== */}
-              {wizardStep === 2 && connectionMethod === "manual" && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
-                      <Shield className="h-4 w-4 text-primary" />
-                      Credenciales de WhatsApp Cloud API
-                    </h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Obtén estos datos desde{" "}
-                      <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
-                        Meta for Developers <ExternalLink className="h-3 w-3 inline" />
-                      </a>{" "}
-                      → tu app → WhatsApp → Configuración de la API.
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="wa-phone-id" className="text-xs font-medium">Phone Number ID</Label>
-                      <Input
-                        id="wa-phone-id"
-                        placeholder="Ej: 123456789012345"
-                        value={manualPhoneId}
-                        onChange={(e) => setManualPhoneId(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="wa-waba-id" className="text-xs font-medium">WABA ID (WhatsApp Business Account ID)</Label>
-                      <Input
-                        id="wa-waba-id"
-                        placeholder="Ej: 123456789012345"
-                        value={manualWabaId}
-                        onChange={(e) => setManualWabaId(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="wa-token" className="text-xs font-medium">Access Token permanente</Label>
-                      <Input
-                        id="wa-token"
-                        type="password"
-                        placeholder="Token de acceso de la API de WhatsApp"
-                        value={manualToken}
-                        onChange={(e) => setManualToken(e.target.value)}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Genera un token permanente en Meta Business Suite → Configuración del sistema → Usuarios del sistema.
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button
-                    className="w-full gap-2"
-                    onClick={handleManualSave}
-                    disabled={saving || !manualPhoneId || !manualWabaId || !manualToken}
-                  >
-                    {saving ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" /> Validando y guardando...</>
-                    ) : (
-                      <>Conectar WhatsApp <ArrowRight className="h-4 w-4" /></>
-                    )}
-                  </Button>
-                </div>
-              )}
-
-              {wizardStep === 2 && connectionMethod === "oauth" && (
-                <div className="space-y-4">
-                  <div className="text-center space-y-3 py-4">
-                    <div className="flex justify-center gap-3">
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30">
-                        <svg className="h-7 w-7" viewBox="0 0 24 24" fill="#1877F2">
-                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                        </svg>
-                      </div>
-                      <div className="flex h-14 w-14 items-center justify-center rounded-full border-2 border-dashed border-muted-foreground/30">
-                        <MessageCircle className="h-7 w-7 text-[hsl(var(--success))]" />
-                      </div>
-                    </div>
-                    <h3 className="text-base font-semibold">Conectar con Facebook</h3>
-                    <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                      Serás redirigido a Facebook para autorizar el acceso a tu cuenta de WhatsApp Business. Después volverás aquí para seleccionar tu número.
-                    </p>
-                  </div>
-
-                  <Button
-                    className="w-full gap-2 h-11"
-                    onClick={handleOAuthConnect}
-                    style={{ backgroundColor: "#1877F2" }}
-                  >
-                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="white">
+              <div className="space-y-3">
+                {/* OAuth - recommended */}
+                <button
+                  className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-blue-500/30 bg-card p-5 text-left transition-all hover:shadow-md group"
+                  onClick={() => {
+                    setUseManual(false);
+                    wa.connect();
+                  }}
+                  disabled={!wa.metaAppId}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0" style={{ backgroundColor: "#1877F220" }}>
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="#1877F2">
                       <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                     </svg>
-                    Continuar con Facebook
-                  </Button>
-
-                  <p className="text-[11px] text-muted-foreground text-center">
-                    Al continuar, autorizarás acceso a tu WhatsApp Business Account para enviar y recibir mensajes.
-                  </p>
-                </div>
-              )}
-
-              {/* ===== STEP 3: Finalize - Webhook config ===== */}
-              {wizardStep === 3 && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.05)] p-4">
-                    <div className="flex items-center gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-[hsl(var(--success))] shrink-0" />
-                      <div>
-                        <p className="text-sm font-semibold text-[hsl(var(--success))]">¡WhatsApp conectado exitosamente!</p>
-                        {wa.config && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {wa.config.display_phone} · {wa.config.business_name}
-                          </p>
-                        )}
-                      </div>
-                    </div>
                   </div>
-
-                  <div className="rounded-xl border p-4 space-y-3">
-                    <h4 className="text-sm font-semibold flex items-center gap-2">
-                      <Settings className="h-4 w-4 text-muted-foreground" />
-                      Configurar Webhook
-                    </h4>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      Para recibir mensajes entrantes, registra esta URL como webhook en tu app de Meta.
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">Conectar con Facebook</p>
+                      <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">Recomendado</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Inicia sesión con Facebook y selecciona tu cuenta de WhatsApp Business automáticamente.
                     </p>
-                    <div className="flex items-center gap-2 bg-muted rounded-lg p-2.5">
-                      <code className="text-xs flex-1 break-all font-mono">{webhookUrl}</code>
-                      <Button size="sm" variant="ghost" onClick={copyWebhookUrl} className="shrink-0">
-                        <Copy className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <div className="text-xs text-muted-foreground space-y-1">
-                      <p><strong>Campo a suscribir:</strong> messages</p>
-                      <p><strong>Verify Token:</strong> usa cualquier string seguro que configures en tu edge function</p>
-                    </div>
-                    <a
-                      href="https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 text-xs text-primary hover:underline"
-                    >
-                      <ExternalLink className="h-3 w-3" /> Guía de webhooks de Meta
-                    </a>
                   </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                </button>
 
-                  <Button
-                    className="w-full gap-2"
-                    onClick={() => {
-                      setView("main");
-                      wa.refreshConfig();
-                    }}
-                  >
-                    Finalizar <ArrowRight className="h-4 w-4" />
+                {/* Manual */}
+                <button
+                  className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-primary/30 bg-card p-5 text-left transition-all hover:shadow-md group"
+                  onClick={() => {
+                    setUseManual(true);
+                    setStep(4);
+                  }}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 shrink-0">
+                    <KeyRound className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">Configuración manual</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Ingresa tus credenciales de Meta Business manualmente.
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ===== STEP 2: Select business portfolio ===== */}
+          {step === 2 && (
+            <div className="space-y-4">
+              <div className="text-center space-y-1">
+                <h3 className="text-base font-bold text-foreground">Selecciona tu portafolio de negocio</h3>
+                <p className="text-sm text-muted-foreground">Elige la cuenta de negocio que contiene tu WhatsApp Business.</p>
+              </div>
+
+              {loading ? (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+                  <p className="text-sm text-muted-foreground">Cargando tus portafolios de negocio...</p>
+                </div>
+              ) : wabaAccounts.length === 0 ? (
+                <div className="text-center py-8 space-y-3">
+                  <div className="flex justify-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                      <Building2 className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">No se encontraron portafolios de negocio.</p>
+                  <Button variant="outline" size="sm" onClick={loadWabaAccounts} className="gap-2">
+                    <RefreshCw className="h-3.5 w-3.5" /> Reintentar
                   </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {wabaAccounts.map((waba) => (
+                    <button
+                      key={waba.id}
+                      className="w-full flex items-center gap-3 rounded-xl border-2 border-transparent hover:border-green-500/30 bg-card p-4 text-left transition-all hover:shadow-sm group"
+                      onClick={() => handleSelectWaba(waba)}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-950/50 shrink-0">
+                        <Building2 className="h-5 w-5 text-green-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate">{waba.name}</p>
+                        {waba.business_name && (
+                          <p className="text-xs text-muted-foreground truncate">{waba.business_name}</p>
+                        )}
+                        <p className="text-[11px] text-muted-foreground font-mono">ID: {waba.id}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
-          </>
-        )}
+          )}
+
+          {/* ===== STEP 3: Choose WABA (existing or new) ===== */}
+          {step === 3 && (
+            <div className="space-y-4">
+              <div className="text-center space-y-1">
+                <h3 className="text-base font-bold text-foreground">Cuenta de WhatsApp Business</h3>
+                <p className="text-sm text-muted-foreground">
+                  {selectedWaba ? `Portafolio: ${selectedWaba.name}` : "Selecciona o crea una cuenta WABA"}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <button
+                  className="w-full flex items-center gap-3 rounded-xl border-2 border-transparent hover:border-green-500/30 bg-card p-4 text-left transition-all hover:shadow-sm"
+                  onClick={() => setStep(4)}
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-950/50 shrink-0">
+                    <MessageCircle className="h-5 w-5 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">Usar cuenta existente</p>
+                    <p className="text-xs text-muted-foreground">Selecciona un número ya registrado en tu WABA.</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+
+                <div className="rounded-xl border border-dashed p-4 text-center space-y-2 opacity-50">
+                  <p className="text-xs text-muted-foreground">
+                    La opción de crear una nueva cuenta WABA estará disponible próximamente.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ===== STEP 4: Select phone number (or manual entry) ===== */}
+          {step === 4 && !useManual && (
+            <div className="space-y-4">
+              <div className="text-center space-y-1">
+                <h3 className="text-base font-bold text-foreground">Selecciona tu número</h3>
+                <p className="text-sm text-muted-foreground">
+                  Elige el número de WhatsApp que quieres conectar al CRM.
+                </p>
+              </div>
+
+              {loading ? (
+                <div className="flex flex-col items-center gap-3 py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+                  <p className="text-sm text-muted-foreground">Cargando números disponibles...</p>
+                </div>
+              ) : phoneNumbers.length === 0 ? (
+                <div className="text-center py-8 space-y-3">
+                  <div className="flex justify-center">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                      <Phone className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  </div>
+                  <p className="text-sm text-muted-foreground">No se encontraron números en esta cuenta.</p>
+                  <p className="text-xs text-muted-foreground">Registra un número en Meta Business Suite primero.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {phoneNumbers.map((phone) => {
+                    const qb = qualityBadge(phone.quality_rating);
+                    return (
+                      <button
+                        key={phone.id}
+                        className="w-full flex items-center gap-3 rounded-xl border-2 border-transparent hover:border-green-500/30 bg-card p-4 text-left transition-all hover:shadow-sm group"
+                        onClick={() => handleSelectPhone(phone)}
+                        disabled={saving}
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/50 shrink-0">
+                          <Phone className="h-5 w-5 text-green-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-foreground">{phone.display_phone_number}</p>
+                          <p className="text-xs text-muted-foreground truncate">{phone.verified_name}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge variant="outline" className={`text-[10px] ${qb.cls}`}>{qb.label}</Badge>
+                          {saving ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ===== STEP 4: Manual entry ===== */}
+          {step === 4 && useManual && (
+            <div className="space-y-4">
+              <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <Shield className="h-4 w-4 text-primary" />
+                  Credenciales de WhatsApp Cloud API
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Obtén estos datos desde{" "}
+                  <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                    Meta for Developers <ExternalLink className="h-3 w-3 inline" />
+                  </a>
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-phone-id" className="text-xs font-medium">Phone Number ID</Label>
+                  <Input id="wa-phone-id" placeholder="Ej: 123456789012345" value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-waba-id" className="text-xs font-medium">WABA ID</Label>
+                  <Input id="wa-waba-id" placeholder="Ej: 123456789012345" value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="wa-token" className="text-xs font-medium">Access Token permanente</Label>
+                  <Input id="wa-token" type="password" placeholder="Token de acceso" value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
+                </div>
+              </div>
+
+              <Button
+                className="w-full gap-2"
+                onClick={handleManualSave}
+                disabled={saving || !manualPhoneId || !manualWabaId || !manualToken}
+              >
+                {saving ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Validando...</>
+                ) : (
+                  <>Conectar WhatsApp <ArrowRight className="h-4 w-4" /></>
+                )}
+              </Button>
+            </div>
+          )}
+
+          {/* ===== STEP 5: Webhook configuration ===== */}
+          {step === 5 && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-4">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">¡Cuenta vinculada correctamente!</p>
+                    <p className="text-xs text-green-600/80 dark:text-green-400/70 mt-0.5">
+                      Solo falta configurar el webhook para recibir mensajes.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border p-4 space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <Settings className="h-4 w-4 text-muted-foreground" />
+                  URL del Webhook
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  Registra esta URL en tu app de Meta → WhatsApp → Configuración.
+                </p>
+                <div className="flex items-center gap-2 bg-muted rounded-lg p-2.5">
+                  <code className="text-[11px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 h-7 w-7"
+                    onClick={() => {
+                      navigator.clipboard.writeText(webhookUrl);
+                      toast.success("URL copiada");
+                    }}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <div className="text-xs text-muted-foreground space-y-0.5">
+                  <p><strong>Campo:</strong> messages</p>
+                </div>
+              </div>
+
+              <Button
+                className="w-full gap-2"
+                onClick={() => {
+                  setStep(6);
+                  wa.refreshConfig();
+                }}
+              >
+                Finalizar configuración <ArrowRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

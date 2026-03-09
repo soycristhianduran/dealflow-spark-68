@@ -24,27 +24,27 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    if (action === "get_waba_accounts") {
-      // Fetch WABA accounts the user has access to
+    // Helper to get user's access token
+    const getUserToken = async () => {
       const { data: config } = await supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
         .maybeSingle();
-
       if (!config?.access_token) throw new Error("No token found. Please reconnect.");
+      return config.access_token;
+    };
 
-      const meRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${config.access_token}`);
+    if (action === "get_waba_accounts") {
+      const accessToken = await getUserToken();
+      const meRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${accessToken}`);
       const meData = await meRes.json();
-
       if (meData.error) throw new Error(meData.error.message);
 
-      const businesses = meData.data || [];
       const wabaList: any[] = [];
-
-      for (const biz of businesses) {
+      for (const biz of (meData.data || [])) {
         const wabaRes = await fetch(
-          `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${config.access_token}`
+          `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`
         );
         const wabaData = await wabaRes.json();
         if (wabaData.data) {
@@ -59,16 +59,9 @@ Deno.serve(async (req) => {
 
     if (action === "get_phone_numbers") {
       const { waba_id } = body;
-      const { data: config } = await supabase
-        .from("whatsapp_configs")
-        .select("access_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (!config?.access_token) throw new Error("No token found.");
-
+      const accessToken = await getUserToken();
       const res = await fetch(
-        `${GRAPH_API}/${waba_id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,status&access_token=${config.access_token}`
+        `${GRAPH_API}/${waba_id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,status&access_token=${accessToken}`
       );
       const data = await res.json();
       if (data.error) throw new Error(data.error.message);
@@ -92,8 +85,31 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq("user_id", user.id);
-
       if (error) throw error;
+
+      // Also update channels table
+      const { data: config } = await supabase
+        .from("whatsapp_configs")
+        .select("access_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      await supabase.from("channels").upsert(
+        {
+          user_id: user.id,
+          type: "whatsapp",
+          provider: "meta",
+          waba_id,
+          phone_number_id,
+          access_token: config?.access_token || "",
+          display_phone: display_phone || null,
+          business_name: business_name || null,
+          is_active: true,
+          status: "connected",
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
+      );
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -106,7 +122,7 @@ Deno.serve(async (req) => {
         throw new Error("phone_number_id, waba_id y access_token son obligatorios");
       }
 
-      // Validate token by making a test call
+      // Validate token
       const testRes = await fetch(`${GRAPH_API}/${phone_number_id}?fields=display_phone_number,verified_name&access_token=${access_token}`);
       const testData = await testRes.json();
       if (testData.error) {
@@ -128,6 +144,24 @@ Deno.serve(async (req) => {
       );
       if (error) throw error;
 
+      // Also save to channels
+      await supabase.from("channels").upsert(
+        {
+          user_id: user.id,
+          type: "whatsapp",
+          provider: "meta",
+          waba_id,
+          phone_number_id,
+          access_token,
+          display_phone: testData.display_phone_number || display_phone || null,
+          business_name: testData.verified_name || business_name || null,
+          is_active: true,
+          status: "connected",
+          connected_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
+      );
+
       return new Response(JSON.stringify({
         success: true,
         display_phone: testData.display_phone_number || display_phone,
@@ -142,6 +176,13 @@ Deno.serve(async (req) => {
         .from("whatsapp_configs")
         .update({ is_active: false })
         .eq("user_id", user.id);
+
+      // Also deactivate in channels
+      await supabase
+        .from("channels")
+        .update({ is_active: false, status: "disconnected" })
+        .eq("user_id", user.id)
+        .eq("type", "whatsapp");
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
