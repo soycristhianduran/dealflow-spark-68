@@ -34,7 +34,7 @@ interface PhoneNumber {
 
 type View = "main" | "wizard";
 type WizardStep = 1 | 2 | 3;
-type ConnectionMethod = "manual" | "embedded" | null;
+type ConnectionMethod = "manual" | "oauth" | null;
 
 export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardProps) {
   const wa = useWhatsAppIntegration();
