@@ -184,7 +184,9 @@ export default function IntegrationsPage() {
 
   const handleCardAction = (integration: Integration) => {
     if (integration.id === "facebook" && fb.isConnected) {
-      setFbWizardOpen(true); // Re-open wizard to manage
+      setFbWizardOpen(true);
+    } else if (integration.id === "whatsapp") {
+      setWaWizardOpen(true);
     } else if (isIntegrationConnected(integration.id)) {
       setSelectedIntegration(integration);
     } else {
