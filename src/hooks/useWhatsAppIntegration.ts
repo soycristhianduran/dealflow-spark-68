@@ -110,9 +110,16 @@ export function useWhatsAppIntegration() {
 
     setConnecting(true);
 
+    // Safety timeout: if popup is blocked or never responds, reset after 60s
+    const safetyTimeout = setTimeout(() => {
+      setConnecting(false);
+      toast.error("No se detectó respuesta del popup de Meta. ¿Se bloqueó el popup? Permite popups e intenta de nuevo.");
+    }, 60000);
+
     const launchEmbeddedSignup = () => {
       const FB = (window as any).FB;
       if (!FB) {
+        clearTimeout(safetyTimeout);
         toast.error("Error al cargar Facebook SDK. Recarga la página.");
         setConnecting(false);
         return;
@@ -129,41 +136,47 @@ export function useWhatsAppIntegration() {
         response_type: "code",
       };
 
-      // If we have a config_id, use it for a more streamlined experience
       if (waConfigId) {
         loginParams.config_id = waConfigId;
       }
 
-      FB.login(async (response: any) => {
-        if (response.authResponse?.code) {
-          try {
-            // Send code to backend for token exchange
-            const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
-              body: { code: response.authResponse.code },
-            });
+      try {
+        FB.login(async (response: any) => {
+          clearTimeout(safetyTimeout);
+          if (response.authResponse?.code) {
+            try {
+              const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
+                body: { code: response.authResponse.code },
+              });
 
-            if (error || data?.error) {
-              throw new Error(data?.error || error?.message || "Error en el registro");
-            }
+              if (error || data?.error) {
+                throw new Error(data?.error || error?.message || "Error en el registro");
+              }
 
-            const result = data as EmbeddedSignupResult;
-            
-            if (result.status === "connected") {
-              toast.success(`WhatsApp conectado: ${result.display_phone || result.business_name}`);
-              await fetchConfig();
-            } else if (result.status === "pending") {
-              toast.info("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+              const result = data as EmbeddedSignupResult;
+              
+              if (result.status === "connected") {
+                toast.success(`WhatsApp conectado: ${result.display_phone || result.business_name}`);
+                await fetchConfig();
+              } else if (result.status === "pending") {
+                toast.info("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+              }
+            } catch (e: any) {
+              console.error("Embedded Signup error:", e);
+              toast.error("Error al completar la conexión: " + e.message);
             }
-          } catch (e: any) {
-            console.error("Embedded Signup error:", e);
-            toast.error("Error al completar la conexión: " + e.message);
+          } else {
+            console.log("Embedded Signup cancelled or failed:", response);
+            toast.error("Conexión cancelada o fallida.");
           }
-        } else {
-          console.log("Embedded Signup cancelled or failed:", response);
-          toast.error("Conexión cancelada o fallida.");
-        }
+          setConnecting(false);
+        }, loginParams);
+      } catch (e: any) {
+        clearTimeout(safetyTimeout);
+        console.error("FB.login error:", e);
+        toast.error("Error al abrir el popup de Meta: " + e.message);
         setConnecting(false);
-      }, loginParams);
+      }
     };
 
     if (sdkLoadedRef.current) {
@@ -172,6 +185,10 @@ export function useWhatsAppIntegration() {
       loadFacebookSDK(metaAppId).then(() => {
         sdkLoadedRef.current = true;
         launchEmbeddedSignup();
+      }).catch(() => {
+        clearTimeout(safetyTimeout);
+        toast.error("No se pudo cargar el SDK de Facebook.");
+        setConnecting(false);
       });
     }
   }, [user, metaAppId, waConfigId, fetchConfig]);
