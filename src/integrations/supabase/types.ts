@@ -50,6 +50,63 @@ export type Database = {
         }
         Relationships: []
       }
+      channels: {
+        Row: {
+          access_token: string | null
+          business_account_id: string | null
+          business_name: string | null
+          connected_at: string | null
+          created_at: string
+          display_phone: string | null
+          id: string
+          is_active: boolean
+          phone_number_id: string | null
+          provider: string
+          status: string
+          type: string
+          updated_at: string
+          user_id: string
+          waba_id: string | null
+          webhook_verify_token: string | null
+        }
+        Insert: {
+          access_token?: string | null
+          business_account_id?: string | null
+          business_name?: string | null
+          connected_at?: string | null
+          created_at?: string
+          display_phone?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id?: string | null
+          provider?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id: string
+          waba_id?: string | null
+          webhook_verify_token?: string | null
+        }
+        Update: {
+          access_token?: string | null
+          business_account_id?: string | null
+          business_name?: string | null
+          connected_at?: string | null
+          created_at?: string
+          display_phone?: string | null
+          id?: string
+          is_active?: boolean
+          phone_number_id?: string | null
+          provider?: string
+          status?: string
+          type?: string
+          updated_at?: string
+          user_id?: string
+          waba_id?: string | null
+          webhook_verify_token?: string | null
+        }
+        Relationships: []
+      }
       companies: {
         Row: {
           city: string | null
