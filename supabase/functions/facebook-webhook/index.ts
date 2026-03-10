@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
           ]);
 
           let contactData: Record<string, any> = {
-            source: "facebook",
+            source: "facebook_ads",
             campaign: change.value?.campaign_name || change.value?.campaign_id || formId,
             adset: change.value?.adset_name || change.value?.adset_id || null,
             ad: change.value?.ad_name || change.value?.ad_id || null,
