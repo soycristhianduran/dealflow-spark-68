@@ -18,5 +18,8 @@ verify_jwt = false
 [functions.whatsapp-api]
 verify_jwt = false
 
+[functions.facebook-oauth-callback]
+verify_jwt = false
+
 [functions.facebook-get-app-id]
 verify_jwt = false
