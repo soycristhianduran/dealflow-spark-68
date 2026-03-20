@@ -191,6 +191,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <PopoverContent align="end" className="w-72 p-0">
             <div className="flex items-center gap-3 p-4 border-b">
               <Avatar className="h-12 w-12">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{displayName}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
