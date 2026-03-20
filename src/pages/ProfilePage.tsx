@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
-import { Camera, Loader2, Save, Mail, Shield } from "lucide-react";
+import { Camera, Loader2, Save, Mail, Shield, Lock } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -25,6 +25,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [profile, setProfile] = useState<Profile>({
     first_name: "",
     last_name: "",
@@ -87,6 +90,34 @@ export default function ProfilePage() {
       toast.error("Error al guardar el perfil");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!newPassword || !confirmPassword) {
+      toast.error("Completa todos los campos de contraseña");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("La nueva contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      toast.success("Contraseña actualizada correctamente");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error("Error changing password:", err);
+      toast.error(err.message || "Error al cambiar la contraseña");
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -305,6 +336,50 @@ export default function ProfilePage() {
                       : "—"}
                   </p>
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Change password */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Cambiar contraseña</CardTitle>
+              <CardDescription>
+                Actualiza tu contraseña de acceso.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_password">Nueva contraseña</Label>
+                <Input
+                  id="new_password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  maxLength={72}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm_password">Confirmar contraseña</Label>
+                <Input
+                  id="confirm_password"
+                  type="password"
+                  placeholder="Repite la nueva contraseña"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  maxLength={72}
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button onClick={handleChangePassword} disabled={changingPassword}>
+                  {changingPassword ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Lock className="mr-2 h-4 w-4" />
+                  )}
+                  Cambiar contraseña
+                </Button>
               </div>
             </CardContent>
           </Card>
