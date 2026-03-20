@@ -81,6 +81,7 @@ export default function ProfilePage() {
 
       if (error) throw error;
       toast.success("Perfil actualizado correctamente");
+      window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
       console.error("Error saving profile:", err);
       toast.error("Error al guardar el perfil");
