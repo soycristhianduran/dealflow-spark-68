@@ -24,7 +24,6 @@ import NotFound from "./pages/NotFound";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
-import PrivacyPage from "./pages/PrivacyPage";
 
 const queryClient = new QueryClient();
 
