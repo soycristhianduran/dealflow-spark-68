@@ -75,7 +75,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
             <div className="flex items-center gap-3 p-4">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                  {initials}
+                  {displayName}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -182,14 +182,14 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <PopoverTrigger asChild>
             <button className="hidden md:flex" title="Mi perfil">
               <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-transparent hover:ring-primary/20 transition-all">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{displayName}</AvatarFallback>
               </Avatar>
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-0">
             <div className="flex items-center gap-3 p-4 border-b">
               <Avatar className="h-12 w-12">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{initials}</AvatarFallback>
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{displayName}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{user?.email ?? "Usuario"}</p>
