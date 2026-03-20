@@ -27,6 +27,7 @@ const mockNotifications = [
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const { avatarUrl, initials } = useProfile();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
