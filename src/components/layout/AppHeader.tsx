@@ -74,6 +74,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
 
             <div className="flex items-center gap-3 p-4">
               <Avatar className="h-10 w-10">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
                   {displayName}
                 </AvatarFallback>
