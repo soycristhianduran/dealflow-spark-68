@@ -27,27 +27,15 @@ export function useProfile() {
 
     fetchProfile();
 
-    const channel = supabase
-      .channel("profile-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "profiles", filter: `user_id=eq.${user.id}` }, () => {
-        fetchProfile();
-      })
-      .subscribe();
-
     window.addEventListener("profile-updated", fetchProfile);
     return () => {
-      supabase.removeChannel(channel);
       window.removeEventListener("profile-updated", fetchProfile);
     };
   }, [user]);
-
-  const avatarUrl = profile?.avatar_url
-    ? `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/avatars/${profile.avatar_url}`
-    : null;
 
   const initials = profile?.first_name && profile?.last_name
     ? `${profile.first_name[0]}${profile.last_name[0]}`.toUpperCase()
     : user?.email?.slice(0, 2).toUpperCase() ?? "U";
 
-  return { profile, avatarUrl, initials };
+  return { profile, avatarUrl: profile?.avatar_url ?? null, initials };
 }
