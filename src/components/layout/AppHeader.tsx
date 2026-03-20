@@ -154,13 +154,25 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
         >
           {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
         </Button>
-        <Button variant="ghost" size="icon" className="relative h-9 w-9">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="relative h-9 w-9"
+          onClick={() => navigate("/settings")}
+          title="Notificaciones"
+        >
           <Bell className="h-4 w-4" />
           <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
         </Button>
-        <Avatar className="h-8 w-8 hidden md:flex">
-          <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
-        </Avatar>
+        <button
+          onClick={() => navigate("/settings")}
+          className="hidden md:flex"
+          title="Mi perfil"
+        >
+          <Avatar className="h-8 w-8">
+            <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
+          </Avatar>
+        </button>
       </div>
     </header>
   );
