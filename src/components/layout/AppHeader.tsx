@@ -1,9 +1,10 @@
 import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useTheme } from "@/components/ThemeProvider";
 import { useAuth } from "@/contexts/AuthContext";
+import { useProfile } from "@/hooks/useProfile";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -26,6 +27,7 @@ const mockNotifications = [
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const { avatarUrl, initials } = useProfile();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -39,7 +41,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
     return () => window.removeEventListener("logo-updated", loadLogo);
   }, []);
 
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "JD";
+  const displayName = initials;
   const unreadCount = mockNotifications.filter(n => n.unread).length;
 
   const handleNav = (url: string) => {
@@ -72,8 +74,9 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
 
             <div className="flex items-center gap-3 p-4">
               <Avatar className="h-10 w-10">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
                 <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">
-                  {initials}
+                  {displayName}
                 </AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
@@ -180,14 +183,16 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <PopoverTrigger asChild>
             <button className="hidden md:flex" title="Mi perfil">
               <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-transparent hover:ring-primary/20 transition-all">
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{initials}</AvatarFallback>
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
+                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{displayName}</AvatarFallback>
               </Avatar>
             </button>
           </PopoverTrigger>
           <PopoverContent align="end" className="w-72 p-0">
             <div className="flex items-center gap-3 p-4 border-b">
               <Avatar className="h-12 w-12">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{initials}</AvatarFallback>
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
+                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{displayName}</AvatarFallback>
               </Avatar>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-foreground truncate">{user?.email ?? "Usuario"}</p>
