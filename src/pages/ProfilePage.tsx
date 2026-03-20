@@ -134,6 +134,7 @@ export default function ProfilePage() {
         );
 
       toast.success("Foto de perfil actualizada");
+      window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
       console.error("Error uploading avatar:", err);
       toast.error("Error al subir la imagen");
