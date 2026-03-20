@@ -277,7 +277,6 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
     </header>
   );
 }
-export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
