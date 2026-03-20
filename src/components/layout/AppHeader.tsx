@@ -41,7 +41,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
     return () => window.removeEventListener("logo-updated", loadLogo);
   }, []);
 
-  const initials = user?.email?.slice(0, 2).toUpperCase() ?? "JD";
+  const displayName = initials;
   const unreadCount = mockNotifications.filter(n => n.unread).length;
 
   const handleNav = (url: string) => {
