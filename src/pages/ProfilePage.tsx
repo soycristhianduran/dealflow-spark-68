@@ -311,6 +311,50 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Change password */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Cambiar contraseña</CardTitle>
+              <CardDescription>
+                Actualiza tu contraseña de acceso.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_password">Nueva contraseña</Label>
+                <Input
+                  id="new_password"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  maxLength={72}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm_password">Confirmar contraseña</Label>
+                <Input
+                  id="confirm_password"
+                  type="password"
+                  placeholder="Repite la nueva contraseña"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  maxLength={72}
+                />
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button onClick={handleChangePassword} disabled={changingPassword}>
+                  {changingPassword ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Lock className="mr-2 h-4 w-4" />
+                  )}
+                  Cambiar contraseña
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </AppLayout>
