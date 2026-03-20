@@ -183,6 +183,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           <PopoverTrigger asChild>
             <button className="hidden md:flex" title="Mi perfil">
               <Avatar className="h-8 w-8 cursor-pointer ring-2 ring-transparent hover:ring-primary/20 transition-all">
+                {avatarUrl && <AvatarImage src={avatarUrl} alt="Avatar" />}
                 <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">{displayName}</AvatarFallback>
               </Avatar>
             </button>
