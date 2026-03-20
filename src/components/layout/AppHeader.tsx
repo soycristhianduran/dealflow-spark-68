@@ -277,7 +277,6 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
     </header>
   );
 }
-  const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
