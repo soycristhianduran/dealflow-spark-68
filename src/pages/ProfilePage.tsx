@@ -125,6 +125,26 @@ export default function ProfilePage() {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("No hay sesión activa");
+
+      const response = await supabase.functions.invoke("delete-account");
+      if (response.error) throw response.error;
+
+      await signOut();
+      navigate("/auth");
+      toast.success("Tu cuenta ha sido eliminada");
+    } catch (err: any) {
+      console.error("Error deleting account:", err);
+      toast.error(err.message || "Error al eliminar la cuenta");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
