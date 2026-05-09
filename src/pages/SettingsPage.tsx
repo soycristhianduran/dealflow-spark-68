@@ -12,10 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
+import { validateSlug, toSlug, buildWorkspaceUrl } from "@/lib/subdomain";
 
 const stageColorOptions = [
   { value: "hsl(220, 70%, 50%)", label: "Azul" },
@@ -110,6 +111,13 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("USD");
   const [timezone, setTimezone] = useState("America/Mexico_City");
 
+  // Workspace slug state
+  const [orgSlug, setOrgSlug] = useState("");
+  const [slugInput, setSlugInput] = useState("");
+  const [slugSaving, setSlugSaving] = useState(false);
+  const slugValidation = validateSlug(slugInput);
+  const slugChanged = slugInput !== orgSlug;
+
   // Logo state
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -126,6 +134,18 @@ export default function SettingsPage() {
     const saved = localStorage.getItem("crm_logo_url");
     if (saved) setLogoUrl(saved);
   }, []);
+
+  // Load slug from organization when it's available
+  useEffect(() => {
+    if (organization?.slug) {
+      setOrgSlug(organization.slug);
+      setSlugInput(organization.slug);
+    } else if (organization?.name) {
+      // Auto-suggest a slug from the org name if none is set
+      const suggested = toSlug(organization.name);
+      setSlugInput(suggested);
+    }
+  }, [organization?.slug, organization?.name]);
 
   const fetchTeam = async () => {
     if (!organizationId) return;
@@ -235,6 +255,32 @@ export default function SettingsPage() {
 
   const handleSaveGeneral = () => {
     toast.success("Configuración guardada");
+  };
+
+  const handleSaveSlug = async () => {
+    if (!slugValidation.valid) return;
+    if (!organizationId) { toast.error("No se encontró la organización"); return; }
+    setSlugSaving(true);
+    try {
+      const { error } = await supabase
+        .from("organizations")
+        .update({ slug: slugInput })
+        .eq("id", organizationId);
+      if (error) {
+        if (error.code === "23505") {
+          toast.error("Esa dirección ya está en uso, elige otra");
+        } else {
+          throw error;
+        }
+        return;
+      }
+      setOrgSlug(slugInput);
+      toast.success("¡Dirección guardada! Tu espacio de trabajo es: " + buildWorkspaceUrl(slugInput));
+    } catch (err: any) {
+      toast.error("Error al guardar: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setSlugSaving(false);
+    }
   };
 
   const openAddStage = () => {
@@ -514,6 +560,82 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-4">
+            {/* Workspace URL Card */}
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Link2 className="h-4 w-4 text-primary" />
+                  Dirección del espacio de trabajo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-md">
+                <p className="text-sm text-muted-foreground">
+                  Esta es la URL única de tu empresa en el CRM. Compártela con tu equipo para que accedan directamente a tu espacio.
+                </p>
+                <div className="space-y-2">
+                  <Label>Dirección</Label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-1 items-center rounded-md border bg-muted/40 overflow-hidden">
+                      <span className="px-3 py-2 text-sm text-muted-foreground border-r bg-muted whitespace-nowrap">
+                        app.aceleradoradeventas.co/
+                      </span>
+                      <Input
+                        value={slugInput}
+                        onChange={e => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
+                        placeholder="miempresa"
+                        className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-mono"
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleSaveSlug}
+                      disabled={slugSaving || !slugValidation.valid || !slugChanged}
+                    >
+                      {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                    </Button>
+                  </div>
+
+                  {/* Validation feedback */}
+                  {slugInput.length > 0 && (
+                    <div className={`flex items-center gap-1.5 text-xs ${slugValidation.valid ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+                      {slugValidation.valid
+                        ? <><CheckCircle2 className="h-3.5 w-3.5" /> Disponible — <span className="font-mono">{slugInput}.app.aceleradoradeventas.co</span></>
+                        : <><AlertCircle className="h-3.5 w-3.5" /> {slugValidation.error}</>
+                      }
+                    </div>
+                  )}
+                </div>
+
+                {/* Current workspace URL */}
+                {orgSlug && (
+                  <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
+                    <p className="text-xs text-muted-foreground font-medium">Tu URL actual</p>
+                    <a
+                      href={buildWorkspaceUrl(orgSlug)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-primary hover:underline font-mono break-all"
+                    >
+                      {buildWorkspaceUrl(orgSlug)}
+                    </a>
+                    <p className="text-xs text-muted-foreground">
+                      Comparte este enlace con tu equipo.
+                    </p>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3">
+                  <p className="text-xs text-amber-800 dark:text-amber-300 font-medium mb-1">⚙️ Configuración DNS requerida</p>
+                  <p className="text-xs text-amber-700 dark:text-amber-400">
+                    Para que los subdominios funcionen, el administrador debe agregar un registro DNS wildcard en Hostinger:
+                    <code className="block mt-1 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded text-[11px]">
+                      *.app → CNAME → cname.vercel-dns.com
+                    </code>
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Logo Card */}
             <Card className="border-none shadow-sm">
               <CardHeader>
