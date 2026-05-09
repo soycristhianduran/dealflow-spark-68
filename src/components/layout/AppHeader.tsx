@@ -17,12 +17,7 @@ interface AppHeaderProps {
   actions?: React.ReactNode;
 }
 
-const mockNotifications = [
-  { id: "1", text: "Tienes 3 tareas pendientes para hoy", type: "task", link: "/tasks", time: "Hace 5 min", unread: true },
-  { id: "2", text: "Reunión con cliente en 1 hora", type: "meeting", link: "/calendar", time: "Hace 30 min", unread: true },
-  { id: "3", text: "Nuevo lead desde Facebook Ads", type: "lead", link: "/contacts", time: "Hace 1 hora", unread: false },
-  { id: "4", text: "Deal 'Proyecto Alpha' movido a Negociación", type: "deal", link: "/deals", time: "Hace 2 horas", unread: false },
-];
+const mockNotifications: { id: string; text: string; type: string; link: string; time: string; unread: boolean }[] = [];
 
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
