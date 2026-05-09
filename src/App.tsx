@@ -31,6 +31,7 @@ import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
+import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,8 @@ function AppRoutes() {
       <Route path="/email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
       <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
       <Route path="/more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
+      {/* Workspace entry point: app.aceleradoradeventas.co/w/:slug */}
+      <Route path="/w/:slug" element={<WorkspaceEntryPage />} />
       <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />

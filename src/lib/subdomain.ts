@@ -1,49 +1,67 @@
 /**
- * Subdomain utilities for workspace URL routing.
+ * Workspace URL routing utilities.
  *
- * URL structure:
- *   app.aceleradoradeventas.co          → main app (login / register)
- *   {slug}.app.aceleradoradeventas.co   → specific workspace
- *   localhost / 127.0.0.1               → dev (no subdomain)
+ * Current mode (Vercel Hobby): path-based
+ *   app.aceleradoradeventas.co/w/{slug}   → specific workspace
+ *   app.aceleradoradeventas.co            → main app
+ *
+ * Future mode (Vercel Pro): subdomain-based
+ *   {slug}.app.aceleradoradeventas.co     → specific workspace
+ *   app.aceleradoradeventas.co            → main app
+ *
+ * To switch to Pro mode: set VITE_WORKSPACE_MODE=subdomain in Vercel env vars.
  */
 
 const ROOT_DOMAIN = "app.aceleradoradeventas.co";
 
+// Switch to "subdomain" when upgrading to Vercel Pro
+const WORKSPACE_MODE: "path" | "subdomain" =
+  (import.meta.env.VITE_WORKSPACE_MODE as "path" | "subdomain") || "path";
+
 /**
- * Returns the workspace slug from the current hostname, or null if we're on
- * the root domain / localhost / a non-subdomain host.
+ * Returns the workspace slug from the current URL, or null if we're on the
+ * root/main app URL.
  *
- * Examples:
- *   "aceleradora.app.aceleradoradeventas.co" → "aceleradora"
- *   "app.aceleradoradeventas.co"             → null
- *   "localhost"                              → null
+ * Path mode examples:
+ *   "/w/cristhian-duran/..."  → "cristhian-duran"
+ *   "/dashboard"              → null
+ *
+ * Subdomain mode examples:
+ *   "cristhian.app.aceleradoradeventas.co" → "cristhian"
+ *   "app.aceleradoradeventas.co"           → null
+ *   "localhost"                            → null
  */
 export function getWorkspaceSlug(): string | null {
-  const hostname = window.location.hostname;
-
-  // Local development — no subdomain
-  if (
-    hostname === "localhost" ||
-    hostname === "127.0.0.1" ||
-    /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
-  ) {
+  if (WORKSPACE_MODE === "subdomain") {
+    const hostname = window.location.hostname;
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      /^\d+\.\d+\.\d+\.\d+$/.test(hostname)
+    ) {
+      return null;
+    }
+    if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
+      return hostname.slice(0, hostname.length - ROOT_DOMAIN.length - 1);
+    }
     return null;
   }
 
-  // e.g. "cristhian.app.aceleradoradeventas.co"
-  if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
-    return hostname.slice(0, hostname.length - ROOT_DOMAIN.length - 1);
-  }
-
-  // Vercel preview URLs or other custom domains → no slug routing
-  return null;
+  // Path mode: /w/:slug
+  const match = window.location.pathname.match(/^\/w\/([a-z0-9][a-z0-9-]*[a-z0-9])/);
+  return match ? match[1] : null;
 }
 
 /**
  * Builds the full workspace URL for a given slug.
+ * Path mode:      https://app.aceleradoradeventas.co/w/cristhian-duran
+ * Subdomain mode: https://cristhian.app.aceleradoradeventas.co
  */
 export function buildWorkspaceUrl(slug: string): string {
-  return `https://${slug}.${ROOT_DOMAIN}`;
+  if (WORKSPACE_MODE === "subdomain") {
+    return `https://${slug}.${ROOT_DOMAIN}`;
+  }
+  return `https://${ROOT_DOMAIN}/w/${slug}`;
 }
 
 /**
