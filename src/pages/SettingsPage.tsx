@@ -259,13 +259,27 @@ export default function SettingsPage() {
 
   const handleSaveSlug = async () => {
     if (!slugValidation.valid) return;
-    if (!organizationId) { toast.error("No se encontró la organización"); return; }
     setSlugSaving(true);
     try {
+      // Resolve org id: from context if available, otherwise fetch directly
+      let targetOrgId = organizationId;
+      if (!targetOrgId) {
+        const { data: { user: currentUser } } = await supabase.auth.getUser();
+        if (!currentUser) { toast.error("No autenticado"); return; }
+        const { data: mem } = await supabase
+          .from("organization_members")
+          .select("organization_id")
+          .eq("user_id", currentUser.id)
+          .limit(1)
+          .maybeSingle();
+        targetOrgId = mem?.organization_id ?? null;
+      }
+      if (!targetOrgId) { toast.error("No se encontró la organización"); return; }
+
       const { error } = await supabase
         .from("organizations")
         .update({ slug: slugInput })
-        .eq("id", organizationId);
+        .eq("id", targetOrgId);
       if (error) {
         if (error.code === "23505") {
           toast.error("Esa dirección ya está en uso, elige otra");
@@ -599,7 +613,7 @@ export default function SettingsPage() {
                   {slugInput.length > 0 && (
                     <div className={`flex items-center gap-1.5 text-xs ${slugValidation.valid ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
                       {slugValidation.valid
-                        ? <><CheckCircle2 className="h-3.5 w-3.5" /> Disponible — <span className="font-mono">{slugInput}.app.aceleradoradeventas.co</span></>
+                        ? <><CheckCircle2 className="h-3.5 w-3.5" /> Tu URL: <span className="font-mono">{buildWorkspaceUrl(slugInput)}</span></>
                         : <><AlertCircle className="h-3.5 w-3.5" /> {slugValidation.error}</>
                       }
                     </div>
