@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
-import { 
-  LayoutDashboard, Users, Building2, Handshake, 
-  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3
+import {
+  LayoutDashboard, Users, Building2, Handshake,
+  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3, MessageSquare, Mail
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -16,6 +16,10 @@ const navItems = [
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
   { title: "Integraciones", url: "/integrations", icon: Plug },
   { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
+  { title: "WA Inbox", url: "/whatsapp/inbox", icon: MessageSquare },
+  { title: "WA Plantillas", url: "/whatsapp/templates", icon: MessageSquare },
+  { title: "Email Campañas", url: "/email-campaigns", icon: Mail },
+  { title: "Automatizaciones", url: "/automations", icon: Zap },
 ];
 
 const bottomItems = [

@@ -101,7 +101,7 @@ export function useFacebookIntegration() {
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
-    const scopes = "pages_show_list,pages_read_engagement,leads_retrieval,pages_manage_ads,pages_messaging,ads_read,business_management";
+    const scopes = "pages_show_list,pages_read_engagement,pages_manage_metadata,leads_retrieval,pages_manage_ads,pages_messaging,ads_read,business_management";
     const state = user.id;
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;

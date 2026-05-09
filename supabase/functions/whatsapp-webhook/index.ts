@@ -5,6 +5,32 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const GRAPH_API = "https://graph.facebook.com/v21.0";
+
+// Types that carry a separate media object in the payload
+const MEDIA_TYPES = ["image", "audio", "voice", "video", "document", "sticker"];
+
+function getExtFromMime(mimeType: string): string {
+  const map: Record<string, string> = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "video/mp4": "mp4",
+    "video/3gpp": "3gp",
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/aac": "aac",
+    "audio/opus": "opus",
+    "audio/webm": "webm",
+    "application/pdf": "pdf",
+  };
+  // Handle "audio/ogg; codecs=opus" style values
+  const base = mimeType.split(";")[0].trim();
+  return map[base] || base.split("/")[1] || "bin";
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -43,15 +69,17 @@ Deno.serve(async (req) => {
         for (const change of changes) {
           if (change.field !== "messages") continue;
           const value = change.value;
-          if (!value?.messages) continue;
+
+          // Skip if nothing to process
+          if (!value?.messages && !value?.statuses) continue;
 
           const phoneNumberId = value.metadata?.phone_number_id;
           if (!phoneNumberId) continue;
 
-          // Find which user owns this phone_number_id
+          // Find which user owns this phone_number_id (also fetch access_token for media download)
           const { data: config } = await supabase
             .from("whatsapp_configs")
-            .select("user_id")
+            .select("user_id, access_token")
             .eq("phone_number_id", phoneNumberId)
             .eq("is_active", true)
             .single();
@@ -61,58 +89,132 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          for (const msg of value.messages) {
-            const senderPhone = msg.from;
-            const messageText = msg.text?.body || msg.caption || "";
-            const messageType = msg.type || "text";
-            const waMessageId = msg.id;
+          // Process incoming messages
+          if (value.messages) {
+            for (const msg of value.messages) {
+              const senderPhone = msg.from;
+              const messageType = msg.type || "text";
+              const waMessageId = msg.id;
 
-            // Try to find contact by phone
-            const { data: contact } = await supabase
-              .from("contacts")
-              .select("id")
-              .eq("owner_id", config.user_id)
-              .or(`primary_phone.eq.${senderPhone},primary_phone.eq.+${senderPhone}`)
-              .maybeSingle();
+              // Extract text: prefer text body, fall back to caption on media
+              const mediaData = MEDIA_TYPES.includes(messageType) ? msg[messageType] : null;
+              const messageText = msg.text?.body || mediaData?.caption || "";
 
-            // Save incoming message
-            await supabase.from("whatsapp_messages").insert({
-              user_id: config.user_id,
-              contact_id: contact?.id || null,
-              wa_message_id: waMessageId,
-              phone_number: senderPhone,
-              direction: "incoming",
-              message_type: messageType,
-              message_text: messageText,
-              status: "received",
-              sent_at: new Date(parseInt(msg.timestamp) * 1000).toISOString(),
-            });
+              // ── Download and store media ───────────────────────────────────
+              // Default: store a "meta:{id}" reference so the frontend can retry on demand
+              let mediaUrl: string | null = mediaData?.id ? `meta:${mediaData.id}` : null;
 
-            // Log activity if contact found
-            if (contact?.id) {
-              await supabase.from("activities").insert({
-                related_entity_type: "contact",
-                related_entity_id: contact.id,
-                event_type: "whatsapp",
-                event_source: "whatsapp_webhook",
-                summary: `Mensaje de WhatsApp recibido: "${messageText.substring(0, 100)}"`,
-                created_by: config.user_id,
+              if (mediaData?.id && config.access_token) {
+                try {
+                  // Step 1: resolve download URL from Meta
+                  const metaRes = await fetch(`${GRAPH_API}/${mediaData.id}`, {
+                    headers: { "Authorization": `Bearer ${config.access_token}` },
+                  });
+                  const metaInfo = await metaRes.json();
+                  console.log("Media meta info:", JSON.stringify(metaInfo).substring(0, 300));
+
+                  if (metaInfo.error) {
+                    console.error("Meta media lookup error:", JSON.stringify(metaInfo.error));
+                    // Keep the meta: reference so frontend can retry
+                  } else if (metaInfo.url) {
+                    // Step 2: download the binary
+                    const fileRes = await fetch(metaInfo.url, {
+                      headers: { "Authorization": `Bearer ${config.access_token}` },
+                    });
+                    console.log("Media download status:", fileRes.status, fileRes.headers.get("content-type"));
+
+                    if (fileRes.ok) {
+                      const fileBuffer = await fileRes.arrayBuffer();
+                      const mimeType = (mediaData.mime_type || metaInfo.mime_type || "application/octet-stream").split(";")[0].trim();
+                      const ext = getExtFromMime(mimeType);
+                      const storagePath = `${config.user_id}/${Date.now()}_${mediaData.id}.${ext}`;
+
+                      // Step 3: upload to Supabase Storage (use Blob for compatibility)
+                      const blob = new Blob([fileBuffer], { type: mimeType });
+                      const { error: storageErr } = await supabase.storage
+                        .from("whatsapp-media")
+                        .upload(storagePath, blob, { contentType: mimeType, upsert: false });
+
+                      if (!storageErr) {
+                        const { data: publicUrlData } = supabase.storage
+                          .from("whatsapp-media")
+                          .getPublicUrl(storagePath);
+                        mediaUrl = publicUrlData.publicUrl;  // ← real URL replaces meta: reference
+                        console.log("Media stored at:", mediaUrl);
+                      } else {
+                        console.error("Storage upload error:", storageErr.message);
+                        // Keep meta: reference so frontend can retry
+                      }
+                    } else {
+                      console.error("Media download failed:", fileRes.status);
+                    }
+                  }
+                } catch (mediaErr) {
+                  console.error("Media processing error:", mediaErr);
+                  // Keep meta: reference
+                }
+              }
+
+              // Try to find contact by phone
+              const { data: contact } = await supabase
+                .from("contacts")
+                .select("id")
+                .eq("owner_id", config.user_id)
+                .or(`primary_phone.eq.${senderPhone},primary_phone.eq.+${senderPhone}`)
+                .maybeSingle();
+
+              // Save incoming message
+              await supabase.from("whatsapp_messages").insert({
+                user_id: config.user_id,
+                contact_id: contact?.id || null,
+                wa_message_id: waMessageId,
+                phone_number: senderPhone,
+                direction: "incoming",
+                message_type: messageType,
+                message_text: messageText,
+                media_url: mediaUrl,
+                status: "received",
+                sent_at: new Date(parseInt(msg.timestamp) * 1000).toISOString(),
               });
 
-              // Update last_contact_at
-              await supabase
-                .from("contacts")
-                .update({ last_contact_at: new Date().toISOString() })
-                .eq("id", contact.id);
+              // Log activity if contact found
+              if (contact?.id) {
+                const activitySummary = mediaUrl
+                  ? `Mensaje de WhatsApp recibido: [${messageType}]${messageText ? ` — "${messageText.substring(0, 80)}"` : ""}`
+                  : `Mensaje de WhatsApp recibido: "${messageText.substring(0, 100)}"`;
+
+                await supabase.from("activities").insert({
+                  related_entity_type: "contact",
+                  related_entity_id: contact.id,
+                  event_type: "whatsapp",
+                  event_source: "whatsapp_webhook",
+                  summary: activitySummary,
+                  created_by: config.user_id,
+                });
+
+                // Update last_contact_at
+                await supabase
+                  .from("contacts")
+                  .update({ last_contact_at: new Date().toISOString() })
+                  .eq("id", contact.id);
+              }
             }
           }
 
-          // Process status updates
+          // Process delivery status updates (sent → delivered → read, or failed)
+          // These arrive as separate webhook events, not bundled with messages
           if (value.statuses) {
             for (const status of value.statuses) {
+              console.log("Status update:", status.id, "→", status.status, status.errors ? JSON.stringify(status.errors) : "");
               await supabase
                 .from("whatsapp_messages")
-                .update({ status: status.status })
+                .update({
+                  status: status.status,
+                  // Store error details if message failed
+                  ...(status.errors?.length > 0 ? {
+                    error_details: JSON.stringify(status.errors),
+                  } : {}),
+                })
                 .eq("wa_message_id", status.id);
             }
           }

@@ -148,6 +148,20 @@ export default function PipelinePage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, [fetchData]);
 
+  // Realtime: refresh deals on inserts/updates/deletes for the active pipeline
+  useEffect(() => {
+    if (!selectedPipelineId) return;
+    const channel = supabase
+      .channel(`pipeline-deals-${selectedPipelineId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "deals", filter: `pipeline_id=eq.${selectedPipelineId}` },
+        () => fetchStagesAndDeals(selectedPipelineId),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selectedPipelineId, fetchStagesAndDeals]);
+
   const switchPipeline = async (pid: string) => {
     setSelectedPipelineId(pid);
     setLoading(true);

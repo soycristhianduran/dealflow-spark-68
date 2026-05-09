@@ -21,9 +21,14 @@ import IntegrationsPage from "./pages/IntegrationsPage";
 import MorePage from "./pages/MorePage";
 import MetaAdsPage from "./pages/MetaAdsPage";
 import NotFound from "./pages/NotFound";
+import WhatsAppTemplatesPage from "./pages/WhatsAppTemplatesPage";
+import WhatsAppInboxPage from "./pages/WhatsAppInboxPage";
+import EmailCampaignsPage from "./pages/EmailCampaignsPage";
+import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
+import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +41,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { session, loading } = useAuth();
+  useLeadNotifier();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
 
   return (
@@ -56,6 +62,10 @@ function AppRoutes() {
       <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
       <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
       <Route path="/meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
+      <Route path="/whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
+      <Route path="/whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
+      <Route path="/email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
+      <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
       <Route path="/more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />

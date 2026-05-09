@@ -1,0 +1,1106 @@
+import { useEffect, useState, useRef, useCallback } from "react";
+import { AppLayout } from "@/components/layout/AppLayout";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useWhatsAppTemplates, WhatsAppTemplate, CreateTemplateParams } from "@/hooks/useWhatsAppTemplates";
+import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
+import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
+import {
+  Plus, RefreshCw, Trash2, MessageCircle, CheckCircle2,
+  Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
+} from "lucide-react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
+  APPROVED: { label: "Aprobada", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle2 },
+  PENDING: { label: "Pendiente", color: "bg-yellow-100 text-yellow-700 border-yellow-200", icon: Clock },
+  IN_APPEAL: { label: "En apelación", color: "bg-blue-100 text-blue-700 border-blue-200", icon: Clock },
+  REJECTED: { label: "Rechazada", color: "bg-red-100 text-red-700 border-red-200", icon: XCircle },
+  PAUSED: { label: "Pausada", color: "bg-gray-100 text-gray-700 border-gray-200", icon: AlertCircle },
+  DISABLED: { label: "Deshabilitada", color: "bg-gray-100 text-gray-700 border-gray-200", icon: AlertCircle },
+  DRAFT: { label: "Borrador (error Meta)", color: "bg-orange-100 text-orange-700 border-orange-200", icon: AlertCircle },
+};
+
+const CATEGORIES = [
+  { value: "MARKETING", label: "Marketing", desc: "Promociones, ofertas, novedades" },
+  { value: "UTILITY", label: "Utilidad", desc: "Confirmaciones, recordatorios, actualizaciones" },
+  { value: "AUTHENTICATION", label: "Autenticación", desc: "Códigos OTP, verificación" },
+];
+
+const LANGUAGES = [
+  { value: "es", label: "Español" },
+  { value: "es_MX", label: "Español (México)" },
+  { value: "es_AR", label: "Español (Argentina)" },
+  { value: "es_CO", label: "Español (Colombia)" },
+  { value: "en_US", label: "English (US)" },
+  { value: "pt_BR", label: "Português (Brasil)" },
+];
+
+const HEADER_OPTIONS = [
+  { value: "NONE", label: "Ninguno", icon: "—" },
+  { value: "TEXT", label: "Texto", icon: "T" },
+  { value: "IMAGE", label: "Imagen", icon: "🖼" },
+  { value: "VIDEO", label: "Video", icon: "🎬" },
+];
+
+const VARIABLE_HINT = "Usa {{1}}, {{2}}, etc. para variables dinámicas (ej: nombre del cliente)";
+
+// ── Variable Inserter ──────────────────────────────────────────────────────
+function VariableInserter({
+  value,
+  onChange,
+  textareaRef,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  textareaRef: React.RefObject<HTMLTextAreaElement>;
+}) {
+  const usedNums = [...new Set(
+    (value.match(/\{\{(\d+)\}\}/g) || []).map(m => parseInt(m.replace(/[{}]/g, "")))
+  )].sort((a, b) => a - b);
+
+  const nextNum = usedNums.length > 0 ? Math.max(...usedNums) + 1 : 1;
+
+  const insert = (text: string) => {
+    const el = textareaRef.current;
+    if (!el) { onChange(value + text); return; }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    const next = value.substring(0, start) + text + value.substring(end);
+    onChange(next);
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + text.length, start + text.length);
+    });
+  };
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 pt-1">
+      <span className="text-xs text-muted-foreground font-medium">Variables:</span>
+      {usedNums.map(n => (
+        <button
+          key={n}
+          type="button"
+          title={`Insertar {{${n}}} en la posición del cursor`}
+          onClick={() => insert(`{{${n}}}`)}
+          className="font-mono text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-md px-2 py-0.5 hover:bg-blue-100 transition-colors"
+        >
+          {`{{${n}}}`}
+        </button>
+      ))}
+      <button
+        type="button"
+        title={`Insertar nueva variable {{${nextNum}}}`}
+        onClick={() => insert(`{{${nextNum}}}`)}
+        className="text-xs bg-primary/10 border border-primary/20 text-primary rounded-md px-2 py-0.5 hover:bg-primary/20 transition-colors font-medium flex items-center gap-1"
+      >
+        <Plus className="h-3 w-3" />
+        {`{{${nextNum}}}`}
+      </button>
+      {usedNums.length > 0 && (
+        <span className="text-xs text-muted-foreground ml-1">
+          · {usedNums.length} variable{usedNums.length > 1 ? "s" : ""} en uso
+        </span>
+      )}
+    </div>
+  );
+}
+
+// ── Media Uploader ────────────────────────────────────────────────────────
+const MAX_IMAGE_MB = 5;
+const MAX_VIDEO_MB = 16;
+const ACCEPT_MAP: Record<string, string> = {
+  IMAGE: "image/jpeg,image/png,image/webp",
+  VIDEO: "video/mp4,video/3gpp",
+  DOCUMENT: "application/pdf",
+};
+
+function MediaUploader({
+  headerType,
+  mediaId,
+  preview,
+  uploading,
+  onUpload,
+  onClear,
+}: {
+  headerType: string;
+  mediaId: string;
+  preview: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onClear: () => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const maxMb = headerType === "VIDEO" ? MAX_VIDEO_MB : MAX_IMAGE_MB;
+  const label = headerType === "IMAGE" ? "imagen" : headerType === "VIDEO" ? "video" : "documento";
+
+  const handleFile = (file: File) => {
+    if (file.size > maxMb * 1024 * 1024) {
+      toast.error(`El archivo no puede superar ${maxMb}MB`);
+      return;
+    }
+    onUpload(file);
+  };
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div
+        className={cn(
+          "border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors",
+          uploading ? "border-primary/40 bg-primary/5" : "border-border hover:border-primary/50 hover:bg-accent"
+        )}
+        onClick={() => !uploading && inputRef.current?.click()}
+        onDragOver={e => { e.preventDefault(); }}
+        onDrop={e => {
+          e.preventDefault();
+          const file = e.dataTransfer.files[0];
+          if (file) handleFile(file);
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPT_MAP[headerType] || "*"}
+          className="hidden"
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+        />
+        {uploading ? (
+          <div className="flex flex-col items-center gap-2 py-2">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            <p className="text-xs text-muted-foreground">Subiendo a Meta...</p>
+          </div>
+        ) : preview ? (
+          <div className="relative">
+            {headerType === "IMAGE" ? (
+              <img src={preview} alt="preview" className="max-h-32 mx-auto rounded object-contain" />
+            ) : (
+              <video src={preview} className="max-h-32 mx-auto rounded" controls />
+            )}
+            <p className="text-xs text-green-600 mt-1 font-medium">✓ Archivo subido correctamente</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-1.5 py-2">
+            <Upload className="h-6 w-6 text-muted-foreground" />
+            <p className="text-sm font-medium">Haz clic o arrastra tu {label} aquí</p>
+            <p className="text-xs text-muted-foreground">
+              {headerType === "IMAGE" ? "JPG, PNG, WebP" : headerType === "VIDEO" ? "MP4, 3GPP" : "PDF"} · máx. {maxMb}MB
+            </p>
+          </div>
+        )}
+      </div>
+      {(preview || mediaId) && (
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs text-destructive hover:underline flex items-center gap-1"
+        >
+          <X className="h-3 w-3" /> Eliminar archivo
+        </button>
+      )}
+    </div>
+  );
+}
+
+function TemplateStatusBadge({ status }: { status: string }) {
+  const cfg = STATUS_CONFIG[status] || STATUS_CONFIG["PENDING"];
+  const Icon = cfg.icon;
+  return (
+    <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border", cfg.color)}>
+      <Icon className="h-3 w-3" />
+      {cfg.label}
+    </span>
+  );
+}
+
+type FormState = {
+  name: string;
+  category: string;
+  language: string;
+  headerType: string;
+  headerText: string;       // for TEXT headers
+  headerMediaId: string;    // Meta media_id after upload
+  headerPreview: string;    // local object URL for preview
+  headerUploading: boolean;
+  bodyText: string;
+  footerText: string;
+  buttons: { type: string; text: string; url?: string; phone_number?: string }[];
+  variableExamples: string[];
+};
+
+const EMPTY_FORM: FormState = {
+  name: "", category: "MARKETING", language: "es",
+  headerType: "NONE", headerText: "", headerMediaId: "", headerPreview: "",
+  headerUploading: false, bodyText: "", footerText: "", buttons: [],
+  variableExamples: [],
+};
+
+/** Extract sorted unique variable numbers from a string like "Hola {{1}}, tu código es {{2}}" */
+function extractVarNums(text: string): number[] {
+  return [...new Set((text.match(/\{\{(\d+)\}\}/g) || []).map(m => parseInt(m.replace(/[{}]/g, ""))))].sort((a, b) => a - b);
+}
+
+/** Validate variables are sequential starting at 1 */
+function validateVars(text: string): string | null {
+  const nums = extractVarNums(text);
+  if (nums.length === 0) return null;
+  for (let i = 0; i < nums.length; i++) {
+    if (nums[i] !== i + 1) return `Las variables deben ser secuenciales: falta {{${i + 1}}}`;
+  }
+  return null;
+}
+
+function templateToForm(t: WhatsAppTemplate): FormState {
+  const nums = extractVarNums(t.body_text);
+  return {
+    name: t.name,
+    category: t.category,
+    language: t.language,
+    headerType: t.header_type || "NONE",
+    headerText: t.header_text || "",
+    headerMediaId: "", headerPreview: "", headerUploading: false,
+    bodyText: t.body_text,
+    footerText: t.footer_text || "",
+    variableExamples: nums.map((_, i) => `Ejemplo ${i + 1}`),
+    buttons: (t.buttons || []).map((b: any) => ({
+      type: b.type,
+      text: b.text || "",
+      url: b.url,
+      phone_number: b.phone_number,
+    })),
+  };
+}
+
+export default function WhatsAppTemplatesPage() {
+  const navigate = useNavigate();
+  const { isConnected, loading: waLoading } = useWhatsAppIntegration();
+  const { templates, loading, creating, fetchTemplates, syncFromMeta, createTemplate, deleteTemplate, updateTemplate } = useWhatsAppTemplates();
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [editTemplate, setEditTemplate] = useState<WhatsAppTemplate | null>(null);
+  const [viewTemplate, setViewTemplate] = useState<WhatsAppTemplate | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  // Create form state
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // Edit form state
+  const [editForm, setEditForm] = useState<FormState>(EMPTY_FORM);
+
+  // Textarea refs for variable insertion at cursor
+  const createBodyRef = useRef<HTMLTextAreaElement>(null);
+  const editBodyRef = useRef<HTMLTextAreaElement>(null);
+
+  // Upload a media file to Meta via edge function → returns media_id
+  const uploadMediaFile = useCallback(async (
+    file: File,
+    formSetter: React.Dispatch<React.SetStateAction<FormState>>
+  ) => {
+    const preview = URL.createObjectURL(file);
+    formSetter(f => ({ ...f, headerPreview: preview, headerUploading: true, headerMediaId: "" }));
+    try {
+      // Read as base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve((e.target?.result as string).split(",")[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+        body: { action: "upload_media", file_base64: base64, mime_type: file.type, filename: file.name },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      formSetter(f => ({ ...f, headerMediaId: data.media_id, headerUploading: false }));
+      toast.success("Archivo subido correctamente");
+    } catch (e: any) {
+      formSetter(f => ({ ...f, headerUploading: false, headerPreview: "", headerMediaId: "" }));
+      toast.error("Error al subir archivo: " + e.message);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isConnected) fetchTemplates();
+  }, [isConnected, fetchTemplates]);
+
+  // When opening edit dialog, pre-populate form
+  const openEdit = (t: WhatsAppTemplate) => {
+    setEditForm(templateToForm(t));
+    setEditTemplate(t);
+    setViewTemplate(null);
+  };
+
+  const handleCreate = async () => {
+    if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
+    if (!form.bodyText.trim()) { toast.error("El cuerpo del mensaje es obligatorio"); return; }
+    const varError = validateVars(form.bodyText);
+    if (varError) { toast.error(varError); return; }
+    if (["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerType) && !form.headerMediaId) {
+      toast.error(`Debes subir un archivo de ${form.headerType === "IMAGE" ? "imagen" : form.headerType === "VIDEO" ? "video" : "documento"} antes de enviar la plantilla`);
+      return;
+    }
+    const nameClean = form.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
+    const varNums = extractVarNums(form.bodyText);
+    const examples = varNums.map((_, i) => form.variableExamples[i]?.trim() || `Ejemplo${i + 1}`);
+    const params: CreateTemplateParams = {
+      name: nameClean,
+      category: form.category,
+      language: form.language,
+      body_text: form.bodyText.trim(),
+      variable_examples: examples.length > 0 ? examples : undefined,
+      header: form.headerType !== "NONE"
+        ? {
+            type: form.headerType,
+            text: form.headerType === "TEXT" ? form.headerText.trim() : undefined,
+            media_id: form.headerMediaId || undefined,
+          } as any
+        : null,
+      footer: form.footerText.trim() || undefined,
+      buttons: form.buttons.length > 0 ? form.buttons : undefined,
+    };
+    try {
+      await createTemplate(params);
+      setShowCreate(false);
+      setForm(EMPTY_FORM);
+    } catch (_) {}
+  };
+
+  const handleUpdate = async () => {
+    if (!editTemplate) return;
+    if (!editForm.bodyText.trim()) { toast.error("El cuerpo del mensaje es obligatorio"); return; }
+    const varError = validateVars(editForm.bodyText);
+    if (varError) { toast.error(varError); return; }
+    if (["IMAGE", "VIDEO", "DOCUMENT"].includes(editForm.headerType) && !editForm.headerMediaId) {
+      toast.error(`Debes subir un archivo de muestra para el encabezado de tipo ${editForm.headerType}`);
+      return;
+    }
+    setSaving(true);
+    const varNums = extractVarNums(editForm.bodyText);
+    const examples = varNums.map((_, i) => editForm.variableExamples[i]?.trim() || `Ejemplo${i + 1}`);
+    const headerParam = editForm.headerType !== "NONE"
+      ? {
+          type: editForm.headerType,
+          text: editForm.headerType === "TEXT" ? editForm.headerText.trim() : undefined,
+          media_id: editForm.headerMediaId || undefined,
+        } as any
+      : null;
+    try {
+      // DRAFT templates never reached Meta — re-submit as a fresh create
+      if (!editTemplate.template_id || editTemplate.status === "DRAFT") {
+        await createTemplate({
+          name: editTemplate.name,
+          category: editTemplate.category,
+          language: editTemplate.language,
+          body_text: editForm.bodyText.trim(),
+          variable_examples: examples.length > 0 ? examples : undefined,
+          header: headerParam,
+          footer: editForm.footerText.trim() || undefined,
+          buttons: editForm.buttons.length > 0 ? editForm.buttons : undefined,
+        });
+      } else {
+        await updateTemplate({
+          template_id: editTemplate.template_id,
+          name: editTemplate.name,
+          header: headerParam,
+          body_text: editForm.bodyText.trim(),
+          variable_examples: examples.length > 0 ? examples : undefined,
+          footer: editForm.footerText.trim() || undefined,
+          buttons: editForm.buttons.length > 0 ? editForm.buttons : undefined,
+        });
+      }
+      setEditTemplate(null);
+    } catch (_) {} finally {
+      setSaving(false);
+    }
+  };
+
+  const addButton = (formSetter: React.Dispatch<React.SetStateAction<FormState>>) => {
+    formSetter(f => {
+      if (f.buttons.length >= 3) { toast.error("Máximo 3 botones"); return f; }
+      return { ...f, buttons: [...f.buttons, { type: "QUICK_REPLY", text: "" }] };
+    });
+  };
+
+  const removeButton = (i: number, formSetter: React.Dispatch<React.SetStateAction<FormState>>) => {
+    formSetter(f => ({ ...f, buttons: f.buttons.filter((_, idx) => idx !== i) }));
+  };
+
+  const updateButton = (i: number, field: string, value: string, formSetter: React.Dispatch<React.SetStateAction<FormState>>) => {
+    formSetter(f => ({ ...f, buttons: f.buttons.map((b, idx) => idx === i ? { ...b, [field]: value } : b) }));
+  };
+
+  if (waLoading) {
+    return (
+      <AppLayout>
+        <AppHeader title="Plantillas WhatsApp" />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </AppLayout>
+    );
+  }
+
+  if (!isConnected) {
+    return (
+      <AppLayout>
+        <AppHeader title="Plantillas WhatsApp" />
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
+          <MessageCircle className="h-16 w-16 text-muted-foreground" />
+          <h2 className="text-xl font-semibold">WhatsApp no conectado</h2>
+          <p className="text-muted-foreground text-center max-w-md">
+            Para gestionar plantillas necesitas conectar tu cuenta de WhatsApp Business primero.
+          </p>
+          <Button onClick={() => navigate("/integrations")}>
+            Ir a Integraciones <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
+  return (
+    <AppLayout>
+      <AppHeader title="Plantillas WhatsApp" />
+
+      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">Plantillas de mensajes</h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              Crea y gestiona plantillas aprobadas por Meta para iniciar conversaciones
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={syncFromMeta} disabled={loading}>
+              <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} />
+              Sincronizar
+            </Button>
+            <Button size="sm" onClick={() => setShowCreate(true)}>
+              <Plus className="h-4 w-4 mr-1" />
+              Nueva plantilla
+            </Button>
+          </div>
+        </div>
+
+        {/* Info banner */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 flex gap-3">
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div>
+            <strong>¿Cómo funcionan las plantillas?</strong> Meta revisa cada plantilla antes de aprobarla (24-48h).
+            Solo puedes usar plantillas <strong>Aprobadas</strong> para iniciar conversaciones.
+            Una vez que el cliente responde, puedes escribir libremente por 24 horas.
+          </div>
+        </div>
+
+        {/* Templates grid */}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : templates.length === 0 ? (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
+              <MessageCircle className="h-12 w-12 text-muted-foreground" />
+              <p className="text-muted-foreground font-medium">No tienes plantillas todavía</p>
+              <p className="text-sm text-muted-foreground text-center max-w-sm">
+                Crea tu primera plantilla para poder iniciar conversaciones de WhatsApp con tus contactos.
+              </p>
+              <Button onClick={() => setShowCreate(true)}>
+                <Plus className="h-4 w-4 mr-1" /> Crear primera plantilla
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {templates.map((t) => (
+              <Card
+                key={t.id}
+                className="hover:shadow-md transition-shadow cursor-pointer"
+                onClick={() => setViewTemplate(t)}
+              >
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm font-semibold truncate">{t.name}</CardTitle>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">{t.category}</span>
+                        <span className="text-xs text-muted-foreground">·</span>
+                        <span className="text-xs text-muted-foreground">{t.language}</span>
+                      </div>
+                    </div>
+                    <TemplateStatusBadge status={t.status} />
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {t.header_text && (
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                      {t.header_text}
+                    </p>
+                  )}
+                  {t.header_type && t.header_type !== "TEXT" && t.header_type !== "NONE" && (
+                    <p className="text-xs text-muted-foreground">
+                      {t.header_type === "IMAGE" ? "🖼 Imagen" : t.header_type === "VIDEO" ? "🎬 Video" : t.header_type === "DOCUMENT" ? "📄 Documento" : ""}
+                    </p>
+                  )}
+                  <p className="text-sm text-foreground line-clamp-3 whitespace-pre-wrap">{t.body_text}</p>
+                  {t.footer_text && (
+                    <p className="text-xs text-muted-foreground italic">{t.footer_text}</p>
+                  )}
+                  {t.buttons && t.buttons.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {(t.buttons as any[]).map((b, i) => (
+                        <span key={i} className="text-xs border rounded px-2 py-0.5 text-muted-foreground">
+                          {b.text}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {t.rejection_reason && t.rejection_reason !== "NONE" && (
+                    <p className="text-xs text-red-600 bg-red-50 rounded p-2">
+                      ⚠️ {t.rejection_reason}
+                    </p>
+                  )}
+                  <div className="flex justify-end gap-1 pt-1" onClick={e => e.stopPropagation()}>
+                    <Button
+                      variant="ghost" size="sm"
+                      className="h-7 px-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => openEdit(t)}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost" size="sm"
+                      className="text-destructive hover:text-destructive h-7 px-2"
+                      onClick={() => setConfirmDelete(t.name)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── VIEW DETAIL DIALOG ── */}
+      <Dialog open={!!viewTemplate} onOpenChange={() => setViewTemplate(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {viewTemplate?.name}
+              {viewTemplate && <TemplateStatusBadge status={viewTemplate.status} />}
+            </DialogTitle>
+          </DialogHeader>
+          {viewTemplate && (
+            <div className="space-y-4">
+              <div className="flex gap-4 text-sm">
+                <div><span className="text-muted-foreground">Categoría: </span><strong>{viewTemplate.category}</strong></div>
+                <div><span className="text-muted-foreground">Idioma: </span><strong>{viewTemplate.language}</strong></div>
+              </div>
+
+              {/* WhatsApp preview */}
+              <div className="bg-[#e5ddd5] rounded-lg p-4">
+                <div className="bg-white rounded-lg p-3 shadow-sm max-w-xs space-y-1.5">
+                  {viewTemplate.header_text && (
+                    <p className="font-bold text-sm">{viewTemplate.header_text}</p>
+                  )}
+                  {viewTemplate.header_type && !["TEXT", "NONE", null].includes(viewTemplate.header_type) && (
+                    <div className="bg-gray-100 rounded p-2 text-center text-xs text-muted-foreground">
+                      {viewTemplate.header_type === "IMAGE" ? "🖼 Imagen" : viewTemplate.header_type === "VIDEO" ? "🎬 Video" : "📄 Documento"}
+                    </div>
+                  )}
+                  <p className="text-sm whitespace-pre-wrap">{viewTemplate.body_text}</p>
+                  {viewTemplate.footer_text && (
+                    <p className="text-xs text-gray-400 italic">{viewTemplate.footer_text}</p>
+                  )}
+                  {viewTemplate.buttons && (viewTemplate.buttons as any[]).length > 0 && (
+                    <div className="border-t pt-1.5 flex flex-wrap gap-1">
+                      {(viewTemplate.buttons as any[]).map((b, i) => (
+                        <span key={i} className="text-xs text-blue-500 font-medium">{b.text}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {viewTemplate.rejection_reason && viewTemplate.rejection_reason !== "NONE" && (
+                <p className="text-xs text-red-600 bg-red-50 rounded p-2">⚠️ {viewTemplate.rejection_reason}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewTemplate(null)}>Cerrar</Button>
+            <Button onClick={() => viewTemplate && openEdit(viewTemplate)}>
+              <Pencil className="h-4 w-4 mr-1" /> Editar plantilla
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── EDIT DIALOG ── */}
+      <Dialog open={!!editTemplate} onOpenChange={() => setEditTemplate(null)}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar plantilla: {editTemplate?.name}</DialogTitle>
+          </DialogHeader>
+          {editTemplate && (
+            <div className="space-y-4 py-2">
+              {/* Warning for approved templates */}
+              {editTemplate.status === "APPROVED" && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
+                  ⚠️ Al editar una plantilla aprobada, Meta la enviará a revisión nuevamente (24-48h). Durante ese tiempo no podrás usarla.
+                </div>
+              )}
+              {/* Info for DRAFT templates */}
+              {(!editTemplate.template_id || editTemplate.status === "DRAFT") && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
+                  ℹ️ Esta plantilla no llegó a Meta (quedó como borrador). Corrige los datos y haz clic en <strong>Reenviar a Meta</strong> para someterla a revisión.
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><span className="text-muted-foreground">Categoría:</span> <strong>{editTemplate.category}</strong></div>
+                <div><span className="text-muted-foreground">Idioma:</span> <strong>{editTemplate.language}</strong></div>
+              </div>
+
+              {/* Header type */}
+              <div className="space-y-1.5">
+                <Label>Tipo de encabezado</Label>
+                <div className="grid grid-cols-4 gap-2">
+                  {HEADER_OPTIONS.map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setEditForm(f => ({ ...f, headerType: opt.value, headerText: "" }))}
+                      className={cn(
+                        "border rounded-lg p-2 text-center transition-colors text-xs",
+                        editForm.headerType === opt.value
+                          ? "border-primary bg-primary/5 text-primary font-semibold"
+                          : "hover:bg-accent"
+                      )}
+                    >
+                      <div className="text-base mb-0.5">{opt.icon}</div>
+                      <div>{opt.label}</div>
+                    </button>
+                  ))}
+                </div>
+                {editForm.headerType === "TEXT" && (
+                  <Input
+                    placeholder="Texto del encabezado (máx. 60 caracteres)"
+                    value={editForm.headerText}
+                    onChange={e => setEditForm(f => ({ ...f, headerText: e.target.value }))}
+                    maxLength={60}
+                    className="mt-2"
+                  />
+                )}
+                {(editForm.headerType === "IMAGE" || editForm.headerType === "VIDEO" || editForm.headerType === "DOCUMENT") && (
+                  <div className="mt-2 space-y-1">
+                    <p className="text-xs text-muted-foreground">
+                      <span className="text-red-500 font-semibold">Obligatorio: </span>
+                      Sube una muestra para que Meta pueda validar la plantilla. El archivo final se adjunta al <strong>enviar</strong>.
+                    </p>
+                    <MediaUploader
+                      headerType={editForm.headerType}
+                      mediaId={editForm.headerMediaId}
+                      preview={editForm.headerPreview}
+                      uploading={editForm.headerUploading}
+                      onUpload={file => uploadMediaFile(file, setEditForm)}
+                      onClear={() => setEditForm(f => ({ ...f, headerMediaId: "", headerPreview: "" }))}
+                    />
+                    {!editForm.headerMediaId && !editForm.headerUploading && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1">
+                        <AlertCircle className="h-3 w-3" /> Sin archivo no se puede guardar cambios
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Body */}
+              <div className="space-y-1.5">
+                <Label>Cuerpo del mensaje <span className="text-red-500">*</span></Label>
+                <Textarea
+                  ref={editBodyRef}
+                  value={editForm.bodyText}
+                  onChange={e => setEditForm(f => ({ ...f, bodyText: e.target.value }))}
+                  rows={4}
+                  maxLength={1024}
+                />
+                <VariableInserter
+                  value={editForm.bodyText}
+                  onChange={v => setEditForm(f => ({ ...f, bodyText: v }))}
+                  textareaRef={editBodyRef}
+                />
+                <p className="text-xs text-muted-foreground text-right">{editForm.bodyText.length}/1024</p>
+              </div>
+
+              {/* Variable examples */}
+              {extractVarNums(editForm.bodyText).length > 0 && (
+                <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                  <p className="text-xs font-medium text-blue-800">
+                    Ejemplos para Meta <span className="font-normal text-blue-600">(ayudan a que Meta apruebe más rápido)</span>
+                  </p>
+                  {extractVarNums(editForm.bodyText).map((n, i) => (
+                    <div key={n} className="flex items-center gap-2">
+                      <span className="font-mono text-xs text-blue-700 w-10 shrink-0">{`{{${n}}}`}</span>
+                      <Input
+                        placeholder={`ej: ${n === 1 ? "Juan García" : n === 2 ? "nuestro producto" : `valor ${n}`}`}
+                        value={editForm.variableExamples[i] || ""}
+                        onChange={e => setEditForm(f => {
+                          const ex = [...f.variableExamples];
+                          ex[i] = e.target.value;
+                          return { ...f, variableExamples: ex };
+                        })}
+                        className="h-7 text-xs"
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="space-y-1.5">
+                <Label>Pie de página <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Input
+                  placeholder="Texto del pie"
+                  value={editForm.footerText}
+                  onChange={e => setEditForm(f => ({ ...f, footerText: e.target.value }))}
+                  maxLength={60}
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Botones <span className="text-muted-foreground text-xs">(máx. 3)</span></Label>
+                  <Button type="button" variant="outline" size="sm" onClick={() => addButton(setEditForm)}>
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+                  </Button>
+                </div>
+                {editForm.buttons.map((btn, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <Select value={btn.type} onValueChange={v => updateButton(i, "type", v, setEditForm)}>
+                      <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="QUICK_REPLY">Respuesta rápida</SelectItem>
+                        <SelectItem value="URL">URL</SelectItem>
+                        <SelectItem value="PHONE_NUMBER">Teléfono</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      placeholder="Texto del botón"
+                      value={btn.text}
+                      onChange={e => updateButton(i, "text", e.target.value, setEditForm)}
+                      maxLength={25}
+                      className="flex-1"
+                    />
+                    {btn.type === "URL" && (
+                      <Input
+                        placeholder="https://..."
+                        value={btn.url || ""}
+                        onChange={e => updateButton(i, "url", e.target.value, setEditForm)}
+                        className="flex-1"
+                      />
+                    )}
+                    {btn.type === "PHONE_NUMBER" && (
+                      <Input
+                        placeholder="+57300..."
+                        value={btn.phone_number || ""}
+                        onChange={e => updateButton(i, "phone_number", e.target.value, setEditForm)}
+                        className="flex-1"
+                      />
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => removeButton(i, setEditForm)} className="px-2">
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Preview */}
+              {editForm.bodyText && (
+                <div className="bg-[#dcf8c6] rounded-lg p-3 space-y-1 border">
+                  <p className="text-xs text-muted-foreground font-medium mb-1">Vista previa</p>
+                  {editForm.headerText && <p className="text-sm font-bold">{editForm.headerText}</p>}
+                  <p className="text-sm whitespace-pre-wrap">{editForm.bodyText}</p>
+                  {editForm.footerText && <p className="text-xs text-gray-500 italic">{editForm.footerText}</p>}
+                  {editForm.buttons.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1 border-t border-green-200 mt-1">
+                      {editForm.buttons.map((b, i) => (
+                        <span key={i} className="text-xs text-blue-600 font-medium">{b.text || "(botón)"}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditTemplate(null)}>Cancelar</Button>
+            <Button onClick={handleUpdate} disabled={saving}>
+              {saving
+                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</>
+                : (!editTemplate?.template_id || editTemplate?.status === "DRAFT")
+                  ? "Reenviar a Meta"
+                  : "Guardar cambios"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CREATE DIALOG ── */}
+      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Nueva plantilla de WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Nombre <span className="text-red-500">*</span></Label>
+                <Input
+                  placeholder="ej: bienvenida_lead"
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") }))}
+                />
+                <p className="text-xs text-muted-foreground">Solo minúsculas, números y guión bajo</p>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Idioma <span className="text-red-500">*</span></Label>
+                <Select value={form.language} onValueChange={v => setForm(f => ({ ...f, language: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGES.map(l => <SelectItem key={l.value} value={l.value}>{l.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Categoría <span className="text-red-500">*</span></Label>
+              <div className="grid grid-cols-3 gap-2">
+                {CATEGORIES.map(c => (
+                  <button
+                    key={c.value}
+                    onClick={() => setForm(f => ({ ...f, category: c.value }))}
+                    className={cn(
+                      "border rounded-lg p-2.5 text-left transition-colors text-xs",
+                      form.category === c.value
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "hover:bg-accent"
+                    )}
+                  >
+                    <div className="font-semibold">{c.label}</div>
+                    <div className="text-muted-foreground mt-0.5 leading-tight">{c.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Tipo de encabezado <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <div className="grid grid-cols-4 gap-2">
+                {HEADER_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, headerType: opt.value, headerText: "" }))}
+                    className={cn(
+                      "border rounded-lg p-2 text-center transition-colors text-xs",
+                      form.headerType === opt.value
+                        ? "border-primary bg-primary/5 text-primary font-semibold"
+                        : "hover:bg-accent"
+                    )}
+                  >
+                    <div className="text-base mb-0.5">{opt.icon}</div>
+                    <div>{opt.label}</div>
+                  </button>
+                ))}
+              </div>
+              {form.headerType === "TEXT" && (
+                <Input
+                  placeholder="Texto del encabezado (máx. 60 caracteres)"
+                  value={form.headerText}
+                  onChange={e => setForm(f => ({ ...f, headerText: e.target.value }))}
+                  maxLength={60}
+                  className="mt-2"
+                />
+              )}
+              {(form.headerType === "IMAGE" || form.headerType === "VIDEO" || form.headerType === "DOCUMENT") && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-red-500 font-semibold">Obligatorio: </span>
+                    Sube una muestra para que Meta pueda validar la plantilla. El archivo final se adjunta al <strong>enviar</strong> el mensaje.
+                  </p>
+                  <MediaUploader
+                    headerType={form.headerType}
+                    mediaId={form.headerMediaId}
+                    preview={form.headerPreview}
+                    uploading={form.headerUploading}
+                    onUpload={file => uploadMediaFile(file, setForm)}
+                    onClear={() => setForm(f => ({ ...f, headerMediaId: "", headerPreview: "" }))}
+                  />
+                  {!form.headerMediaId && !form.headerUploading && (
+                    <p className="text-xs text-amber-600 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" /> Sin archivo no se puede enviar a Meta
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Cuerpo del mensaje <span className="text-red-500">*</span></Label>
+              <Textarea
+                ref={createBodyRef}
+                placeholder={`Hola {{1}}, gracias por tu interés en {{2}}. Te contactamos para darte más información.`}
+                value={form.bodyText}
+                onChange={e => setForm(f => ({ ...f, bodyText: e.target.value }))}
+                rows={4}
+                maxLength={1024}
+              />
+              <VariableInserter
+                value={form.bodyText}
+                onChange={v => setForm(f => ({ ...f, bodyText: v }))}
+                textareaRef={createBodyRef}
+              />
+              <p className="text-xs text-muted-foreground text-right">{form.bodyText.length}/1024</p>
+            </div>
+
+            {/* Variable examples */}
+            {extractVarNums(form.bodyText).length > 0 && (
+              <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <p className="text-xs font-medium text-blue-800">
+                  Ejemplos para Meta <span className="font-normal text-blue-600">(ayudan a que Meta entienda el contexto y apruebe más rápido)</span>
+                </p>
+                {extractVarNums(form.bodyText).map((n, i) => (
+                  <div key={n} className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-blue-700 w-10 shrink-0">{`{{${n}}}`}</span>
+                    <Input
+                      placeholder={`ej: ${n === 1 ? "Juan García" : n === 2 ? "nuestro producto" : `valor ${n}`}`}
+                      value={form.variableExamples[i] || ""}
+                      onChange={e => setForm(f => {
+                        const ex = [...f.variableExamples];
+                        ex[i] = e.target.value;
+                        return { ...f, variableExamples: ex };
+                      })}
+                      className="h-7 text-xs"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="space-y-1.5">
+              <Label>Pie de página <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Input
+                placeholder="Texto del pie"
+                value={form.footerText}
+                onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))}
+                maxLength={60}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>Botones <span className="text-muted-foreground text-xs">(máx. 3, opcionales)</span></Label>
+                <Button type="button" variant="outline" size="sm" onClick={() => addButton(setForm)}>
+                  <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+                </Button>
+              </div>
+              {form.buttons.map((btn, i) => (
+                <div key={i} className="flex gap-2 items-center">
+                  <Select value={btn.type} onValueChange={v => updateButton(i, "type", v, setForm)}>
+                    <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="QUICK_REPLY">Respuesta rápida</SelectItem>
+                      <SelectItem value="URL">URL</SelectItem>
+                      <SelectItem value="PHONE_NUMBER">Teléfono</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Input
+                    placeholder="Texto del botón"
+                    value={btn.text}
+                    onChange={e => updateButton(i, "text", e.target.value, setForm)}
+                    maxLength={25}
+                    className="flex-1"
+                  />
+                  {btn.type === "URL" && (
+                    <Input
+                      placeholder="https://..."
+                      value={btn.url || ""}
+                      onChange={e => updateButton(i, "url", e.target.value, setForm)}
+                      className="flex-1"
+                    />
+                  )}
+                  {btn.type === "PHONE_NUMBER" && (
+                    <Input
+                      placeholder="+57300..."
+                      value={btn.phone_number || ""}
+                      onChange={e => updateButton(i, "phone_number", e.target.value, setForm)}
+                      className="flex-1"
+                    />
+                  )}
+                  <Button variant="ghost" size="sm" onClick={() => removeButton(i, setForm)} className="px-2">
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Preview */}
+            {form.bodyText && (
+              <div className="bg-[#dcf8c6] rounded-lg p-3 space-y-1 border">
+                <p className="text-xs text-muted-foreground font-medium mb-1">Vista previa</p>
+                {form.headerText && <p className="text-sm font-bold">{form.headerText}</p>}
+                <p className="text-sm whitespace-pre-wrap">{form.bodyText}</p>
+                {form.footerText && <p className="text-xs text-gray-500 italic">{form.footerText}</p>}
+                {form.buttons.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1 border-t border-green-200 mt-1">
+                    {form.buttons.map((b, i) => (
+                      <span key={i} className="text-xs text-blue-600 font-medium">{b.text || "(botón)"}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button onClick={handleCreate} disabled={creating}>
+              {creating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</> : "Enviar a revisión"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── CONFIRM DELETE ── */}
+      <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Eliminar plantilla?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Se eliminará <strong>{confirmDelete}</strong> de Meta y del CRM. Esta acción no se puede deshacer.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+            <Button variant="destructive" onClick={() => { deleteTemplate(confirmDelete!); setConfirmDelete(null); }}>
+              Eliminar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
+  );
+}

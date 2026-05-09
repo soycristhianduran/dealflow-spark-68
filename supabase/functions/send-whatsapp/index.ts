@@ -18,13 +18,17 @@ Deno.serve(async (req) => {
     // Get user from JWT
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("No authorization header");
-    
+
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) throw new Error("Unauthorized");
 
     const { phone, message, contact_id } = await req.json();
     if (!phone || !message) throw new Error("phone and message are required");
+
+    // Normalize phone — strip everything except digits (consistent with incoming messages)
+    const cleanPhone = phone.replace(/[^0-9]/g, "");
+    if (!cleanPhone) throw new Error("Número de teléfono inválido");
 
     // Get user's WhatsApp config
     const { data: config, error: configError } = await supabase
@@ -49,7 +53,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           messaging_product: "whatsapp",
-          to: phone.replace(/[^0-9]/g, ""),
+          to: cleanPhone,
           type: "text",
           text: { body: message },
         }),
@@ -57,19 +61,32 @@ Deno.serve(async (req) => {
     );
 
     const waData = await waResponse.json();
+    console.log("WhatsApp send response:", JSON.stringify(waData));
 
-    if (!waResponse.ok) {
-      console.error("WhatsApp API error:", waData);
-      throw new Error(waData.error?.message || "Error al enviar mensaje de WhatsApp");
+    // Check error in both HTTP status and body (Meta sometimes returns 200 with error)
+    if (!waResponse.ok || waData.error) {
+      const errMsg = waData.error?.error_data?.details
+        || waData.error?.message
+        || "Error al enviar mensaje de WhatsApp";
+      const errCode = waData.error?.code || waResponse.status;
+
+      // Friendly message for 24h window expired
+      if (errCode === 131047 || (errMsg && errMsg.includes("24 hour"))) {
+        throw new Error(
+          "La ventana de 24 horas ha expirado. El contacto debe escribirte primero, " +
+          "o envía una plantilla aprobada para reanudar la conversación."
+        );
+      }
+      throw new Error(`Meta (código ${errCode}): ${errMsg}`);
     }
 
-    // Save message to DB
+    // Save message with NORMALIZED phone (same format as incoming)
     const waMessageId = waData.messages?.[0]?.id;
     await supabase.from("whatsapp_messages").insert({
       user_id: user.id,
       contact_id: contact_id || null,
       wa_message_id: waMessageId,
-      phone_number: phone,
+      phone_number: cleanPhone,       // ← normalized, consistent with incoming
       direction: "outgoing",
       message_type: "text",
       message_text: message,
@@ -91,10 +108,10 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true, message_id: waMessageId }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("send-whatsapp error:", error);
     return new Response(JSON.stringify({ error: error.message }), {
-      status: 400,
+      status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }

@@ -61,6 +61,11 @@ export function useWhatsAppIntegration() {
     }
   }, [user]);
 
+  // Fetch config on mount
+  useEffect(() => {
+    fetchConfig();
+  }, [fetchConfig]);
+
   // Check for OAuth callback result on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
