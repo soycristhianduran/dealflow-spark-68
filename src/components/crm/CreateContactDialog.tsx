@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,6 +22,7 @@ type CompanyOption = { id: string; name: string };
 type CustomField = { key: string; value: string };
 
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
+  const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -104,6 +106,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       status: "new",
       score: 0,
       custom_fields: Object.keys(customFieldsObj).length > 0 ? customFieldsObj : {},
+      ...(organizationId ? { organization_id: organizationId } : {}),
     }).select("id").single();
 
     if (error) {
@@ -134,6 +137,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
             value: 0,
             status: "open",
             source: form.source || null,
+            ...(organizationId ? { organization_id: organizationId } : {}),
           });
         }
       }

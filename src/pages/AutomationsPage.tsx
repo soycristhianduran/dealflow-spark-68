@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
   Zap, Plus, Trash2, Edit, ArrowLeft, Save, Play, Users,
   Clock, Mail, MessageSquare, Tag, User, X, ChevronUp, ChevronDown,
@@ -956,6 +957,7 @@ function AutomationBuilder({
   onSaved: () => void;
 }) {
   const { toast } = useToast();
+  const { organizationId } = useOrganizationContext();
 
   // Editable meta
   const [name, setName] = useState(automation?.name ?? "Nueva automatización");
@@ -1046,7 +1048,7 @@ function AutomationBuilder({
       if (automation?.id) {
         ({ error: err } = await supabase.from("automations").update(payload).eq("id", automation.id));
       } else {
-        ({ error: err } = await supabase.from("automations").insert({ ...payload, created_at: new Date().toISOString() }));
+        ({ error: err } = await supabase.from("automations").insert({ ...payload, created_at: new Date().toISOString(), ...(organizationId ? { organization_id: organizationId } : {}) }));
       }
       if (err) throw err;
       toast({ title: "Guardado ✓" });

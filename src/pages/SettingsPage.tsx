@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, GripVertical, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock } from "lucide-react";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
@@ -29,12 +30,20 @@ const stageColorOptions = [
   { value: "hsl(280, 60%, 55%)", label: "Violeta" },
 ];
 
-interface TeamUser {
+interface OrgMember {
   id: string;
-  name: string;
+  user_id: string;
+  role: string;
+  email: string;
+  full_name: string | null;
+}
+
+interface OrgInvitation {
+  id: string;
   email: string;
   role: string;
-  initials: string;
+  expires_at: string | null;
+  created_at?: string;
 }
 
 const currencies = [
@@ -73,13 +82,16 @@ const roles = [
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  // Users state
-  const [users, setUsers] = useState<TeamUser[]>([
-    { id: "1", name: "Juan Demo", email: "juan@demo.com", role: "admin", initials: "JD" },
-  ]);
-  const [newUserName, setNewUserName] = useState("");
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState("sales_rep");
+  const { organizationId, organization } = useOrganizationContext();
+
+  // Team state
+  const [members, setMembers] = useState<OrgMember[]>([]);
+  const [invitations, setInvitations] = useState<OrgInvitation[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("member");
+  const [inviting, setInviting] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
 
   // Tags state
   const [tags, setTags] = useState(["vip", "real-estate", "healthcare", "education", "enterprise", "new", "hot-lead"]);
@@ -114,6 +126,48 @@ export default function SettingsPage() {
     const saved = localStorage.getItem("crm_logo_url");
     if (saved) setLogoUrl(saved);
   }, []);
+
+  const fetchTeam = async () => {
+    if (!organizationId) return;
+    setTeamLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "list_members" },
+      });
+      if (error) throw error;
+      if (data?.members) setMembers(data.members);
+      if (data?.invitations) setInvitations(data.invitations);
+    } catch (err: any) {
+      toast.error("Error al cargar el equipo: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setTeamLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (organizationId) fetchTeam();
+  }, [organizationId]);
+
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) { toast.error("El email es requerido"); return; }
+    setInviting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "invite", email: inviteEmail.trim(), role: inviteRole },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Invitación enviada a ${inviteEmail.trim()}`);
+      setInviteEmail("");
+      setInviteRole("member");
+      setInviteDialogOpen(false);
+      fetchTeam();
+    } catch (err: any) {
+      toast.error("Error al invitar: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -163,24 +217,6 @@ export default function SettingsPage() {
     localStorage.removeItem("crm_logo_url");
     window.dispatchEvent(new Event("logo-updated"));
     toast.success("Logo eliminado");
-  };
-
-  const handleAddUser = () => {
-    if (!newUserName.trim() || !newUserEmail.trim()) {
-      toast.error("Nombre y email son requeridos");
-      return;
-    }
-    const initials = newUserName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-    setUsers(prev => [...prev, { id: crypto.randomUUID(), name: newUserName, email: newUserEmail, role: newUserRole, initials }]);
-    setNewUserName("");
-    setNewUserEmail("");
-    setNewUserRole("sales_rep");
-    toast.success("Usuario agregado");
-  };
-
-  const handleRemoveUser = (id: string) => {
-    setUsers(prev => prev.filter(u => u.id !== id));
-    toast.success("Usuario eliminado");
   };
 
   const handleAddTag = () => {
@@ -254,7 +290,7 @@ export default function SettingsPage() {
         <Tabs defaultValue="pipeline">
           <TabsList className="mb-6">
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-            <TabsTrigger value="users">Usuarios</TabsTrigger>
+            <TabsTrigger value="equipo">Equipo</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
           </TabsList>
@@ -332,68 +368,125 @@ export default function SettingsPage() {
 
 
 
-          <TabsContent value="users" className="space-y-4">
+          <TabsContent value="equipo" className="space-y-4">
+            {/* Members list */}
             <Card className="border-none shadow-sm">
               <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-sm font-semibold">Equipo</CardTitle>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button size="sm" variant="outline" className="gap-1.5">
-                      <Plus className="h-4 w-4" /> Invitar usuario
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invitar usuario</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 py-2">
-                      <div className="space-y-2">
-                        <Label>Nombre completo</Label>
-                        <Input value={newUserName} onChange={e => setNewUserName(e.target.value)} placeholder="Ej: María López" />
+                <CardTitle className="text-sm font-semibold">
+                  Miembros del equipo
+                  {organization && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">— {organization.name}</span>
+                  )}
+                </CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="ghost" onClick={fetchTeam} disabled={teamLoading}>
+                    {teamLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Actualizar"}
+                  </Button>
+                  <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="gap-1.5">
+                        <Plus className="h-4 w-4" /> Invitar
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Invitar al equipo</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 py-2">
+                        <div className="space-y-2">
+                          <Label>Email</Label>
+                          <Input
+                            type="email"
+                            value={inviteEmail}
+                            onChange={e => setInviteEmail(e.target.value)}
+                            placeholder="colaborador@empresa.com"
+                            onKeyDown={e => e.key === "Enter" && handleInvite()}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Rol</Label>
+                          <Select value={inviteRole} onValueChange={setInviteRole}>
+                            <SelectTrigger><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="admin">Admin</SelectItem>
+                              <SelectItem value="member">Miembro</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <Label>Email</Label>
-                        <Input type="email" value={newUserEmail} onChange={e => setNewUserEmail(e.target.value)} placeholder="maria@empresa.com" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Rol</Label>
-                        <Select value={newUserRole} onValueChange={setNewUserRole}>
-                          <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {roles.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="outline">Cancelar</Button>
-                      </DialogClose>
-                      <DialogClose asChild>
-                        <Button onClick={handleAddUser}>Agregar</Button>
-                      </DialogClose>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                      <DialogFooter>
+                        <DialogClose asChild>
+                          <Button variant="outline">Cancelar</Button>
+                        </DialogClose>
+                        <Button onClick={handleInvite} disabled={inviting}>
+                          {inviting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+                          Enviar invitación
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent className="space-y-2">
-                {users.map(user => (
-                  <div key={user.id} className="flex items-center gap-3 rounded-lg border p-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium">{user.initials}</div>
-                    <div className="flex-1">
-                      <p className="text-sm font-medium text-foreground">{user.name}</p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                    </div>
-                    <Badge>{user.role}</Badge>
-                    {users.length > 1 && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleRemoveUser(user.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                {teamLoading && members.length === 0 ? (
+                  <div className="flex justify-center py-6">
+                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   </div>
-                ))}
+                ) : members.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-6">
+                    {organizationId ? "No se encontraron miembros." : "Sin organización asignada."}
+                  </p>
+                ) : members.map(member => {
+                  const nameDisplay = member.full_name || member.email;
+                  const initials = nameDisplay.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                  return (
+                    <div key={member.id} className="flex items-center gap-3 rounded-lg border p-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium shrink-0">
+                        <UserCheck className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{nameDisplay}</p>
+                        <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                      </div>
+                      <Badge variant={member.role === "owner" ? "default" : "secondary"}>
+                        {member.role === "owner" ? "Propietario" : member.role === "admin" ? "Admin" : "Miembro"}
+                      </Badge>
+                    </div>
+                  );
+                })}
               </CardContent>
             </Card>
+
+            {/* Pending invitations */}
+            {invitations.length > 0 && (
+              <Card className="border-none shadow-sm">
+                <CardHeader>
+                  <CardTitle className="text-sm font-semibold">Invitaciones pendientes</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {invitations.map(inv => (
+                    <div key={inv.id} className="flex items-center gap-3 rounded-lg border border-dashed p-3">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-muted-foreground text-xs shrink-0">
+                        <Mail className="h-4 w-4" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{inv.email}</p>
+                        {inv.expires_at && (
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            Expira: {new Date(inv.expires_at).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
+                          </p>
+                        )}
+                      </div>
+                      <Badge variant="outline">
+                        {inv.role === "admin" ? "Admin" : "Miembro"}
+                      </Badge>
+                      <Badge variant="secondary" className="text-xs">Pendiente</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           <TabsContent value="tags" className="space-y-4">

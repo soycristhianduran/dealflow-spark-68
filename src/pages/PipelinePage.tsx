@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus } from "lucide-react";
@@ -58,6 +59,7 @@ const stageColorOptions = [
 export default function PipelinePage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -124,7 +126,7 @@ export default function PipelinePage() {
     let pid = selectedPipelineId;
     if (!pid || !list.find(p => p.id === pid)) {
       if (list.length === 0) {
-        const { data: newPipeline } = await supabase.from("pipelines").insert({ name: "Pipeline principal" }).select("id, name").single();
+        const { data: newPipeline } = await supabase.from("pipelines").insert({ name: "Pipeline principal", ...(organizationId ? { organization_id: organizationId } : {}) }).select("id, name").single();
         if (newPipeline) {
           setPipelines([newPipeline]);
           pid = newPipeline.id;
@@ -190,7 +192,7 @@ export default function PipelinePage() {
       if (error) toast.error("Error: " + error.message);
       else { toast.success("Pipeline renombrado"); setPipelines(prev => prev.map(p => p.id === editingPipeline.id ? { ...p, name: pipelineName.trim() } : p)); }
     } else {
-      const { data, error } = await supabase.from("pipelines").insert({ name: pipelineName.trim() }).select("id, name").single();
+      const { data, error } = await supabase.from("pipelines").insert({ name: pipelineName.trim(), ...(organizationId ? { organization_id: organizationId } : {}) }).select("id, name").single();
       if (error) toast.error("Error: " + error.message);
       else if (data) {
         toast.success("Pipeline creado");
@@ -248,6 +250,7 @@ export default function PipelinePage() {
       expected_close_date: dealCloseDate || null,
       owner_id: session?.user?.id || null,
       status: "open",
+      ...(organizationId ? { organization_id: organizationId } : {}),
     });
     setSavingDeal(false);
     if (error) { toast.error("Error: " + error.message); return; }

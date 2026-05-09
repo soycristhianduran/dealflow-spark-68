@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { OrganizationProvider } from "@/context/OrganizationContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
@@ -28,6 +29,7 @@ import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
+import InviteAcceptPage from "./pages/InviteAcceptPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 
 const queryClient = new QueryClient();
@@ -67,6 +69,7 @@ function AppRoutes() {
       <Route path="/email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
       <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
       <Route path="/more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
+      <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="*" element={<NotFound />} />
@@ -82,7 +85,9 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <AuthProvider>
-            <AppRoutes />
+            <OrganizationProvider>
+              <AppRoutes />
+            </OrganizationProvider>
           </AuthProvider>
         </BrowserRouter>
       </TooltipProvider>
