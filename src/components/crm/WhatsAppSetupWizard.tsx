@@ -164,36 +164,20 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   }, [open, wa.isConnected]);
 
-  // On open: if there's a saved token but no phone selected yet (pending state),
-  // skip step 1 and go directly to WABA selection (step 2).
-  // This handles both the pendingOAuth flag and the case where the user
-  // returns to the page after a partial OAuth flow.
+  // On open: only jump to step 2 when pendingOAuth is explicitly set
+  // (i.e. the user just returned from a standard OAuth redirect with wa_token_ready=true).
+  // Do NOT auto-jump based on DB state — that causes the wizard to skip step 1
+  // and call get_waba_accounts with a token that has no WABA access.
   useEffect(() => {
-    if (!open || !user) return;
-    if (wa.isConnected) return; // already done — handled by the isConnected effect below
-
-    // Consume pendingOAuth flag if set
+    if (!open) return;
+    if (wa.isConnected) return;
     if (wa.pendingOAuth) {
       wa.setPendingOAuth(false);
       setStep(2);
       loadWabaAccounts();
-      return;
     }
-
-    // Fallback: check DB directly for a saved-but-pending config
-    supabase
-      .from("whatsapp_configs")
-      .select("phone_number_id, access_token")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data?.access_token && data.phone_number_id === "pending") {
-          setStep(2);
-          loadWabaAccounts();
-        }
-      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, wa.pendingOAuth]);
 
   const loadWabaAccounts = async () => {
     setLoading(true);
