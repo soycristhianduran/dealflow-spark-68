@@ -165,8 +165,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   };
 
   const handleManualSave = async () => {
-    if (!manualPhoneId.trim() || !manualWabaId.trim() || !manualToken.trim()) {
-      toast.error("Todos los campos son obligatorios");
+    if (!manualPhoneId.trim() || !manualWabaId.trim()) {
+      toast.error("WABA ID y Phone Number ID son obligatorios");
       return;
     }
     setSaving(true);
@@ -174,7 +174,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       await wa.saveManualConfig({
         phone_number_id: manualPhoneId.trim(),
         waba_id: manualWabaId.trim(),
-        access_token: manualToken.trim(),
+        // token is optional — backend reuses saved OAuth token if not provided
+        ...(manualToken.trim() ? { access_token: manualToken.trim() } : {}),
       });
       setStep(5);
     } catch (e: any) {
@@ -586,29 +587,32 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   <Shield className="h-4 w-4 text-primary" />
-                  Credenciales de WhatsApp Cloud API
+                  Ingresa tus IDs de WhatsApp Business
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Obtén estos datos desde{" "}
-                  <a href="https://developers.facebook.com/apps" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
-                    Meta for Developers <ExternalLink className="h-3 w-3 inline" />
+                  Encuéntralos en{" "}
+                  <a href="https://business.facebook.com/settings/whatsapp-business-accounts" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                    Meta Business Suite → Configuración → Cuentas WhatsApp <ExternalLink className="h-3 w-3 inline" />
                   </a>
                 </p>
               </div>
 
               <div className="space-y-3">
                 <div className="space-y-1.5">
+                  <Label htmlFor="wa-waba-id" className="text-xs font-medium">WABA ID <span className="text-muted-foreground">(WhatsApp Business Account ID)</span></Label>
+                  <Input id="wa-waba-id" placeholder="Ej: 119298044591184" value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} className="font-mono" />
+                </div>
+                <div className="space-y-1.5">
                   <Label htmlFor="wa-phone-id" className="text-xs font-medium">Phone Number ID</Label>
-                  <Input id="wa-phone-id" placeholder="Ej: 123456789012345" value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} />
+                  <Input id="wa-phone-id" placeholder="Ej: 123456789012345" value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} className="font-mono" />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="wa-waba-id" className="text-xs font-medium">WABA ID</Label>
-                  <Input id="wa-waba-id" placeholder="Ej: 123456789012345" value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="wa-token" className="text-xs font-medium">Access Token permanente</Label>
-                  <Input id="wa-token" type="password" placeholder="Token de acceso" value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
-                </div>
+                {/* Token is optional — reuses the one already saved from OAuth */}
+                <details className="text-xs text-muted-foreground">
+                  <summary className="cursor-pointer hover:text-foreground">Token de acceso (opcional — se usa el guardado)</summary>
+                  <div className="mt-2">
+                    <Input id="wa-token" type="password" placeholder="Solo si no has conectado con Facebook antes" value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
+                  </div>
+                </details>
               </div>
 
               <Button

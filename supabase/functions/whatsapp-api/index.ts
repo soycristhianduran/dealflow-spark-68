@@ -323,9 +323,22 @@ Deno.serve(async (req) => {
     }
 
     if (action === "save_manual_config") {
-      const { phone_number_id, waba_id, access_token, display_phone, business_name } = body;
-      if (!phone_number_id || !waba_id || !access_token) {
-        throw new Error("phone_number_id, waba_id y access_token son obligatorios");
+      const { phone_number_id, waba_id, display_phone, business_name } = body;
+      let access_token = body.access_token;
+
+      if (!phone_number_id || !waba_id) {
+        throw new Error("phone_number_id y waba_id son obligatorios");
+      }
+
+      // If no token provided, reuse the one already saved (from a previous OAuth step)
+      if (!access_token) {
+        const { data: existing } = await supabase
+          .from("whatsapp_configs")
+          .select("access_token")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        access_token = existing?.access_token || null;
+        if (!access_token) throw new Error("No hay token guardado. Conéctate primero con Facebook.");
       }
 
       // Validate token using /me (works with both temp and permanent tokens)

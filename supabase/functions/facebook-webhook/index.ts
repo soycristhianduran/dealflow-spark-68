@@ -69,6 +69,15 @@ async function processLeadgenChange(
 
   const { user_id: userId, page_access_token: pageToken } = pageData;
 
+  // Resolve the user's organization_id so contacts/deals are visible under the correct org
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", userId)
+    .limit(1)
+    .maybeSingle();
+  const organizationId: string | null = membership?.organization_id ?? null;
+
   const isTestLead = String(leadgenId).startsWith("TEST_");
   let fields: Record<string, string> = {};
 
@@ -108,6 +117,7 @@ async function processLeadgenChange(
     ad: change.value?.ad_name || change.value?.ad_id || null,
     status: "new",
     owner_id: userId,
+    organization_id: organizationId,
   };
   const customFields: Record<string, string> = {};
 
@@ -185,6 +195,7 @@ async function processLeadgenChange(
   const { data: pipeline } = await supabase
     .from("pipelines")
     .select("id")
+    .eq("organization_id", organizationId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -213,6 +224,7 @@ async function processLeadgenChange(
     pipeline_id: pipeline.id,
     stage_id: stage.id,
     owner_id: userId,
+    organization_id: organizationId,
     value: 0,
     currency: "USD",
     status: "open",
