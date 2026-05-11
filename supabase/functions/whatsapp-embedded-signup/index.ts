@@ -128,14 +128,34 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" }
     );
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    // 5. Subscribe WABA to the SaaS app so webhooks (incoming messages) work
+    //    This is the key step that makes incoming messages arrive for ALL users
+    //    without any manual configuration in Meta Developer Console.
+    let webhookSubscribed = false;
+    try {
+      const subRes = await fetch(`${GRAPH_API}/${selectedWabaId}/subscribed_apps`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${longLivedToken}` },
+      });
+      const subData = await subRes.json();
+      console.log("WABA webhook subscription:", JSON.stringify(subData));
+      webhookSubscribed = subData.success === true;
+      if (subData.error) {
+        console.warn("WABA subscription warning:", subData.error.message);
+      }
+    } catch (subErr) {
+      console.warn("WABA subscription failed (non-fatal):", subErr);
+    }
+
+    return new Response(JSON.stringify({
+      success: true,
       status: "connected",
       waba_id: selectedWabaId,
       waba_name: selectedWabaName,
       phone_number_id: selectedPhoneId,
       display_phone: selectedDisplayPhone,
       business_name: selectedBusinessName,
+      webhook_subscribed: webhookSubscribed,
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
