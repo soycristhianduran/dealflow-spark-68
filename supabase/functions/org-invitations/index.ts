@@ -186,5 +186,48 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
+  // ── Save workspace slug ────────────────────────────────────────────────────
+  if (action === "save_slug") {
+    const { slug } = body;
+    if (!slug) return new Response(JSON.stringify({ error: "Slug requerido" }), { status: 400, headers: corsHeaders });
+
+    // Validate slug format
+    if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug)) {
+      return new Response(JSON.stringify({ error: "Formato de slug inválido" }), { status: 400, headers: corsHeaders });
+    }
+
+    // Get user's organization (service role bypasses RLS)
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 403, headers: corsHeaders });
+
+    // Check slug is not taken by another org
+    const { data: existing } = await supabase
+      .from("organizations")
+      .select("id")
+      .eq("slug", slug)
+      .neq("id", membership.organization_id)
+      .maybeSingle();
+
+    if (existing) return new Response(JSON.stringify({ error: "Esa dirección ya está en uso" }), { status: 409, headers: corsHeaders });
+
+    // Save slug
+    const { error: updateErr } = await supabase
+      .from("organizations")
+      .update({ slug })
+      .eq("id", membership.organization_id);
+
+    if (updateErr) throw updateErr;
+
+    return new Response(JSON.stringify({ success: true, slug }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
   return new Response(JSON.stringify({ error: "Acción no reconocida" }), { status: 400, headers: corsHeaders });
 });

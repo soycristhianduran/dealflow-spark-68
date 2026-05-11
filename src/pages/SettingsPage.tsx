@@ -261,35 +261,16 @@ export default function SettingsPage() {
     if (!slugValidation.valid) return;
     setSlugSaving(true);
     try {
-      // Resolve org id: from context if available, otherwise fetch directly
-      let targetOrgId = organizationId;
-      if (!targetOrgId) {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (!currentUser) { toast.error("No autenticado"); return; }
-        const { data: mem } = await supabase
-          .from("organization_members")
-          .select("organization_id")
-          .eq("user_id", currentUser.id)
-          .limit(1)
-          .maybeSingle();
-        targetOrgId = mem?.organization_id ?? null;
-      }
-      if (!targetOrgId) { toast.error("No se encontró la organización"); return; }
-
-      const { error } = await supabase
-        .from("organizations")
-        .update({ slug: slugInput })
-        .eq("id", targetOrgId);
-      if (error) {
-        if (error.code === "23505") {
-          toast.error("Esa dirección ya está en uso, elige otra");
-        } else {
-          throw error;
-        }
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "save_slug", slug: slugInput },
+      });
+      if (error) throw error;
+      if (data?.error) {
+        toast.error(data.error);
         return;
       }
       setOrgSlug(slugInput);
-      toast.success("¡Dirección guardada! Tu espacio de trabajo es: " + buildWorkspaceUrl(slugInput));
+      toast.success("¡Dirección guardada! Tu URL: " + buildWorkspaceUrl(slugInput));
     } catch (err: any) {
       toast.error("Error al guardar: " + (err.message ?? "Error desconocido"));
     } finally {
