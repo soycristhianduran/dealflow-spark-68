@@ -176,14 +176,37 @@ export default function IntegrationsPage() {
     }
   };
 
-  // Auto-open WhatsApp wizard when returning from OAuth (token saved but WABA not selected yet)
+  // Detect OAuth callback URL params here (NOT in the hook) so that only one
+  // component instance processes them — the wizard's hook instance was consuming
+  // them first, leaving IntegrationsPage unable to open the wizard at step 2.
   useEffect(() => {
-    if (wa.pendingOAuth) {
+    const params = new URLSearchParams(window.location.search);
+    const clearParam = (key: string) => {
+      const url = new URL(window.location.href);
+      url.searchParams.delete(key);
+      window.history.replaceState({}, "", url.toString());
+    };
+
+    if (params.get("wa_connected") === "true") {
+      toast.success("¡WhatsApp conectado exitosamente!");
+      wa.refreshConfig?.();
+      clearParam("wa_connected");
+    }
+
+    if (params.get("wa_token_ready") === "true") {
+      toast.success("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+      clearParam("wa_token_ready");
       setWaWizardStartStep(2);
       setWaWizardOpen(true);
-      wa.setPendingOAuth(false);
     }
-  }, [wa.pendingOAuth]);
+
+    const waError = params.get("wa_error");
+    if (waError) {
+      toast.error("Error al conectar WhatsApp: " + decodeURIComponent(waError));
+      clearParam("wa_error");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {

@@ -66,35 +66,10 @@ export function useWhatsAppIntegration() {
     fetchConfig();
   }, [fetchConfig]);
 
-  // Check for OAuth callback result on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    
-    if (params.get("wa_connected") === "true") {
-      toast.success("¡WhatsApp conectado exitosamente!");
-      fetchConfig();
-      const url = new URL(window.location.href);
-      url.searchParams.delete("wa_connected");
-      window.history.replaceState({}, "", url.toString());
-    }
-    
-    if (params.get("wa_token_ready") === "true") {
-      toast.success("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
-      setPendingOAuth(true);
-      fetchConfig();
-      const url = new URL(window.location.href);
-      url.searchParams.delete("wa_token_ready");
-      window.history.replaceState({}, "", url.toString());
-    }
-    
-    const waError = params.get("wa_error");
-    if (waError) {
-      toast.error("Error al conectar WhatsApp: " + decodeURIComponent(waError));
-      const url = new URL(window.location.href);
-      url.searchParams.delete("wa_error");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, [fetchConfig]);
+  // NOTE: OAuth callback URL params (wa_connected, wa_token_ready, wa_error) are
+  // intentionally NOT handled here. They are handled directly in IntegrationsPage
+  // to avoid the race condition where multiple hook instances compete to consume
+  // the URL param, with the wrong instance winning.
 
   // OAuth redirect flow
   const connect = useCallback(() => {
