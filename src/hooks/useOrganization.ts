@@ -86,15 +86,9 @@ export function useOrganization(): UseOrganizationResult {
             return;
           }
 
-          // Verify current user is a member of this org
-          const { data: membership, error: memErr } = await supabase
-            .from("organization_members")
-            .select("role")
-            .eq("organization_id", orgBySlug.id)
-            .eq("user_id", user.id)
-            .maybeSingle();
-
-          if (memErr) throw memErr;
+          // Verify current user is a member via SECURITY DEFINER RPC
+          const { data: myOrgs } = await supabase.rpc("get_my_organization");
+          const membership = myOrgs?.find((r: any) => r.organization_id === orgBySlug.id);
 
           if (!membership) {
             // User is not a member of this workspace
@@ -116,16 +110,14 @@ export function useOrganization(): UseOrganizationResult {
           return;
         }
 
-        // ── Default resolution: look up the user's own membership ──────────────
-        const { data: memberData, error: memberError } = await supabase
-          .from("organization_members")
-          .select("id, organization_id, role")
-          .eq("user_id", user.id)
-          .limit(1)
-          .maybeSingle();
+        // ── Default resolution: use SECURITY DEFINER RPC (bypasses RLS) ─────────
+        const { data: rpcRows, error: rpcError } = await supabase
+          .rpc("get_my_organization");
 
-        if (memberError) throw memberError;
-        if (!memberData) {
+        if (rpcError) throw rpcError;
+
+        const row = rpcRows?.[0];
+        if (!row) {
           if (!cancelled) {
             setOrganizationId(null);
             setOrganization(null);
@@ -135,18 +127,15 @@ export function useOrganization(): UseOrganizationResult {
           return;
         }
 
-        const { data: orgData, error: orgError } = await supabase
-          .from("organizations")
-          .select("id, name, slug, created_at")
-          .eq("id", memberData.organization_id)
-          .single();
-
-        if (orgError) throw orgError;
-
         if (!cancelled) {
-          setOrganizationId(memberData.organization_id);
-          setOrganization(orgData as Organization);
-          setRole(memberData.role);
+          setOrganizationId(row.organization_id);
+          setOrganization({
+            id: row.organization_id,
+            name: row.org_name,
+            slug: row.org_slug,
+            created_at: "",
+          });
+          setRole(row.member_role);
         }
       } catch (err: any) {
         if (!cancelled) {
