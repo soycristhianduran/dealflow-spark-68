@@ -506,6 +506,16 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
+      // Clean up templates from any previous WABA before syncing.
+      // After a user switches WhatsApp accounts, the old WABA's templates
+      // remain in the DB until next sync — this drops them so the list
+      // always reflects the currently connected WABA.
+      await supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("user_id", user.id)
+        .neq("waba_id", config.waba_id);
+
       console.log("Fetching templates for WABA:", config.waba_id);
       const res = await fetch(
         `${GRAPH_API}/${config.waba_id}/message_templates?fields=id,name,status,category,language,components,rejected_reason,quality_score&limit=100&access_token=${config.access_token}`
