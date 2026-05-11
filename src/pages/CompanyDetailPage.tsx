@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { ArrowLeft, Building2, Globe, MapPin, Users, DollarSign, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ type LinkedDeal = {
 export default function CompanyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [company, setCompany] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<LinkedContact[]>([]);
   const [deals, setDeals] = useState<LinkedDeal[]>([]);
@@ -101,7 +103,7 @@ export default function CompanyDetailPage() {
     const { error } = await supabase.from("companies").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar empresa"); return; }
     toast.success("Empresa eliminada");
-    navigate("/companies");
+    navigate(path("/companies"));
   };
 
   if (loading) {
@@ -154,7 +156,7 @@ export default function CompanyDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/companies")} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => navigate(path("/companies"))} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" /> Volver
             </Button>
           </div>
@@ -218,7 +220,7 @@ export default function CompanyDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {contacts.map(contact => (
-                  <div key={contact.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(`/contacts/${contact.id}`)}>
+                  <div key={contact.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{contact.full_name}</p>
                       <p className="text-xs text-muted-foreground">{contact.primary_email || contact.primary_phone || "Sin datos de contacto"}</p>
@@ -238,7 +240,7 @@ export default function CompanyDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {deals.map(deal => (
-                  <div key={deal.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(`/deals/${deal.id}`)}>
+                  <div key={deal.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/deals/${deal.id}`))}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{deal.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">

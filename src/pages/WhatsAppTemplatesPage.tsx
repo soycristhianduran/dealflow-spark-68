@@ -13,6 +13,7 @@ import { useWhatsAppTemplates, WhatsAppTemplate, CreateTemplateParams } from "@/
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   Plus, RefreshCw, Trash2, MessageCircle, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -281,6 +282,7 @@ function templateToForm(t: WhatsAppTemplate): FormState {
 
 export default function WhatsAppTemplatesPage() {
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const { isConnected, loading: waLoading } = useWhatsAppIntegration();
   const { templates, loading, creating, fetchTemplates, syncFromMeta, createTemplate, deleteTemplate, updateTemplate } = useWhatsAppTemplates();
 
@@ -458,7 +460,7 @@ export default function WhatsAppTemplatesPage() {
           <p className="text-muted-foreground text-center max-w-md">
             Para gestionar plantillas necesitas conectar tu cuenta de WhatsApp Business primero.
           </p>
-          <Button onClick={() => navigate("/integrations")}>
+          <Button onClick={() => navigate(path("/integrations"))}>
             Ir a Integraciones <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>

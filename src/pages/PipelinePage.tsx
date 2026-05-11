@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus } from "lucide-react";
 import { closeDeal } from "@/lib/deal-actions";
 import { toast } from "sonner";
@@ -58,6 +59,7 @@ const stageColorOptions = [
 
 export default function PipelinePage() {
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
@@ -550,7 +552,7 @@ export default function PipelinePage() {
                         key={deal.id}
                         draggable={!manageMode}
                         onDragStart={() => setDraggedDeal(deal.id)}
-                        onClick={() => !manageMode && navigate(`/deals/${deal.id}`)}
+                        onClick={() => !manageMode && navigate(path(`/deals/${deal.id}`))}
                         className="group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-1">
@@ -562,7 +564,7 @@ export default function PipelinePage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenuItem onClick={() => navigate(`/deals/${deal.id}`)}>
+                              <DropdownMenuItem onClick={() => navigate(path(`/deals/${deal.id}`))}>
                                 <Pencil className="h-3.5 w-3.5 mr-2" /> Ver / Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={async () => {

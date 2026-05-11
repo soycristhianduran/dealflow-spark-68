@@ -12,6 +12,7 @@ import { useWhatsAppInbox, WaConversation, WaMessage } from "@/hooks/useWhatsApp
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   Search, Plus, Send, MessageCircle, ChevronRight, ArrowLeft,
   Check, Loader2, LayoutTemplate, AlertCircle, User, Clock, ExternalLink,
@@ -638,6 +639,7 @@ function WindowBanner({
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function WhatsAppInboxPage() {
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const { isConnected, loading: waLoading } = useWhatsAppIntegration();
   const {
     conversations, messages, selectedPhone,
@@ -838,7 +840,7 @@ export default function WhatsAppInboxPage() {
           <p className="text-muted-foreground text-center max-w-md">
             Conecta tu cuenta de WhatsApp Business para ver y responder mensajes.
           </p>
-          <Button onClick={() => navigate("/integrations")}>
+          <Button onClick={() => navigate(path("/integrations"))}>
             Ir a Integraciones <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>

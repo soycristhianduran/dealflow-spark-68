@@ -2,10 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/context/OrganizationContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import ContactsPage from "./pages/ContactsPage";
@@ -30,8 +32,8 @@ import DataDeletionPage from "./pages/DataDeletionPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
-import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
+import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 
 const queryClient = new QueryClient();
 
@@ -42,39 +44,83 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-function AppRoutes() {
+/** After login, redirect user to their workspace slug URL */
+function RootRedirect() {
+  const { session, loading } = useAuth();
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!session) { navigate("/auth", { replace: true }); return; }
+
+    supabase.rpc("get_my_organization").then(({ data }) => {
+      const slug = data?.[0]?.org_slug;
+      if (slug) {
+        navigate(`/w/${slug}`, { replace: true });
+      } else {
+        // No slug yet — go to settings so user can set one
+        navigate("/w/_/settings", { replace: true });
+      }
+      setChecking(false);
+    });
+  }, [loading, session, navigate]);
+
+  if (loading || checking) {
+    return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
+  }
+  return null;
+}
+
+function WorkspaceRoutes() {
   const { session, loading } = useAuth();
   useLeadNotifier();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
 
   return (
     <Routes>
-      <Route path="/auth" element={session ? <Navigate to="/" replace /> : <AuthPage />} />
-      <Route path="/" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="/leads" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-      <Route path="/contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-      <Route path="/contacts/:id" element={<ProtectedRoute><ContactDetailPage /></ProtectedRoute>} />
-      <Route path="/companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-      <Route path="/companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
-      <Route path="/deals" element={<ProtectedRoute><DealsPage /></ProtectedRoute>} />
-      <Route path="/deals/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
-      <Route path="/pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
-      <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-      <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
-      <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-      <Route path="/integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
-      <Route path="/meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
-      <Route path="/whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
-      <Route path="/whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
-      <Route path="/email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
-      <Route path="/automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
-      <Route path="/more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
-      {/* Workspace entry point: app.aceleradoradeventas.co/w/:slug */}
-      <Route path="/w/:slug" element={<WorkspaceEntryPage />} />
+      {/* workspace root = dashboard */}
+      <Route index element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+      <Route path="leads" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+      <Route path="contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+      <Route path="contacts/:id" element={<ProtectedRoute><ContactDetailPage /></ProtectedRoute>} />
+      <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
+      <Route path="companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
+      <Route path="deals" element={<ProtectedRoute><DealsPage /></ProtectedRoute>} />
+      <Route path="deals/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
+      <Route path="pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
+      <Route path="calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+      <Route path="tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
+      <Route path="settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+      <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+      <Route path="integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+      <Route path="meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
+      <Route path="whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
+      <Route path="whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
+      <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
+      <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
+      <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+}
+
+function AppRoutes() {
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route path="/auth" element={<AuthPage />} />
       <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+
+      {/* Workspace entry point: validates slug + renders workspace */}
+      <Route path="/w/:slug/*" element={<WorkspaceEntryPage />} />
+
+      {/* Root: redirect to user's workspace slug */}
+      <Route path="/" element={<RootRedirect />} />
+
+      {/* Legacy flat routes (backward compat) — redirect to slug-based */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 interface AppHeaderProps {
   title: string;
@@ -24,6 +25,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { user, signOut } = useAuth();
   const { avatarUrl, initials } = useProfile();
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [open, setOpen] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -41,7 +43,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
 
   const handleNav = (url: string) => {
     setOpen(false);
-    navigate(url);
+    navigate(url.startsWith("/w/") ? url : path(url));
   };
 
   return (
@@ -166,7 +168,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
               ))}
             </div>
             <div className="border-t px-4 py-2">
-              <button onClick={() => { setNotifOpen(false); navigate("/settings"); }} className="w-full text-center text-xs font-medium text-primary hover:underline">
+              <button onClick={() => { setNotifOpen(false); navigate(path("/settings")); }} className="w-full text-center text-xs font-medium text-primary hover:underline">
                 Ver todas las notificaciones
               </button>
             </div>
@@ -205,10 +207,10 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
               </div>
             </div>
             <div className="p-1.5">
-              <button onClick={() => { setProfileOpen(false); navigate("/profile"); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
+              <button onClick={() => { setProfileOpen(false); navigate(path("/profile")); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
                 <User className="h-4 w-4 text-muted-foreground" /> Mi perfil
               </button>
-              <button onClick={() => { setProfileOpen(false); navigate("/settings"); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
+              <button onClick={() => { setProfileOpen(false); navigate(path("/settings")); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
                 <Settings className="h-4 w-4 text-muted-foreground" /> Configuración
               </button>
               <Separator className="my-1" />

@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Plus, Search, Building2, Globe, MapPin } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { toast } from "sonner";
 
 type Company = {
@@ -30,6 +31,7 @@ export default function CompaniesPage() {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
+  const { path } = useWorkspace();
 
   const fetchCompanies = useCallback(async () => {
     const { data } = await supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
@@ -88,7 +90,7 @@ export default function CompaniesPage() {
             </thead>
             <tbody>
               {filtered.map((company) => (
-                <tr key={company.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(`/companies/${company.id}`)}>
+                <tr key={company.id} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/companies/${company.id}`))}>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">

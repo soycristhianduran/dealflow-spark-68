@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
@@ -27,6 +28,7 @@ const statusConfig: Record<ContactStatus, { label: string; variant: "default" | 
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [contact, setContact] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [deals, setDeals] = useState<any[]>([]);
@@ -119,7 +121,7 @@ export default function ContactDetailPage() {
         <AppHeader title="Lead no encontrado" />
         <main className="flex-1 flex items-center justify-center flex-col gap-3">
           <p className="text-muted-foreground">El lead no existe.</p>
-          <Button variant="outline" onClick={() => navigate('/contacts')}>Volver a leads</Button>
+          <Button variant="outline" onClick={() => navigate(path('/contacts'))}>Volver a leads</Button>
         </main>
       </AppLayout>
     );
@@ -152,14 +154,14 @@ export default function ContactDetailPage() {
                     const { error } = await supabase.from("contacts").delete().eq("id", id!);
                     if (error) { toast.error("Error al eliminar: " + error.message); return; }
                     toast.success("Lead eliminado");
-                    navigate("/contacts");
+                    navigate(path("/contacts"));
                   }}>
                     Eliminar
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/contacts')} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => navigate(path('/contacts'))} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" /> Volver
             </Button>
           </div>
@@ -381,7 +383,7 @@ export default function ContactDetailPage() {
 
               <TabsContent value="deals" className="mt-4 space-y-3">
                 {deals.length > 0 ? deals.map(deal => (
-                  <Card key={deal.id} className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/deals/${deal.id}`)}>
+                  <Card key={deal.id} className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(path(`/deals/${deal.id}`))}>
                     <CardContent className="p-4 flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-foreground">{deal.title}</p>

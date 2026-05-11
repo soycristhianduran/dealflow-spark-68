@@ -15,6 +15,7 @@ import { useState, useMemo } from "react";
 import { DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3, RefreshCw, Loader2, CalendarIcon, X } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -64,6 +65,7 @@ export default function MetaAdsPage() {
   const { user } = useAuth();
   const fb = useFacebookIntegration();
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [objectiveFilter, setObjectiveFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date | undefined>(undefined);
@@ -164,7 +166,7 @@ export default function MetaAdsPage() {
               <p className="text-sm text-muted-foreground">
                 Para ver el dashboard de campañas, primero conecta tu cuenta de Meta desde Integraciones.
               </p>
-              <Button onClick={() => navigate("/integrations")}>Ir a Integraciones</Button>
+              <Button onClick={() => navigate(path("/integrations"))}>Ir a Integraciones</Button>
             </CardContent>
           </Card>
         </main>

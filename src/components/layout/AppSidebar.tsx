@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -29,6 +30,7 @@ const bottomItems = [
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const { path } = useWorkspace();
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -61,7 +63,7 @@ export function AppSidebar() {
         {navItems.map((item) => (
           <NavLink
             key={item.url}
-            to={item.url}
+            to={path(item.url)}
             end={item.url === "/"}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -80,7 +82,7 @@ export function AppSidebar() {
         {bottomItems.map((item) => (
           <NavLink
             key={item.url}
-            to={item.url}
+            to={path(item.url)}
             className={cn(
               "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
               collapsed && "justify-center px-2"

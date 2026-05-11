@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams, useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { ArrowLeft, DollarSign, Calendar, User, Target, Pencil, Trash2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import type { Activity } from "@/types/crm";
@@ -45,6 +46,7 @@ type Meeting = { id: string; title: string; start_at: string; status: string };
 export default function DealDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [deal, setDeal] = useState<DealFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -123,7 +125,7 @@ export default function DealDetailPage() {
     const { error } = await supabase.from("deals").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar"); return; }
     toast.success("Deal eliminado");
-    navigate("/deals");
+    navigate(path("/deals"));
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -180,7 +182,7 @@ export default function DealDetailPage() {
             <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-1.5 text-destructive hover:text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/deals')} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => navigate(path('/deals'))} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" /> Volver
             </Button>
           </div>
@@ -209,7 +211,7 @@ export default function DealDetailPage() {
                     <span className="text-lg font-bold text-foreground">${Number(deal.value).toLocaleString()} {deal.currency}</span>
                   </div>
                   {deal.contacts && (
-                    <div className="flex items-center gap-2 text-sm cursor-pointer" onClick={() => navigate(`/contacts/${deal.contact_id}`)}>
+                    <div className="flex items-center gap-2 text-sm cursor-pointer" onClick={() => navigate(path(`/contacts/${deal.contact_id}`))}>
                       <User className="h-4 w-4 text-muted-foreground" />
                       <span className="text-primary hover:underline">{deal.contacts.full_name}</span>
                     </div>

@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Search } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
 import type { ContactStatus } from "@/types/crm";
@@ -47,6 +48,7 @@ export default function ContactsPage() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const navigate = useNavigate();
+  const { path } = useWorkspace();
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -132,7 +134,7 @@ export default function ContactsPage() {
                 return (
                   <tr
                     key={contact.id}
-                    onClick={() => navigate(`/contacts/${contact.id}`)}
+                    onClick={() => navigate(path(`/contacts/${contact.id}`))}
                     className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors"
                   >
                     <td className="px-4 py-3">

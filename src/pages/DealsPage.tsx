@@ -7,6 +7,7 @@ import { Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -29,6 +30,7 @@ export default function DealsPage() {
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { path } = useWorkspace();
 
   const fetchDeals = async () => {
     const { data, error } = await supabase
@@ -57,7 +59,7 @@ export default function DealsPage() {
   return (
     <AppLayout>
       <AppHeader title="Deals" subtitle={`${deals.length} oportunidades`} actions={
-        <Button size="sm" className="gap-1.5" onClick={() => navigate("/pipeline")}><Plus className="h-4 w-4" /> Nuevo deal</Button>
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo deal</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
@@ -107,7 +109,7 @@ export default function DealsPage() {
               </thead>
               <tbody>
                 {filtered.map((deal) => (
-                  <tr key={deal.id} onClick={() => navigate(`/deals/${deal.id}`)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
+                  <tr key={deal.id} onClick={() => navigate(path(`/deals/${deal.id}`))} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3 font-medium text-foreground">{deal.title}</td>
                     <td className="px-4 py-3 text-muted-foreground">{deal.contacts?.full_name || '-'}</td>
                     <td className="px-4 py-3">
