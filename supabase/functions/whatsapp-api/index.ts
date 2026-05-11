@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
     // and incoming messages will NOT arrive in the CRM. User must reconnect via Embedded Signup.
     if (action === "check_webhook_app") {
       const CRM_APP_ID = Deno.env.get("META_APP_ID") || "1978595056421653";
+      const CRM_APP_SECRET = Deno.env.get("META_APP_SECRET") || "";
 
       const { data: config } = await supabase
         .from("whatsapp_configs")
@@ -201,10 +202,27 @@ Deno.serve(async (req) => {
         throw new Error(`Meta: ${appData.error.message}`);
       }
 
+      // Also check webhook subscriptions using app token (id|secret)
+      let webhookSubscriptions: any[] = [];
+      let webhookError: string | null = null;
+      if (CRM_APP_SECRET) {
+        const appToken = `${CRM_APP_ID}|${CRM_APP_SECRET}`;
+        const subsRes = await fetch(`${GRAPH_API}/${CRM_APP_ID}/subscriptions?access_token=${appToken}`);
+        const subsData = await subsRes.json();
+        console.log("webhook_subscriptions:", JSON.stringify(subsData));
+        if (subsData.data) {
+          webhookSubscriptions = subsData.data;
+        } else if (subsData.error) {
+          webhookError = subsData.error.message;
+        }
+      }
+
       return new Response(JSON.stringify({
         app_id: appData.id,
         app_name: appData.name,
         is_crm_app: appData.id === CRM_APP_ID,
+        webhook_subscriptions: webhookSubscriptions,
+        webhook_error: webhookError,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -235,29 +253,40 @@ Deno.serve(async (req) => {
 
     if (action === "get_waba_accounts") {
       const accessToken = await getUserToken();
-      const meRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${accessToken}`);
-      const meData = await meRes.json();
-      if (meData.error) throw new Error(meData.error.message);
 
       const wabaList: any[] = [];
       const seenIds = new Set<string>();
 
-      for (const biz of (meData.data || [])) {
-        // Check both owned WABAs and client WABAs (shared/managed accounts)
-        const [ownedRes, clientRes] = await Promise.all([
-          fetch(`${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
-          fetch(`${GRAPH_API}/${biz.id}/client_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
-        ]);
-        const [ownedData, clientData] = await Promise.all([ownedRes.json(), clientRes.json()]);
+      // Paginate through ALL businesses — admins with 50+ managed accounts need this
+      let nextBizUrl: string | null = `${GRAPH_API}/me/businesses?fields=id,name&limit=25&access_token=${accessToken}`;
+      const MAX_PAGES = 10;
+      let pageCount = 0;
 
-        for (const w of [...(ownedData.data || []), ...(clientData.data || [])]) {
-          if (!seenIds.has(w.id)) {
-            seenIds.add(w.id);
-            wabaList.push({ ...w, business_name: biz.name });
+      while (nextBizUrl && pageCount < MAX_PAGES) {
+        pageCount++;
+        const bizRes = await fetch(nextBizUrl);
+        const bizData = await bizRes.json();
+        if (bizData.error) throw new Error(bizData.error.message);
+        nextBizUrl = bizData.paging?.next || null;
+
+        for (const biz of (bizData.data || [])) {
+          // Check both owned WABAs and client WABAs (shared/managed accounts)
+          const [ownedRes, clientRes] = await Promise.all([
+            fetch(`${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
+            fetch(`${GRAPH_API}/${biz.id}/client_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
+          ]);
+          const [ownedData, clientData] = await Promise.all([ownedRes.json(), clientRes.json()]);
+
+          for (const w of [...(ownedData.data || []), ...(clientData.data || [])]) {
+            if (!seenIds.has(w.id)) {
+              seenIds.add(w.id);
+              wabaList.push({ ...w, business_name: biz.name });
+            }
           }
         }
       }
 
+      console.log(`get_waba_accounts: scanned ${pageCount} page(s), found ${wabaList.length} WABAs`);
       return new Response(JSON.stringify({ waba_accounts: wabaList }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -316,6 +345,18 @@ Deno.serve(async (req) => {
         },
         { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
       );
+
+      // Subscribe this app to receive webhooks for this WABA (enables incoming messages)
+      if (config?.access_token) {
+        try {
+          const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${config.access_token}` },
+          });
+          const subData = await subRes.json();
+          console.log("WABA webhook subscription (save_phone_number):", JSON.stringify(subData));
+        } catch (_) { /* non-fatal */ }
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -205,6 +205,17 @@ export default function IntegrationsPage() {
       toast.error("Error al conectar WhatsApp: " + decodeURIComponent(waError));
       clearParam("wa_error");
     }
+
+    // If no URL params but there's a pending OAuth token in the DB, open wizard at step 2
+    // This handles the case where the user lands on the page without the URL param
+    if (!params.get("wa_token_ready") && !params.get("wa_connected")) {
+      wa.checkHasPendingToken?.().then((hasPending) => {
+        if (hasPending) {
+          setWaWizardStartStep(2);
+          setWaWizardOpen(true);
+        }
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -399,7 +410,7 @@ export default function IntegrationsPage() {
       <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
 
       {/* WhatsApp Setup Wizard */}
-      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) setWaWizardStartStep(1); }} startStep={waWizardStartStep} />
+      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) { setWaWizardStartStep(1); wa.refreshConfig?.(); } }} startStep={waWizardStartStep} />
 
       {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>

@@ -65,84 +65,23 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    // Auto-discover WABA and phone
-    let selectedWabaId = "pending";
-    let selectedPhoneId = "pending";
-    let displayPhone = "";
-    let businessName = "";
-    let businessAccountId = "";
-    let isActive = false;
-
-    try {
-      const bizRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${longLivedToken}`);
-      const bizData = await bizRes.json();
-
-      for (const biz of (bizData.data || [])) {
-        const wabaRes = await fetch(
-          `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${longLivedToken}`
-        );
-        const wabaData = await wabaRes.json();
-
-        if (wabaData.data?.length > 0) {
-          for (const waba of wabaData.data) {
-            const phoneRes = await fetch(
-              `${GRAPH_API}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,status&access_token=${longLivedToken}`
-            );
-            const phoneData = await phoneRes.json();
-
-            if (phoneData.data?.length > 0) {
-              const phone = phoneData.data[0];
-              businessAccountId = biz.id;
-              selectedWabaId = waba.id;
-              selectedPhoneId = phone.id;
-              displayPhone = phone.display_phone_number || "";
-              businessName = phone.verified_name || waba.name || biz.name || "";
-              isActive = true;
-              break;
-            }
-          }
-          if (isActive) break;
-        }
-      }
-    } catch (autoErr) {
-      console.error("Auto-discovery failed (non-fatal):", autoErr);
-    }
-
-    // Save to whatsapp_configs (backward compatible)
+    // Save token as pending — WABA selection happens in the wizard after redirect.
+    // This allows admins who manage multiple businesses with one Facebook account
+    // to choose the correct WABA for each CRM tenant instead of auto-connecting
+    // whichever happens to appear first in the API.
     await supabase.from("whatsapp_configs").upsert(
       {
         user_id: state,
         access_token: longLivedToken,
-        phone_number_id: selectedPhoneId,
-        waba_id: selectedWabaId,
-        display_phone: displayPhone || null,
-        business_name: businessName || null,
-        is_active: isActive,
+        phone_number_id: "pending",
+        waba_id: "pending",
+        display_phone: null,
+        business_name: null,
+        is_active: false,
         webhook_verified: false,
       },
       { onConflict: "user_id" }
     );
-
-    // Also save to channels table (new modular approach)
-    if (isActive) {
-      await supabase.from("channels").upsert(
-        {
-          user_id: state,
-          type: "whatsapp",
-          provider: "meta",
-          business_account_id: businessAccountId,
-          waba_id: selectedWabaId,
-          phone_number_id: selectedPhoneId,
-          access_token: longLivedToken,
-          display_phone: displayPhone || null,
-          business_name: businessName || null,
-          is_active: true,
-          status: "connected",
-          connected_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
-      );
-    }
 
     // Look up user's org slug so we redirect to the correct slug URL
     let orgSlug: string | null = null;
@@ -163,10 +102,10 @@ Deno.serve(async (req) => {
     } catch (_) { /* non-fatal — fall back to /integrations */ }
 
     const basePath = orgSlug ? `/w/${orgSlug}/integrations` : `/integrations`;
-    const redirectParam = isActive ? "wa_connected=true" : "wa_token_ready=true";
+    // Always go to WABA selection step — never auto-complete
     return new Response(null, {
       status: 302,
-      headers: { Location: `${appUrl}${basePath}?${redirectParam}` },
+      headers: { Location: `${appUrl}${basePath}?wa_token_ready=true` },
     });
   } catch (e) {
     console.error("WhatsApp OAuth callback error:", e);
