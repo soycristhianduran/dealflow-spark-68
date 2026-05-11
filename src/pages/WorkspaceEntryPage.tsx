@@ -1,10 +1,10 @@
 /**
  * WorkspaceEntryPage — handles /w/:slug
  *
- * When a user opens a workspace link (e.g. app.aceleradoradeventas.co/w/cristhian-duran):
- *   • Logged in + member of that org  → redirect to dashboard
- *   • Logged in + NOT a member        → show access denied
- *   • Not logged in                   → redirect to /auth (after login, comes back here)
+ * Renders the full CRM dashboard at the workspace URL so the slug stays visible.
+ *   • Logged in + member  → show dashboard (URL stays as /w/mtc)
+ *   • Logged in + no access → access denied screen
+ *   • Not logged in → redirect to /auth
  */
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -12,17 +12,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getRootAppUrl } from "@/lib/subdomain";
 import { Loader2 } from "lucide-react";
+import DashboardPage from "./DashboardPage";
 
 export default function WorkspaceEntryPage() {
   const { slug } = useParams<{ slug: string }>();
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const [status, setStatus] = useState<"loading" | "denied" | "not_found">("loading");
+  const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "not_found">("loading");
 
   useEffect(() => {
     if (authLoading) return;
 
-    // Not logged in → redirect to auth, then come back
     if (!session) {
       navigate(`/auth?next=/w/${slug}`, { replace: true });
       return;
@@ -34,7 +34,7 @@ export default function WorkspaceEntryPage() {
     }
 
     const check = async () => {
-      // 1. Find org by slug via SECURITY DEFINER RPC (bypasses RLS)
+      // 1. Find org by slug (SECURITY DEFINER — bypasses RLS)
       const { data: orgRows } = await supabase
         .rpc("get_organization_by_slug", { p_slug: slug });
 
@@ -44,22 +44,17 @@ export default function WorkspaceEntryPage() {
         return;
       }
 
-      // 2. Check if current user is a member via SECURITY DEFINER RPC
+      // 2. Check membership (SECURITY DEFINER — bypasses RLS)
       const { data: myOrgs } = await supabase.rpc("get_my_organization");
       const isMember = (myOrgs || []).some((r: any) => r.organization_id === org.id);
 
-      if (!isMember) {
-        setStatus("denied");
-        return;
-      }
-
-      // Member ✅ — go to dashboard
-      navigate("/", { replace: true });
+      setStatus(isMember ? "allowed" : "denied");
     };
 
     check();
   }, [authLoading, session, slug, navigate]);
 
+  // Loading spinner
   if (status === "loading") {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -68,8 +63,13 @@ export default function WorkspaceEntryPage() {
     );
   }
 
-  const isNotFound = status === "not_found";
+  // Member ✅ — render dashboard directly (slug stays in URL)
+  if (status === "allowed") {
+    return <DashboardPage />;
+  }
 
+  // Access denied / not found
+  const isNotFound = status === "not_found";
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="max-w-md text-center space-y-4">
@@ -89,7 +89,7 @@ export default function WorkspaceEntryPage() {
         <p className="text-muted-foreground">
           {isNotFound
             ? <>El espacio de trabajo <strong className="text-foreground">{slug}</strong> no existe.</>
-            : <>No tienes acceso al espacio <strong className="text-foreground">{slug}</strong>. Debes ser invitado por el administrador de esa organización.</>
+            : <>No tienes acceso al espacio <strong className="text-foreground">{slug}</strong>. Debes ser invitado por el administrador.</>
           }
         </p>
         <a
