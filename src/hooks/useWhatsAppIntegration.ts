@@ -21,7 +21,7 @@ interface WhatsAppConfig {
 // standard permission consent screen — no FB JS SDK popup needed.
 function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
   const redirectUri = `${supabaseUrl}/functions/v1/whatsapp-oauth-callback`;
-  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management,email,public_profile";
+  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management";
   const extras = encodeURIComponent(JSON.stringify({ feature: "whatsapp_embedded_signup", setup: {} }));
   return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code&extras=${extras}`;
 }
