@@ -27,6 +27,7 @@ Deno.serve(async (req) => {
       });
     }
 
+
     const META_APP_ID = Deno.env.get("META_APP_ID");
     const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -143,10 +144,29 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Look up user's org slug so we redirect to the correct slug URL
+    let orgSlug: string | null = null;
+    try {
+      const { data: memberRow } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", state)
+        .maybeSingle();
+      if (memberRow?.organization_id) {
+        const { data: orgRow } = await supabase
+          .from("organizations")
+          .select("slug")
+          .eq("id", memberRow.organization_id)
+          .maybeSingle();
+        orgSlug = orgRow?.slug ?? null;
+      }
+    } catch (_) { /* non-fatal — fall back to /integrations */ }
+
+    const basePath = orgSlug ? `/w/${orgSlug}/integrations` : `/integrations`;
     const redirectParam = isActive ? "wa_connected=true" : "wa_token_ready=true";
     return new Response(null, {
       status: 302,
-      headers: { Location: `${appUrl}/integrations?${redirectParam}` },
+      headers: { Location: `${appUrl}${basePath}?${redirectParam}` },
     });
   } catch (e) {
     console.error("WhatsApp OAuth callback error:", e);
