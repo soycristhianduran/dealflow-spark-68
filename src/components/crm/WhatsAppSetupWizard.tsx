@@ -94,6 +94,17 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, startStep]);
 
+  // When wizard opens and user is NOT connected, check for pending OAuth token
+  // If found, jump directly to WABA selection (step 2) — supports multi-tenant admin flow
+  useEffect(() => {
+    if (open && !wa.isConnected && step === 1) {
+      wa.checkHasPendingToken?.().then((hasPending) => {
+        if (hasPending) setStep(2);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   // Auto-load WABA accounts whenever wizard opens at step 2
   useEffect(() => {
     if (open && step === 2 && wabaAccounts.length === 0 && !loading) {
