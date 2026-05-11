@@ -205,17 +205,24 @@ Deno.serve(async (req) => {
           // These arrive as separate webhook events, not bundled with messages
           if (value.statuses) {
             for (const status of value.statuses) {
-              console.log("Status update:", status.id, "→", status.status, status.errors ? JSON.stringify(status.errors) : "");
-              await supabase
+              const errStr = status.errors?.length > 0 ? JSON.stringify(status.errors) : null;
+              console.log("Status update:", status.id, "→", status.status, errStr ?? "ok");
+
+              // Always update status first (never conditional — avoids silent failures
+              // when error_details column was missing previously)
+              const updatePayload: Record<string, string | null> = {
+                status: status.status,
+              };
+              if (errStr) updatePayload.error_details = errStr;
+
+              const { error: updateErr } = await supabase
                 .from("whatsapp_messages")
-                .update({
-                  status: status.status,
-                  // Store error details if message failed
-                  ...(status.errors?.length > 0 ? {
-                    error_details: JSON.stringify(status.errors),
-                  } : {}),
-                })
+                .update(updatePayload)
                 .eq("wa_message_id", status.id);
+
+              if (updateErr) {
+                console.error("Failed to update message status:", status.id, updateErr.message);
+              }
             }
           }
         }
