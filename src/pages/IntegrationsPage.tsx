@@ -4,8 +4,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell } from "lucide-react";
+import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy } from "lucide-react";
 import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
@@ -134,9 +136,27 @@ export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
+  const [resubscribing, setResubscribing] = useState(false);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
+
+  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+
+  const handleResubscribeWebhook = async () => {
+    setResubscribing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+        body: { action: "subscribe_waba" },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      toast.success("Webhook reactivado — los mensajes entrantes deberían llegar ahora");
+    } catch (e: any) {
+      toast.error("Error al reactivar: " + e.message);
+    } finally {
+      setResubscribing(false);
+    }
+  };
 
   // Auto-open WhatsApp wizard when returning from OAuth
   useEffect(() => {
@@ -261,9 +281,33 @@ export default function IntegrationsPage() {
 
                   {/* WhatsApp status summary */}
                   {integration.id === "whatsapp" && wa.isConnected && wa.config && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
-                      {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
+                        {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
+                      </div>
+                      {/* Webhook URL for Meta Developer Console */}
+                      <div className="rounded-md border bg-muted/40 p-2 space-y-1">
+                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">URL Webhook (Meta Developer Console)</p>
+                        <div className="flex items-center gap-1">
+                          <code className="text-[10px] flex-1 break-all font-mono text-foreground leading-relaxed">{webhookUrl}</code>
+                          <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada"); }}>
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {/* Reactivate webhook button */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        disabled={resubscribing}
+                        onClick={(e) => { e.stopPropagation(); handleResubscribeWebhook(); }}
+                      >
+                        {resubscribing
+                          ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivando...</>
+                          : <><RefreshCw className="h-3 w-3" /> Reactivar webhook (mensajes entrantes)</>}
+                      </Button>
                     </div>
                   )}
 
