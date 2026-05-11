@@ -619,15 +619,6 @@ export default function SettingsPage() {
                   </div>
                 )}
 
-                <div className="rounded-lg border border-amber-200 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 p-3">
-                  <p className="text-xs text-amber-800 dark:text-amber-300 font-medium mb-1">⚙️ Configuración DNS requerida</p>
-                  <p className="text-xs text-amber-700 dark:text-amber-400">
-                    Para que los subdominios funcionen, el administrador debe agregar un registro DNS wildcard en Hostinger:
-                    <code className="block mt-1 bg-amber-100 dark:bg-amber-900/40 px-2 py-1 rounded text-[11px]">
-                      *.app → CNAME → cname.vercel-dns.com
-                    </code>
-                  </p>
-                </div>
               </CardContent>
             </Card>
 
