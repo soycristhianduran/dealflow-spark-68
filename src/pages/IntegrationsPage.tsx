@@ -139,6 +139,9 @@ export default function IntegrationsPage() {
   const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
   const [resubscribing, setResubscribing] = useState(false);
   const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+  const [registerPin, setRegisterPin] = useState("");
+  const [registering, setRegistering] = useState(false);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
@@ -173,6 +176,24 @@ export default function IntegrationsPage() {
       toast.error("Error al reactivar: " + e.message);
     } finally {
       setResubscribing(false);
+    }
+  };
+
+  const handleRegisterPhone = async () => {
+    if (!/^\d{6}$/.test(registerPin)) {
+      toast.error("El PIN debe ser de 6 dígitos numéricos");
+      return;
+    }
+    setRegistering(true);
+    try {
+      await wa.registerPhone?.(registerPin);
+      toast.success("Número activado en WhatsApp Cloud API. Ya puedes enviar y recibir mensajes.");
+      setRegisterDialogOpen(false);
+      setRegisterPin("");
+    } catch (e: any) {
+      toast.error("Error al activar: " + e.message);
+    } finally {
+      setRegistering(false);
     }
   };
 
@@ -377,6 +398,15 @@ export default function IntegrationsPage() {
                           ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivando...</>
                           : <><RefreshCw className="h-3 w-3" /> Reactivar webhook (mensajes entrantes)</>}
                       </Button>
+                      {/* Activate phone (register in Cloud API) — needed for newly added numbers */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        onClick={(e) => { e.stopPropagation(); setRegisterDialogOpen(true); }}
+                      >
+                        <Shield className="h-3 w-3" /> Activar número (registrar PIN)
+                      </Button>
                     </div>
                   )}
 
@@ -411,6 +441,47 @@ export default function IntegrationsPage() {
 
       {/* WhatsApp Setup Wizard */}
       <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) { setWaWizardStartStep(1); wa.refreshConfig?.(); } }} startStep={waWizardStartStep} />
+
+      {/* Register Phone (Cloud API activation) Dialog */}
+      <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activar número en WhatsApp Cloud API</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                <span className="font-semibold">¿Cuándo usar esto?</span> Cuando agregas un número nuevo en WhatsApp Manager y al intentar configurar la verificación en dos pasos te sale "La cuenta no existe en la API de la nube".
+                <br /><br />
+                Este paso registra el número en el Cloud API y configura el PIN de verificación en dos pasos. <span className="font-semibold">Guarda este PIN</span> — lo necesitarás si re-registras el número en el futuro.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">PIN de 6 dígitos</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="123456"
+                value={registerPin}
+                onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="w-full font-mono text-lg tracking-widest text-center px-3 py-2 rounded-md border bg-background"
+              />
+            </div>
+            <Button
+              className="w-full"
+              disabled={registering || registerPin.length !== 6}
+              onClick={handleRegisterPhone}
+            >
+              {registering ? (
+                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Activando...</>
+              ) : (
+                <>Activar número</>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>

@@ -56,8 +56,12 @@ Deno.serve(async (req) => {
   // Incoming messages (POST)
   if (req.method === "POST") {
     try {
-      const body = await req.json();
-      console.log("WhatsApp webhook payload:", JSON.stringify(body));
+      const rawBody = await req.text();
+      const body = JSON.parse(rawBody);
+      // Log ALL webhook payloads (truncated to 2000 chars) to aid debugging
+      const payloadStr = JSON.stringify(body).substring(0, 2000);
+      console.log("WhatsApp webhook payload:", payloadStr);
+
 
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

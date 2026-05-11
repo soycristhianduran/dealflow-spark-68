@@ -228,6 +228,57 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── REGISTER PHONE NUMBER IN CLOUD API ──────────────────────────────────
+    // Activates a newly-added phone number so it can send/receive messages.
+    // Meta's WhatsApp Manager UI cannot do this — it must be done via the
+    // /register API endpoint with a 6-digit PIN.  The PIN doubles as the
+    // two-step verification PIN for future re-registrations.
+    if (action === "register_phone") {
+      const { pin } = body;
+      if (!pin || !/^\d{6}$/.test(String(pin))) {
+        throw new Error("El PIN debe ser de exactamente 6 dígitos numéricos");
+      }
+
+      const { data: config } = await supabase
+        .from("whatsapp_configs")
+        .select("phone_number_id, access_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!config?.phone_number_id || !config?.access_token) {
+        throw new Error("WhatsApp no está configurado. Conecta primero.");
+      }
+      if (config.phone_number_id === "pending") {
+        throw new Error("Selecciona un número primero antes de activarlo.");
+      }
+
+      const res = await fetch(`${GRAPH_API}/${config.phone_number_id}/register`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${config.access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          messaging_product: "whatsapp",
+          pin: String(pin),
+        }),
+      });
+      const data = await res.json();
+      console.log("register_phone response:", JSON.stringify(data));
+
+      if (data.error) {
+        const code = data.error.code;
+        const msg = data.error.message || "Error desconocido";
+        // Code 133005 = "Invalid Verification Code" (PIN ya configurado antes con otro valor)
+        // Code 133006 = "Re-registration needs to be initiated by client"
+        // Code 133008 = "Too many attempts"
+        throw new Error(`Meta: ${msg} (código ${code})`);
+      }
+
+      return new Response(JSON.stringify({ success: true, result: data }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── SUBSCRIBE WABA TO APP (enables webhook delivery for incoming messages) ──
     if (action === "subscribe_waba") {
       const { data: config } = await supabase

@@ -153,6 +153,18 @@ export function useWhatsAppIntegration() {
     return data;
   };
 
+  // Registers (activates) a phone number in WhatsApp Cloud API with a
+  // 6-digit PIN.  Required for newly-added numbers — without this they
+  // exist in Meta but can't send/receive messages and don't appear as
+  // WhatsApp users.  The PIN also serves as the two-step verification PIN.
+  const registerPhone = useCallback(async (pin: string) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "register_phone", pin },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    return data;
+  }, []);
+
   const checkHasPendingToken = useCallback(async () => {
     if (!user) return false;
     const { data } = await supabase
@@ -179,6 +191,7 @@ export function useWhatsAppIntegration() {
     saveManualConfig,
     refreshConfig: fetchConfig,
     checkHasPendingToken,
+    registerPhone,
     sendMessage,
   };
 }
