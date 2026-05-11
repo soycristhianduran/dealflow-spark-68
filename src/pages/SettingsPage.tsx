@@ -135,17 +135,34 @@ export default function SettingsPage() {
     if (saved) setLogoUrl(saved);
   }, []);
 
-  // Load slug from organization when it's available
+  // Load slug via Edge Function (bypasses RLS issues on organization_members)
   useEffect(() => {
-    if (organization?.slug) {
-      setOrgSlug(organization.slug);
-      setSlugInput(organization.slug);
-    } else if (organization?.name) {
-      // Auto-suggest a slug from the org name if none is set
-      const suggested = toSlug(organization.name);
-      setSlugInput(suggested);
-    }
-  }, [organization?.slug, organization?.name]);
+    const loadOrgSlug = async () => {
+      try {
+        const { data } = await supabase.functions.invoke("org-invitations", {
+          body: { action: "get_org" },
+        });
+        if (data?.org?.slug) {
+          setOrgSlug(data.org.slug);
+          setSlugInput(data.org.slug);
+        } else if (data?.org?.name) {
+          setSlugInput(toSlug(data.org.name));
+        }
+        if (data?.org?.name && !orgName) {
+          setOrgName(data.org.name);
+        }
+      } catch (_) {
+        // fallback to context if edge function fails
+        if (organization?.slug) {
+          setOrgSlug(organization.slug);
+          setSlugInput(organization.slug);
+        } else if (organization?.name) {
+          setSlugInput(toSlug(organization.name));
+        }
+      }
+    };
+    loadOrgSlug();
+  }, []);
 
   const fetchTeam = async () => {
     if (!organizationId) return;

@@ -186,6 +186,28 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
+  // ── Get current org info (bypasses RLS) ───────────────────────────────────
+  if (action === "get_org") {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!membership) return new Response(JSON.stringify({ org: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id, name, slug")
+      .eq("id", membership.organization_id)
+      .maybeSingle();
+
+    return new Response(JSON.stringify({ org, role: membership.role }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
   // ── Save workspace slug ────────────────────────────────────────────────────
   if (action === "save_slug") {
     const { slug } = body;
