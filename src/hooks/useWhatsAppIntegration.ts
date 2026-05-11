@@ -121,7 +121,7 @@ export function useWhatsAppIntegration() {
   const saveManualConfig = useCallback(async (params: {
     phone_number_id: string;
     waba_id: string;
-    access_token: string;
+    access_token?: string; // optional — backend reuses saved OAuth token if omitted
     display_phone?: string;
     business_name?: string;
   }) => {

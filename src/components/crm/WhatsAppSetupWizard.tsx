@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,10 +63,18 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
-  // Reset on close
+  // Keep a ref to cancel the reset timer if the wizard reopens quickly.
+  // Without this, the timer started on the very first render (open=false) would
+  // fire 300ms later and reset step back to 1 even after the OAuth redirect
+  // advanced it to step 2.
+  const resetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Reset on close — return a cleanup so the timer is cancelled if open flips
+  // back to true before the 300 ms expire (e.g. OAuth redirect on page load).
   useEffect(() => {
     if (!open) {
-      setTimeout(() => {
+      resetTimerRef.current = setTimeout(() => {
+        resetTimerRef.current = null;
         setStep(1);
         setUseManual(false);
         setWabaAccounts([]);
@@ -76,6 +84,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
         setManualWabaId("");
         setManualToken("");
       }, 300);
+      return () => {
+        if (resetTimerRef.current) {
+          clearTimeout(resetTimerRef.current);
+          resetTimerRef.current = null;
+        }
+      };
     }
   }, [open]);
 
@@ -146,6 +160,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
 
   const handleSelectWaba = async (waba: WabaAccount) => {
     setSelectedWaba(waba);
+    setManualWabaId(waba.id); // pre-fill for manual fallback in step 4
     setStep(4);
     setLoading(true);
     try {
@@ -596,6 +611,47 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     );
                   })}
                 </div>
+              )}
+
+              {/* Manual fallback: enter Phone Number ID directly when a WABA is already selected.
+                  Useful when the desired number is new/pending and doesn't yet appear in the API list. */}
+              {!loading && selectedWaba && (
+                <details className="mt-2">
+                  <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
+                    ¿No ves tu número? Ingrésalo manualmente
+                  </summary>
+                  <div className="mt-3 space-y-2 rounded-xl border bg-muted/30 p-3">
+                    <p className="text-[11px] text-muted-foreground">
+                      Ingresa el <span className="font-medium text-foreground">Phone Number ID</span> desde Meta Business Suite → Configuración → Cuentas de WhatsApp Business → tu cuenta → Números de teléfono.
+                    </p>
+                    <Input
+                      placeholder="Phone Number ID (ej: 1058797880659406)"
+                      value={manualPhoneId}
+                      onChange={(e) => setManualPhoneId(e.target.value)}
+                      className="font-mono text-sm"
+                    />
+                    <Button
+                      size="sm"
+                      className="w-full gap-2"
+                      disabled={!manualPhoneId.trim() || saving}
+                      onClick={() =>
+                        handleSelectPhone({
+                          id: manualPhoneId.trim(),
+                          display_phone_number: manualPhoneId.trim(),
+                          verified_name: selectedWaba?.name || "",
+                          quality_rating: "",
+                          status: "",
+                        })
+                      }
+                    >
+                      {saving ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</>
+                      ) : (
+                        <>Conectar este número <ArrowRight className="h-4 w-4" /></>
+                      )}
+                    </Button>
+                  </div>
+                </details>
               )}
             </div>
           )}
