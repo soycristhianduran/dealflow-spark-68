@@ -136,6 +136,7 @@ export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
+  const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
   const [resubscribing, setResubscribing] = useState(false);
   const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
   const gcal = useGoogleCalendar();
@@ -178,8 +179,9 @@ export default function IntegrationsPage() {
   // Auto-open WhatsApp wizard when returning from OAuth (token saved but WABA not selected yet)
   useEffect(() => {
     if (wa.pendingOAuth) {
+      setWaWizardStartStep(2);
       setWaWizardOpen(true);
-      // Do NOT clear pendingOAuth here — the wizard needs it to jump to step 2
+      wa.setPendingOAuth(false);
     }
   }, [wa.pendingOAuth]);
 
@@ -374,7 +376,7 @@ export default function IntegrationsPage() {
       <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
 
       {/* WhatsApp Setup Wizard */}
-      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={setWaWizardOpen} />
+      <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) setWaWizardStartStep(1); }} startStep={waWizardStartStep} />
 
       {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>

@@ -16,6 +16,7 @@ import { toast } from "sonner";
 interface WhatsAppSetupWizardProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  startStep?: WizardStep;
 }
 
 interface WabaAccount {
@@ -43,9 +44,9 @@ const STEPS = [
   { num: 6, label: "¡Listo!", icon: CheckCircle2 },
 ];
 
-export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardProps) {
+export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppSetupWizardProps) {
   const wa = useWhatsAppIntegration();
-  const [step, setStep] = useState<WizardStep>(1);
+  const [step, setStep] = useState<WizardStep>(startStep ?? 1);
   const [useManual, setUseManual] = useState(false);
 
   // Data state
@@ -84,6 +85,22 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
       setStep(6);
     }
   }, [open, wa.isConnected]);
+
+  // When startStep changes (e.g. parent detects pending OAuth), apply it
+  useEffect(() => {
+    if (open && startStep && startStep !== step) {
+      setStep(startStep);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, startStep]);
+
+  // Auto-load WABA accounts whenever wizard opens at step 2
+  useEffect(() => {
+    if (open && step === 2 && wabaAccounts.length === 0 && !loading) {
+      loadWabaAccounts();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, step]);
 
   // On open: only jump to step 2 when pendingOAuth is explicitly set
   // (i.e. the user just returned from a standard OAuth redirect with wa_token_ready=true).
