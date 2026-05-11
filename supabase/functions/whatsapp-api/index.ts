@@ -309,6 +309,15 @@ Deno.serve(async (req) => {
     if (action === "save_phone_number") {
       const { waba_id, phone_number_id, display_phone, business_name } = body;
 
+      // If switching WABAs, delete stale templates from the previous WABA.
+      // Templates are WABA-specific and Meta will reject sends if the
+      // template doesn't exist in the currently connected WABA.
+      await supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("user_id", user.id)
+        .neq("waba_id", waba_id);
+
       const { error } = await supabase
         .from("whatsapp_configs")
         .update({
@@ -400,6 +409,14 @@ Deno.serve(async (req) => {
           resolvedName = phoneData.verified_name || resolvedName;
         }
       } catch (_) { /* non-fatal */ }
+
+      // If switching WABAs, delete stale templates from the previous WABA.
+      // Templates are WABA-specific and become invalid after switching.
+      await supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("user_id", user.id)
+        .neq("waba_id", waba_id);
 
       const { error } = await supabase.from("whatsapp_configs").upsert(
         {
