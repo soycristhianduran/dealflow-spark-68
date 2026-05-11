@@ -28,8 +28,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === "SIGNED_OUT") {
+        // Before clearing the session, verify it's really gone.
+        // Transient DB errors (e.g. RLS infinite recursion) can fire
+        // SIGNED_OUT even when the token is still valid in localStorage.
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          // Token still valid — ignore the spurious sign-out event
+          setSession(data.session);
+        } else {
+          setSession(null);
+        }
+      } else {
+        setSession(session);
+      }
       setLoading(false);
     });
 
