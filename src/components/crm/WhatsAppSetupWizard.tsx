@@ -64,6 +64,82 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
   const [manualToken, setManualToken] = useState("");
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+  const [embeddedSignupLoading, setEmbeddedSignupLoading] = useState(false);
+
+  // ── Facebook Embedded Signup (popup) ──────────────────────────────────────
+  // This is the preferred flow: Meta opens a popup where the user selects their
+  // WABA and phone number directly. On success, we get a code → call the
+  // whatsapp-embedded-signup function → saves token + WABA + phone in one step.
+  const launchEmbeddedSignup = () => {
+    const appId = wa.metaAppId;
+    if (!appId) { toast.error("App ID de Meta no disponible"); return; }
+
+    // Load Facebook SDK if not already loaded
+    const loadSdkAndLaunch = () => {
+      const win = window as any;
+      win.fbAsyncInit = () => {
+        win.FB.init({ appId, cookie: true, xfbml: true, version: "v21.0" });
+        launchLogin(win.FB);
+      };
+      if (!document.getElementById("facebook-jssdk")) {
+        const script = document.createElement("script");
+        script.id = "facebook-jssdk";
+        script.src = "https://connect.facebook.net/en_US/sdk.js";
+        document.head.appendChild(script);
+      } else if (win.FB) {
+        launchLogin(win.FB);
+      }
+    };
+
+    const launchLogin = (FB: any) => {
+      setEmbeddedSignupLoading(true);
+      FB.login(
+        (response: any) => {
+          if (response.authResponse?.code) {
+            handleEmbeddedSignupCode(response.authResponse.code);
+          } else {
+            setEmbeddedSignupLoading(false);
+            if (response.status !== "connected") {
+              toast.error("Inicio de sesión cancelado o fallido");
+            }
+          }
+        },
+        {
+          config_id: "", // leave empty — Meta will use the app's default config
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { feature: "whatsapp_embedded_signup", setup: {} },
+        }
+      );
+    };
+
+    loadSdkAndLaunch();
+  };
+
+  const handleEmbeddedSignupCode = async (code: string) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
+        body: { code },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+
+      if (data.status === "connected") {
+        // WABA + phone auto-discovered → refresh and show success
+        await wa.refreshConfig?.();
+        setStep(5);
+        toast.success("¡WhatsApp conectado correctamente!");
+      } else {
+        // Token saved but WABA not found → go to manual WABA selection
+        toast.info("Token guardado. Selecciona tu cuenta WABA.");
+        setStep(2);
+        loadWabaAccounts();
+      }
+    } catch (e: any) {
+      toast.error("Error al conectar: " + e.message);
+    } finally {
+      setEmbeddedSignupLoading(false);
+    }
+  };
 
   // Reset on close
   useEffect(() => {
@@ -368,19 +444,19 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
               </div>
 
               <div className="space-y-3">
-                {/* OAuth - recommended */}
+                {/* Meta Embedded Signup - recommended (popup, selects WABA directly) */}
                 <button
-                  className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-blue-500/30 bg-card p-5 text-left transition-all hover:shadow-md group"
-                  onClick={() => {
-                    setUseManual(false);
-                    wa.connect();
-                  }}
-                  disabled={!wa.metaAppId}
+                  className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-blue-500/30 bg-card p-5 text-left transition-all hover:shadow-md group disabled:opacity-60"
+                  onClick={() => { setUseManual(false); launchEmbeddedSignup(); }}
+                  disabled={!wa.metaAppId || embeddedSignupLoading}
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0" style={{ backgroundColor: "#1877F220" }}>
-                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="#1877F2">
-                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                    </svg>
+                    {embeddedSignupLoading
+                      ? <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
+                      : <svg className="h-6 w-6" viewBox="0 0 24 24" fill="#1877F2">
+                          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                        </svg>
+                    }
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -388,7 +464,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                       <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">Recomendado</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Inicia sesión con Facebook y selecciona tu cuenta de WhatsApp Business automáticamente.
+                      {embeddedSignupLoading
+                        ? "Procesando conexión con Meta…"
+                        : "Selecciona tu cuenta de WhatsApp Business directamente desde el popup de Meta."}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
