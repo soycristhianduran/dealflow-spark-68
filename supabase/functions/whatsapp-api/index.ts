@@ -459,12 +459,19 @@ Deno.serve(async (req) => {
         .update({ is_active: false })
         .eq("user_id", user.id);
 
-      // Also deactivate in channels
+      // Deactivate in channels
       await supabase
         .from("channels")
         .update({ is_active: false, status: "disconnected" })
         .eq("user_id", user.id)
         .eq("type", "whatsapp");
+
+      // Delete templates — they are WABA-specific and are no longer valid
+      // after disconnecting. They will be re-synced when the user reconnects.
+      await supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("user_id", user.id);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
