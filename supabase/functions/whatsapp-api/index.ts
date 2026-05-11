@@ -240,13 +240,21 @@ Deno.serve(async (req) => {
       if (meData.error) throw new Error(meData.error.message);
 
       const wabaList: any[] = [];
+      const seenIds = new Set<string>();
+
       for (const biz of (meData.data || [])) {
-        const wabaRes = await fetch(
-          `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`
-        );
-        const wabaData = await wabaRes.json();
-        if (wabaData.data) {
-          wabaList.push(...wabaData.data.map((w: any) => ({ ...w, business_name: biz.name })));
+        // Check both owned WABAs and client WABAs (shared/managed accounts)
+        const [ownedRes, clientRes] = await Promise.all([
+          fetch(`${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
+          fetch(`${GRAPH_API}/${biz.id}/client_whatsapp_business_accounts?fields=id,name,currency,timezone_id&access_token=${accessToken}`),
+        ]);
+        const [ownedData, clientData] = await Promise.all([ownedRes.json(), clientRes.json()]);
+
+        for (const w of [...(ownedData.data || []), ...(clientData.data || [])]) {
+          if (!seenIds.has(w.id)) {
+            seenIds.add(w.id);
+            wabaList.push({ ...w, business_name: biz.name });
+          }
         }
       }
 

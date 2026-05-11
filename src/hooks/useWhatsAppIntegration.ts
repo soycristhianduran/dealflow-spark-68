@@ -15,11 +15,15 @@ interface WhatsAppConfig {
 }
 
 
-// Build OAuth redirect URL for standard WhatsApp Cloud API connection
+// Build OAuth redirect URL using Meta's Embedded Signup feature.
+// Adding extras={"feature":"whatsapp_embedded_signup"} tells Meta to show
+// the WhatsApp Business setup wizard (WABA + phone selection) instead of the
+// standard permission consent screen — no FB JS SDK popup needed.
 function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
   const redirectUri = `${supabaseUrl}/functions/v1/whatsapp-oauth-callback`;
-  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management";
-  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code`;
+  const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management,email,public_profile";
+  const extras = encodeURIComponent(JSON.stringify({ feature: "whatsapp_embedded_signup", setup: {} }));
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code&extras=${extras}`;
 }
 
 export function useWhatsAppIntegration() {
