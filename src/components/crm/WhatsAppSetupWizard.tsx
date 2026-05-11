@@ -409,16 +409,40 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
                   <p className="text-sm text-muted-foreground">Cargando tus portafolios de negocio...</p>
                 </div>
               ) : wabaAccounts.length === 0 ? (
-                <div className="text-center py-8 space-y-3">
-                  <div className="flex justify-center">
-                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
-                      <Building2 className="h-6 w-6 text-muted-foreground" />
+                <div className="space-y-4 py-2">
+                  <div className="text-center space-y-2">
+                    <div className="flex justify-center">
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+                        <Building2 className="h-6 w-6 text-muted-foreground" />
+                      </div>
                     </div>
+                    <p className="text-sm text-muted-foreground">No se encontraron cuentas automáticamente.</p>
+                    <Button variant="outline" size="sm" onClick={loadWabaAccounts} className="gap-2">
+                      <RefreshCw className="h-3.5 w-3.5" /> Reintentar
+                    </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">No se encontraron portafolios de negocio.</p>
-                  <Button variant="outline" size="sm" onClick={loadWabaAccounts} className="gap-2">
-                    <RefreshCw className="h-3.5 w-3.5" /> Reintentar
-                  </Button>
+                  {/* Manual WABA ID entry as fallback */}
+                  <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
+                    <p className="text-xs font-medium text-foreground">¿Conoces tu WABA ID? Ingrésalo aquí:</p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Ej: 119298044591184"
+                        value={manualWabaId}
+                        onChange={(e) => setManualWabaId(e.target.value)}
+                        className="font-mono text-sm"
+                      />
+                      <Button
+                        size="sm"
+                        disabled={!manualWabaId.trim() || loading}
+                        onClick={() => handleSelectWaba({ id: manualWabaId.trim(), name: "Mi WABA" })}
+                      >
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                      </Button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground">
+                      Encuéntralo en Meta Business Suite → Configuración → Cuentas de WhatsApp Business.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-2">
