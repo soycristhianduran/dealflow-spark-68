@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy } from "lucide-react";
+import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy, AlertTriangle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -137,11 +137,28 @@ export default function IntegrationsPage() {
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
   const [resubscribing, setResubscribing] = useState(false);
+  const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+
+  // Check whether the stored WhatsApp token belongs to THIS CRM's Meta app.
+  // If not, incoming messages won't arrive (WABA is subscribed to the wrong app).
+  useEffect(() => {
+    if (!wa.isConnected) { setWrongAppWarning(null); return; }
+    supabase.functions.invoke("whatsapp-api", { body: { action: "check_webhook_app" } })
+      .then(({ data, error }) => {
+        if (error || data?.error) return; // non-fatal: don't show warning on network errors
+        if (data && !data.is_crm_app) {
+          setWrongAppWarning({ app_name: data.app_name || "otra aplicación" });
+        } else {
+          setWrongAppWarning(null);
+        }
+      })
+      .catch(() => {}); // non-fatal
+  }, [wa.isConnected]);
 
   const handleResubscribeWebhook = async () => {
     setResubscribing(true);
@@ -286,6 +303,26 @@ export default function IntegrationsPage() {
                         {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
                         {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
                       </div>
+                      {/* Wrong-app warning — token belongs to a different Meta app */}
+                      {wrongAppWarning && (
+                        <div className="rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-start gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
+                              <span className="font-semibold">Los mensajes entrantes no llegarán.</span>{" "}
+                              Tu conexión está vinculada a <span className="font-medium">"{wrongAppWarning.app_name}"</span>, no al CRM. Desconecta y vuelve a conectar usando el botón de Meta.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-xs gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-100"
+                            onClick={(e) => { e.stopPropagation(); wa.disconnect().then(() => setWaWizardOpen(true)); }}
+                          >
+                            Reconectar correctamente
+                          </Button>
+                        </div>
+                      )}
                       {/* Webhook URL for Meta Developer Console */}
                       <div className="rounded-md border bg-muted/40 p-2 space-y-1">
                         <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">URL Webhook (Meta Developer Console)</p>

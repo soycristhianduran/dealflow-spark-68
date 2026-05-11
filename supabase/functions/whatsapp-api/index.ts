@@ -176,6 +176,40 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── CHECK WHICH META APP THE TOKEN BELONGS TO ────────────────────────────
+    // Returns { app_id, app_name, is_crm_app }
+    // If is_crm_app = false the WABA is subscribed to a different app (e.g. a previous tool)
+    // and incoming messages will NOT arrive in the CRM. User must reconnect via Embedded Signup.
+    if (action === "check_webhook_app") {
+      const CRM_APP_ID = Deno.env.get("META_APP_ID") || "1978595056421653";
+
+      const { data: config } = await supabase
+        .from("whatsapp_configs")
+        .select("access_token")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!config?.access_token) throw new Error("WhatsApp no está configurado");
+
+      const appRes = await fetch(`${GRAPH_API}/app?fields=id,name`, {
+        headers: { "Authorization": `Bearer ${config.access_token}` },
+      });
+      const appData = await appRes.json();
+      console.log("check_webhook_app:", JSON.stringify(appData));
+
+      if (appData.error) {
+        throw new Error(`Meta: ${appData.error.message}`);
+      }
+
+      return new Response(JSON.stringify({
+        app_id: appData.id,
+        app_name: appData.name,
+        is_crm_app: appData.id === CRM_APP_ID,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── SUBSCRIBE WABA TO APP (enables webhook delivery for incoming messages) ──
     if (action === "subscribe_waba") {
       const { data: config } = await supabase
