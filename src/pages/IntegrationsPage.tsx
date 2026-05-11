@@ -175,17 +175,13 @@ export default function IntegrationsPage() {
     }
   };
 
-  // Auto-open WhatsApp wizard when returning from OAuth
+  // Auto-open WhatsApp wizard when returning from OAuth (token saved but WABA not selected yet)
   useEffect(() => {
-    if (wa.pendingOAuth || wa.isConnected) {
-      const params = new URLSearchParams(window.location.search);
-      // Only auto-open if we just came back from OAuth
-      if (wa.pendingOAuth) {
-        setWaWizardOpen(true);
-        wa.setPendingOAuth(false);
-      }
+    if (wa.pendingOAuth) {
+      setWaWizardOpen(true);
+      // Do NOT clear pendingOAuth here — the wizard needs it to jump to step 2
     }
-  }, [wa.pendingOAuth, wa.isConnected]);
+  }, [wa.pendingOAuth]);
 
   // For non-real integrations, keep localStorage simulation
   const [otherConnectedIds, setOtherConnectedIds] = useState<string[]>(() => {

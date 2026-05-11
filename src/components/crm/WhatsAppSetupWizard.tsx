@@ -11,6 +11,8 @@ import {
   ExternalLink, Settings, Trash2, RefreshCw, Smartphone
 } from "lucide-react";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 interface WhatsAppSetupWizardProps {
@@ -45,6 +47,7 @@ const STEPS = [
 
 export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardProps) {
   const wa = useWhatsAppIntegration();
+  const { user } = useAuth();
   const [step, setStep] = useState<WizardStep>(1);
   const [useManual, setUseManual] = useState(false);
 
@@ -85,14 +88,36 @@ export function WhatsAppSetupWizard({ open, onOpenChange }: WhatsAppSetupWizardP
     }
   }, [open, wa.isConnected]);
 
-  // After OAuth return with pending token, jump to step 2
+  // On open: if there's a saved token but no phone selected yet (pending state),
+  // skip step 1 and go directly to WABA selection (step 2).
+  // This handles both the pendingOAuth flag and the case where the user
+  // returns to the page after a partial OAuth flow.
   useEffect(() => {
-    if (open && wa.pendingOAuth) {
-      setStep(2);
+    if (!open || !user) return;
+    if (wa.isConnected) return; // already done — handled by the isConnected effect below
+
+    // Consume pendingOAuth flag if set
+    if (wa.pendingOAuth) {
       wa.setPendingOAuth(false);
+      setStep(2);
       loadWabaAccounts();
+      return;
     }
-  }, [open, wa.pendingOAuth]);
+
+    // Fallback: check DB directly for a saved-but-pending config
+    supabase
+      .from("whatsapp_configs")
+      .select("phone_number_id, access_token")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.access_token && data.phone_number_id === "pending") {
+          setStep(2);
+          loadWabaAccounts();
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const loadWabaAccounts = async () => {
     setLoading(true);
