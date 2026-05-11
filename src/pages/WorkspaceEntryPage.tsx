@@ -34,27 +34,21 @@ export default function WorkspaceEntryPage() {
     }
 
     const check = async () => {
-      // 1. Find org by slug
-      const { data: org } = await supabase
-        .from("organizations")
-        .select("id, name")
-        .eq("slug", slug)
-        .maybeSingle();
+      // 1. Find org by slug via SECURITY DEFINER RPC (bypasses RLS)
+      const { data: orgRows } = await supabase
+        .rpc("get_organization_by_slug", { p_slug: slug });
 
+      const org = orgRows?.[0];
       if (!org) {
         setStatus("not_found");
         return;
       }
 
-      // 2. Check if current user is a member
-      const { data: membership } = await supabase
-        .from("organization_members")
-        .select("id")
-        .eq("organization_id", org.id)
-        .eq("user_id", session.user.id)
-        .maybeSingle();
+      // 2. Check if current user is a member via SECURITY DEFINER RPC
+      const { data: myOrgs } = await supabase.rpc("get_my_organization");
+      const isMember = (myOrgs || []).some((r: any) => r.organization_id === org.id);
 
-      if (!membership) {
+      if (!isMember) {
         setStatus("denied");
         return;
       }
