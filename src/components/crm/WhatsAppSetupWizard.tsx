@@ -618,7 +618,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <Button
                 className="w-full gap-2"
                 onClick={handleManualSave}
-                disabled={saving || !manualPhoneId || !manualWabaId || !manualToken}
+                disabled={saving || !manualPhoneId || !manualWabaId}
               >
                 {saving ? (
                   <><Loader2 className="h-4 w-4 animate-spin" /> Validando...</>
