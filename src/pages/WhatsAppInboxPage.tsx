@@ -673,6 +673,32 @@ export default function WhatsAppInboxPage() {
     if (isConnected) fetchConversations();
   }, [isConnected, fetchConversations]);
 
+  // Auto-select a conversation from ?phone=NNN in the URL (used when arriving
+  // from "WhatsApp" quick action on a contact detail page).  We wait until
+  // conversations have loaded so we can pick the matching one.  If no match
+  // exists yet, we still seed the inbox with that phone — the user can start
+  // a new conversation via a template.
+  useEffect(() => {
+    if (!isConnected) return;
+    const params = new URLSearchParams(window.location.search);
+    const phone = params.get("phone");
+    if (!phone) return;
+    const digits = phone.replace(/[^\d]/g, "");
+    // Try exact match against conversations once they've loaded
+    const match = conversations.find((c) => c.phone_number.replace(/[^\d]/g, "") === digits);
+    if (match) {
+      selectConversation(match.phone_number);
+    } else {
+      // No prior conversation — pre-seed the phone so the user can send a template
+      setSelectedPhone(digits);
+    }
+    // Strip the query so refreshes don't keep re-selecting
+    const url = new URL(window.location.href);
+    url.searchParams.delete("phone");
+    window.history.replaceState({}, "", url.pathname + url.search);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, conversations.length]);
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

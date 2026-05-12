@@ -289,9 +289,55 @@ export default function ContactDetailPage() {
                 <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acciones rápidas</CardTitle>
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-2">
-                <Button variant="outline" size="sm" className="gap-1.5"><Phone className="h-3.5 w-3.5" /> Llamar</Button>
-                <Button variant="outline" size="sm" className="gap-1.5"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</Button>
-                <Button variant="outline" size="sm" className="gap-1.5"><Mail className="h-3.5 w-3.5" /> Email</Button>
+                {/* Llamar — opens phone dialer (mobile) or default tel handler (desktop) */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!contact.primary_phone}
+                  onClick={() => {
+                    if (!contact.primary_phone) return;
+                    window.location.href = `tel:${contact.primary_phone.replace(/[^+\d]/g, "")}`;
+                  }}
+                  title={contact.primary_phone ? `Llamar a ${contact.primary_phone}` : "Sin teléfono registrado"}
+                >
+                  <Phone className="h-3.5 w-3.5" /> Llamar
+                </Button>
+
+                {/* WhatsApp — opens the WA Inbox already focused on this contact's conversation */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!contact.primary_phone}
+                  onClick={() => {
+                    if (!contact.primary_phone) return;
+                    const phoneDigits = contact.primary_phone.replace(/[^\d]/g, "");
+                    // Send the user to the CRM's WA Inbox with a query param the
+                    // inbox can read to auto-select the conversation by phone.
+                    navigate(path(`/whatsapp/inbox?phone=${phoneDigits}`));
+                  }}
+                  title={contact.primary_phone ? `Chatear por WhatsApp con ${contact.primary_phone}` : "Sin teléfono registrado"}
+                >
+                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
+                </Button>
+
+                {/* Email — opens the user's mail client with the recipient prefilled */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={!contact.primary_email}
+                  onClick={() => {
+                    if (!contact.primary_email) return;
+                    const subject = `Hola ${contact.full_name?.split(" ")[0] || ""}`.trim();
+                    window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(subject)}`;
+                  }}
+                  title={contact.primary_email ? `Enviar correo a ${contact.primary_email}` : "Sin email registrado"}
+                >
+                  <Mail className="h-3.5 w-3.5" /> Email
+                </Button>
+
                 <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMeetingDialogOpen(true)}>
                   <Calendar className="h-3.5 w-3.5" /> Agendar
                 </Button>
