@@ -101,7 +101,25 @@ export function useFacebookIntegration() {
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
-    const scopes = "pages_show_list,pages_read_engagement,pages_manage_metadata,leads_retrieval,pages_manage_ads,pages_messaging,ads_read,business_management";
+    const scopes = [
+      // Pages (Facebook)
+      "pages_show_list",
+      "pages_read_engagement",
+      "pages_manage_metadata",
+      "pages_manage_ads",
+      "pages_messaging",
+      // Lead forms
+      "leads_retrieval",
+      // Ads
+      "ads_read",
+      // Business
+      "business_management",
+      // Instagram (DMs, comments, content read)
+      "instagram_basic",
+      "instagram_manage_messages",
+      "instagram_manage_comments",
+      "instagram_manage_insights",
+    ].join(",");
     const state = user.id;
 
     const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
