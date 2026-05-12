@@ -21,6 +21,17 @@ export interface IgAvailableAccount {
   page_access_token: string;
 }
 
+export interface IgMedia {
+  id: string;
+  caption: string | null;
+  media_type: "IMAGE" | "VIDEO" | "CAROUSEL_ALBUM" | string;
+  permalink: string;
+  preview_url: string | null;
+  timestamp: string;
+  comments_count: number;
+  like_count: number;
+}
+
 interface IgStatus {
   connected: boolean;
   account?: IgAccount;
@@ -119,6 +130,14 @@ export function useInstagramIntegration() {
     return data;
   }, []);
 
+  const listMedia = useCallback(async (limit = 24): Promise<IgMedia[]> => {
+    const { data, error } = await supabase.functions.invoke("instagram-api", {
+      body: { action: "list_media", limit },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    return data.media || [];
+  }, []);
+
   return {
     isConnected,
     loading,
@@ -129,6 +148,7 @@ export function useInstagramIntegration() {
     disconnect,
     sendDm,
     replyComment,
+    listMedia,
     refresh: checkStatus,
   };
 }

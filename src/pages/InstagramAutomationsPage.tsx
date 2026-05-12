@@ -14,9 +14,10 @@ import {
 } from "@/components/ui/dialog";
 import {
   Instagram, Plus, MessageCircle, MessageSquare, Sparkles,
-  Trash2, Edit3, Loader2, Zap, Filter,
+  Trash2, Edit3, Loader2, Zap, Filter, Image as ImageIcon, X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
 
 interface Automation {
   id: string;
@@ -46,6 +47,8 @@ export default function InstagramAutomationsPage() {
   const [keywordsInput, setKeywordsInput] = useState("");
   const [matchMode, setMatchMode] = useState<"any" | "all" | "exact">("any");
   const [mediaId, setMediaId] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [mediaPreview, setMediaPreview] = useState<{ id: string; preview_url: string | null; caption: string | null } | null>(null);
   const [requireFollower, setRequireFollower] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [dmText, setDmText] = useState("");
@@ -72,6 +75,7 @@ export default function InstagramAutomationsPage() {
     setKeywordsInput("");
     setMatchMode("any");
     setMediaId("");
+    setMediaPreview(null);
     setRequireFollower(false);
     setReplyText("");
     setDmText("");
@@ -84,10 +88,31 @@ export default function InstagramAutomationsPage() {
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
     setMediaId(a.media_id || "");
+    setMediaPreview(a.media_id ? { id: a.media_id, preview_url: null, caption: null } : null);
     setRequireFollower(a.require_follower);
     setReplyText(a.reply_to_comment_text || "");
     setDmText(a.dm_message_text || "");
     setDialogOpen(true);
+  };
+
+  // When a post is picked from the visual picker, fetch its preview metadata
+  // by listing media and finding the match.  This keeps the preview accurate
+  // even after refresh.
+  const handleMediaPicked = async (id: string | null) => {
+    setMediaId(id || "");
+    if (!id) {
+      setMediaPreview(null);
+      return;
+    }
+    try {
+      const all = await ig.listMedia(48);
+      const match = all.find((m) => m.id === id);
+      setMediaPreview(match
+        ? { id: match.id, preview_url: match.preview_url, caption: match.caption }
+        : { id, preview_url: null, caption: null });
+    } catch (_) {
+      setMediaPreview({ id, preview_url: null, caption: null });
+    }
   };
 
   const handleSave = async () => {
@@ -367,15 +392,48 @@ export default function InstagramAutomationsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Media ID de la publicación (opcional)</Label>
-                  <Input
-                    placeholder="Ej: 17912345678901234 (déjalo vacío para todas las publicaciones)"
-                    value={mediaId}
-                    onChange={(e) => setMediaId(e.target.value)}
-                    className="font-mono text-xs"
-                  />
+                  <Label className="text-xs">Publicación específica (opcional)</Label>
+                  {mediaId ? (
+                    <div className="flex items-center gap-3 rounded-xl border bg-background p-2.5">
+                      <div className="h-14 w-14 rounded-lg overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+                        {mediaPreview?.preview_url ? (
+                          <img src={mediaPreview.preview_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium truncate">
+                          {mediaPreview?.caption || "Publicación seleccionada"}
+                        </p>
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          ID: ...{mediaId.slice(-12)}
+                        </p>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                        Cambiar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleMediaPicked(null)}
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setPickerOpen(true)}
+                      className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-pink-500/50 hover:text-foreground transition-colors"
+                    >
+                      <ImageIcon className="h-4 w-4" />
+                      Seleccionar publicación...
+                    </button>
+                  )}
                   <p className="text-[10px] text-muted-foreground">
-                    Si lo dejas vacío, la regla se aplica a comentarios en CUALQUIER publicación tuya.
+                    Si no eliges ninguna, la regla aplica a comentarios en TODAS tus publicaciones.
                   </p>
                 </div>
 
@@ -428,6 +486,14 @@ export default function InstagramAutomationsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Visual picker — Instagram posts */}
+        <InstagramPostPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          selectedMediaId={mediaId || null}
+          onSelect={handleMediaPicked}
+        />
       </div>
     </AppLayout>
   );

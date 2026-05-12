@@ -270,6 +270,49 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── LIST RECENT IG MEDIA (posts/reels) ────────────────────────────────────
+    // Returns the connected account's recent posts so the user can pick one
+    // visually instead of typing a Media ID manually.
+    if (action === "list_media") {
+      const { limit } = body;
+      const fetchLimit = Math.min(parseInt(limit) || 24, 50);
+
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("ig_user_id, page_access_token")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!account) throw new Error("Instagram no está conectado");
+
+      const fields = "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count";
+      const res = await fetch(
+        `${GRAPH_API}/${account.ig_user_id}/media?fields=${fields}&limit=${fetchLimit}&access_token=${account.page_access_token}`,
+      );
+      const data = await res.json();
+      if (data.error) {
+        console.error("list_media error:", JSON.stringify(data.error));
+        throw new Error(`Meta: ${data.error.message}`);
+      }
+
+      // Meta returns VIDEO/REEL with thumbnail_url; IMAGE/CAROUSEL_ALBUM with media_url.
+      // Normalize a `preview_url` field so the frontend can render thumbnails uniformly.
+      const media = (data.data || []).map((m: any) => ({
+        id: m.id,
+        caption: m.caption || null,
+        media_type: m.media_type,
+        permalink: m.permalink,
+        preview_url: m.thumbnail_url || m.media_url || null,
+        timestamp: m.timestamp,
+        comments_count: m.comments_count ?? 0,
+        like_count: m.like_count ?? 0,
+      }));
+
+      return new Response(JSON.stringify({ media }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // ── CHECK FOLLOWER STATUS ─────────────────────────────────────────────────
     // Returns whether a given IG user follows the connected business account.
     // Used by automations with require_follower=true.
