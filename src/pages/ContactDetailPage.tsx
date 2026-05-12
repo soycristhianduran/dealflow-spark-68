@@ -356,13 +356,30 @@ export default function ContactDetailPage() {
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
-                {activities.length > 0 ? (
-                  <ActivityTimeline activities={activities} />
-                ) : (
-                  <div className="text-center py-12 text-muted-foreground">
-                    <p className="text-sm">No hay actividad registrada.</p>
-                  </div>
-                )}
+                <ActivityTimeline
+                  activities={activities}
+                  onAddNote={async (text) => {
+                    const { data: { user } } = await supabase.auth.getUser();
+                    if (!user) {
+                      toast.error("Tu sesión expiró. Vuelve a iniciar sesión.");
+                      return;
+                    }
+                    const { error } = await supabase.from("activities").insert({
+                      related_entity_type: "contact",
+                      related_entity_id: id,
+                      event_type: "note",
+                      event_source: "manual",
+                      summary: text,
+                      created_by: user.id,
+                    });
+                    if (error) {
+                      toast.error("No se pudo guardar la nota: " + error.message);
+                      return;
+                    }
+                    toast.success("Nota guardada");
+                    fetchRelated();
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="info" className="mt-4 space-y-4">

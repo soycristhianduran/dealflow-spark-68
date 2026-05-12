@@ -32,30 +32,55 @@ const eventColors: Record<string, string> = {
 
 interface ActivityTimelineProps {
   activities: Activity[];
+  onAddNote?: (text: string) => Promise<void> | void;
 }
 
-export function ActivityTimeline({ activities }: ActivityTimelineProps) {
+export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProps) {
   const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const sorted = [...activities].sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 
+  const handleAdd = async () => {
+    const text = note.trim();
+    if (!text || !onAddNote) return;
+    setSaving(true);
+    try {
+      await onAddNote(text);
+      setNote("");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      {/* Add note */}
+      {/* Add note — the channel-specific buttons (Llamada/WhatsApp/Email) used to
+          live here too but they did nothing.  Real interactions are auto-logged
+          by the integrations (WhatsApp messages, automations, etc.) and the
+          channel "actions" live in the contact sidebar's Acciones Rápidas card. */}
       <div className="space-y-2">
         <Textarea
-          placeholder="Agregar una nota o registrar interacción..."
+          placeholder="Agregar una nota..."
           value={note}
           onChange={e => setNote(e.target.value)}
           className="min-h-[60px] resize-none"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              handleAdd();
+            }
+          }}
         />
-        <div className="flex items-center gap-2">
-          <Button size="sm" disabled={!note.trim()}>Agregar nota</Button>
-          <Button size="sm" variant="outline" className="gap-1"><Phone className="h-3.5 w-3.5" /> Llamada</Button>
-          <Button size="sm" variant="outline" className="gap-1"><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</Button>
-          <Button size="sm" variant="outline" className="gap-1"><Mail className="h-3.5 w-3.5" /> Email</Button>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-[10px] text-muted-foreground">
+            Tip: <kbd className="px-1 py-0.5 rounded border bg-muted">⌘</kbd>+<kbd className="px-1 py-0.5 rounded border bg-muted">Enter</kbd> para guardar
+          </p>
+          <Button size="sm" disabled={!note.trim() || saving} onClick={handleAdd}>
+            {saving ? "Guardando..." : "Agregar nota"}
+          </Button>
         </div>
       </div>
 
