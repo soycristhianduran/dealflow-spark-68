@@ -287,6 +287,343 @@ async function processLeadgenChange(
   }
 }
 
+// ============================================================================
+// INSTAGRAM EVENT HANDLERS
+// ============================================================================
+
+/**
+ * Find the user_id that owns a given IG account, by either ig_user_id OR
+ * the FB page_id that hosts the IG account.  Returns null if not found
+ * (e.g., webhook fired for an account no user has connected to the CRM).
+ */
+async function findIgAccountByIgUserId(
+  supabase: any,
+  igUserId: string,
+): Promise<{ id: string; user_id: string; page_access_token: string } | null> {
+  const { data } = await supabase
+    .from("instagram_accounts")
+    .select("id, user_id, page_access_token")
+    .eq("ig_user_id", igUserId)
+    .eq("is_active", true)
+    .maybeSingle();
+  return data ?? null;
+}
+
+async function findIgAccountByPageId(
+  supabase: any,
+  pageId: string,
+): Promise<{ id: string; user_id: string; ig_user_id: string; page_access_token: string } | null> {
+  const { data } = await supabase
+    .from("instagram_accounts")
+    .select("id, user_id, ig_user_id, page_access_token")
+    .eq("page_id", pageId)
+    .eq("is_active", true)
+    .maybeSingle();
+  return data ?? null;
+}
+
+/**
+ * Upsert a conversation row for a given IG account + participant (the user
+ * on the other side of the DM).  Returns the conversation id.
+ */
+async function upsertIgConversation(
+  supabase: any,
+  args: {
+    user_id: string;
+    ig_account_id: string;
+    participant_id: string;
+    participant_username?: string | null;
+    last_message_at: string;
+    last_message_preview: string;
+    increment_unread: boolean;
+  },
+): Promise<string | null> {
+  const { data: existing } = await supabase
+    .from("instagram_conversations")
+    .select("id, unread_count")
+    .eq("user_id", args.user_id)
+    .eq("ig_account_id", args.ig_account_id)
+    .eq("participant_id", args.participant_id)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase
+      .from("instagram_conversations")
+      .update({
+        last_message_at: args.last_message_at,
+        last_message_preview: args.last_message_preview,
+        unread_count: args.increment_unread ? (existing.unread_count ?? 0) + 1 : existing.unread_count,
+        participant_username: args.participant_username ?? undefined,
+      })
+      .eq("id", existing.id);
+    return existing.id;
+  }
+
+  const { data: inserted } = await supabase
+    .from("instagram_conversations")
+    .insert({
+      user_id: args.user_id,
+      ig_account_id: args.ig_account_id,
+      participant_id: args.participant_id,
+      participant_username: args.participant_username ?? null,
+      last_message_at: args.last_message_at,
+      last_message_preview: args.last_message_preview,
+      unread_count: args.increment_unread ? 1 : 0,
+    })
+    .select("id")
+    .single();
+
+  return inserted?.id ?? null;
+}
+
+/**
+ * Process an Instagram DM event from the Messenger-style payload format
+ * (when object=page and entry.messaging[] is present).
+ */
+async function processInstagramMessenger(
+  supabase: any,
+  pageId: string,
+  event: any,
+): Promise<void> {
+  const senderId = event.sender?.id;
+  const recipientId = event.recipient?.id;
+  if (!senderId || !recipientId) {
+    console.warn("IG messenger event without sender/recipient:", event);
+    return;
+  }
+
+  // Find which IG account this belongs to.  In the messenger format the
+  // recipient.id is the IG business account ID (ig_user_id).
+  const account = await findIgAccountByIgUserId(supabase, recipientId);
+  if (!account) {
+    console.log(`No IG account configured for ig_user_id=${recipientId}; ignoring DM`);
+    return;
+  }
+
+  // Read message contents
+  const msg = event.message;
+  if (!msg) {
+    // Could be a postback, read, delivery — log and skip
+    if (event.postback) console.log("IG postback:", JSON.stringify(event.postback));
+    return;
+  }
+  // Echoes: messages WE sent that Meta echoes back.  Skip — we already stored them on send.
+  if (msg.is_echo) return;
+
+  const messageText = msg.text ?? "";
+  const attachmentUrl = msg.attachments?.[0]?.payload?.url ?? null;
+  const messageType = msg.attachments?.[0]?.type ?? "text";
+  const igMessageId = msg.mid ?? null;
+  const timestamp = event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString();
+
+  const conversationId = await upsertIgConversation(supabase, {
+    user_id: account.user_id,
+    ig_account_id: account.id,
+    participant_id: senderId,
+    last_message_at: timestamp,
+    last_message_preview: messageText.substring(0, 200) || `[${messageType}]`,
+    increment_unread: true,
+  });
+
+  await supabase.from("instagram_messages").insert({
+    user_id: account.user_id,
+    conversation_id: conversationId,
+    ig_account_id: account.id,
+    ig_message_id: igMessageId,
+    direction: "incoming",
+    message_type: messageType,
+    message_text: messageText || null,
+    attachment_url: attachmentUrl,
+    sender_id: senderId,
+    recipient_id: recipientId,
+    status: "received",
+    received_at: timestamp,
+    sent_at: timestamp,
+  });
+
+  console.log(`IG DM stored: from=${senderId} to=${recipientId} text=${messageText.substring(0, 60)}`);
+}
+
+/**
+ * Process an Instagram DM change when it arrives as object=instagram with
+ * field=messages in entry.changes[] (Instagram Login flow format).
+ */
+async function processInstagramDirectChange(
+  supabase: any,
+  igUserId: string,
+  change: any,
+): Promise<void> {
+  // The value shape mirrors Messenger events
+  const value = change.value;
+  if (!value) return;
+
+  // Some payloads come wrapped as a list, others as single events
+  const events: any[] = Array.isArray(value) ? value : [value];
+  for (const ev of events) {
+    await processInstagramMessenger(supabase, igUserId, ev);
+  }
+}
+
+/**
+ * Process a comment event.  Stores the comment + runs any matching
+ * comment-to-DM automations.
+ */
+async function processInstagramComment(
+  supabase: any,
+  entryId: string,
+  change: any,
+): Promise<void> {
+  const value = change.value;
+  if (!value) return;
+
+  const commentId = value.id;
+  const mediaId = value.media?.id;
+  const parentCommentId = value.parent_id ?? null;
+  const commenterId = value.from?.id;
+  const commenterUsername = value.from?.username ?? null;
+  const text: string = value.text ?? "";
+
+  if (!commentId || !mediaId || !commenterId) {
+    console.warn("Incomplete comment payload, skipping:", JSON.stringify(value).substring(0, 300));
+    return;
+  }
+
+  // Find IG account.  entryId in object=instagram payloads is the IG user id.
+  const account = await findIgAccountByIgUserId(supabase, entryId);
+  if (!account) {
+    console.log(`No IG account configured for ig_user_id=${entryId}; ignoring comment`);
+    return;
+  }
+
+  // Don't store comments WE posted (replies to our own comments)
+  if (commenterId === entryId) {
+    console.log("Skipping self-authored comment");
+    return;
+  }
+
+  // Persist the comment
+  await supabase
+    .from("instagram_comments")
+    .upsert(
+      {
+        user_id: account.user_id,
+        ig_account_id: account.id,
+        comment_id: commentId,
+        parent_comment_id: parentCommentId,
+        media_id: mediaId,
+        commenter_id: commenterId,
+        commenter_username: commenterUsername,
+        text,
+      },
+      { onConflict: "comment_id" },
+    );
+
+  // ----- Run matching automations ------------------------------------------
+  const { data: automations } = await supabase
+    .from("instagram_comment_automations")
+    .select("*")
+    .eq("user_id", account.user_id)
+    .eq("ig_account_id", account.id)
+    .eq("is_active", true);
+
+  if (!automations || automations.length === 0) return;
+
+  const lowerText = text.toLowerCase();
+
+  for (const auto of automations) {
+    // Filter by media_id if set
+    if (auto.media_id && auto.media_id !== mediaId) continue;
+
+    // Match keywords
+    const keywords: string[] = (auto.keywords || []).map((k: string) => k.toLowerCase());
+    let matches = false;
+    if (keywords.length === 0) {
+      matches = true; // no keywords = match all
+    } else if (auto.match_mode === "exact") {
+      matches = keywords.some((k) => lowerText.trim() === k);
+    } else if (auto.match_mode === "all") {
+      matches = keywords.every((k) => lowerText.includes(k));
+    } else {
+      matches = keywords.some((k) => lowerText.includes(k));
+    }
+    if (!matches) continue;
+
+    // Substitute {{username}} placeholder
+    const usernameForTemplate = commenterUsername ? `@${commenterUsername}` : "";
+
+    // 1) Public reply on the comment
+    if (auto.reply_to_comment_text) {
+      try {
+        const replyText = auto.reply_to_comment_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+        const res = await fetch(`https://graph.facebook.com/v21.0/${commentId}/replies`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${account.page_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ message: replyText }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          console.error("Automation reply_comment failed:", JSON.stringify(data.error));
+        } else {
+          await supabase
+            .from("instagram_comments")
+            .update({ is_replied: true, matched_automation_id: auto.id })
+            .eq("comment_id", commentId);
+        }
+      } catch (e) {
+        console.error("Error replying to comment in automation:", e);
+      }
+    }
+
+    // 2) Send DM to the commenter
+    if (auto.dm_message_text) {
+      try {
+        const dmText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+
+        // For comment-to-DM we send via the "Private Replies" endpoint which
+        // uses the comment_id as the target, not a user PSID.  This is a special
+        // affordance Meta gives for replying privately to public comments.
+        const res = await fetch(`https://graph.facebook.com/v21.0/${entryId}/messages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${account.page_access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            recipient: { comment_id: commentId },
+            message: { text: dmText },
+          }),
+        });
+        const data = await res.json();
+        if (data.error) {
+          console.error("Automation DM failed:", JSON.stringify(data.error));
+        } else {
+          await supabase
+            .from("instagram_comments")
+            .update({ is_dm_sent: true, matched_automation_id: auto.id })
+            .eq("comment_id", commentId);
+        }
+      } catch (e) {
+        console.error("Error sending DM in automation:", e);
+      }
+    }
+
+    // Bump stats
+    await supabase
+      .from("instagram_comment_automations")
+      .update({
+        trigger_count: (auto.trigger_count ?? 0) + 1,
+        last_triggered_at: new Date().toISOString(),
+      })
+      .eq("id", auto.id);
+
+    // Don't fire multiple automations for the same comment
+    break;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -337,27 +674,50 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200 });
   }
 
-  if (body.object !== "page") {
-    return new Response("OK", { status: 200 });
-  }
-
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Process every leadgen change in the background so we ack Meta immediately.
-  // Meta retries if we don't 200 within ~20s; processing leads sequentially
-  // (Graph fetch + DB writes) can blow that budget.
+  // We accept three object types:
+  //   "page"      → Facebook page events (leadgen, etc.)
+  //   "instagram" → Instagram comments/mentions/etc.
+  //   When Meta sends IG DMs via the Messenger Platform, object is also "page"
+  //   but the entry has a `messaging` array (handled below).
+  if (body.object !== "page" && body.object !== "instagram") {
+    return new Response("OK", { status: 200 });
+  }
+
+  // Process every change in the background so we ack Meta immediately.
+  // Meta retries if we don't 200 within ~20s.
   const work = (async () => {
     for (const entry of body.entry || []) {
-      const pageId = entry.id;
+      const entryId = entry.id;
+
+      // ----- Page-style changes (leadgen, comments via Page) -------------------
       for (const change of entry.changes || []) {
-        if (change.field !== "leadgen") continue;
         try {
-          await processLeadgenChange(supabase, pageId, change);
+          if (change.field === "leadgen") {
+            await processLeadgenChange(supabase, entryId, change);
+          } else if (change.field === "comments") {
+            await processInstagramComment(supabase, entryId, change);
+          } else if (change.field === "messages") {
+            // IG Login flow sends DMs as a "messages" change on object=instagram
+            await processInstagramDirectChange(supabase, entryId, change);
+          } else if (change.field === "mentions") {
+            console.log("Instagram mention received:", JSON.stringify(change.value));
+          }
         } catch (err) {
-          console.error("Unhandled error processing leadgen change:", err);
+          console.error(`Unhandled error processing ${change.field} change:`, err);
+        }
+      }
+
+      // ----- Messenger-style messaging events (IG DMs via Page) ----------------
+      for (const messagingEvent of entry.messaging || []) {
+        try {
+          await processInstagramMessenger(supabase, entryId, messagingEvent);
+        } catch (err) {
+          console.error("Unhandled error processing IG messenger event:", err);
         }
       }
     }

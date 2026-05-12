@@ -23,3 +23,6 @@ verify_jwt = false
 
 [functions.facebook-get-app-id]
 verify_jwt = false
+
+[functions.instagram-api]
+verify_jwt = false

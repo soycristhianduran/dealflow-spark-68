@@ -11,8 +11,10 @@ import { toast } from "sonner";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
+import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
 import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
+import { InstagramSetupWizard } from "@/components/crm/InstagramSetupWizard";
 
 type Integration = {
   id: string;
@@ -136,6 +138,7 @@ export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
+  const [igWizardOpen, setIgWizardOpen] = useState(false);
   const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
   const [resubscribing, setResubscribing] = useState(false);
   const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
@@ -145,6 +148,7 @@ export default function IntegrationsPage() {
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
+  const ig = useInstagramIntegration();
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
@@ -251,6 +255,7 @@ export default function IntegrationsPage() {
     if (id === "google-calendar") return gcal.isConnected;
     if (id === "facebook") return fb.isConnected;
     if (id === "whatsapp") return wa.isConnected;
+    if (id === "instagram") return ig.isConnected;
     return otherConnectedIds.includes(id);
   };
 
@@ -258,6 +263,7 @@ export default function IntegrationsPage() {
     if (id === "google-calendar") return gcal.connecting;
     if (id === "facebook") return fb.connecting;
     if (id === "whatsapp") return wa.connecting;
+    if (id === "instagram") return ig.connecting;
     return false;
   };
 
@@ -279,6 +285,8 @@ export default function IntegrationsPage() {
     } else if (integration.id === "whatsapp") {
       if (wa.isConnected) wa.disconnect();
       else setWaWizardOpen(true);
+    } else if (integration.id === "instagram") {
+      setIgWizardOpen(true);
     } else {
       toggleOtherConnection(integration.id);
     }
@@ -289,6 +297,8 @@ export default function IntegrationsPage() {
       setFbWizardOpen(true);
     } else if (integration.id === "whatsapp") {
       setWaWizardOpen(true);
+    } else if (integration.id === "instagram") {
+      setIgWizardOpen(true);
     } else if (isIntegrationConnected(integration.id)) {
       setSelectedIntegration(integration);
     } else {
@@ -441,6 +451,9 @@ export default function IntegrationsPage() {
 
       {/* WhatsApp Setup Wizard */}
       <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) { setWaWizardStartStep(1); wa.refreshConfig?.(); } }} startStep={waWizardStartStep} />
+
+      {/* Instagram Setup Wizard */}
+      <InstagramSetupWizard open={igWizardOpen} onOpenChange={(v) => { setIgWizardOpen(v); if (!v) ig.refresh(); }} />
 
       {/* Register Phone (Cloud API activation) Dialog */}
       <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
