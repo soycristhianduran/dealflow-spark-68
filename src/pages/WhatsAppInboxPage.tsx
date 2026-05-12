@@ -961,7 +961,7 @@ export default function WhatsAppInboxPage() {
               </div>
               {/* Link to contact */}
               {selectedConv.contact_id && (
-                <Link to={`/contacts/${selectedConv.contact_id}`}>
+                <Link to={path(`/contacts/${selectedConv.contact_id}`)}>
                   <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5">
                     <User className="h-3.5 w-3.5" />
                     <span className="hidden sm:inline">Ver contacto</span>

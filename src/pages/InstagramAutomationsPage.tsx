@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useNavigate } from "react-router-dom";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +37,8 @@ interface Automation {
 
 export default function InstagramAutomationsPage() {
   const { user } = useAuth();
+  const { path } = useWorkspace();
+  const navigate = useNavigate();
   const ig = useInstagramIntegration();
 
   const [automations, setAutomations] = useState<Automation[]>([]);
@@ -213,7 +217,7 @@ export default function InstagramAutomationsPage() {
             <p className="text-sm text-muted-foreground">
               Las automatizaciones requieren tener Instagram conectado. Ve a Integraciones.
             </p>
-            <Button onClick={() => (window.location.href = "/integrations")} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
+            <Button onClick={() => navigate(path("/integrations"))} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
               <Instagram className="h-4 w-4" /> Conectar Instagram
             </Button>
           </div>

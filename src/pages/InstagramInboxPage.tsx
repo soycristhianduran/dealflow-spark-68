@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { useNavigate } from "react-router-dom";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,8 @@ interface IgMessage {
 
 export default function InstagramInboxPage() {
   const { user } = useAuth();
+  const { path } = useWorkspace();
+  const navigate = useNavigate();
   const ig = useInstagramIntegration();
 
   const [conversations, setConversations] = useState<IgConversation[]>([]);
@@ -180,7 +184,7 @@ export default function InstagramInboxPage() {
             <p className="text-sm text-muted-foreground">
               Aún no has conectado tu cuenta de Instagram. Ve a Integraciones para vincular tu cuenta y empezar a recibir DMs.
             </p>
-            <Button onClick={() => (window.location.href = "/integrations")} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
+            <Button onClick={() => navigate(path("/integrations"))} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
               <Instagram className="h-4 w-4" /> Ir a Integraciones
             </Button>
           </div>
