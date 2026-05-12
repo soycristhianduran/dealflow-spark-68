@@ -26,6 +26,8 @@ import IntegrationsPage from "./IntegrationsPage";
 import MetaAdsPage from "./MetaAdsPage";
 import WhatsAppTemplatesPage from "./WhatsAppTemplatesPage";
 import WhatsAppInboxPage from "./WhatsAppInboxPage";
+import InstagramInboxPage from "./InstagramInboxPage";
+import InstagramAutomationsPage from "./InstagramAutomationsPage";
 import EmailCampaignsPage from "./EmailCampaignsPage";
 import AutomationsPage from "./AutomationsPage";
 import MorePage from "./MorePage";
@@ -99,6 +101,8 @@ export default function WorkspaceEntryPage() {
         <Route path="meta-ads" element={<P><MetaAdsPage /></P>} />
         <Route path="whatsapp/templates" element={<P><WhatsAppTemplatesPage /></P>} />
         <Route path="whatsapp/inbox" element={<P><WhatsAppInboxPage /></P>} />
+        <Route path="instagram/inbox" element={<P><InstagramInboxPage /></P>} />
+        <Route path="instagram/automations" element={<P><InstagramAutomationsPage /></P>} />
         <Route path="email-campaigns" element={<P><EmailCampaignsPage /></P>} />
         <Route path="automations" element={<P><AutomationsPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />
