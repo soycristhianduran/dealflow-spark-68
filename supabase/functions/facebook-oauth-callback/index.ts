@@ -8,6 +8,32 @@ const corsHeaders = {
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 
+// Resolve the workspace slug for a given user so we redirect them back to
+// /w/:slug/integrations (the real route) instead of /integrations which 404s.
+async function resolveOrgSlug(supabase: any, userId: string): Promise<string | null> {
+  try {
+    const { data: memberRow } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (!memberRow?.organization_id) return null;
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("slug")
+      .eq("id", memberRow.organization_id)
+      .maybeSingle();
+    return orgRow?.slug ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function buildRedirect(appUrl: string, slug: string | null, query: string): string {
+  const base = slug ? `/w/${slug}/integrations` : `/integrations`;
+  return `${appUrl}${base}?${query}`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -17,11 +43,16 @@ Deno.serve(async (req) => {
     const state = url.searchParams.get("state"); // contains user_id
     const error = url.searchParams.get("error");
 
+    const SUPABASE_URL_EARLY = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_KEY_EARLY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const earlySupabase = createClient(SUPABASE_URL_EARLY, SUPABASE_SERVICE_KEY_EARLY);
+
     if (error) {
       const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+      const slug = state ? await resolveOrgSlug(earlySupabase, state) : null;
       return new Response(null, {
         status: 302,
-        headers: { "Location": `${appUrl}/integrations?fb_error=${encodeURIComponent(error)}` },
+        headers: { "Location": buildRedirect(appUrl, slug, `fb_error=${encodeURIComponent(error)}`) },
       });
     }
 
@@ -49,9 +80,10 @@ Deno.serve(async (req) => {
     if (!tokenData.access_token) {
       console.error("Token exchange failed:", tokenData);
       const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+      const slug = await resolveOrgSlug(earlySupabase, state);
       return new Response(null, {
         status: 302,
-        headers: { "Location": `${appUrl}/integrations?fb_error=token_exchange_failed` },
+        headers: { "Location": buildRedirect(appUrl, slug, "fb_error=token_exchange_failed") },
       });
     }
 
@@ -79,11 +111,12 @@ Deno.serve(async (req) => {
       { onConflict: "user_id" }
     );
 
-    // Success - redirect back to app directly
+    // Success - redirect back to app, using workspace slug if available
     const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+    const slug = await resolveOrgSlug(supabase, userId);
     return new Response(null, {
       status: 302,
-      headers: { ...corsHeaders, "Location": `${appUrl}/integrations?fb_connected=true` },
+      headers: { ...corsHeaders, "Location": buildRedirect(appUrl, slug, "fb_connected=true") },
     });
   } catch (e) {
     console.error("Facebook OAuth callback error:", e);
