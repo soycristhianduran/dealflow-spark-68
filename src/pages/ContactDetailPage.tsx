@@ -262,17 +262,54 @@ export default function ContactDetailPage() {
                   </div>
                 )}
 
-                {contact.score != null && (
-                  <div className="mt-4 p-3 rounded-lg bg-muted/50">
-                    <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-xs font-medium text-muted-foreground">Score</span>
-                      <span className="text-sm font-bold text-foreground">{contact.score}/100</span>
+                {contact.score != null && (() => {
+                  // Tier metadata — must mirror the contact_score_tier() SQL function
+                  const tier =
+                    contact.score >= 86 ? { label: "Listo para cerrar", emoji: "🟢", bar: "bg-green-500", badge: "border-green-300 bg-green-50 text-green-700 dark:bg-green-950/30" }
+                    : contact.score >= 61 ? { label: "Caliente", emoji: "🟠", bar: "bg-orange-500", badge: "border-orange-300 bg-orange-50 text-orange-700 dark:bg-orange-950/30" }
+                    : contact.score >= 31 ? { label: "Tibio", emoji: "🟡", bar: "bg-yellow-500", badge: "border-yellow-300 bg-yellow-50 text-yellow-700 dark:bg-yellow-950/30" }
+                    : { label: "Frío", emoji: "🔵", bar: "bg-blue-500", badge: "border-blue-300 bg-blue-50 text-blue-700 dark:bg-blue-950/30" };
+                  return (
+                    <div className="mt-4 p-3 rounded-lg bg-muted/50 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">Score</span>
+                        <span className="text-sm font-bold text-foreground">{contact.score}/100</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div className={`h-full rounded-full transition-all ${tier.bar}`} style={{ width: `${contact.score}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between gap-2 pt-0.5">
+                        <Badge variant="outline" className={`text-[10px] gap-1 ${tier.badge}`}>
+                          <span>{tier.emoji}</span> {tier.label}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+                          onClick={async () => {
+                            const { data, error } = await supabase.rpc("recalculate_contact_score", {
+                              contact_uuid: id,
+                            });
+                            if (error) {
+                              toast.error("Error al recalcular: " + error.message);
+                            } else {
+                              toast.success(`Score actualizado: ${data}/100`);
+                              setContact((prev: any) => prev ? { ...prev, score: data } : prev);
+                            }
+                          }}
+                          title="Recalcular score basado en última actividad"
+                        >
+                          <Settings2 className="h-3 w-3" /> Recalcular
+                        </Button>
+                      </div>
+                      {contact.score_calculated_at && (
+                        <p className="text-[10px] text-muted-foreground text-right">
+                          Actualizado {new Date(contact.score_calculated_at).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                        </p>
+                      )}
                     </div>
-                    <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${contact.score}%` }} />
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 {contact.tags && contact.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-4">
