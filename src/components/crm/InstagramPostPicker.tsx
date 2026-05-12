@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useInstagramIntegration, IgMedia } from "@/hooks/useInstagramIntegration";
 import { Loader2, Image as ImageIcon, Film, Layers, Heart, MessageCircle, Check, X, Search, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
@@ -88,8 +87,10 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaId, onSel
           )}
         </div>
 
-        {/* Grid */}
-        <ScrollArea className="flex-1 px-6 py-4">
+        {/* Grid — use raw overflow-y-auto with min-h-0 so flex parent
+            actually constrains it (ScrollArea fails to size correctly when
+            nested inside DialogContent's flex column). */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="text-center py-16">
               <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-2" />
@@ -160,7 +161,7 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaId, onSel
               })}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Footer */}
         <div className="px-6 py-3 border-t bg-muted/30 flex items-center justify-between text-xs text-muted-foreground">
