@@ -2,8 +2,6 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkspace } from "@/hooks/useWorkspace";
-import { useNavigate } from "react-router-dom";
 import { useWhatsAppInbox } from "@/hooks/useWhatsAppInbox";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
@@ -12,13 +10,16 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Search, Send, Loader2, RefreshCw,
-  ExternalLink, MoreVertical, MailOpen, MessageCircle,
+  Search, Send, Loader2, RefreshCw, MoreVertical, MailOpen, MessageCircle,
+  Paperclip, Mic, X, FileText, AlertTriangle,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
+} from "@/components/crm/WhatsAppChatFeatures";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -29,10 +30,10 @@ type FilterMode = "all" | Channel;
 
 interface UnifiedConversation {
   channel: Channel;
-  id: string;                     // phone for WA, conv UUID for IG
+  id: string;
   contact_id: string | null;
   display_name: string;
-  subtitle: string;               // phone/username
+  subtitle: string;
   avatar_url: string | null;
   last_message: string;
   last_message_time: string;
@@ -76,8 +77,6 @@ interface IgMessageRow {
 
 export default function ConversationsPage() {
   const { user } = useAuth();
-  const { path } = useWorkspace();
-  const navigate = useNavigate();
   const wa = useWhatsAppInbox();
   const ig = useInstagramIntegration();
 
@@ -89,10 +88,22 @@ export default function ConversationsPage() {
   const [loadingIg, setLoadingIg] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+
+  // Template picker (WhatsApp only)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false);
+
+  // Voice recording state (WhatsApp only)
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Load IG conversations from DB ─────────────────────────────────────────
+  // ── Load IG conversations ─────────────────────────────────────────────────
   const loadIgConversations = useCallback(async () => {
     if (!user) return;
     setLoadingIg(true);
@@ -108,12 +119,9 @@ export default function ConversationsPage() {
   useEffect(() => { loadIgConversations(); }, [loadIgConversations]);
 
   // ── Initial WA fetch ─────────────────────────────────────────────────────
-  useEffect(() => {
-    wa.fetchConversations();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { wa.fetchConversations(); /* eslint-disable-next-line */ }, []);
 
-  // ── Realtime: keep both inboxes live ──────────────────────────────────────
+  // ── Realtime ─────────────────────────────────────────────────────────────
   useRealtimeRefresh({
     table: "whatsapp_messages",
     channelKey: `conv-page-wa-${user?.id || "anon"}`,
@@ -128,7 +136,7 @@ export default function ConversationsPage() {
     enabled: !!user,
   });
 
-  // ── Merge both into a unified list ───────────────────────────────────────
+  // ── Merge conversations ──────────────────────────────────────────────────
   const unifiedList = useMemo<UnifiedConversation[]>(() => {
     const waList: UnifiedConversation[] = wa.conversations.map((c) => ({
       channel: "whatsapp",
@@ -155,43 +163,33 @@ export default function ConversationsPage() {
       unread_count: c.unread_count,
     }));
     return [...waList, ...igList].sort(
-      (a, b) =>
-        new Date(b.last_message_time).getTime() -
-        new Date(a.last_message_time).getTime(),
+      (a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime(),
     );
   }, [wa.conversations, igConversations]);
 
-  // ── Apply filters (channel + search) ──────────────────────────────────────
-  const filtered = useMemo(() => {
-    return unifiedList.filter((c) => {
-      if (channelFilter !== "all" && c.channel !== channelFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        return (
-          c.display_name.toLowerCase().includes(q) ||
-          c.subtitle.toLowerCase().includes(q) ||
-          (c.last_message || "").toLowerCase().includes(q)
-        );
-      }
-      return true;
-    });
-  }, [unifiedList, channelFilter, search]);
+  const filtered = useMemo(() => unifiedList.filter((c) => {
+    if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      return c.display_name.toLowerCase().includes(q)
+        || c.subtitle.toLowerCase().includes(q)
+        || (c.last_message || "").toLowerCase().includes(q);
+    }
+    return true;
+  }), [unifiedList, channelFilter, search]);
 
-  // Counters for the tab labels
-  const counts = useMemo(() => {
-    const total = unifiedList.length;
-    const wa = unifiedList.filter((c) => c.channel === "whatsapp").length;
-    const ig = unifiedList.filter((c) => c.channel === "instagram").length;
-    return { total, wa, ig };
-  }, [unifiedList]);
+  const counts = useMemo(() => ({
+    total: unifiedList.length,
+    wa: unifiedList.filter((c) => c.channel === "whatsapp").length,
+    ig: unifiedList.filter((c) => c.channel === "instagram").length,
+  }), [unifiedList]);
 
-  // ── When user selects a conversation, fetch its messages ──────────────────
+  // ── Selection ────────────────────────────────────────────────────────────
   const handleSelect = useCallback((conv: UnifiedConversation) => {
     setSelected(conv);
     if (conv.channel === "whatsapp") {
       wa.selectConversation(conv.id);
     } else {
-      // Load IG messages
       (async () => {
         const { data } = await supabase
           .from("instagram_messages")
@@ -199,32 +197,24 @@ export default function ConversationsPage() {
           .eq("conversation_id", conv.id)
           .order("sent_at", { ascending: true });
         setIgMessages((data || []) as IgMessageRow[]);
-        // Mark IG conversation as read
         if (conv.unread_count > 0) {
-          await supabase
-            .from("instagram_conversations")
-            .update({ unread_count: 0 })
-            .eq("id", conv.id);
+          await supabase.from("instagram_conversations").update({ unread_count: 0 }).eq("id", conv.id);
         }
       })();
     }
   }, [wa]);
 
-  // ── Mark as unread (right-click) ──────────────────────────────────────────
   const handleMarkUnread = useCallback(async (conv: UnifiedConversation) => {
-    if (conv.unread_count > 0) return; // only flips if already read
-    if (conv.channel === "whatsapp") {
-      await wa.markAsUnread(conv.id);
-    } else {
+    if (conv.unread_count > 0) return;
+    if (conv.channel === "whatsapp") await wa.markAsUnread(conv.id);
+    else {
       await supabase.rpc("ig_mark_conversation_unread", { p_conversation_id: conv.id });
       loadIgConversations();
     }
-    if (selected?.channel === conv.channel && selected?.id === conv.id) {
-      setSelected(null);
-    }
+    if (selected?.channel === conv.channel && selected?.id === conv.id) setSelected(null);
   }, [wa, selected, loadIgConversations]);
 
-  // ── Active message list (whichever channel is selected) ───────────────────
+  // ── Messages ─────────────────────────────────────────────────────────────
   const activeMessages: UnifiedMessage[] = useMemo(() => {
     if (!selected) return [];
     if (selected.channel === "whatsapp") {
@@ -251,12 +241,11 @@ export default function ConversationsPage() {
     }));
   }, [selected, wa.messages, igMessages]);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
 
-  // ── Send a message (channel-aware) ────────────────────────────────────────
+  // ── Send text message ─────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!selected || !draft.trim() || sending) return;
     const text = draft.trim();
@@ -268,12 +257,7 @@ export default function ConversationsPage() {
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error("Conversación no encontrada");
-        await ig.sendDm({
-          recipient_id: igConv.participant_id,
-          text,
-          conversation_id: igConv.id,
-        });
-        // Reload IG messages for this conversation
+        await ig.sendDm({ recipient_id: igConv.participant_id, text, conversation_id: igConv.id });
         const { data } = await supabase
           .from("instagram_messages")
           .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
@@ -282,108 +266,176 @@ export default function ConversationsPage() {
         setIgMessages((data || []) as IgMessageRow[]);
       }
     } catch (e: any) {
-      toast.error("Error al enviar: " + e.message);
-      setDraft(text); // restore
+      toast.error("Error: " + e.message);
+      setDraft(text);
     } finally {
       setSending(false);
     }
   };
 
-  const handleOpenFullView = () => {
-    if (!selected) return;
-    if (selected.channel === "whatsapp") {
-      navigate(path("/whatsapp/inbox"));
-    } else {
-      navigate(path("/instagram/inbox"));
+  // ── Audio recording (WhatsApp only) ───────────────────────────────────────
+  const startRecording = useCallback(async () => {
+    if (!selected || selected.channel !== "whatsapp") return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = ["audio/mp4", "audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm"]
+        .find((m) => MediaRecorder.isTypeSupported(m)) || "";
+      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      mr.start(200);
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+      setRecSeconds(0);
+      recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
+    } catch (e: any) {
+      toast.error("Micrófono no disponible: " + e.message);
+    }
+  }, [selected]);
+
+  const stopAndSendRecording = useCallback(async () => {
+    const mr = mediaRecorderRef.current;
+    if (!mr || !selected) return;
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    setRecording(false);
+    await new Promise<void>((resolve) => {
+      mr.onstop = async () => {
+        mr.stream.getTracks().forEach((t) => t.stop());
+        const mimeType = mr.mimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        audioChunksRef.current = [];
+        if (blob.size < 500) { resolve(); return; }
+        try {
+          const base64 = await new Promise<string>((res) => {
+            const reader = new FileReader();
+            reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
+            reader.readAsDataURL(blob);
+          });
+          const baseMime = mimeType.split(";")[0].trim();
+          const ext = baseMime.includes("ogg") ? "ogg" : baseMime.includes("mp4") ? "mp4" : "webm";
+          const fname = `voice-${Date.now()}.${ext}`;
+          await wa.sendMedia(selected.id, base64, baseMime, fname, selected.contact_id);
+        } catch (e: any) {
+          toast.error("Error al enviar audio: " + e.message);
+        }
+        resolve();
+      };
+      mr.stop();
+    });
+  }, [selected, wa]);
+
+  const cancelRecording = useCallback(() => {
+    const mr = mediaRecorderRef.current;
+    if (!mr) return;
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    mr.onstop = () => { mr.stream.getTracks().forEach((t) => t.stop()); };
+    try { mr.stop(); } catch (_) { /* ignore */ }
+    audioChunksRef.current = [];
+    setRecording(false);
+    setRecSeconds(0);
+  }, []);
+
+  useEffect(() => () => {
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+  }, []);
+
+  // ── Media file upload (WhatsApp only) ─────────────────────────────────────
+  const handleMediaFile = useCallback(async (file: File) => {
+    if (!selected || selected.channel !== "whatsapp") return;
+    const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
+    if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`); return; }
+    setUploadingMedia(true);
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(file);
+      });
+      await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
+    } catch (e: any) {
+      toast.error("Error al enviar archivo: " + e.message);
+    } finally {
+      setUploadingMedia(false);
+    }
+  }, [selected, wa]);
+
+  // ── Send WA template ──────────────────────────────────────────────────────
+  const handleSendTemplate = async (name: string, lang: string, vars: string[], mediaId: string) => {
+    if (!selected || selected.channel !== "whatsapp") return;
+    setSending(true);
+    try {
+      // Hook signature: sendTemplate(phone, templateName, language, vars, contactId, headerMediaId)
+      await wa.sendTemplate(selected.id, name, lang, vars, selected.contact_id, mediaId || undefined);
+      setShowTemplatePicker(false);
+    } catch (e: any) {
+      toast.error("Error al enviar plantilla: " + e.message);
+    } finally {
+      setSending(false);
     }
   };
+
+  const isWA = selected?.channel === "whatsapp";
 
   return (
     <AppLayout>
       <div className="flex h-[calc(100vh-3.5rem)]">
-        {/* ===== Left pane: list ===== */}
+        {/* ===== LEFT: list ===== */}
         <aside className="w-80 border-r flex flex-col">
-          {/* Header */}
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h1 className="font-bold text-base">Conversaciones</h1>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0"
-                onClick={() => { wa.fetchConversations(); loadIgConversations(); }}
-              >
+              <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                onClick={() => { wa.fetchConversations(); loadIgConversations(); }}>
                 <RefreshCw className="h-3.5 w-3.5" />
               </Button>
             </div>
-
-            {/* Tabs */}
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               <FilterTab active={channelFilter === "all"} onClick={() => setChannelFilter("all")}>
                 Todos ({counts.total})
               </FilterTab>
               <FilterTab active={channelFilter === "whatsapp"} onClick={() => setChannelFilter("whatsapp")}>
-                <span className="inline-flex items-center gap-1">
-                  <WhatsAppIcon size={14} /> WA ({counts.wa})
-                </span>
+                <span className="inline-flex items-center gap-1"><WhatsAppIcon size={14} /> WA ({counts.wa})</span>
               </FilterTab>
               <FilterTab active={channelFilter === "instagram"} onClick={() => setChannelFilter("instagram")}>
-                <span className="inline-flex items-center gap-1">
-                  <InstagramIcon size={14} /> IG ({counts.ig})
-                </span>
+                <span className="inline-flex items-center gap-1"><InstagramIcon size={14} /> IG ({counts.ig})</span>
               </FilterTab>
             </div>
-
-            {/* Search */}
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Buscar..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-8 h-9 text-sm"
-              />
+              <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+                className="pl-8 h-9 text-sm" />
             </div>
           </div>
 
-          {/* List */}
           <ScrollArea className="flex-1">
             {(wa.loadingConversations || loadingIg) && filtered.length === 0 ? (
-              <div className="p-8 text-center">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-              </div>
+              <div className="p-8 text-center"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
             ) : filtered.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">
-                  {search ? "Sin resultados" : "No hay conversaciones"}
-                </p>
+                <p className="text-sm text-muted-foreground">{search ? "Sin resultados" : "No hay conversaciones"}</p>
               </div>
-            ) : (
-              filtered.map((conv) => (
-                <ConvItem
-                  key={`${conv.channel}-${conv.id}`}
-                  conv={conv}
-                  selected={
-                    selected?.channel === conv.channel && selected?.id === conv.id
-                  }
-                  onClick={() => handleSelect(conv)}
-                  onMarkUnread={() => handleMarkUnread(conv)}
-                />
-              ))
-            )}
+            ) : filtered.map((conv) => (
+              <ConvItem
+                key={`${conv.channel}-${conv.id}`}
+                conv={conv}
+                selected={selected?.channel === conv.channel && selected?.id === conv.id}
+                onClick={() => handleSelect(conv)}
+                onMarkUnread={() => handleMarkUnread(conv)}
+              />
+            ))}
           </ScrollArea>
         </aside>
 
-        {/* ===== Right pane: chat ===== */}
+        {/* ===== RIGHT: chat ===== */}
         <main className="flex-1 flex flex-col">
           {!selected ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2 max-w-sm">
                 <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">
-                  Selecciona una conversación para empezar
-                </p>
+                <p className="text-sm text-muted-foreground">Selecciona una conversación</p>
               </div>
             </div>
           ) : (
@@ -395,83 +447,135 @@ export default function ConversationsPage() {
                   <p className="text-sm font-semibold truncate">{selected.display_name}</p>
                   <p className="text-xs text-muted-foreground">{selected.subtitle}</p>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-8 gap-1.5"
-                  onClick={handleOpenFullView}
-                  title={selected.channel === "whatsapp" ? "Abrir en WA Inbox (templates, audio, etc.)" : "Abrir en IG Inbox"}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Vista completa</span>
-                </Button>
               </div>
 
               {/* Messages */}
               <ScrollArea className="flex-1 p-4">
-                {(selected.channel === "whatsapp" && wa.loadingMessages) ? (
-                  <div className="text-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                  </div>
+                {(isWA && wa.loadingMessages) ? (
+                  <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
                 ) : activeMessages.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">
-                    Sin mensajes en esta conversación todavía.
-                  </div>
+                  <div className="text-center py-12 text-sm text-muted-foreground">Sin mensajes todavía.</div>
                 ) : (
                   <div className="space-y-3 max-w-3xl mx-auto">
-                    {activeMessages.map((msg) => (
-                      <MessageBubble key={msg.id} msg={msg} channel={selected.channel} />
-                    ))}
+                    {activeMessages.map((msg) => <MessageBubble key={msg.id} msg={msg} channel={selected.channel} />)}
                     <div ref={messagesEndRef} />
                   </div>
                 )}
               </ScrollArea>
 
               {/* Composer */}
-              <div className="border-t p-3 flex gap-2">
-                <Input
-                  placeholder={`Mensaje de ${selected.channel === "whatsapp" ? "WhatsApp" : "Instagram"}...`}
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
-                  }}
-                  disabled={sending}
-                />
-                <Button
-                  onClick={handleSend}
-                  disabled={!draft.trim() || sending}
-                  className={cn(
-                    "gap-1",
-                    selected.channel === "whatsapp" && "bg-green-600 hover:bg-green-700",
-                    selected.channel === "instagram" && "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600",
-                  )}
-                >
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
+              <div className="border-t p-3">
+                {recording ? (
+                  /* Recording indicator (WA only) */
+                  <div className="flex items-center gap-3 px-2">
+                    <div className="flex-1 flex items-center gap-2 bg-red-500/10 rounded-lg px-3 py-2">
+                      <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                      <span className="text-sm font-mono">{Math.floor(recSeconds / 60)}:{(recSeconds % 60).toString().padStart(2, "0")}</span>
+                      <span className="text-xs text-muted-foreground">Grabando audio...</span>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={cancelRecording} className="gap-1">
+                      <X className="h-3.5 w-3.5" /> Cancelar
+                    </Button>
+                    <Button size="sm" onClick={stopAndSendRecording} className="gap-1 bg-green-600 hover:bg-green-700">
+                      <Send className="h-3.5 w-3.5" /> Enviar
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2 items-end">
+                    {/* WA action buttons */}
+                    {isWA && (
+                      <>
+                        <input
+                          ref={mediaInputRef}
+                          type="file"
+                          accept="image/*,video/*,audio/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleMediaFile(f);
+                            e.target.value = "";
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 w-10 p-0 shrink-0"
+                          onClick={() => setShowTemplatePicker(true)}
+                          title="Enviar plantilla"
+                          disabled={sending}
+                        >
+                          <FileText className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 w-10 p-0 shrink-0"
+                          onClick={() => mediaInputRef.current?.click()}
+                          title="Adjuntar archivo"
+                          disabled={sending || uploadingMedia}
+                        >
+                          {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                        </Button>
+                      </>
+                    )}
+
+                    <Input
+                      placeholder={`Mensaje de ${isWA ? "WhatsApp" : "Instagram"}...`}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                      disabled={sending}
+                    />
+
+                    {/* Send (text) or Mic (when empty, WA only) */}
+                    {draft.trim() || !isWA ? (
+                      <Button
+                        onClick={handleSend}
+                        disabled={!draft.trim() || sending}
+                        className={cn("h-10 gap-1 shrink-0",
+                          isWA ? "bg-green-600 hover:bg-green-700"
+                               : "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600",
+                        )}
+                      >
+                        {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      </Button>
+                    ) : (
+                      <Button
+                        onClick={startRecording}
+                        variant="outline"
+                        className="h-10 w-10 p-0 shrink-0"
+                        title="Grabar audio"
+                      >
+                        <Mic className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
         </main>
       </div>
+
+      {/* WhatsApp template picker dialog */}
+      <TemplatePicker
+        open={showTemplatePicker}
+        onClose={() => setShowTemplatePicker(false)}
+        onSend={handleSendTemplate}
+        sending={sending}
+      />
     </AppLayout>
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
 
-function FilterTab({
-  active, onClick, children,
-}: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+function FilterTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "flex-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors",
-        active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground",
-      )}
-    >
+    <button onClick={onClick}
+      className={cn("flex-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors",
+        active ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>
       {children}
     </button>
   );
@@ -493,8 +597,7 @@ function ConvItem({
   onClick: () => void;
   onMarkUnread: () => void;
 }) {
-  const initials = conv.display_name
-    .split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  const initials = conv.display_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
     <div
@@ -505,7 +608,6 @@ function ConvItem({
       onClick={onClick}
       onContextMenu={(e) => { e.preventDefault(); if (conv.unread_count === 0) onMarkUnread(); }}
     >
-      {/* Avatar with brand-icon channel badge overlay */}
       <div className="relative shrink-0">
         {conv.avatar_url ? (
           <img src={conv.avatar_url} alt="" className="h-10 w-10 rounded-full" />
@@ -514,21 +616,15 @@ function ConvItem({
             {initials || "?"}
           </div>
         )}
-        {/* Channel badge in bottom-right of avatar — uses real brand logo */}
         <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden">
           {conv.channel === "whatsapp" ? <WhatsAppIcon size={20} /> : <InstagramIcon size={20} />}
         </div>
       </div>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
-          <p className={cn("font-medium text-sm truncate", conv.unread_count > 0 && "font-bold")}>
-            {conv.display_name}
-          </p>
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            {fmtConvTime(conv.last_message_time)}
-          </span>
+          <p className={cn("font-medium text-sm truncate", conv.unread_count > 0 && "font-bold")}>{conv.display_name}</p>
+          <span className="text-[11px] text-muted-foreground shrink-0">{fmtConvTime(conv.last_message_time)}</span>
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <p className={cn("text-xs truncate", conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
@@ -543,14 +639,12 @@ function ConvItem({
         </div>
       </div>
 
-      {/* Kebab menu — always visible with high-contrast background so users
-          can find it without hovering. */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
             className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-muted hover:bg-muted-foreground/20 text-foreground border border-border transition-colors"
-            aria-label="Acciones de conversación"
+            aria-label="Acciones"
             title="Más acciones"
           >
             <MoreVertical className="h-4 w-4" />
@@ -575,33 +669,41 @@ function ConvItem({
 function MessageBubble({ msg, channel }: { msg: UnifiedMessage; channel: Channel }) {
   const out = msg.direction === "outgoing";
   const bubbleColor = out
-    ? channel === "whatsapp"
-      ? "bg-green-600 text-white"
-      : "bg-pink-500 text-white"
+    ? channel === "whatsapp" ? "bg-green-600 text-white" : "bg-pink-500 text-white"
     : "bg-muted";
+
+  // Audio messages get the custom player
+  const isAudio = ["audio", "voice"].includes(msg.message_type);
+  const isImage = msg.message_type === "image";
+  const isVideo = msg.message_type === "video";
+  const isDocument = msg.message_type === "document";
 
   return (
     <div className={cn("flex", out ? "justify-end" : "justify-start")}>
       <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", bubbleColor)}>
-        {msg.attachment_url && (
-          msg.message_type === "image" ? (
-            <img src={msg.attachment_url} alt="" className="rounded mb-1 max-h-60" />
-          ) : (
-            <a
-              href={msg.attachment_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block text-xs underline mb-1"
-            >
-              Ver adjunto
-            </a>
-          )
+        {/* Media rendering */}
+        {msg.attachment_url && isAudio && (
+          <AudioPlayer src={msg.attachment_url} outgoing={out} />
         )}
+        {msg.attachment_url && isImage && (
+          <img src={msg.attachment_url} alt="" className="rounded mb-1 max-h-60" />
+        )}
+        {msg.attachment_url && isVideo && (
+          <video src={msg.attachment_url} className="rounded mb-1 max-h-60" controls />
+        )}
+        {msg.attachment_url && isDocument && (
+          <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer"
+            className="block text-xs underline mb-1 flex items-center gap-1">
+            <FileText className="h-3 w-3" /> Ver documento
+          </a>
+        )}
+        {/* Text */}
         {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-        <p className={cn("text-[10px] mt-1", out ? "text-white/70" : "text-muted-foreground")}>
-          {formatDistanceToNow(new Date(msg.sent_at), { addSuffix: true, locale: es })}
-          {out && msg.status && ` · ${msg.status}`}
-        </p>
+        {/* Footer with time + status */}
+        <div className={cn("flex items-center gap-1 mt-1 text-[10px]", out ? "text-white/70 justify-end" : "text-muted-foreground")}>
+          <span>{formatDistanceToNow(new Date(msg.sent_at), { addSuffix: true, locale: es })}</span>
+          {out && channel === "whatsapp" && <MsgStatus status={msg.status} />}
+        </div>
       </div>
     </div>
   );
@@ -611,8 +713,7 @@ function fmtConvTime(iso: string): string {
   try {
     const d = new Date(iso);
     const now = new Date();
-    const diffMs = now.getTime() - d.getTime();
-    const diffH = diffMs / (1000 * 60 * 60);
+    const diffH = (now.getTime() - d.getTime()) / (1000 * 60 * 60);
     if (diffH < 24) return d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
     if (diffH < 24 * 7) return d.toLocaleDateString("es", { weekday: "short" });
     return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
