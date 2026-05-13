@@ -20,6 +20,7 @@ import {
 import {
   AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
 } from "@/components/crm/WhatsAppChatFeatures";
+import { ensureWhatsAppCompatibleImage } from "@/lib/image-convert";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -341,12 +342,27 @@ export default function ConversationsPage() {
   }, []);
 
   // ── Media file upload (WhatsApp only) ─────────────────────────────────────
-  const handleMediaFile = useCallback(async (file: File) => {
+  const handleMediaFile = useCallback(async (rawFile: File) => {
     if (!selected || selected.channel !== "whatsapp") return;
-    const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
-    if (file.size > MAX_MB * 1024 * 1024) { toast.error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`); return; }
     setUploadingMedia(true);
     try {
+      // Re-encode AVIF/HEIC/etc. to JPEG since WhatsApp only accepts JPEG/PNG/WebP
+      let file = rawFile;
+      if (rawFile.type.startsWith("image/")) {
+        try {
+          file = await ensureWhatsAppCompatibleImage(rawFile);
+          if (file !== rawFile) {
+            toast.info(`Imagen convertida de ${rawFile.type} a JPEG para WhatsApp`);
+          }
+        } catch (e: any) {
+          throw new Error("No se pudo convertir la imagen: " + e.message);
+        }
+      }
+
+      const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
+      if (file.size > MAX_MB * 1024 * 1024) {
+        throw new Error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`);
+      }
       const base64 = await new Promise<string>((res, rej) => {
         const reader = new FileReader();
         reader.onload = (e) => res((e.target?.result as string).split(",")[1]);

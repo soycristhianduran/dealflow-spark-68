@@ -378,10 +378,27 @@ export function useWhatsAppInbox() {
         (payload) => {
           const msg = payload.new as WaMessage;
 
-          // Add to open conversation
+          // Add to open conversation (with dedup against optimistic temp messages)
           if (msg.phone_number === selectedPhone) {
             setMessages((prev) => {
-              if (prev.some((m) => m.id === msg.id)) return prev;
+              // Dedup by DB id OR by wa_message_id matching a recent optimistic
+              // outgoing temp.  When sendMedia/sendMessage finishes successfully
+              // it sets wa_message_id on the temp row; the realtime INSERT then
+              // arrives with the real DB row.  Without this check the temp +
+              // real both stay in state → visible duplicate.
+              const dup = prev.find(
+                (m) =>
+                  m.id === msg.id ||
+                  (msg.wa_message_id != null &&
+                    m.wa_message_id === msg.wa_message_id),
+              );
+              if (dup) {
+                // Merge the real DB row into the optimistic placeholder so we
+                // pick up the canonical id + any server-side fields.
+                return prev.map((m) =>
+                  m === dup ? ({ ...m, ...msg } as WaMessage) : m,
+                );
+              }
               return [...prev, msg];
             });
           }
