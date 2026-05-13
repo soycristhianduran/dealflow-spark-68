@@ -14,6 +14,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2 } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
+import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
 
@@ -310,6 +311,16 @@ export default function ContactDetailPage() {
                     </div>
                   );
                 })()}
+
+                {/* AI-powered conversation analysis */}
+                <div className="mt-4">
+                  <AILeadAnalysisCard
+                    contactId={id!}
+                    onAnalysisComplete={(newScore) =>
+                      setContact((prev: any) => prev ? { ...prev, score: newScore } : prev)
+                    }
+                  />
+                </div>
 
                 {contact.tags && contact.tags.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mt-4">

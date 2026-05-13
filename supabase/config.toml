@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.instagram-api]
 verify_jwt = false
+
+[functions.analyze-contact-ai]
+verify_jwt = false
