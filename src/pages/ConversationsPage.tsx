@@ -279,9 +279,22 @@ export default function ConversationsPage() {
     if (!selected || selected.channel !== "whatsapp") return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = ["audio/mp4", "audio/ogg;codecs=opus", "audio/webm;codecs=opus", "audio/webm"]
-        .find((m) => MediaRecorder.isTypeSupported(m)) || "";
-      const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      // Priority: Meta accepts audio/ogg, audio/mp4, audio/aac, audio/mpeg, audio/amr, audio/opus.
+      // Meta does NOT accept audio/webm.  Most Chrome versions support ogg/opus in MediaRecorder;
+      // Safari supports mp4.  Try in order of Meta compatibility, never falling back to webm
+      // (which would record but fail at Meta's upload endpoint).
+      const candidates = [
+        "audio/ogg;codecs=opus",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/mpeg",
+      ];
+      const mimeType = candidates.find((m) => MediaRecorder.isTypeSupported(m));
+      if (!mimeType) {
+        toast.error("Tu navegador no soporta ningún formato de audio compatible con WhatsApp. Usa Chrome o Safari recientes.");
+        return;
+      }
+      const mr = new MediaRecorder(stream, { mimeType });
       audioChunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
       mr.start(200);
@@ -473,7 +486,14 @@ export default function ConversationsPage() {
                   <div className="text-center py-12 text-sm text-muted-foreground">Sin mensajes todavía.</div>
                 ) : (
                   <div className="space-y-3 max-w-3xl mx-auto">
-                    {activeMessages.map((msg) => <MessageBubble key={msg.id} msg={msg} channel={selected.channel} />)}
+                    {activeMessages.map((msg) => (
+                      <MessageBubble
+                        key={msg.id}
+                        msg={msg}
+                        channel={selected.channel}
+                        onFetchMedia={isWA ? wa.fetchMedia : undefined}
+                      />
+                    ))}
                     <div ref={messagesEndRef} />
                   </div>
                 )}
@@ -682,42 +702,100 @@ function ConvItem({
   );
 }
 
-function MessageBubble({ msg, channel }: { msg: UnifiedMessage; channel: Channel }) {
+function MessageBubble({
+  msg, channel, onFetchMedia,
+}: {
+  msg: UnifiedMessage;
+  channel: Channel;
+  onFetchMedia?: (messageId: string, waMediaId: string) => void;
+}) {
   const out = msg.direction === "outgoing";
+  // WhatsApp uses chat-style green-on-light bubbles; IG uses pink for outgoing
   const bubbleColor = out
-    ? channel === "whatsapp" ? "bg-green-600 text-white" : "bg-pink-500 text-white"
-    : "bg-muted";
+    ? channel === "whatsapp"
+      ? "bg-[#dcf8c6] dark:bg-green-800/40 text-gray-900 dark:text-gray-100"
+      : "bg-pink-500 text-white"
+    : channel === "whatsapp"
+      ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-border/40"
+      : "bg-muted";
 
-  // Audio messages get the custom player
   const isAudio = ["audio", "voice"].includes(msg.message_type);
-  const isImage = msg.message_type === "image";
+  const isImage = msg.message_type === "image" || msg.message_type === "sticker";
   const isVideo = msg.message_type === "video";
   const isDocument = msg.message_type === "document";
 
+  // "meta:{id}" is a placeholder when the webhook stored the media reference
+  // but the actual download failed — the user can click to retry the fetch.
+  const isMetaRef = typeof msg.attachment_url === "string" && msg.attachment_url.startsWith("meta:");
+  const metaMediaId = isMetaRef ? msg.attachment_url!.slice(5) : null;
+  const realUrl = isMetaRef ? null : msg.attachment_url || null;
+
+  const LoadBtn = ({ icon, label }: { icon: string; label: string }) => (
+    <button
+      onClick={() => onFetchMedia && metaMediaId && onFetchMedia(msg.id, metaMediaId)}
+      className="flex items-center gap-1.5 text-sm text-primary underline py-1 hover:opacity-80 transition-opacity"
+    >
+      {icon} {label} — toca para cargar
+    </button>
+  );
+
+  const renderMedia = () => {
+    if (isImage) {
+      if (realUrl)
+        return (
+          <a href={realUrl} target="_blank" rel="noopener noreferrer">
+            <img
+              src={realUrl}
+              alt="imagen"
+              className="max-w-full rounded-lg max-h-64 object-contain mb-1 cursor-pointer hover:opacity-90 transition-opacity"
+            />
+          </a>
+        );
+      return isMetaRef
+        ? <LoadBtn icon="🖼" label="Imagen" />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🖼 Imagen no disponible</div>;
+    }
+    if (isVideo) {
+      if (realUrl)
+        return <video src={realUrl} controls className="max-w-full rounded-lg max-h-48 mb-1" />;
+      return isMetaRef
+        ? <LoadBtn icon="🎬" label="Video" />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎬 Video no disponible</div>;
+    }
+    if (isAudio) {
+      if (realUrl) return <AudioPlayer src={realUrl} outgoing={out} />;
+      return isMetaRef
+        ? <LoadBtn icon="🎤" label="Audio" />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎤 Audio no disponible</div>;
+    }
+    if (isDocument) {
+      if (realUrl)
+        return (
+          <a
+            href={realUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm underline py-1"
+          >
+            📄 Ver documento
+          </a>
+        );
+      return isMetaRef
+        ? <LoadBtn icon="📄" label="Documento" />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">📄 Documento no disponible</div>;
+    }
+    return null;
+  };
+
   return (
     <div className={cn("flex", out ? "justify-end" : "justify-start")}>
-      <div className={cn("max-w-[70%] rounded-2xl px-4 py-2", bubbleColor)}>
-        {/* Media rendering */}
-        {msg.attachment_url && isAudio && (
-          <AudioPlayer src={msg.attachment_url} outgoing={out} />
-        )}
-        {msg.attachment_url && isImage && (
-          <img src={msg.attachment_url} alt="" className="rounded mb-1 max-h-60" />
-        )}
-        {msg.attachment_url && isVideo && (
-          <video src={msg.attachment_url} className="rounded mb-1 max-h-60" controls />
-        )}
-        {msg.attachment_url && isDocument && (
-          <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer"
-            className="block text-xs underline mb-1 flex items-center gap-1">
-            <FileText className="h-3 w-3" /> Ver documento
-          </a>
-        )}
-        {/* Text */}
-        {msg.text && <p className="text-sm whitespace-pre-wrap">{msg.text}</p>}
-        {/* Footer with time + status */}
-        <div className={cn("flex items-center gap-1 mt-1 text-[10px]", out ? "text-white/70 justify-end" : "text-muted-foreground")}>
-          <span>{formatDistanceToNow(new Date(msg.sent_at), { addSuffix: true, locale: es })}</span>
+      <div className={cn("max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm", bubbleColor)}>
+        {renderMedia()}
+        {msg.text && <p className="whitespace-pre-wrap break-words leading-snug">{msg.text}</p>}
+        <div className={cn("flex items-center gap-1 mt-1", out ? "justify-end" : "justify-start")}>
+          <span className={cn("text-[10px]", out && channel === "whatsapp" ? "text-gray-500 dark:text-gray-400" : out ? "text-white/70" : "text-gray-400")}>
+            {formatDistanceToNow(new Date(msg.sent_at), { addSuffix: true, locale: es })}
+          </span>
           {out && channel === "whatsapp" && <MsgStatus status={msg.status} />}
         </div>
       </div>
