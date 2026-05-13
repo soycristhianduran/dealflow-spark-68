@@ -430,7 +430,7 @@ export default function ConversationsPage() {
     <AppLayout>
       <div className="flex h-[calc(100vh-3.5rem)]">
         {/* ===== LEFT: list ===== */}
-        <aside className="w-80 border-r flex flex-col">
+        <aside className="w-96 border-r flex flex-col">
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h1 className="font-bold text-base">Conversaciones</h1>
@@ -698,8 +698,8 @@ function ConvItem({
       </div>
 
       {/* Quick action: toggle read/unread.
-          Direct one-click button with very visible styling so the user
-          never has to hunt for the option through a menu. */}
+          Solid-colored pill button with text label — impossible to miss
+          regardless of light/dark theme or row content. */}
       <button
         onClick={(e) => {
           e.stopPropagation();
@@ -707,18 +707,24 @@ function ConvItem({
           else onMarkUnread();
         }}
         className={cn(
-          "shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-all shadow-sm",
+          "shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all shadow-sm",
           conv.unread_count > 0
-            ? "bg-primary text-primary-foreground hover:bg-primary/90"
-            : "bg-background text-foreground border-2 border-primary/40 hover:bg-primary/10 hover:border-primary",
+            ? "bg-emerald-500 text-white hover:bg-emerald-600"
+            : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-emerald-900/30",
         )}
         aria-label={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
         title={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
       >
         {conv.unread_count > 0 ? (
-          <MailOpen className="h-4 w-4" />
+          <>
+            <MailOpen className="h-3.5 w-3.5" />
+            <span>Leer</span>
+          </>
         ) : (
-          <MessageCircle className="h-4 w-4" />
+          <>
+            <MessageCircle className="h-3.5 w-3.5" />
+            <span>No leído</span>
+          </>
         )}
       </button>
     </div>
