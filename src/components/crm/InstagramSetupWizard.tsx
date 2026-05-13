@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Instagram, Loader2, CheckCircle2, ChevronRight, AlertTriangle,
-  Wifi, WifiOff, MessageSquare, MessageCircle, RefreshCw,
+  Wifi, WifiOff, MessageSquare, MessageCircle, RefreshCw, Stethoscope,
+  XCircle, ExternalLink,
 } from "lucide-react";
-import { useInstagramIntegration, IgAvailableAccount } from "@/hooks/useInstagramIntegration";
+import { useInstagramIntegration, IgAvailableAccount, IgDiagnosis } from "@/hooks/useInstagramIntegration";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { toast } from "sonner";
 
@@ -21,6 +22,19 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
   const [availableAccounts, setAvailableAccounts] = useState<IgAvailableAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [diagnosis, setDiagnosis] = useState<IgDiagnosis | null>(null);
+
+  const handleDiagnose = async () => {
+    setDiagnosing(true);
+    const result = await ig.diagnose();
+    setDiagnosing(false);
+    if (result) {
+      setDiagnosis(result);
+      // Refresh status counters in case the resubscribe attempt fixed things
+      ig.refresh();
+    }
+  };
 
   // Load available accounts when wizard opens and user is NOT connected
   useEffect(() => {
@@ -43,7 +57,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
     const acct = ig.status.account;
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-lg p-0 overflow-hidden">
+        <DialogContent className="max-w-xl p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
           <div className="bg-gradient-to-br from-pink-500 via-rose-500 to-orange-500 p-6 text-white">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/20 backdrop-blur">
@@ -89,10 +103,13 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               </div>
             </div>
 
-            <div className="flex gap-2">
+            {/* Diagnosis section */}
+            {diagnosis && <DiagnosisPanel diagnosis={diagnosis} />}
+
+            <div className="grid grid-cols-3 gap-2">
               <Button
                 variant="outline"
-                className="flex-1 gap-2 text-destructive hover:text-destructive"
+                className="gap-2 text-destructive hover:text-destructive"
                 onClick={async () => {
                   await ig.disconnect();
                   onOpenChange(false);
@@ -100,8 +117,21 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               >
                 <WifiOff className="h-4 w-4" /> Desconectar
               </Button>
-              <Button variant="outline" className="flex-1 gap-2" onClick={() => ig.refresh()}>
+              <Button variant="outline" className="gap-2" onClick={() => ig.refresh()}>
                 <RefreshCw className="h-4 w-4" /> Actualizar
+              </Button>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={handleDiagnose}
+                disabled={diagnosing}
+              >
+                {diagnosing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Stethoscope className="h-4 w-4" />
+                )}
+                Diagnosticar
               </Button>
             </div>
           </div>
@@ -210,5 +240,153 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * Renders the result of an instagram-api `diagnose` call as a checklist.
+ * Each failed check shows a "Cómo arreglarlo" hint and (where applicable)
+ * a deep link into Meta Developer Console.
+ */
+function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
+  const { checks, resubscribe_result } = diagnosis;
+
+  const items: Array<{
+    key: keyof typeof checks;
+    label: string;
+    fixHint: string;
+    fixLink?: string;
+    fixLinkLabel?: string;
+    critical: boolean;
+  }> = [
+    {
+      key: "page_subscribed_to_messages",
+      label: "Página suscrita a 'messages' (webhook de DMs)",
+      fixHint:
+        "Requiere el permiso instagram_manage_messages aprobado en tu App de Meta. Si ya lo tienes, intenta desconectar y conectar de nuevo.",
+      fixLink: "https://developers.facebook.com/apps/",
+      fixLinkLabel: "Abrir Meta Developer Console",
+      critical: true,
+    },
+    {
+      key: "token_has_instagram_manage_messages",
+      label: "Token con permiso instagram_manage_messages",
+      fixHint:
+        "Solicita 'instagram_manage_messages' en App Review → Permissions and Features. Sin esto, Meta no envía DMs al webhook.",
+      fixLink: "https://developers.facebook.com/apps/",
+      fixLinkLabel: "Abrir App Review",
+      critical: true,
+    },
+    {
+      key: "token_has_instagram_basic",
+      label: "Token con permiso instagram_basic",
+      fixHint: "Vuelve a conectar la cuenta y asegúrate de aceptar todos los permisos solicitados.",
+      critical: true,
+    },
+    {
+      key: "page_subscribed_to_messaging_postbacks",
+      label: "Página suscrita a 'messaging_postbacks' (botones rápidos)",
+      fixHint: "Se suscribe automáticamente al conectar. Si falla, suele ser por el mismo permiso de messages.",
+      critical: false,
+    },
+    {
+      key: "page_subscribed_to_comments",
+      label: "Página suscrita a 'comments'",
+      fixHint:
+        "Marca el campo 'comments' bajo el objeto Instagram en Webhooks de la App.",
+      fixLink: "https://developers.facebook.com/apps/",
+      fixLinkLabel: "Abrir Webhooks",
+      critical: false,
+    },
+    {
+      key: "token_has_pages_manage_metadata",
+      label: "Token con permiso pages_manage_metadata",
+      fixHint: "Necesario para suscribir la página a eventos. Solicítalo en App Review.",
+      critical: false,
+    },
+  ];
+
+  const allCriticalPass = items.filter((i) => i.critical).every((i) => checks[i.key]);
+
+  return (
+    <div className="rounded-xl border p-4 space-y-3 bg-muted/30">
+      <div className="flex items-center gap-2">
+        {allCriticalPass ? (
+          <>
+            <CheckCircle2 className="h-5 w-5 text-green-600" />
+            <p className="text-sm font-semibold">Todo OK · los DMs deben llegar</p>
+          </>
+        ) : (
+          <>
+            <AlertTriangle className="h-5 w-5 text-amber-600" />
+            <p className="text-sm font-semibold">Problemas detectados — los DMs no llegarán hasta arreglarlos</p>
+          </>
+        )}
+      </div>
+
+      {resubscribe_result && (
+        <div className="text-xs rounded-md border border-amber-300 bg-amber-50 p-2">
+          <p className="font-medium text-amber-900 mb-1">Reintento de suscripción ejecutado:</p>
+          {resubscribe_result?.success === true ? (
+            <p className="text-amber-800">✓ Meta aceptó la nueva suscripción. Envía un DM de prueba ahora.</p>
+          ) : (
+            <p className="text-amber-800 break-words">
+              ✗ {resubscribe_result?.error?.message || JSON.stringify(resubscribe_result)}
+            </p>
+          )}
+        </div>
+      )}
+
+      <ul className="space-y-2">
+        {items.map((item) => {
+          const ok = checks[item.key];
+          return (
+            <li key={item.key} className="text-xs">
+              <div className="flex items-start gap-2">
+                {ok ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                ) : (
+                  <XCircle className={`h-4 w-4 shrink-0 mt-0.5 ${item.critical ? "text-red-600" : "text-amber-500"}`} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={ok ? "text-foreground" : "font-medium text-foreground"}>{item.label}</p>
+                  {!ok && (
+                    <>
+                      <p className="text-muted-foreground mt-0.5">{item.fixHint}</p>
+                      {item.fixLink && (
+                        <a
+                          href={item.fixLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 mt-1 text-primary hover:underline"
+                        >
+                          <ExternalLink className="h-3 w-3" /> {item.fixLinkLabel}
+                        </a>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {diagnosis.subscribed_fields.length > 0 && (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer">Detalles técnicos</summary>
+          <p className="mt-1">
+            <span className="font-medium">Campos suscritos:</span> {diagnosis.subscribed_fields.join(", ")}
+          </p>
+          <p className="mt-1">
+            <span className="font-medium">Permisos del token:</span>{" "}
+            {diagnosis.token_permissions
+              .filter((p) => p.status === "granted")
+              .map((p) => p.permission)
+              .join(", ") || "ninguno"}
+          </p>
+        </details>
+      )}
+    </div>
   );
 }

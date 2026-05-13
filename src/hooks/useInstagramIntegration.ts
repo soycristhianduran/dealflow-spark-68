@@ -39,6 +39,29 @@ interface IgStatus {
   comments_count?: number;
 }
 
+export interface IgDiagnosis {
+  account: {
+    ig_user_id: string;
+    ig_username: string | null;
+    page_id: string;
+    page_name: string | null;
+  };
+  checks: {
+    page_subscribed_to_messages: boolean;
+    page_subscribed_to_messaging_postbacks: boolean;
+    page_subscribed_to_comments: boolean;
+    token_has_instagram_basic: boolean;
+    token_has_instagram_manage_messages: boolean;
+    token_has_pages_messaging: boolean;
+    token_has_pages_manage_metadata: boolean;
+  };
+  subscribed_fields: string[];
+  token_permissions: Array<{ permission: string; status: string }>;
+  page_subscriptions_error: string | null;
+  permissions_error: string | null;
+  resubscribe_result: any;
+}
+
 export function useInstagramIntegration() {
   const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
@@ -88,7 +111,18 @@ export function useInstagramIntegration() {
         body: { action: "connect_account", ...account },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
-      toast.success(`Instagram @${account.ig_username} conectado`);
+      // The connect succeeds even if the webhook subscription failed — we
+      // store the account but warn loudly so the user knows DMs won't arrive
+      // until they fix the underlying permission issue (typically
+      // instagram_manage_messages not granted on the Meta App).
+      if (data?.subscribe_warning) {
+        toast.warning(
+          `Instagram @${account.ig_username} conectado, pero los DMs no llegarán: ${data.subscribe_warning}. Usa el botón "Diagnosticar" en el modal para más detalles.`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(`Instagram @${account.ig_username} conectado`);
+      }
       await checkStatus();
     } catch (e: any) {
       toast.error("Error al conectar Instagram: " + e.message);
@@ -96,6 +130,23 @@ export function useInstagramIntegration() {
       setConnecting(false);
     }
   }, [checkStatus]);
+
+  /**
+   * Run a deep diagnostic against Meta: which webhook fields is the page
+   * actually subscribed to? what permissions does our token have?  Returns
+   * a structured report so the UI can render an actionable checklist.
+   * Also re-attempts the `messages` subscription if it's missing.
+   */
+  const diagnose = useCallback(async (): Promise<IgDiagnosis | null> => {
+    const { data, error } = await supabase.functions.invoke("instagram-api", {
+      body: { action: "diagnose" },
+    });
+    if (error || data?.error) {
+      toast.error("Error al diagnosticar: " + (data?.error || error?.message));
+      return null;
+    }
+    return data as IgDiagnosis;
+  }, []);
 
   const disconnect = useCallback(async () => {
     const { error, data } = await supabase.functions.invoke("instagram-api", {
@@ -149,6 +200,7 @@ export function useInstagramIntegration() {
     sendDm,
     replyComment,
     listMedia,
+    diagnose,
     refresh: checkStatus,
   };
 }

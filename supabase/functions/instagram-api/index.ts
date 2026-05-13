@@ -108,7 +108,15 @@ Deno.serve(async (req) => {
         );
       if (error) throw error;
 
-      // Subscribe the page to messaging events (needed for IG DMs to arrive at webhook)
+      // Subscribe the page to messaging events (REQUIRED for IG DMs to arrive
+      // at the webhook).  This used to be best-effort with a silent warning,
+      // but that masked the most common failure mode in production: the user
+      // sees "Conectado" and wonders why DMs never come in.  Now we surface
+      // the exact Meta error so the user knows what permission/app review is
+      // missing.  The IG account row is still inserted so they can run the
+      // /diagnose action later, but we return a warning in the response.
+      let subscribeError: string | null = null;
+      let subscribeRaw: any = null;
       try {
         const subRes = await fetch(`${GRAPH_API}/${page_id}/subscribed_apps`, {
           method: "POST",
@@ -120,15 +128,136 @@ Deno.serve(async (req) => {
             subscribed_fields: "messages,messaging_postbacks,messaging_seen",
           }),
         });
-        const subData = await subRes.json();
-        console.log("connect_account → subscribed_apps:", JSON.stringify(subData));
-      } catch (e) {
-        console.warn("subscribe_apps failed (non-fatal):", e);
+        subscribeRaw = await subRes.json();
+        console.log("connect_account → subscribed_apps:", JSON.stringify(subscribeRaw));
+        if (subscribeRaw?.error) {
+          subscribeError = `${subscribeRaw.error.message} (código ${subscribeRaw.error.code})`;
+        } else if (subscribeRaw?.success !== true) {
+          subscribeError = "Meta no confirmó la suscripción (success != true)";
+        }
+      } catch (e: any) {
+        subscribeError = e?.message || "Falló la llamada a /subscribed_apps";
+        console.warn("subscribe_apps threw:", e);
       }
 
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          success: true,
+          subscribe_warning: subscribeError, // null if OK
+          subscribe_raw: subscribeRaw,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── DIAGNOSE the IG connection ────────────────────────────────────────────
+    // Calls Meta to check (a) what webhook fields the page is subscribed to,
+    // and (b) what permissions the token has.  Returns a structured report so
+    // the UI can render a checklist of what's working and what's missing.
+    if (action === "diagnose") {
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("ig_user_id, ig_username, page_id, page_name, page_access_token")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!account) throw new Error("Instagram no está conectado");
+
+      // (a) What is the page subscribed to?
+      let pageSubscriptions: any = null;
+      let pageSubsError: string | null = null;
+      try {
+        const r = await fetch(
+          `${GRAPH_API}/${account.page_id}/subscribed_apps?access_token=${account.page_access_token}`,
+        );
+        pageSubscriptions = await r.json();
+        if (pageSubscriptions?.error) {
+          pageSubsError = `${pageSubscriptions.error.message} (código ${pageSubscriptions.error.code})`;
+        }
+      } catch (e: any) {
+        pageSubsError = e?.message || "Error consultando subscribed_apps";
+      }
+
+      // (b) What permissions does the token have?
+      let tokenPermissions: any = null;
+      let permsError: string | null = null;
+      try {
+        const r = await fetch(
+          `${GRAPH_API}/me/permissions?access_token=${account.page_access_token}`,
+        );
+        tokenPermissions = await r.json();
+        if (tokenPermissions?.error) {
+          permsError = `${tokenPermissions.error.message} (código ${tokenPermissions.error.code})`;
+        }
+      } catch (e: any) {
+        permsError = e?.message || "Error consultando permissions";
+      }
+
+      // Helper: does a permission appear as "granted"?
+      const hasPermission = (perm: string): boolean => {
+        const list = tokenPermissions?.data || [];
+        return list.some((p: any) => p.permission === perm && p.status === "granted");
+      };
+
+      // Build the page-level subscribed fields set.  Meta returns one or
+      // more app entries, each with a subscribed_fields array.
+      const subscribedFields = new Set<string>();
+      for (const entry of pageSubscriptions?.data || []) {
+        for (const f of entry.subscribed_fields || []) {
+          // Each field can be a string OR an object {name: "messages", version: "v21"}
+          subscribedFields.add(typeof f === "string" ? f : f.name);
+        }
+      }
+
+      const checks = {
+        page_subscribed_to_messages: subscribedFields.has("messages"),
+        page_subscribed_to_messaging_postbacks: subscribedFields.has("messaging_postbacks"),
+        page_subscribed_to_comments: subscribedFields.has("comments"),
+        token_has_instagram_basic: hasPermission("instagram_basic"),
+        token_has_instagram_manage_messages: hasPermission("instagram_manage_messages"),
+        token_has_pages_messaging: hasPermission("pages_messaging"),
+        token_has_pages_manage_metadata: hasPermission("pages_manage_metadata"),
+      };
+
+      // Try to re-subscribe right now so the user doesn't have to disconnect/reconnect.
+      // Only do this if messages isn't currently subscribed.
+      let resubscribeResult: any = null;
+      if (!checks.page_subscribed_to_messages) {
+        try {
+          const r = await fetch(`${GRAPH_API}/${account.page_id}/subscribed_apps`, {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${account.page_access_token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              subscribed_fields: "messages,messaging_postbacks,messaging_seen",
+            }),
+          });
+          resubscribeResult = await r.json();
+          console.log("diagnose → resubscribe:", JSON.stringify(resubscribeResult));
+        } catch (e: any) {
+          resubscribeResult = { error: { message: e?.message || "fetch failed" } };
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          account: {
+            ig_user_id: account.ig_user_id,
+            ig_username: account.ig_username,
+            page_id: account.page_id,
+            page_name: account.page_name,
+          },
+          checks,
+          subscribed_fields: Array.from(subscribedFields),
+          token_permissions: tokenPermissions?.data || [],
+          page_subscriptions_error: pageSubsError,
+          permissions_error: permsError,
+          resubscribe_result: resubscribeResult,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ── DISCONNECT ────────────────────────────────────────────────────────────
