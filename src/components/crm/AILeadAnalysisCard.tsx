@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -67,6 +68,15 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
   }, [contactId]);
 
   useEffect(() => { fetchAnalysis(); }, [fetchAnalysis]);
+
+  // Realtime: refresh whenever the analysis row changes (e.g. another tab
+  // triggered an analysis, or the user applied/dismissed a suggestion).
+  useRealtimeRefresh({
+    table: "contact_ai_analyses",
+    filter: `contact_id=eq.${contactId}`,
+    channelKey: `ai-analysis-${contactId}`,
+    onChange: fetchAnalysis,
+  });
 
   const applyStageSuggestion = async () => {
     setApplyingStage(true);

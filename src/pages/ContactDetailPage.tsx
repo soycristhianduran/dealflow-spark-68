@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -15,6 +15,7 @@ import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Meg
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
 
@@ -93,17 +94,61 @@ export default function ContactDetailPage() {
     setActivities(a.data || []);
   };
 
+  // Re-fetches the contact row.  Extracted so the realtime hook can call it.
+  const refetchContact = useCallback(async () => {
+    if (!id) return;
+    const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+    setContact(data);
+  }, [id]);
+
   useEffect(() => {
     if (!id) return;
-    const fetchContact = async () => {
-      setLoading(true);
-      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-      setContact(data);
-      setLoading(false);
-    };
-    fetchContact();
+    setLoading(true);
+    refetchContact().finally(() => setLoading(false));
     fetchRelated();
-  }, [id]);
+  }, [id, refetchContact]);
+
+  // ── Realtime: keep the page in sync with DB changes ──────────────────────
+  // Contact row (score, status, etc.)
+  useRealtimeRefresh({
+    table: "contacts",
+    filter: `id=eq.${id}`,
+    channelKey: `contact-${id}`,
+    onChange: refetchContact,
+    enabled: !!id,
+  });
+  // Deals related to this contact (created, stage moved, etc.)
+  useRealtimeRefresh({
+    table: "deals",
+    filter: `contact_id=eq.${id}`,
+    channelKey: `contact-deals-${id}`,
+    onChange: fetchRelated,
+    enabled: !!id,
+  });
+  // Tasks (auto-created by AI, manual changes, etc.)
+  useRealtimeRefresh({
+    table: "tasks",
+    filter: `contact_id=eq.${id}`,
+    channelKey: `contact-tasks-${id}`,
+    onChange: fetchRelated,
+    enabled: !!id,
+  });
+  // Meetings
+  useRealtimeRefresh({
+    table: "meetings",
+    filter: `contact_id=eq.${id}`,
+    channelKey: `contact-meetings-${id}`,
+    onChange: fetchRelated,
+    enabled: !!id,
+  });
+  // Activities (timeline entries, new WhatsApp messages, etc.)
+  useRealtimeRefresh({
+    table: "activities",
+    filter: `related_entity_id=eq.${id}`,
+    channelKey: `contact-activities-${id}`,
+    onChange: fetchRelated,
+    enabled: !!id,
+  });
 
   if (loading) {
     return (

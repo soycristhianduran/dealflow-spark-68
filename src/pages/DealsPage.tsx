@@ -10,6 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 
 type DealRow = {
   id: string;
@@ -43,6 +44,14 @@ export default function DealsPage() {
   };
 
   useEffect(() => { fetchDeals(); }, []);
+
+  // Realtime: refresh whenever a deal changes (stage moved by AI suggestion,
+  // status updated, new deal created, etc.)
+  useRealtimeRefresh({
+    table: "deals",
+    channelKey: "deals-page-all",
+    onChange: fetchDeals,
+  });
 
   const filtered = deals.filter(d =>
     d.title.toLowerCase().includes(search.toLowerCase()) &&
