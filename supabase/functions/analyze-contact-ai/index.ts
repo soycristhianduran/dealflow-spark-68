@@ -15,7 +15,20 @@ const MAX_MESSAGES = 40;
  * strictly-typed JSON payload that we can store and combine with the
  * quantitative scoring system.
  */
-function buildSystemPrompt(): string {
+interface PipelineStageHint {
+  name: string;
+  order: number;
+  probability: number;
+  is_current: boolean;
+}
+
+function buildSystemPrompt(pipelineHint: PipelineStageHint[] | null): string {
+  const pipelineSection = pipelineHint && pipelineHint.length > 0
+    ? `\n\nUSER'S PIPELINE STAGES (in order):\n${pipelineHint.map((s, i) =>
+        `${i + 1}. "${s.name}" (close probability ${s.probability}%)${s.is_current ? '  ← CURRENT STAGE' : ''}`
+      ).join('\n')}\n\nWhen suggesting a stage, return the EXACT name of one of the stages above in "suggested_stage_name".\nOnly suggest a stage that is LATER in the order than the current one.  If the lead is not ready to advance, return null.\nIf no current stage is marked, suggest the most appropriate stage based on the conversation.`
+    : `\n\nThe user has not configured pipeline stages for this contact's deal.  Return "suggested_stage_name": null and focus on "next_best_action" and "suggested_task_title" instead.`;
+
   return `You are a Spanish-language sales lead analyzer for a B2B/B2C CRM. \
 You read recent conversations between a business and a prospect, and return a single JSON object \
 estimating how likely the prospect is to convert into a customer.
@@ -29,21 +42,26 @@ Output rules (STRICT):
     31-60  = warm (some interest, asking general questions, no commitment yet)
     61-85  = hot (strong interest, asking specific questions about price/features/timing)
     86-100 = ready to buy (explicit purchase intent, asked for payment link, set timeline)
+${pipelineSection}
 
 JSON schema:
 {
   "temperature": <integer 0-100>,
   "sentiment": "positive" | "neutral" | "negative" | "mixed",
   "buying_intent": "high" | "medium" | "low" | "none",
-  "signals_detected": <string[] max 5>,   // specific positive signals you saw (in Spanish)
-  "objections": <string[] max 3>,         // specific objections raised
-  "next_best_action": <string>,            // one concrete next action the sales rep should take
-  "reasoning": <string>                    // 1-2 sentence justification of the temperature
+  "signals_detected": <string[] max 5>,
+  "objections": <string[] max 3>,
+  "next_best_action": <string>,
+  "suggested_task_title": <string|null>,        // short (max 60 chars) actionable task title, or null if no urgent action
+  "suggested_stage_name": <string|null>,         // EXACT name from the pipeline above, or null
+  "suggested_stage_reasoning": <string|null>,    // 1 line WHY this stage, or null
+  "reasoning": <string>                          // 1-2 sentence justification of the temperature
 }
 
 Treat sarcasm, complaints, hostile messages, and price-shopping with no commitment as cold/warm at best.
 Treat 'cuánto cuesta', 'me interesa', 'cuando podemos hablar', 'mándame info' as warm-to-hot signals.
-Treat 'lo quiero', 'cuándo lo recibo', 'mándame el link de pago', 'ok lo compro' as ready-to-buy.`;
+Treat 'lo quiero', 'cuándo lo recibo', 'mándame el link de pago', 'ok lo compro' as ready-to-buy.
+For suggested_task_title use imperative voice ("Enviar propuesta", "Agendar llamada", "Mandar link de pago").`;
 }
 
 interface MsgRow {
@@ -94,6 +112,48 @@ Deno.serve(async (req) => {
     if (!contact) throw new Error("Contacto no encontrado");
     if (contact.owner_id && contact.owner_id !== user.id) {
       throw new Error("No tienes permiso sobre este contacto");
+    }
+
+    // ── Load pipeline stages context (most recent open deal of this contact) ─
+    let pipelineHint: PipelineStageHint[] | null = null;
+    let currentDealId: string | null = null;
+    let currentStageId: string | null = null;
+    let currentStageOrder = 0;
+    try {
+      const { data: openDeal } = await supabase
+        .from("deals")
+        .select("id, stage_id, pipeline_id")
+        .eq("contact_id", contact_id)
+        .not("status", "in", "(won,lost)")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (openDeal) {
+        currentDealId = openDeal.id;
+        currentStageId = openDeal.stage_id;
+
+        const { data: stages } = await supabase
+          .from("pipeline_stages")
+          .select("id, name, order, probability")
+          .eq("pipeline_id", openDeal.pipeline_id)
+          .order("order", { ascending: true });
+
+        if (stages && stages.length > 0) {
+          pipelineHint = stages.map((s: any) => {
+            const isCurrent = s.id === currentStageId;
+            if (isCurrent) currentStageOrder = s.order;
+            return {
+              name: s.name,
+              order: s.order,
+              probability: s.probability || 0,
+              is_current: isCurrent,
+            };
+          });
+        }
+      }
+    } catch (e) {
+      console.warn("Pipeline hint fetch failed (non-fatal):", e);
     }
 
     // WhatsApp messages
@@ -204,7 +264,7 @@ Deno.serve(async (req) => {
     const conversationText = formatMessagesForPrompt(trimmed, contact.full_name || "Lead");
 
     // ── Call OpenAI ───────────────────────────────────────────────────────────
-    const systemPrompt = buildSystemPrompt();
+    const systemPrompt = buildSystemPrompt(pipelineHint);
     const userPrompt = `Contact name: ${contact.full_name || "(sin nombre)"}\nStage: ${contact.status || "new"}\n\nRECENT CONVERSATION (chronological, oldest first):\n${conversationText}\n\nAnalyze the above and return the JSON object as specified.`;
 
     const openaiRes = await fetch(OPENAI_API, {
@@ -252,6 +312,75 @@ Deno.serve(async (req) => {
       ? parsed.objections.slice(0, 3).map((s: any) => String(s).substring(0, 200)) : [];
     const next_best_action = String(parsed.next_best_action || "").substring(0, 500);
     const reasoning = String(parsed.reasoning || "").substring(0, 500);
+    const suggested_task_title = parsed.suggested_task_title
+      ? String(parsed.suggested_task_title).substring(0, 100)
+      : null;
+
+    // ── Validate suggested stage against the pipeline we sent ────────────────
+    let suggested_stage_id: string | null = null;
+    let suggested_stage_reasoning: string | null = null;
+    if (parsed.suggested_stage_name && pipelineHint) {
+      const suggestedName = String(parsed.suggested_stage_name).trim();
+      const match = pipelineHint.find((s) => s.name.toLowerCase() === suggestedName.toLowerCase());
+      if (match) {
+        // VALIDATION A: name exists in the user's pipeline ✓
+        // VALIDATION B: only allow forward moves (higher order than current)
+        if (match.order > currentStageOrder) {
+          // Look up the actual stage_id from the user's deal's pipeline
+          const { data: stage } = await supabase
+            .from("pipeline_stages")
+            .select("id")
+            .eq("name", match.name)
+            .order("created_at", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+          if (stage) {
+            suggested_stage_id = stage.id;
+            suggested_stage_reasoning = parsed.suggested_stage_reasoning
+              ? String(parsed.suggested_stage_reasoning).substring(0, 300)
+              : null;
+          }
+        } else {
+          console.log(`Skipping stage suggestion "${suggestedName}" — not forward (order ${match.order} <= current ${currentStageOrder})`);
+        }
+      } else {
+        console.log(`LLM hallucinated stage "${suggestedName}" — not in pipeline, ignoring`);
+      }
+    }
+
+    // ── Optionally create a task from suggested_task_title (only if hot) ─────
+    let suggested_task_created_id: string | null = null;
+    if (suggested_task_title && temperature >= 50) {
+      // Don't duplicate: only create if no pending AI-source task already exists for this contact
+      const { data: existing } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("contact_id", contact_id)
+        .eq("source", "ai_suggestion")
+        .eq("status", "pending")
+        .maybeSingle();
+      if (!existing) {
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 1); // +24h
+        const { data: newTask } = await supabase
+          .from("tasks")
+          .insert({
+            title: suggested_task_title,
+            description: `Generada por IA. ${next_best_action}`,
+            task_type: "follow_up",
+            priority: temperature >= 80 ? "high" : "medium",
+            due_date: dueDate.toISOString().slice(0, 10),
+            status: "pending",
+            owner_id: contact.owner_id || user.id,
+            contact_id,
+            deal_id: currentDealId,
+            source: "ai_suggestion",
+          })
+          .select("id")
+          .single();
+        suggested_task_created_id = newTask?.id ?? null;
+      }
+    }
 
     // ── Persist ──────────────────────────────────────────────────────────────
     const { error: insertErr } = await supabase
@@ -267,6 +396,10 @@ Deno.serve(async (req) => {
           objections,
           next_best_action,
           reasoning,
+          suggested_stage_id,
+          suggested_stage_reasoning,
+          suggested_task_title,
+          suggested_task_created_id,
           messages_analyzed: trimmed.length,
           model_used: MODEL,
           tokens_used: openaiData.usage?.total_tokens || 0,
@@ -289,6 +422,10 @@ Deno.serve(async (req) => {
         objections,
         next_best_action,
         reasoning,
+        suggested_stage_id,
+        suggested_stage_reasoning,
+        suggested_task_title,
+        suggested_task_created_id,
         messages_analyzed: trimmed.length,
         tokens_used: openaiData.usage?.total_tokens || 0,
       },

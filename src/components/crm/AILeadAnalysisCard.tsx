@@ -20,6 +20,15 @@ interface AIAnalysis {
   reasoning: string | null;
   messages_analyzed: number;
   analyzed_at: string;
+  suggested_stage_id: string | null;
+  suggested_stage_reasoning: string | null;
+  suggested_task_title: string | null;
+  suggested_task_created_id: string | null;
+}
+
+interface StageInfo {
+  id: string;
+  name: string;
 }
 
 interface Props {
@@ -29,8 +38,10 @@ interface Props {
 
 export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
   const [analysis, setAnalysis] = useState<AIAnalysis | null>(null);
+  const [suggestedStage, setSuggestedStage] = useState<StageInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [applyingStage, setApplyingStage] = useState(false);
 
   const fetchAnalysis = useCallback(async () => {
     setLoading(true);
@@ -40,10 +51,47 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
       .eq("contact_id", contactId)
       .maybeSingle();
     setAnalysis(data as AIAnalysis | null);
+
+    // Resolve the suggested stage's name for display
+    if (data?.suggested_stage_id) {
+      const { data: stage } = await supabase
+        .from("pipeline_stages")
+        .select("id, name")
+        .eq("id", data.suggested_stage_id)
+        .maybeSingle();
+      setSuggestedStage(stage as StageInfo | null);
+    } else {
+      setSuggestedStage(null);
+    }
     setLoading(false);
   }, [contactId]);
 
   useEffect(() => { fetchAnalysis(); }, [fetchAnalysis]);
+
+  const applyStageSuggestion = async () => {
+    setApplyingStage(true);
+    try {
+      const { data, error } = await supabase.rpc("apply_ai_stage_suggestion", {
+        p_contact_id: contactId,
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error(data?.error || "No se pudo aplicar");
+      toast.success(`Lead movido a "${data.new_stage_name}"`);
+      await fetchAnalysis();
+    } catch (e: any) {
+      toast.error("Error: " + e.message);
+    } finally {
+      setApplyingStage(false);
+    }
+  };
+
+  const dismissStageSuggestion = async () => {
+    await supabase
+      .from("contact_ai_analyses")
+      .update({ suggested_stage_id: null })
+      .eq("contact_id", contactId);
+    await fetchAnalysis();
+  };
 
   const runAnalysis = async () => {
     setAnalyzing(true);
@@ -174,6 +222,58 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
           Intención de compra: {im.label}
         </Badge>
       </div>
+
+      {/* Stage suggestion banner — only shown when AI suggests a forward move */}
+      {analysis.suggested_stage_id && suggestedStage && (
+        <div className="rounded-lg border-2 border-orange-300 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30 p-3 space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-base leading-none">🔥</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-orange-900 dark:text-orange-200">
+                Sugerencia: avanzar a "{suggestedStage.name}"
+              </p>
+              {analysis.suggested_stage_reasoning && (
+                <p className="text-[11px] text-orange-800/80 dark:text-orange-300/80 mt-0.5">
+                  {analysis.suggested_stage_reasoning}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-1.5">
+            <Button
+              size="sm"
+              className="flex-1 h-7 text-xs gap-1 bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={applyStageSuggestion}
+              disabled={applyingStage}
+            >
+              {applyingStage ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
+              Aplicar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 text-xs"
+              onClick={dismissStageSuggestion}
+              disabled={applyingStage}
+            >
+              Ignorar
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Task created notification */}
+      {analysis.suggested_task_title && analysis.suggested_task_created_id && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/30 p-2.5 flex gap-2">
+          <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wide">
+              Tarea creada automáticamente
+            </p>
+            <p className="text-xs text-foreground mt-0.5">{analysis.suggested_task_title}</p>
+          </div>
+        </div>
+      )}
 
       {/* Reasoning */}
       {analysis.reasoning && (
