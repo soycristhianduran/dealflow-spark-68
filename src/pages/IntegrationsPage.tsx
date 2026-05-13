@@ -4,7 +4,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CalendarDays, MessageCircle, Facebook, Instagram, Music2, CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy, AlertTriangle } from "lucide-react";
+import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ const integrations: Integration[] = [
     id: "google-calendar",
     name: "Google Calendar",
     description: "Sincroniza tus citas y reuniones automáticamente con Google Calendar.",
-    icon: CalendarDays,
+    icon: GoogleCalendarIcon,
     color: "hsl(217, 91%, 60%)",
     features: [
       "Creación automática de eventos al agendar reuniones",
@@ -52,7 +53,7 @@ const integrations: Integration[] = [
     id: "facebook",
     name: "Facebook Ads",
     description: "Conecta tus páginas, formularios de leads, Messenger y campañas de Meta Ads.",
-    icon: Facebook,
+    icon: FacebookIcon,
     color: "hsl(221, 44%, 41%)",
     features: [
       "Selecciona tus páginas de Facebook",
@@ -73,7 +74,7 @@ const integrations: Integration[] = [
     id: "whatsapp",
     name: "WhatsApp Business",
     description: "Envía y recibe mensajes de WhatsApp directamente desde tu CRM.",
-    icon: MessageCircle,
+    icon: WhatsAppIcon,
     color: "hsl(142, 70%, 45%)",
     features: [
       "Envío de mensajes desde el CRM",
@@ -94,7 +95,7 @@ const integrations: Integration[] = [
     id: "instagram",
     name: "Instagram",
     description: "Recibe mensajes de Instagram Direct y gestiona leads desde la plataforma.",
-    icon: Instagram,
+    icon: InstagramIcon,
     color: "hsl(340, 75%, 55%)",
     features: [
       "Recepción de mensajes de Instagram Direct",
@@ -115,7 +116,7 @@ const integrations: Integration[] = [
     id: "tiktok",
     name: "TikTok Ads",
     description: "Integra TikTok Ads para capturar leads de tus campañas de video.",
-    icon: Music2,
+    icon: TikTokIcon,
     color: "hsl(0, 0%, 10%)",
     features: [
       "Captura de leads desde TikTok Lead Gen",
@@ -322,8 +323,10 @@ export default function IntegrationsPage() {
               >
                 <CardContent className="p-5 space-y-4">
                   <div className="flex items-start justify-between">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${integration.color}20` }}>
-                      <integration.icon className="h-5 w-5" style={{ color: integration.color }} />
+                    {/* Brand icons render their own colors via SVG gradients,
+                        so we render the bigger size and skip the tinted bg */}
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/30">
+                      <integration.icon size={32} />
                     </div>
                     <Badge
                       variant={isConnected ? "default" : "secondary"}
@@ -502,8 +505,8 @@ export default function IntegrationsPage() {
           <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl" style={{ backgroundColor: `${selectedIntegration.color}20` }}>
-                  <selectedIntegration.icon className="h-5 w-5" style={{ color: selectedIntegration.color }} />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/30">
+                  <selectedIntegration.icon size={32} />
                 </div>
                 <div>
                   <DialogTitle>{selectedIntegration.name}</DialogTitle>

@@ -12,9 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  MessageSquare, Instagram, Search, Send, Loader2, RefreshCw,
+  Search, Send, Loader2, RefreshCw,
   ExternalLink, MoreVertical, MailOpen, MessageCircle,
 } from "lucide-react";
+import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -319,12 +323,14 @@ export default function ConversationsPage() {
                 Todos ({counts.total})
               </FilterTab>
               <FilterTab active={channelFilter === "whatsapp"} onClick={() => setChannelFilter("whatsapp")}>
-                <MessageSquare className="h-3 w-3 inline mr-1 text-green-600" />
-                WA ({counts.wa})
+                <span className="inline-flex items-center gap-1">
+                  <WhatsAppIcon size={14} /> WA ({counts.wa})
+                </span>
               </FilterTab>
               <FilterTab active={channelFilter === "instagram"} onClick={() => setChannelFilter("instagram")}>
-                <Instagram className="h-3 w-3 inline mr-1 text-pink-600" />
-                IG ({counts.ig})
+                <span className="inline-flex items-center gap-1">
+                  <InstagramIcon size={14} /> IG ({counts.ig})
+                </span>
               </FilterTab>
             </div>
 
@@ -472,16 +478,9 @@ function FilterTab({
 }
 
 function ChannelBadge({ channel }: { channel: Channel }) {
-  if (channel === "whatsapp") {
-    return (
-      <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-950/50 flex items-center justify-center shrink-0">
-        <MessageSquare className="h-5 w-5 text-green-600" />
-      </div>
-    );
-  }
   return (
-    <div className="h-10 w-10 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 flex items-center justify-center shrink-0">
-      <Instagram className="h-5 w-5 text-white" />
+    <div className="h-10 w-10 rounded-full bg-muted/30 flex items-center justify-center shrink-0">
+      {channel === "whatsapp" ? <WhatsAppIcon size={28} /> : <InstagramIcon size={28} />}
     </div>
   );
 }
@@ -498,53 +497,41 @@ function ConvItem({
     .split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   return (
-    <button
-      onClick={onClick}
-      onContextMenu={(e) => { e.preventDefault(); onMarkUnread(); }}
-      title={conv.unread_count === 0 ? "Clic derecho para marcar como no leído" : undefined}
+    <div
       className={cn(
-        "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-b border-border/50",
+        "group relative flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-b border-border/50 cursor-pointer",
         selected && "bg-primary/5 border-l-2 border-l-primary",
       )}
+      onClick={onClick}
+      onContextMenu={(e) => { e.preventDefault(); if (conv.unread_count === 0) onMarkUnread(); }}
     >
-      {/* Avatar with channel badge overlay */}
+      {/* Avatar with brand-icon channel badge overlay */}
       <div className="relative shrink-0">
         {conv.avatar_url ? (
           <img src={conv.avatar_url} alt="" className="h-10 w-10 rounded-full" />
         ) : (
-          <div
-            className={cn(
-              "h-10 w-10 rounded-full flex items-center justify-center text-white font-semibold text-sm",
-              conv.channel === "whatsapp"
-                ? "bg-green-600"
-                : "bg-gradient-to-br from-pink-500 to-orange-500",
-            )}
-          >
-            {initials || (conv.channel === "whatsapp" ? <MessageSquare className="h-4 w-4" /> : <Instagram className="h-4 w-4" />)}
+          <div className="h-10 w-10 rounded-full bg-muted text-foreground flex items-center justify-center font-semibold text-sm">
+            {initials || "?"}
           </div>
         )}
-        {/* Channel icon badge in bottom-right of avatar */}
-        <div className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full border-2 border-background flex items-center justify-center">
-          {conv.channel === "whatsapp" ? (
-            <div className="h-3 w-3 rounded-full bg-green-600 flex items-center justify-center">
-              <MessageSquare className="h-2 w-2 text-white" />
-            </div>
-          ) : (
-            <div className="h-3 w-3 rounded-full bg-gradient-to-br from-pink-500 to-orange-500" />
-          )}
+        {/* Channel badge in bottom-right of avatar — uses real brand logo */}
+        <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden">
+          {conv.channel === "whatsapp" ? <WhatsAppIcon size={20} /> : <InstagramIcon size={20} />}
         </div>
       </div>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between gap-1">
-          <p className="font-medium text-sm truncate">{conv.display_name}</p>
+          <p className={cn("font-medium text-sm truncate", conv.unread_count > 0 && "font-bold")}>
+            {conv.display_name}
+          </p>
           <span className="text-[11px] text-muted-foreground shrink-0">
             {fmtConvTime(conv.last_message_time)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-1 mt-0.5">
-          <p className="text-xs text-muted-foreground truncate">
+          <p className={cn("text-xs truncate", conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
             {conv.last_direction === "outgoing" && <span className="text-primary/60">Tú: </span>}
             {conv.last_message || <span className="italic">Sin mensajes</span>}
           </p>
@@ -555,7 +542,31 @@ function ConvItem({
           )}
         </div>
       </div>
-    </button>
+
+      {/* Kebab menu — visible on hover or always on touch devices */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            onClick={(e) => e.stopPropagation()}
+            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 rounded-md flex items-center justify-center hover:bg-background"
+            aria-label="Acciones"
+          >
+            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+          {conv.unread_count > 0 ? (
+            <DropdownMenuItem onClick={onClick}>
+              <MailOpen className="h-3.5 w-3.5 mr-2" /> Marcar como leído
+            </DropdownMenuItem>
+          ) : (
+            <DropdownMenuItem onClick={onMarkUnread}>
+              <MessageCircle className="h-3.5 w-3.5 mr-2" /> Marcar como no leído
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
