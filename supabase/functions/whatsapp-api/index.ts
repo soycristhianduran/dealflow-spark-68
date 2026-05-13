@@ -1162,6 +1162,9 @@ Deno.serve(async (req) => {
         console.warn("Storage upload failed (non-fatal):", e);
       }
 
+      // Log incoming params so we can see what mime_type the client sent
+      console.log(`send_media INCOMING: mime=${mime_type}, mimeBase=${mimeBase}, filename=${safeFilename}, bytes=${bytes.length}`);
+
       // 2. Upload to Meta media endpoint → get media_id
       const formData = new FormData();
       formData.append("messaging_product", "whatsapp");
