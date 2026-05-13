@@ -28,6 +28,7 @@ import WhatsAppTemplatesPage from "./pages/WhatsAppTemplatesPage";
 import WhatsAppInboxPage from "./pages/WhatsAppInboxPage";
 import InstagramInboxPage from "./pages/InstagramInboxPage";
 import InstagramAutomationsPage from "./pages/InstagramAutomationsPage";
+import ConversationsPage from "./pages/ConversationsPage";
 import EmailCampaignsPage from "./pages/EmailCampaignsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
@@ -101,6 +102,7 @@ function WorkspaceRoutes() {
       <Route path="whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
       <Route path="instagram/inbox" element={<ProtectedRoute><InstagramInboxPage /></ProtectedRoute>} />
       <Route path="instagram/automations" element={<ProtectedRoute><InstagramAutomationsPage /></ProtectedRoute>} />
+      <Route path="conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
       <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
       <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
       <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />

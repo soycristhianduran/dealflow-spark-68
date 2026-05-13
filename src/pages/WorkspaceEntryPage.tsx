@@ -28,6 +28,7 @@ import WhatsAppTemplatesPage from "./WhatsAppTemplatesPage";
 import WhatsAppInboxPage from "./WhatsAppInboxPage";
 import InstagramInboxPage from "./InstagramInboxPage";
 import InstagramAutomationsPage from "./InstagramAutomationsPage";
+import ConversationsPage from "./ConversationsPage";
 import EmailCampaignsPage from "./EmailCampaignsPage";
 import AutomationsPage from "./AutomationsPage";
 import MorePage from "./MorePage";
@@ -103,6 +104,7 @@ export default function WorkspaceEntryPage() {
         <Route path="whatsapp/inbox" element={<P><WhatsAppInboxPage /></P>} />
         <Route path="instagram/inbox" element={<P><InstagramInboxPage /></P>} />
         <Route path="instagram/automations" element={<P><InstagramAutomationsPage /></P>} />
+        <Route path="conversations" element={<P><ConversationsPage /></P>} />
         <Route path="email-campaigns" element={<P><EmailCampaignsPage /></P>} />
         <Route path="automations" element={<P><AutomationsPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />

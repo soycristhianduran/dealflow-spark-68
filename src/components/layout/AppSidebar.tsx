@@ -18,9 +18,8 @@ const navItems = [
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
   { title: "Integraciones", url: "/integrations", icon: Plug },
   { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
-  { title: "WA Inbox", url: "/whatsapp/inbox", icon: MessageSquare },
+  { title: "Conversaciones", url: "/conversations", icon: MessageSquare },
   { title: "WA Plantillas", url: "/whatsapp/templates", icon: MessageSquare },
-  { title: "IG Inbox", url: "/instagram/inbox", icon: Instagram },
   { title: "IG Automatizaciones", url: "/instagram/automations", icon: Sparkles },
   { title: "Email Campañas", url: "/email-campaigns", icon: Mail },
   { title: "Automatizaciones", url: "/automations", icon: Zap },
@@ -65,11 +64,13 @@ export function AppSidebar() {
       {/* Main nav */}
       <nav className="flex-1 space-y-1 p-2 overflow-y-auto scrollbar-thin">
         {navItems.map((item) => {
-          // Per-link unread count for inbox items
+          // Single unified "Conversaciones" badge sums both channels.  The
+          // legacy /whatsapp/inbox and /instagram/inbox routes are still
+          // reachable by direct URL but no longer in the sidebar.
           const badge =
-            item.url === "/whatsapp/inbox" && waUnread > 0 ? waUnread :
-            item.url === "/instagram/inbox" && igUnread > 0 ? igUnread :
-            0;
+            item.url === "/conversations" && (waUnread + igUnread) > 0
+              ? waUnread + igUnread
+              : 0;
           return (
             <NavLink
               key={item.url}
