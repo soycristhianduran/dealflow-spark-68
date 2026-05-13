@@ -10,13 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  Search, Send, Loader2, RefreshCw, MoreVertical, MailOpen, MessageCircle,
+  Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
   Paperclip, Mic, X, FileText, AlertTriangle,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
 } from "@/components/crm/WhatsAppChatFeatures";
@@ -697,29 +694,30 @@ function ConvItem({
         </div>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button
-            onClick={(e) => e.stopPropagation()}
-            className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-muted hover:bg-muted-foreground/20 text-foreground border border-border transition-colors"
-            aria-label="Acciones"
-            title="Más acciones"
-          >
-            <MoreVertical className="h-4 w-4" />
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-          {conv.unread_count > 0 ? (
-            <DropdownMenuItem onClick={onClick}>
-              <MailOpen className="h-3.5 w-3.5 mr-2" /> Marcar como leído
-            </DropdownMenuItem>
-          ) : (
-            <DropdownMenuItem onClick={onMarkUnread}>
-              <MessageCircle className="h-3.5 w-3.5 mr-2" /> Marcar como no leído
-            </DropdownMenuItem>
-          )}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Quick action: toggle read/unread.
+          Direct one-click button with very visible styling so the user
+          never has to hunt for the option through a menu. */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (conv.unread_count > 0) onClick();
+          else onMarkUnread();
+        }}
+        className={cn(
+          "shrink-0 h-9 w-9 rounded-full flex items-center justify-center transition-all shadow-sm",
+          conv.unread_count > 0
+            ? "bg-primary text-primary-foreground hover:bg-primary/90"
+            : "bg-background text-foreground border-2 border-primary/40 hover:bg-primary/10 hover:border-primary",
+        )}
+        aria-label={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
+        title={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
+      >
+        {conv.unread_count > 0 ? (
+          <MailOpen className="h-4 w-4" />
+        ) : (
+          <MessageCircle className="h-4 w-4" />
+        )}
+      </button>
     </div>
   );
 }
