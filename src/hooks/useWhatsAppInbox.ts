@@ -129,9 +129,16 @@ export function useWhatsAppInbox() {
           c.phone_number === phone ? { ...c, unread_count: 0 } : c
         )
       );
-      // Persist read state in DB so it survives refresh
+      // Persist read state in DB so it survives refresh.
+      // Done as a direct UPDATE (no RPC) so RLS handles authorization and
+      // we don't depend on a server-side function existing.
       try {
-        await supabase.rpc("wa_mark_conversation_read", { p_phone: phone });
+        await supabase
+          .from("whatsapp_messages")
+          .update({ read_at: new Date().toISOString() })
+          .eq("phone_number", phone)
+          .eq("direction", "incoming")
+          .is("read_at", null);
       } catch (_) { /* non-fatal — at worst the badge comes back on refresh */ }
     },
     [fetchMessages]
@@ -139,9 +146,29 @@ export function useWhatsAppInbox() {
 
   // Manually mark a conversation as unread (sets the most recent incoming
   // message's read_at back to NULL so the badge re-appears).
+  // Implemented as a direct query (no RPC) for robustness.
   const markAsUnread = useCallback(async (phone: string) => {
     try {
-      await supabase.rpc("wa_mark_conversation_unread", { p_phone: phone });
+      // Find the most recent incoming message for this phone
+      const { data: latest, error: selErr } = await supabase
+        .from("whatsapp_messages")
+        .select("id")
+        .eq("phone_number", phone)
+        .eq("direction", "incoming")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (selErr) throw selErr;
+      if (!latest) {
+        toast.error("No hay mensajes entrantes para marcar como no leído");
+        return;
+      }
+      const { error: updErr } = await supabase
+        .from("whatsapp_messages")
+        .update({ read_at: null })
+        .eq("id", latest.id);
+      if (updErr) throw updErr;
+
       // Optimistic local update — bump unread count
       setConversations((prev) =>
         prev.map((c) =>
@@ -151,8 +178,9 @@ export function useWhatsAppInbox() {
       // If this is the currently-open conversation, clear selection so the
       // badge is visible (no real "unread while viewing" state)
       if (selectedPhone === phone) setSelectedPhone(null);
+      toast.success("Marcado como no leído");
     } catch (e: any) {
-      toast.error("Error al marcar como no leído: " + e.message);
+      toast.error("Error al marcar como no leído: " + (e?.message || "desconocido"));
     }
   }, [selectedPhone]);
 

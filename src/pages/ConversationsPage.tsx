@@ -220,12 +220,22 @@ export default function ConversationsPage() {
 
   const handleMarkUnread = useCallback(async (conv: UnifiedConversation) => {
     if (conv.unread_count > 0) return;
-    if (conv.channel === "whatsapp") await wa.markAsUnread(conv.id);
-    else {
-      await supabase.rpc("ig_mark_conversation_unread", { p_conversation_id: conv.id });
-      loadIgConversations();
+    try {
+      if (conv.channel === "whatsapp") {
+        await wa.markAsUnread(conv.id);
+      } else {
+        // Direct UPDATE — no RPC dependency. RLS filters by user_id.
+        const { error } = await supabase
+          .from("instagram_conversations")
+          .update({ unread_count: 1 })
+          .eq("id", conv.id);
+        if (error) throw error;
+        loadIgConversations();
+      }
+      if (selected?.channel === conv.channel && selected?.id === conv.id) setSelected(null);
+    } catch (e: any) {
+      toast.error("Error al marcar como no leído: " + (e?.message || "desconocido"));
     }
-    if (selected?.channel === conv.channel && selected?.id === conv.id) setSelected(null);
   }, [wa, selected, loadIgConversations]);
 
   // ── Messages ─────────────────────────────────────────────────────────────
