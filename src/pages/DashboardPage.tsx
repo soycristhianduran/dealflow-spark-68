@@ -7,7 +7,8 @@ import { useEffect, useState, useCallback } from "react";
 import {
   Users, Handshake, Trophy, XCircle, DollarSign,
   CalendarDays, CalendarCheck, CheckSquare,
-  TrendingUp, ArrowUpRight, UserPlus, Star, Loader2
+  TrendingUp, ArrowUpRight, UserPlus, Star, Loader2,
+  AlertTriangle
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -64,6 +65,32 @@ interface DealRow {
   stage_color: string | null;
 }
 
+interface ObjectionRow {
+  label: string;
+  count: number;
+}
+
+/**
+ * Normalize an objection string so semantically equivalent items collapse
+ * into a single bucket: trim, lowercase, strip punctuation/extra whitespace.
+ */
+function normalizeObjection(raw: string): string {
+  return raw
+    .toLowerCase()
+    .replace(/[.,;:!?¿¡"'`]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Title-case the first letter for display, leave the rest as the user wrote it
+ * (e.g. "precio muy alto" -> "Precio muy alto").
+ */
+function prettyObjection(normalized: string): string {
+  if (!normalized) return normalized;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 const eventTypeIcons: Record<string, string> = {
   call: '📞', whatsapp: '💬', email: '✉️', meeting: '📅',
   stage_change: '🔄', note: '📝', deal_created: '🤝', system: '⚙️', task_created: '✅'
@@ -82,6 +109,8 @@ export default function DashboardPage() {
   const [pendingTasks, setPendingTasks] = useState<TaskRow[]>([]);
   const [recentActivity, setRecentActivity] = useState<ActivityRow[]>([]);
   const [activeDeals, setActiveDeals] = useState<DealRow[]>([]);
+  const [topObjections, setTopObjections] = useState<ObjectionRow[]>([]);
+  const [objectionsAnalyzed, setObjectionsAnalyzed] = useState(0);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -108,6 +137,35 @@ export default function DashboardPage() {
       supabase.from("deals").select("id, title, value, currency, status, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
         .order("created_at", { ascending: false }).limit(10),
     ]);
+
+    // Top objections: fetch all AI analyses with non-empty objections.
+    // RLS already filters by user_id. We aggregate client-side because the
+    // dataset per workspace is small (one row per contact) and we avoid a
+    // dedicated SQL function / migration.
+    const objectionsRes = await supabase
+      .from("contact_ai_analyses")
+      .select("objections")
+      .not("objections", "is", null);
+
+    const counts = new Map<string, number>();
+    let analyzedCount = 0;
+    (objectionsRes.data || []).forEach((row: any) => {
+      const arr = Array.isArray(row.objections) ? row.objections : [];
+      if (arr.length === 0) return;
+      analyzedCount += 1;
+      arr.forEach((item: unknown) => {
+        if (typeof item !== "string") return;
+        const norm = normalizeObjection(item);
+        if (!norm) return;
+        counts.set(norm, (counts.get(norm) || 0) + 1);
+      });
+    });
+    const top = Array.from(counts.entries())
+      .map(([label, count]) => ({ label: prettyObjection(label), count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 6);
+    setTopObjections(top);
+    setObjectionsAnalyzed(analyzedCount);
 
     const contacts = contactsRes.data || [];
     const deals = dealsRes.data || [];
@@ -178,7 +236,14 @@ export default function DashboardPage() {
     { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays },
     { label: "Citas realizadas", value: stats.meetingsCompleted, icon: CalendarCheck },
     { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare },
+    {
+      label: "Objeciones detectadas",
+      value: topObjections.reduce((sum, o) => sum + o.count, 0),
+      icon: AlertTriangle,
+    },
   ];
+
+  const maxObjectionCount = topObjections[0]?.count || 0;
 
   if (loading) {
     return (
@@ -290,6 +355,54 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-warning" />
+              Objeciones principales
+              {objectionsAnalyzed > 0 && (
+                <span className="text-xs font-normal text-muted-foreground ml-1">
+                  · {objectionsAnalyzed} {objectionsAnalyzed === 1 ? 'lead analizado' : 'leads analizados'}
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {topObjections.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Aún no hay objeciones detectadas. Cuando la IA analice tus
+                conversaciones, las objeciones más frecuentes aparecerán aquí.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {topObjections.map((obj) => {
+                  const pct = maxObjectionCount > 0
+                    ? Math.round((obj.count / maxObjectionCount) * 100)
+                    : 0;
+                  return (
+                    <div key={obj.label} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground truncate pr-3">
+                          {obj.label}
+                        </span>
+                        <Badge variant="outline" className="text-xs shrink-0">
+                          {obj.count} {obj.count === 1 ? 'lead' : 'leads'}
+                        </Badge>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div
+                          className="h-full rounded-full bg-warning transition-all"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-3">
