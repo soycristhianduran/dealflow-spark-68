@@ -69,15 +69,28 @@ function MsgStatus({ status }: { status: string }) {
 
 // ── Conversation item ─────────────────────────────────────────────────────────
 function ConvItem({
-  conv, selected, onClick,
-}: { conv: WaConversation; selected: boolean; onClick: () => void }) {
+  conv, selected, onClick, onMarkUnread,
+}: {
+  conv: WaConversation;
+  selected: boolean;
+  onClick: () => void;
+  onMarkUnread: () => void;
+}) {
   const initials = conv.contact_name
     ? conv.contact_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : conv.phone_number.slice(-2);
 
+  // Right-click → mark as unread (when conversation has been read)
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (conv.unread_count === 0) onMarkUnread();
+  };
+
   return (
     <button
       onClick={onClick}
+      onContextMenu={handleContextMenu}
+      title={conv.unread_count === 0 ? "Clic derecho para marcar como no leído" : ""}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-b border-border/50",
         selected && "bg-primary/5 border-l-2 border-l-primary"
@@ -644,7 +657,7 @@ export default function WhatsAppInboxPage() {
   const {
     conversations, messages, selectedPhone,
     loadingConversations, loadingMessages, sending,
-    fetchConversations, selectConversation, setSelectedPhone,
+    fetchConversations, selectConversation, setSelectedPhone, markAsUnread,
     sendMessage, sendMedia, fetchMedia, sendTemplate,
   } = useWhatsAppInbox();
 
@@ -947,6 +960,7 @@ export default function WhatsAppInboxPage() {
                   conv={conv}
                   selected={conv.phone_number === selectedPhone}
                   onClick={() => selectConversation(conv.phone_number)}
+                  onMarkUnread={() => markAsUnread(conv.phone_number)}
                 />
               ))
             )}

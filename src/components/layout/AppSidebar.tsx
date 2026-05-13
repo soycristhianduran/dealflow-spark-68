@@ -6,6 +6,7 @@ import {
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { path } = useWorkspace();
+  const { waUnread, igUnread } = useUnreadCounts();
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -62,21 +64,40 @@ export function AppSidebar() {
 
       {/* Main nav */}
       <nav className="flex-1 space-y-1 p-2 overflow-y-auto scrollbar-thin">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.url}
-            to={path(item.url)}
-            end={item.url === "/"}
-            className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              collapsed && "justify-center px-2"
-            )}
-            activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
-          >
-            <item.icon className="h-4 w-4 shrink-0" />
-            {!collapsed && <span>{item.title}</span>}
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          // Per-link unread count for inbox items
+          const badge =
+            item.url === "/whatsapp/inbox" && waUnread > 0 ? waUnread :
+            item.url === "/instagram/inbox" && igUnread > 0 ? igUnread :
+            0;
+          return (
+            <NavLink
+              key={item.url}
+              to={path(item.url)}
+              end={item.url === "/"}
+              className={cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground relative",
+                collapsed && "justify-center px-2"
+              )}
+              activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
+            >
+              <item.icon className="h-4 w-4 shrink-0" />
+              {!collapsed && <span className="flex-1">{item.title}</span>}
+              {badge > 0 && (
+                <span
+                  className={cn(
+                    "flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none",
+                    collapsed
+                      ? "absolute top-1 right-1 h-4 min-w-[1rem] px-1"
+                      : "h-5 min-w-[1.25rem] px-1.5"
+                  )}
+                >
+                  {badge > 99 ? "99+" : badge}
+                </span>
+              )}
+            </NavLink>
+          );
+        })}
       </nav>
 
       {/* Bottom */}

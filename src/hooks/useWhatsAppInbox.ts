@@ -38,7 +38,7 @@ export function useWhatsAppInbox() {
     try {
       const { data: msgs, error } = await supabase
         .from("whatsapp_messages")
-        .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at")
+        .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at, read_at")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -60,7 +60,8 @@ export function useWhatsAppInbox() {
             unread_count: 0,
           });
         }
-        if (msg.direction === "incoming" && msg.status === "received") {
+        // Unread = incoming message where read_at is NULL (persisted in DB)
+        if (msg.direction === "incoming" && !(msg as any).read_at) {
           const c = phoneMap.get(phone)!;
           c.unread_count += 1;
         }
@@ -119,18 +120,41 @@ export function useWhatsAppInbox() {
   }, []);
 
   const selectConversation = useCallback(
-    (phone: string) => {
+    async (phone: string) => {
       setSelectedPhone(phone);
       fetchMessages(phone);
-      // Clear unread for this phone locally
+      // Optimistic local clear
       setConversations((prev) =>
         prev.map((c) =>
           c.phone_number === phone ? { ...c, unread_count: 0 } : c
         )
       );
+      // Persist read state in DB so it survives refresh
+      try {
+        await supabase.rpc("wa_mark_conversation_read", { p_phone: phone });
+      } catch (_) { /* non-fatal — at worst the badge comes back on refresh */ }
     },
     [fetchMessages]
   );
+
+  // Manually mark a conversation as unread (sets the most recent incoming
+  // message's read_at back to NULL so the badge re-appears).
+  const markAsUnread = useCallback(async (phone: string) => {
+    try {
+      await supabase.rpc("wa_mark_conversation_unread", { p_phone: phone });
+      // Optimistic local update — bump unread count
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.phone_number === phone ? { ...c, unread_count: Math.max(1, c.unread_count) } : c,
+        ),
+      );
+      // If this is the currently-open conversation, clear selection so the
+      // badge is visible (no real "unread while viewing" state)
+      if (selectedPhone === phone) setSelectedPhone(null);
+    } catch (e: any) {
+      toast.error("Error al marcar como no leído: " + e.message);
+    }
+  }, [selectedPhone]);
 
   const sendMessage = useCallback(
     async (phone: string, message: string, contactId?: string | null) => {
@@ -415,6 +439,7 @@ export function useWhatsAppInbox() {
     fetchConversations,
     selectConversation,
     setSelectedPhone,
+    markAsUnread,
     sendMessage,
     sendMedia,
     fetchMedia,

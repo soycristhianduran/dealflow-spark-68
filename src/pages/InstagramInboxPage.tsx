@@ -99,6 +99,19 @@ export default function InstagramInboxPage() {
     }
   }, []);
 
+  // Manual "mark as unread" for IG conversations
+  const markAsUnread = useCallback(async (convId: string) => {
+    try {
+      await supabase.rpc("ig_mark_conversation_unread", { p_conversation_id: convId });
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, unread_count: Math.max(1, c.unread_count) } : c)),
+      );
+      if (selectedConv?.id === convId) setSelectedConv(null);
+    } catch (e: any) {
+      toast.error("Error al marcar como no leído: " + e.message);
+    }
+  }, [selectedConv]);
+
   useEffect(() => {
     if (selectedConv) loadMessages(selectedConv);
     else setMessages([]);
@@ -241,6 +254,11 @@ export default function InstagramInboxPage() {
                       selectedConv?.id === conv.id ? "bg-muted" : ""
                     }`}
                     onClick={() => setSelectedConv(conv)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      if (conv.unread_count === 0) markAsUnread(conv.id);
+                    }}
+                    title={conv.unread_count === 0 ? "Clic derecho para marcar como no leído" : ""}
                   >
                     {conv.participant_profile_pic ? (
                       <img src={conv.participant_profile_pic} alt="" className="h-10 w-10 rounded-full shrink-0" />
