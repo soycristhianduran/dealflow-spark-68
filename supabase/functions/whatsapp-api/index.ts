@@ -1140,7 +1140,21 @@ Deno.serve(async (req) => {
       const bytes = new Uint8Array(binaryStr.length);
       for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
 
-      const mimeBase = mime_type.split(";")[0].trim();
+      // Normalize non-standard mime types to what Meta accepts.  Browsers
+      // commonly mislabel files with vendor-specific prefixes (audio/x-m4a)
+      // or aliases (audio/x-wav, image/jpg) that Meta's strict validator
+      // rejects.  Map them to the canonical form before uploading.
+      const MIME_ALIASES: Record<string, string> = {
+        "audio/x-m4a": "audio/mp4",
+        "audio/m4a": "audio/mp4",
+        "audio/x-aac": "audio/aac",
+        "audio/mp3": "audio/mpeg",
+        "audio/x-wav": "audio/wav",      // wav not supported by Meta — will error explicitly later
+        "image/jpg": "image/jpeg",
+        "image/x-png": "image/png",
+      };
+      const rawMimeBase = mime_type.split(";")[0].trim().toLowerCase();
+      const mimeBase = MIME_ALIASES[rawMimeBase] || rawMimeBase;
       const ext = getExtFromMime(mimeBase);
       const safeFilename = filename || `media.${ext}`;
 
