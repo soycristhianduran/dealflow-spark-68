@@ -543,15 +543,16 @@ function ConvItem({
         </div>
       </div>
 
-      {/* Kebab menu — visible on hover or always on touch devices */}
+      {/* Kebab menu — always visible (subtle, gets emphasis on hover) */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 rounded-md flex items-center justify-center hover:bg-background"
+            className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-background transition-colors"
             aria-label="Acciones"
+            title="Más acciones"
           >
-            <MoreVertical className="h-4 w-4 text-muted-foreground" />
+            <MoreVertical className="h-4 w-4" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
