@@ -21,6 +21,15 @@ import {
   AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
 } from "@/components/crm/WhatsAppChatFeatures";
 import { ensureWhatsAppCompatibleImage } from "@/lib/image-convert";
+// opus-recorder produces native ogg/opus audio — the exact format WhatsApp
+// uses for voice notes.  We use it instead of the browser MediaRecorder
+// (which on Chrome produces fragmented mp4 audio that Meta accepts at upload
+// time but silently drops when trying to deliver it to the recipient).
+// @ts-expect-error — opus-recorder ships without bundled types
+import Recorder from "opus-recorder";
+// Vite serves the worker file from node_modules at runtime via ?url.
+// @ts-expect-error — Vite asset URL import
+import opusEncoderPath from "opus-recorder/dist/encoderWorker.min.js?url";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -94,11 +103,11 @@ export default function ConversationsPage() {
   // Template picker (WhatsApp only)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
-  // Voice recording state (WhatsApp only)
+  // Voice recording state (WhatsApp only) — uses opus-recorder for native
+  // ogg/opus output that WhatsApp delivers cleanly to recipients.
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const recorderRef = useRef<any>(null);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -274,84 +283,83 @@ export default function ConversationsPage() {
     }
   };
 
-  // ── Audio recording (WhatsApp only) ───────────────────────────────────────
+  // ── Audio recording (WhatsApp only, via opus-recorder) ────────────────────
   const startRecording = useCallback(async () => {
     if (!selected || selected.channel !== "whatsapp") return;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Priority: Meta accepts audio/ogg, audio/mp4, audio/aac, audio/mpeg, audio/amr, audio/opus.
-      // Meta does NOT accept audio/webm.  Most Chrome versions support ogg/opus in MediaRecorder;
-      // Safari supports mp4.  Try in order of Meta compatibility, never falling back to webm
-      // (which would record but fail at Meta's upload endpoint).
-      const candidates = [
-        "audio/ogg;codecs=opus",
-        "audio/ogg",
-        "audio/mp4",
-        "audio/mpeg",
-      ];
-      const mimeType = candidates.find((m) => MediaRecorder.isTypeSupported(m));
-      if (!mimeType) {
-        toast.error("Tu navegador no soporta ningún formato de audio compatible con WhatsApp. Usa Chrome o Safari recientes.");
-        return;
-      }
-      const mr = new MediaRecorder(stream, { mimeType });
-      audioChunksRef.current = [];
-      mr.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      mr.start(200);
-      mediaRecorderRef.current = mr;
+      const rec = new Recorder({
+        encoderPath: opusEncoderPath,
+        encoderApplication: 2048,   // VOIP — optimized for speech
+        encoderFrameSize: 20,
+        encoderSampleRate: 48000,
+        numberOfChannels: 1,
+        bitRate: 32000,             // 32 kbps mono — good speech quality, small file
+        streamPages: false,         // single final blob is easier to handle
+      });
+
+      await rec.start();
+      recorderRef.current = rec;
       setRecording(true);
       setRecSeconds(0);
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
-      toast.error("Micrófono no disponible: " + e.message);
+      console.error("opus-recorder start failed:", e);
+      toast.error("Micrófono no disponible: " + (e?.message || e));
     }
   }, [selected]);
 
   const stopAndSendRecording = useCallback(async () => {
-    const mr = mediaRecorderRef.current;
-    if (!mr || !selected) return;
+    const rec = recorderRef.current;
+    if (!rec || !selected) return;
     if (recTimerRef.current) clearInterval(recTimerRef.current);
     setRecording(false);
-    await new Promise<void>((resolve) => {
-      mr.onstop = async () => {
-        mr.stream.getTracks().forEach((t) => t.stop());
-        const mimeType = mr.mimeType || "audio/webm";
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        audioChunksRef.current = [];
-        if (blob.size < 500) { resolve(); return; }
-        try {
-          const base64 = await new Promise<string>((res) => {
-            const reader = new FileReader();
-            reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
-            reader.readAsDataURL(blob);
-          });
-          const baseMime = mimeType.split(";")[0].trim();
-          const ext = baseMime.includes("ogg") ? "ogg" : baseMime.includes("mp4") ? "mp4" : "webm";
-          const fname = `voice-${Date.now()}.${ext}`;
-          await wa.sendMedia(selected.id, base64, baseMime, fname, selected.contact_id);
-        } catch (e: any) {
-          toast.error("Error al enviar audio: " + e.message);
-        }
-        resolve();
+
+    // Wait for the final encoded blob from the worker
+    const oggBlob: Blob = await new Promise((resolve) => {
+      let resolved = false;
+      rec.ondataavailable = (chunk: Uint8Array) => {
+        if (resolved) return;
+        resolved = true;
+        // ondataavailable in non-streaming mode fires once with the full file
+        resolve(new Blob([chunk], { type: "audio/ogg;codecs=opus" }));
       };
-      mr.stop();
+      rec.stop();
     });
+    recorderRef.current = null;
+
+    if (oggBlob.size < 500) return;
+
+    try {
+      const base64 = await new Promise<string>((res, rej) => {
+        const reader = new FileReader();
+        reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
+        reader.onerror = rej;
+        reader.readAsDataURL(oggBlob);
+      });
+      const fname = `voice-${Date.now()}.ogg`;
+      await wa.sendMedia(selected.id, base64, "audio/ogg", fname, selected.contact_id);
+    } catch (e: any) {
+      toast.error("Error al enviar audio: " + e.message);
+    }
   }, [selected, wa]);
 
   const cancelRecording = useCallback(() => {
-    const mr = mediaRecorderRef.current;
-    if (!mr) return;
-    if (recTimerRef.current) clearInterval(recTimerRef.current);
-    mr.onstop = () => { mr.stream.getTracks().forEach((t) => t.stop()); };
-    try { mr.stop(); } catch (_) { /* ignore */ }
-    audioChunksRef.current = [];
+    const rec = recorderRef.current;
+    if (rec) {
+      if (recTimerRef.current) clearInterval(recTimerRef.current);
+      rec.ondataavailable = () => { /* discard */ };
+      try { rec.stop(); } catch (_) { /* ignore */ }
+      recorderRef.current = null;
+    }
     setRecording(false);
     setRecSeconds(0);
   }, []);
 
   useEffect(() => () => {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
-    mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+    if (recorderRef.current) {
+      try { recorderRef.current.stop(); } catch (_) { /* ignore */ }
+    }
   }, []);
 
   // ── Media file upload (WhatsApp only) ─────────────────────────────────────
