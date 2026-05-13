@@ -25,11 +25,15 @@ import { ensureWhatsAppCompatibleImage } from "@/lib/image-convert";
 // uses for voice notes.  We use it instead of the browser MediaRecorder
 // (which on Chrome produces fragmented mp4 audio that Meta accepts at upload
 // time but silently drops when trying to deliver it to the recipient).
+//
+// The encoder worker file is served from /opus-encoder-worker.js (copied
+// from node_modules/opus-recorder/dist/encoderWorker.min.js to public/ at
+// build time).  We avoid Vite's ?url import here because the resulting URL
+// includes a hash that's awkward to pass into the library's worker loader.
 // @ts-expect-error — opus-recorder ships without bundled types
 import Recorder from "opus-recorder";
-// Vite serves the worker file from node_modules at runtime via ?url.
-// @ts-expect-error — Vite asset URL import
-import opusEncoderPath from "opus-recorder/dist/encoderWorker.min.js?url";
+
+const OPUS_ENCODER_WORKER_PATH = "/opus-encoder-worker.js";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -288,7 +292,7 @@ export default function ConversationsPage() {
     if (!selected || selected.channel !== "whatsapp") return;
     try {
       const rec = new Recorder({
-        encoderPath: opusEncoderPath,
+        encoderPath: OPUS_ENCODER_WORKER_PATH,
         encoderApplication: 2048,   // VOIP — optimized for speech
         encoderFrameSize: 20,
         encoderSampleRate: 48000,
