@@ -676,13 +676,16 @@ function ConvItem({
         </div>
       </div>
 
+      {/* Middle column: name + preview.
+          min-w-0 on every level so that long text triggers the truncate
+          ellipsis instead of pushing the right-side action button off-screen. */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-1">
-          <p className={cn("font-medium text-sm truncate", conv.unread_count > 0 && "font-bold")}>{conv.display_name}</p>
+        <div className="flex items-center justify-between gap-1 min-w-0">
+          <p className={cn("font-medium text-sm truncate min-w-0", conv.unread_count > 0 && "font-bold")}>{conv.display_name}</p>
           <span className="text-[11px] text-muted-foreground shrink-0">{fmtConvTime(conv.last_message_time)}</span>
         </div>
-        <div className="flex items-center justify-between gap-1 mt-0.5">
-          <p className={cn("text-xs truncate", conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
+        <div className="flex items-center justify-between gap-1 mt-0.5 min-w-0">
+          <p className={cn("text-xs truncate min-w-0", conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
             {conv.last_direction === "outgoing" && <span className="text-primary/60">Tú: </span>}
             {conv.last_message || <span className="italic">Sin mensajes</span>}
           </p>
