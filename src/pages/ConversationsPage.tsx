@@ -543,13 +543,14 @@ function ConvItem({
         </div>
       </div>
 
-      {/* Kebab menu — always visible (subtle, gets emphasis on hover) */}
+      {/* Kebab menu — always visible with high-contrast background so users
+          can find it without hovering. */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             onClick={(e) => e.stopPropagation()}
-            className="shrink-0 h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground/60 hover:text-foreground hover:bg-background transition-colors"
-            aria-label="Acciones"
+            className="shrink-0 h-8 w-8 rounded-full flex items-center justify-center bg-muted hover:bg-muted-foreground/20 text-foreground border border-border transition-colors"
+            aria-label="Acciones de conversación"
             title="Más acciones"
           >
             <MoreVertical className="h-4 w-4" />
