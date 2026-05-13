@@ -654,16 +654,23 @@ function ConvItem({
 }) {
   const initials = conv.display_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
+  const isUnread = conv.unread_count > 0;
+
   return (
     <div
       className={cn(
-        "group relative flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-b border-border/50 cursor-pointer",
+        "group relative w-full px-3 py-3 text-left transition-colors hover:bg-accent border-b border-border/50 cursor-pointer",
+        // Explicit 3-column grid: avatar (fixed) | content (flex) | action (fixed).
+        // Grid columns force the action button into its own reserved space so
+        // it can never be clipped or pushed off-screen by long preview text.
+        "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3",
         selected && "bg-primary/5 border-l-2 border-l-primary",
       )}
       onClick={onClick}
-      onContextMenu={(e) => { e.preventDefault(); if (conv.unread_count === 0) onMarkUnread(); }}
+      onContextMenu={(e) => { e.preventDefault(); if (!isUnread) onMarkUnread(); }}
     >
-      <div className="relative shrink-0">
+      {/* Col 1: avatar */}
+      <div className="relative h-10 w-10">
         {conv.avatar_url ? (
           <img src={conv.avatar_url} alt="" className="h-10 w-10 rounded-full" />
         ) : (
@@ -676,20 +683,18 @@ function ConvItem({
         </div>
       </div>
 
-      {/* Middle column: name + preview.
-          min-w-0 on every level so that long text triggers the truncate
-          ellipsis instead of pushing the right-side action button off-screen. */}
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between gap-1 min-w-0">
-          <p className={cn("font-medium text-sm truncate min-w-0", conv.unread_count > 0 && "font-bold")}>{conv.display_name}</p>
+      {/* Col 2: name + preview. min-w-0 on grid column already enforced by minmax(0,1fr). */}
+      <div className="overflow-hidden">
+        <div className="flex items-center justify-between gap-2">
+          <p className={cn("font-medium text-sm truncate", isUnread && "font-bold")}>{conv.display_name}</p>
           <span className="text-[11px] text-muted-foreground shrink-0">{fmtConvTime(conv.last_message_time)}</span>
         </div>
-        <div className="flex items-center justify-between gap-1 mt-0.5 min-w-0">
-          <p className={cn("text-xs truncate min-w-0", conv.unread_count > 0 ? "text-foreground font-medium" : "text-muted-foreground")}>
+        <div className="flex items-center justify-between gap-2 mt-0.5">
+          <p className={cn("text-xs truncate", isUnread ? "text-foreground font-medium" : "text-muted-foreground")}>
             {conv.last_direction === "outgoing" && <span className="text-primary/60">Tú: </span>}
             {conv.last_message || <span className="italic">Sin mensajes</span>}
           </p>
-          {conv.unread_count > 0 && (
+          {isUnread && (
             <Badge className="h-4 min-w-[1rem] px-1 text-[10px] bg-red-500 text-white rounded-full shrink-0">
               {conv.unread_count}
             </Badge>
@@ -697,25 +702,23 @@ function ConvItem({
         </div>
       </div>
 
-      {/* Quick action: toggle read/unread.
-          Solid-colored pill button with text label — impossible to miss
-          regardless of light/dark theme or row content. */}
+      {/* Col 3: quick action pill. */}
       <button
         onClick={(e) => {
           e.stopPropagation();
-          if (conv.unread_count > 0) onClick();
+          if (isUnread) onClick();
           else onMarkUnread();
         }}
         className={cn(
-          "shrink-0 inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all shadow-sm",
-          conv.unread_count > 0
+          "inline-flex items-center gap-1 h-8 px-2.5 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all shadow-sm",
+          isUnread
             ? "bg-emerald-500 text-white hover:bg-emerald-600"
-            : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600 dark:hover:bg-emerald-900/30",
+            : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700",
         )}
-        aria-label={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
-        title={conv.unread_count > 0 ? "Marcar como leído" : "Marcar como no leído"}
+        aria-label={isUnread ? "Marcar como leído" : "Marcar como no leído"}
+        title={isUnread ? "Marcar como leído" : "Marcar como no leído"}
       >
-        {conv.unread_count > 0 ? (
+        {isUnread ? (
           <>
             <MailOpen className="h-3.5 w-3.5" />
             <span>Leer</span>
