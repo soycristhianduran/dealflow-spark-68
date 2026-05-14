@@ -7,6 +7,12 @@ const corsHeaders = {
 };
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
+const IG_GRAPH_API = "https://graph.instagram.com/v21.0";
+
+/** IG Business Login tokens ("IGAA...") must use graph.instagram.com. */
+function graphHostForToken(token: string | undefined | null): string {
+  return token && token.startsWith("IGAA") ? IG_GRAPH_API : GRAPH_API;
+}
 
 const STANDARD_COLUMNS = new Set([
   "full_name", "first_name", "last_name", "primary_email", "primary_phone",
@@ -349,7 +355,7 @@ async function resolveIgParticipantInfo(
 
   try {
     const r = await fetch(
-      `${GRAPH_API}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(pageAccessToken)}`,
+      `${graphHostForToken(pageAccessToken)}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(pageAccessToken)}`,
     );
     const data = await r.json();
     if (data.error) {
@@ -691,9 +697,17 @@ Deno.serve(async (req) => {
     const token = (url.searchParams.get("hub.verify_token") || "").trim();
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = (Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN") || "").trim();
+    // Accept any of the configured verify tokens — supports multiple Meta
+    // apps subscribing to the same webhook URL (one for FB Ads/Leads, a
+    // separate one for IG messaging that the old app couldn't host).
+    const VERIFY_TOKENS = [
+      Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN"),
+      Deno.env.get("IG_WEBHOOK_VERIFY_TOKEN"),
+    ]
+      .map((t) => (t || "").trim())
+      .filter((t) => t.length > 0);
 
-    if (mode === "subscribe" && token === VERIFY_TOKEN && VERIFY_TOKEN.length > 0) {
+    if (mode === "subscribe" && VERIFY_TOKENS.includes(token)) {
       console.log("Webhook verified successfully");
       return new Response(challenge, { status: 200 });
     }
@@ -709,15 +723,30 @@ Deno.serve(async (req) => {
   const rawBody = await req.text();
 
   // ----- Signature validation -----
-  const APP_SECRET = Deno.env.get("META_APP_SECRET");
-  if (!APP_SECRET) {
-    console.error("META_APP_SECRET not configured — rejecting webhook");
+  // We support multiple Meta apps hitting the same webhook URL (current setup:
+  // one app for FB Ads/Threads, a second app dedicated to IG messaging because
+  // Meta's "use case" model makes Marketing API and IG messaging incompatible
+  // in the same app).  Try every configured secret until one matches — the
+  // first one that does identifies which app sent the event.
+  const APP_SECRETS = [
+    Deno.env.get("META_APP_SECRET"),
+    Deno.env.get("META_APP_SECRET_IG"),
+  ].filter((s): s is string => !!s);
+
+  if (APP_SECRETS.length === 0) {
+    console.error("No META_APP_SECRET* configured — rejecting webhook");
     return new Response("Server misconfigured", { status: 500 });
   }
   const signature = req.headers.get("x-hub-signature-256");
-  const valid = await verifySignature(rawBody, signature, APP_SECRET);
+  let valid = false;
+  for (const secret of APP_SECRETS) {
+    if (await verifySignature(rawBody, signature, secret)) {
+      valid = true;
+      break;
+    }
+  }
   if (!valid) {
-    console.error("Invalid webhook signature", { signaturePresent: !!signature });
+    console.error("Invalid webhook signature against all configured secrets", { signaturePresent: !!signature });
     return new Response("Invalid signature", { status: 401 });
   }
 

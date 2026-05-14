@@ -6,7 +6,23 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Facebook Graph (used when the access token comes from a Facebook Login flow,
+// tokens that start with "EAA").  Old IG connections + page management calls.
 const GRAPH_API = "https://graph.facebook.com/v21.0";
+// Instagram Graph (used when the access token comes from Instagram Business
+// Login, tokens that start with "IGAA").  Required for the new dedicated
+// Instagram-only Meta App that hosts our messaging capability.
+const IG_GRAPH_API = "https://graph.instagram.com/v21.0";
+
+/**
+ * Choose the correct Graph host for a given token.  IG Business Login tokens
+ * ("IGAA..." prefix) must use graph.instagram.com — graph.facebook.com
+ * returns "Cannot parse access token" for them.  Page access tokens from
+ * Facebook Login keep using graph.facebook.com.
+ */
+function graphHostForToken(token: string | undefined | null): string {
+  return token && token.startsWith("IGAA") ? IG_GRAPH_API : GRAPH_API;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -286,7 +302,7 @@ Deno.serve(async (req) => {
       for (const conv of unresolved || []) {
         try {
           const r = await fetch(
-            `${GRAPH_API}/${conv.participant_id}?fields=name,username,profile_pic&access_token=${encodeURIComponent(account.page_access_token)}`,
+            `${graphHostForToken(account.page_access_token)}/${conv.participant_id}?fields=name,username,profile_pic&access_token=${encodeURIComponent(account.page_access_token)}`,
           );
           const data = await r.json();
           if (data.error || (!data.username && !data.name)) {
@@ -386,7 +402,7 @@ Deno.serve(async (req) => {
       if (!account) throw new Error("Instagram no está conectado");
 
       // POST /{ig-user-id}/messages
-      const res = await fetch(`${GRAPH_API}/${account.ig_user_id}/messages`, {
+      const res = await fetch(`${graphHostForToken(account.page_access_token)}/${account.ig_user_id}/messages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${account.page_access_token}`,
@@ -495,7 +511,8 @@ Deno.serve(async (req) => {
       console.log(`send_dm_media: type=${attachmentType} mime=${mimeBase} url=${publicUrl}`);
 
       // Send the attachment via Meta IG Messaging API.
-      const res = await fetch(`${GRAPH_API}/${account.ig_user_id}/messages`, {
+      // Use graph.instagram.com for IGAA tokens (new dedicated IG app).
+      const res = await fetch(`${graphHostForToken(account.page_access_token)}/${account.ig_user_id}/messages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${account.page_access_token}`,
@@ -552,7 +569,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
       if (!account) throw new Error("Instagram no está conectado");
 
-      const res = await fetch(`${GRAPH_API}/${comment_id}/replies`, {
+      const res = await fetch(`${graphHostForToken(account.page_access_token)}/${comment_id}/replies`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${account.page_access_token}`,
@@ -591,7 +608,7 @@ Deno.serve(async (req) => {
 
       const fields = "id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,comments_count,like_count";
       const res = await fetch(
-        `${GRAPH_API}/${account.ig_user_id}/media?fields=${fields}&limit=${fetchLimit}&access_token=${account.page_access_token}`,
+        `${graphHostForToken(account.page_access_token)}/${account.ig_user_id}/media?fields=${fields}&limit=${fetchLimit}&access_token=${account.page_access_token}`,
       );
       const data = await res.json();
       if (data.error) {
@@ -633,7 +650,7 @@ Deno.serve(async (req) => {
       if (!account) throw new Error("Instagram no está conectado");
 
       const res = await fetch(
-        `${GRAPH_API}/${account.ig_user_id}?fields=business_discovery.username(${user_psid}){followers_count}&access_token=${account.page_access_token}`,
+        `${graphHostForToken(account.page_access_token)}/${account.ig_user_id}?fields=business_discovery.username(${user_psid}){followers_count}&access_token=${account.page_access_token}`,
       );
       const data = await res.json();
       // Note: the most reliable approach uses the messaging webhook payload's
