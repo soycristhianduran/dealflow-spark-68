@@ -294,9 +294,10 @@ export default function ConversationsPage() {
     }
   };
 
-  // ── Audio recording (WhatsApp only, via opus-recorder) ────────────────────
+  // ── Audio recording (WhatsApp + Instagram, via opus-recorder) ─────────────
+  // ogg/opus is accepted by both Meta APIs as voice/audio attachment.
   const startRecording = useCallback(async () => {
-    if (!selected || selected.channel !== "whatsapp") return;
+    if (!selected) return;
     try {
       const rec = new Recorder({
         encoderPath: OPUS_ENCODER_WORKER_PATH,
@@ -348,11 +349,32 @@ export default function ConversationsPage() {
         reader.readAsDataURL(oggBlob);
       });
       const fname = `voice-${Date.now()}.ogg`;
-      await wa.sendMedia(selected.id, base64, "audio/ogg", fname, selected.contact_id);
+      if (selected.channel === "whatsapp") {
+        await wa.sendMedia(selected.id, base64, "audio/ogg", fname, selected.contact_id);
+      } else {
+        // Instagram: send via attachment URL flow.  The conversation's
+        // participant_id is stored on the IgConversationRow we pulled.
+        const igConv = igConversations.find((c) => c.id === selected.id);
+        if (!igConv) throw new Error("Conversación de Instagram no encontrada");
+        await ig.sendDmMedia({
+          recipient_id: igConv.participant_id,
+          file_base64: base64,
+          mime_type: "audio/ogg",
+          filename: fname,
+          conversation_id: igConv.id,
+        });
+        // Realtime might not catch outgoing IG messages — reload manually
+        const { data } = await supabase
+          .from("instagram_messages")
+          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", igConv.id)
+          .order("sent_at", { ascending: true });
+        setIgMessages((data || []) as IgMessageRow[]);
+      }
     } catch (e: any) {
       toast.error("Error al enviar audio: " + e.message);
     }
-  }, [selected, wa]);
+  }, [selected, wa, ig, igConversations]);
 
   const cancelRecording = useCallback(() => {
     const rec = recorderRef.current;
@@ -373,18 +395,19 @@ export default function ConversationsPage() {
     }
   }, []);
 
-  // ── Media file upload (WhatsApp only) ─────────────────────────────────────
+  // ── Media file upload (WhatsApp + Instagram) ──────────────────────────────
   const handleMediaFile = useCallback(async (rawFile: File) => {
-    if (!selected || selected.channel !== "whatsapp") return;
+    if (!selected) return;
     setUploadingMedia(true);
     try {
-      // Re-encode AVIF/HEIC/etc. to JPEG since WhatsApp only accepts JPEG/PNG/WebP
+      // Re-encode AVIF/HEIC/etc. to JPEG since neither WhatsApp nor Instagram
+      // accepts those formats; both happily accept JPEG.
       let file = rawFile;
       if (rawFile.type.startsWith("image/")) {
         try {
           file = await ensureWhatsAppCompatibleImage(rawFile);
           if (file !== rawFile) {
-            toast.info(`Imagen convertida de ${rawFile.type} a JPEG para WhatsApp`);
+            toast.info(`Imagen convertida de ${rawFile.type} a JPEG`);
           }
         } catch (e: any) {
           throw new Error("No se pudo convertir la imagen: " + e.message);
@@ -401,13 +424,33 @@ export default function ConversationsPage() {
         reader.onerror = rej;
         reader.readAsDataURL(file);
       });
-      await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
+
+      if (selected.channel === "whatsapp") {
+        await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
+      } else {
+        const igConv = igConversations.find((c) => c.id === selected.id);
+        if (!igConv) throw new Error("Conversación de Instagram no encontrada");
+        await ig.sendDmMedia({
+          recipient_id: igConv.participant_id,
+          file_base64: base64,
+          mime_type: file.type,
+          filename: file.name,
+          conversation_id: igConv.id,
+        });
+        // Reload IG messages so the newly-sent attachment shows up
+        const { data } = await supabase
+          .from("instagram_messages")
+          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", igConv.id)
+          .order("sent_at", { ascending: true });
+        setIgMessages((data || []) as IgMessageRow[]);
+      }
     } catch (e: any) {
       toast.error("Error al enviar archivo: " + e.message);
     } finally {
       setUploadingMedia(false);
     }
-  }, [selected, wa]);
+  }, [selected, wa, ig, igConversations]);
 
   // ── Send WA template ──────────────────────────────────────────────────────
   const handleSendTemplate = async (name: string, lang: string, vars: string[], mediaId: string) => {
@@ -537,42 +580,44 @@ export default function ConversationsPage() {
                   </div>
                 ) : (
                   <div className="flex gap-2 items-end">
-                    {/* WA action buttons */}
+                    {/* File input — shared for both channels */}
+                    <input
+                      ref={mediaInputRef}
+                      type="file"
+                      accept="image/*,video/*,audio/*,application/pdf"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) handleMediaFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+
+                    {/* Templates — WhatsApp only (Instagram has no templates) */}
                     {isWA && (
-                      <>
-                        <input
-                          ref={mediaInputRef}
-                          type="file"
-                          accept="image/*,video/*,audio/*,application/pdf"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) handleMediaFile(f);
-                            e.target.value = "";
-                          }}
-                        />
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-10 w-10 p-0 shrink-0"
-                          onClick={() => setShowTemplatePicker(true)}
-                          title="Enviar plantilla"
-                          disabled={sending}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-10 w-10 p-0 shrink-0"
-                          onClick={() => mediaInputRef.current?.click()}
-                          title="Adjuntar archivo"
-                          disabled={sending || uploadingMedia}
-                        >
-                          {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
-                        </Button>
-                      </>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-10 w-10 p-0 shrink-0"
+                        onClick={() => setShowTemplatePicker(true)}
+                        title="Enviar plantilla"
+                        disabled={sending}
+                      >
+                        <FileText className="h-4 w-4" />
+                      </Button>
                     )}
+
+                    {/* Attach — both channels */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-10 w-10 p-0 shrink-0"
+                      onClick={() => mediaInputRef.current?.click()}
+                      title="Adjuntar archivo"
+                      disabled={sending || uploadingMedia}
+                    >
+                      {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+                    </Button>
 
                     <Input
                       placeholder={`Mensaje de ${isWA ? "WhatsApp" : "Instagram"}...`}
@@ -582,11 +627,11 @@ export default function ConversationsPage() {
                       disabled={sending}
                     />
 
-                    {/* Send (text) or Mic (when empty, WA only) */}
-                    {draft.trim() || !isWA ? (
+                    {/* Send (when there's text) or Mic (when empty) — both channels */}
+                    {draft.trim() ? (
                       <Button
                         onClick={handleSend}
-                        disabled={!draft.trim() || sending}
+                        disabled={sending}
                         className={cn("h-10 gap-1 shrink-0",
                           isWA ? "bg-green-600 hover:bg-green-700"
                                : "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600",

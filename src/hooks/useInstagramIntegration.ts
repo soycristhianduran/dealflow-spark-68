@@ -192,6 +192,25 @@ export function useInstagramIntegration() {
     return data;
   }, []);
 
+  /**
+   * Send an attachment (image / audio / video / file) as an Instagram DM.
+   * File is passed as base64 — the backend uploads it to Supabase Storage
+   * and sends Meta the resulting public URL.
+   */
+  const sendDmMedia = useCallback(async (params: {
+    recipient_id: string;
+    file_base64: string;
+    mime_type: string;
+    filename?: string;
+    conversation_id?: string;
+  }) => {
+    const { data, error } = await supabase.functions.invoke("instagram-api", {
+      body: { action: "send_dm_media", ...params },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    return data;
+  }, []);
+
   const replyComment = useCallback(async (commentId: string, text: string) => {
     const { data, error } = await supabase.functions.invoke("instagram-api", {
       body: { action: "reply_comment", comment_id: commentId, text },
@@ -217,6 +236,7 @@ export function useInstagramIntegration() {
     connectAccount,
     disconnect,
     sendDm,
+    sendDmMedia,
     replyComment,
     listMedia,
     diagnose,

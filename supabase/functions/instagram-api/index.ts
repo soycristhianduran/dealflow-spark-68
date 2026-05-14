@@ -423,6 +423,122 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── SEND DM WITH MEDIA ATTACHMENT (image / audio / video / file) ──────────
+    // Unlike WhatsApp, Instagram's Messaging API does not accept media_ids
+    // for outgoing attachments — it requires a publicly reachable URL.
+    // Flow: client base64 → Supabase Storage (public) → URL → Meta.
+    if (action === "send_dm_media") {
+      const { recipient_id, file_base64, mime_type, filename, conversation_id } = body;
+      if (!recipient_id || !file_base64 || !mime_type) {
+        throw new Error("recipient_id, file_base64 y mime_type son obligatorios");
+      }
+
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("id, ig_user_id, page_access_token")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!account) throw new Error("Instagram no está conectado");
+
+      // Normalize MIME aliases the same way WhatsApp does, so audio recorded
+      // on iOS (audio/x-m4a) and similar quirks don't get rejected.
+      const MIME_ALIASES: Record<string, string> = {
+        "audio/x-m4a": "audio/mp4",
+        "audio/m4a": "audio/mp4",
+        "audio/x-aac": "audio/aac",
+        "audio/mp3": "audio/mpeg",
+        "image/jpg": "image/jpeg",
+        "image/x-png": "image/png",
+      };
+      const rawMimeBase = mime_type.split(";")[0].trim().toLowerCase();
+      const mimeBase = MIME_ALIASES[rawMimeBase] || rawMimeBase;
+
+      // Decide IG attachment type from MIME prefix.
+      let attachmentType: "image" | "audio" | "video" | "file";
+      if (mimeBase.startsWith("image/")) attachmentType = "image";
+      else if (mimeBase.startsWith("audio/")) attachmentType = "audio";
+      else if (mimeBase.startsWith("video/")) attachmentType = "video";
+      else attachmentType = "file";
+
+      // Decode base64
+      const binaryStr = atob(file_base64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+      // Upload to Supabase Storage so Meta can pull it via a public URL.
+      const extFromMime = (m: string): string => {
+        const map: Record<string, string> = {
+          "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",
+          "video/mp4": "mp4", "video/3gpp": "3gp", "video/quicktime": "mov",
+          "audio/ogg": "ogg", "audio/opus": "opus", "audio/mpeg": "mp3",
+          "audio/mp4": "m4a", "audio/aac": "aac", "audio/wav": "wav",
+          "application/pdf": "pdf",
+        };
+        return map[m] || "bin";
+      };
+      const safeFilename = filename || `ig-${attachmentType}-${Date.now()}.${extFromMime(mimeBase)}`;
+      const storagePath = `${user.id}/ig/${Date.now()}_${safeFilename}`;
+      const uploadBlob = new Blob([bytes], { type: mimeBase });
+
+      const { error: storageErr } = await supabase.storage
+        .from("whatsapp-media")
+        .upload(storagePath, uploadBlob, { contentType: mimeBase, upsert: false });
+      if (storageErr) {
+        throw new Error(`Subida a storage falló: ${storageErr.message}`);
+      }
+
+      const { data: pubData } = supabase.storage.from("whatsapp-media").getPublicUrl(storagePath);
+      const publicUrl = pubData.publicUrl;
+      if (!publicUrl) throw new Error("No se pudo generar URL pública");
+
+      console.log(`send_dm_media: type=${attachmentType} mime=${mimeBase} url=${publicUrl}`);
+
+      // Send the attachment via Meta IG Messaging API.
+      const res = await fetch(`${GRAPH_API}/${account.ig_user_id}/messages`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${account.page_access_token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          recipient: { id: recipient_id },
+          message: {
+            attachment: {
+              type: attachmentType,
+              payload: { url: publicUrl, is_reusable: false },
+            },
+          },
+        }),
+      });
+      const data = await res.json();
+      console.log("send_dm_media response:", JSON.stringify(data));
+      if (data.error) {
+        throw new Error(`Meta: ${data.error.message} (código ${data.error.code})`);
+      }
+
+      // Persist outgoing message — store attachment_url so the chat bubble
+      // can render the media without re-fetching from Meta.
+      await supabase.from("instagram_messages").insert({
+        user_id: user.id,
+        conversation_id: conversation_id ?? null,
+        ig_account_id: account.id,
+        ig_message_id: data.message_id ?? null,
+        direction: "outgoing",
+        message_type: attachmentType,
+        message_text: null,
+        attachment_url: publicUrl,
+        recipient_id,
+        sender_id: account.ig_user_id,
+        status: "sent",
+      });
+
+      return new Response(
+        JSON.stringify({ success: true, message_id: data.message_id, media_url: publicUrl }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── REPLY TO A COMMENT (public reply) ─────────────────────────────────────
     if (action === "reply_comment") {
       const { comment_id, text } = body;
