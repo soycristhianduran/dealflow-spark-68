@@ -323,6 +323,55 @@ async function findIgAccountByPageId(
 }
 
 /**
+ * Resolve an IGSID (Instagram-Scoped ID) to a real username / name /
+ * profile picture via the Graph API, then update the conversation row.
+ *
+ * Meta's webhook payload only contains the IGSID, not the username — so
+ * without this step every IG conversation in the CRM would display as a
+ * meaningless numeric ID.  We skip the API call if the conversation
+ * already has a username (avoids redundant calls on every incoming DM).
+ *
+ * Requires the page access token to have `instagram_manage_messages`.
+ */
+async function resolveIgParticipantInfo(
+  supabase: any,
+  conversationId: string,
+  igsid: string,
+  pageAccessToken: string,
+): Promise<void> {
+  // Skip if already resolved — common case after the first DM
+  const { data: existing } = await supabase
+    .from("instagram_conversations")
+    .select("participant_username, participant_name")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (existing?.participant_username || existing?.participant_name) return;
+
+  try {
+    const r = await fetch(
+      `${GRAPH_API}/${igsid}?fields=name,username,profile_pic&access_token=${encodeURIComponent(pageAccessToken)}`,
+    );
+    const data = await r.json();
+    if (data.error) {
+      console.warn(`resolveIgParticipantInfo: Meta error for IGSID ${igsid}:`, JSON.stringify(data.error));
+      return;
+    }
+    if (!data.username && !data.name) return;
+    await supabase
+      .from("instagram_conversations")
+      .update({
+        participant_username: data.username || null,
+        participant_name: data.name || null,
+        participant_profile_pic: data.profile_pic || null,
+      })
+      .eq("id", conversationId);
+    console.log(`Resolved IG participant ${igsid} → @${data.username || data.name}`);
+  } catch (e) {
+    console.warn("resolveIgParticipantInfo threw:", e);
+  }
+}
+
+/**
  * Upsert a conversation row for a given IG account + participant (the user
  * on the other side of the DM).  Returns the conversation id.
  */
@@ -424,6 +473,12 @@ async function processInstagramMessenger(
     last_message_preview: messageText.substring(0, 200) || `[${messageType}]`,
     increment_unread: true,
   });
+
+  // Best-effort: enrich the conversation with @username / display name /
+  // avatar so the CRM doesn't show a raw IGSID.  Skipped if already resolved.
+  if (conversationId) {
+    await resolveIgParticipantInfo(supabase, conversationId, senderId, account.page_access_token);
+  }
 
   await supabase.from("instagram_messages").insert({
     user_id: account.user_id,

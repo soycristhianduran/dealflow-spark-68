@@ -117,7 +117,19 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               >
                 <WifiOff className="h-4 w-4" /> Desconectar
               </Button>
-              <Button variant="outline" className="gap-2" onClick={() => ig.refresh()}>
+              <Button
+                variant="outline"
+                className="gap-2"
+                onClick={async () => {
+                  // Refresh counts AND backfill any conversations that are
+                  // still showing the raw IGSID.  Both run in parallel —
+                  // resolve is best-effort and won't block the refresh.
+                  await Promise.all([
+                    ig.refresh(),
+                    ig.resolveUnresolvedParticipants(),
+                  ]);
+                }}
+              >
                 <RefreshCw className="h-4 w-4" /> Actualizar
               </Button>
               <Button

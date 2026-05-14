@@ -148,6 +148,25 @@ export function useInstagramIntegration() {
     return data as IgDiagnosis;
   }, []);
 
+  /**
+   * Backfill @username / name / avatar for any conversation that still
+   * shows the raw IGSID.  Used by the "Actualizar" button so existing
+   * conversations get prettified without requiring a new incoming DM.
+   */
+  const resolveUnresolvedParticipants = useCallback(async (): Promise<void> => {
+    const { data, error } = await supabase.functions.invoke("instagram-api", {
+      body: { action: "resolve_unresolved_participants" },
+    });
+    if (error || data?.error) {
+      // Silent in the common case where there's nothing to resolve.
+      console.warn("resolve_unresolved_participants:", data?.error || error?.message);
+      return;
+    }
+    if (data?.resolved > 0) {
+      toast.success(`Se resolvieron ${data.resolved} participante(s) de Instagram`);
+    }
+  }, []);
+
   const disconnect = useCallback(async () => {
     const { error, data } = await supabase.functions.invoke("instagram-api", {
       body: { action: "disconnect" },
@@ -201,6 +220,7 @@ export function useInstagramIntegration() {
     replyComment,
     listMedia,
     diagnose,
+    resolveUnresolvedParticipants,
     refresh: checkStatus,
   };
 }

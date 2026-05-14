@@ -260,6 +260,65 @@ Deno.serve(async (req) => {
       );
     }
 
+    // ── RESOLVE UNRESOLVED PARTICIPANT INFO ───────────────────────────────────
+    // Backfills @username / display name / avatar for any conversation that
+    // currently shows only the raw IGSID.  Useful after the webhook code that
+    // does this automatically was deployed AFTER some conversations already
+    // arrived.  Called by the "Actualizar" button in the IG modal.
+    if (action === "resolve_unresolved_participants") {
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("id, page_access_token")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!account) throw new Error("Instagram no está conectado");
+
+      const { data: unresolved } = await supabase
+        .from("instagram_conversations")
+        .select("id, participant_id")
+        .eq("user_id", user.id)
+        .eq("ig_account_id", account.id)
+        .is("participant_username", null);
+
+      let resolved = 0;
+      let failed = 0;
+      for (const conv of unresolved || []) {
+        try {
+          const r = await fetch(
+            `${GRAPH_API}/${conv.participant_id}?fields=name,username,profile_pic&access_token=${encodeURIComponent(account.page_access_token)}`,
+          );
+          const data = await r.json();
+          if (data.error || (!data.username && !data.name)) {
+            failed++;
+            console.warn(`Failed to resolve ${conv.participant_id}:`, JSON.stringify(data));
+            continue;
+          }
+          await supabase
+            .from("instagram_conversations")
+            .update({
+              participant_username: data.username || null,
+              participant_name: data.name || null,
+              participant_profile_pic: data.profile_pic || null,
+            })
+            .eq("id", conv.id);
+          resolved++;
+        } catch (e) {
+          failed++;
+          console.warn(`Exception resolving ${conv.participant_id}:`, e);
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          total: (unresolved || []).length,
+          resolved,
+          failed,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── DISCONNECT ────────────────────────────────────────────────────────────
     if (action === "disconnect") {
       await supabase
