@@ -29,14 +29,14 @@ import { ensureWhatsAppCompatibleImage } from "@/lib/image-convert";
 // includes a hash that's awkward to pass into the library's worker loader.
 // @ts-expect-error — opus-recorder ships without bundled types
 import Recorder from "opus-recorder";
-// mp3-mediarecorder is used ONLY for Instagram outgoing voice notes — Meta's
-// IG Messaging API rejects ogg/opus for outgoing audio (only mp3/m4a/aac/wav
-// are accepted).  WhatsApp keeps using opus-recorder so its voice notes
-// render as native voice messages with waveform.
-import { Mp3MediaRecorder } from "mp3-mediarecorder";
+// WavRecorder is used ONLY for Instagram outgoing voice notes.  Meta's IG
+// Messaging API rejects ogg/opus AND mp3 (only aac/m4a/wav/mp4 are accepted).
+// We pick WAV because it's the only one that can be produced in the browser
+// without WASM/native dependencies.  WhatsApp keeps using opus-recorder so
+// its voice notes render as native voice messages with waveform.
+import { WavRecorder } from "@/lib/wav-recorder";
 
 const OPUS_ENCODER_WORKER_PATH = "/opus-encoder-worker.js";
-const MP3_RECORDER_WORKER_PATH = "/mp3-recorder-worker.js";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -111,14 +111,12 @@ export default function ConversationsPage() {
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
   // Voice recording state — channel-aware: opus-recorder for WhatsApp (ogg
-  // voice notes render natively with waveform), mp3-mediarecorder for
-  // Instagram (Meta IG only accepts mp3/m4a/aac/wav for outgoing audio).
+  // voice notes render natively with waveform), WavRecorder for Instagram
+  // (Meta IG only accepts aac/m4a/wav/mp4 for outgoing audio attachments).
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const recorderRef = useRef<any>(null);
-  const recorderKindRef = useRef<"opus" | "mp3" | null>(null);
-  const mp3StreamRef = useRef<MediaStream | null>(null);
-  const mp3WorkerRef = useRef<Worker | null>(null);
+  const recorderKindRef = useRef<"opus" | "wav" | null>(null);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -306,8 +304,8 @@ export default function ConversationsPage() {
 
   // ── Audio recording (channel-aware) ───────────────────────────────────────
   // WhatsApp: opus-recorder → ogg/opus → renders as a native voice note.
-  // Instagram: mp3-mediarecorder → mp3 → IG accepts this format for outgoing
-  // attachments (it rejects ogg/opus with error code 100, subcode 2534080).
+  // Instagram: WavRecorder → wav → IG accepts this format for outgoing
+  // attachments (it rejects ogg/opus AND mp3 — only aac/m4a/wav/mp4 allowed).
   const startRecording = useCallback(async () => {
     if (!selected) return;
     try {
@@ -325,15 +323,11 @@ export default function ConversationsPage() {
         recorderRef.current = rec;
         recorderKindRef.current = "opus";
       } else {
-        // Instagram path: getUserMedia + Mp3MediaRecorder
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const worker = new Worker(MP3_RECORDER_WORKER_PATH);
-        const rec = new Mp3MediaRecorder(stream, { worker });
-        rec.start();
+        // Instagram path: Web Audio + 16-bit PCM WAV (no library)
+        const rec = new WavRecorder();
+        await rec.start();
         recorderRef.current = rec;
-        recorderKindRef.current = "mp3";
-        mp3StreamRef.current = stream;
-        mp3WorkerRef.current = worker;
+        recorderKindRef.current = "wav";
       }
 
       setRecording(true);
@@ -351,10 +345,6 @@ export default function ConversationsPage() {
       clearInterval(recTimerRef.current);
       recTimerRef.current = null;
     }
-    mp3StreamRef.current?.getTracks().forEach((t) => t.stop());
-    mp3StreamRef.current = null;
-    mp3WorkerRef.current?.terminate();
-    mp3WorkerRef.current = null;
     recorderRef.current = null;
     recorderKindRef.current = null;
   }, []);
@@ -366,10 +356,9 @@ export default function ConversationsPage() {
     if (recTimerRef.current) clearInterval(recTimerRef.current);
     setRecording(false);
 
-    // Capture the final blob from whichever recorder is active.  Both APIs
-    // emit the encoded file once stop() is called, but opus-recorder uses an
-    // `ondataavailable(Uint8Array)` callback while Mp3MediaRecorder follows
-    // the standard MediaRecorder `addEventListener("dataavailable", e)`.
+    // Capture the final blob from whichever recorder is active.  Each has
+    // its own quirky API: opus-recorder uses `ondataavailable(Uint8Array)`
+    // while WavRecorder returns the Blob directly from `stop()`.
     let audioBlob: Blob;
     let mime: string;
     let ext: string;
@@ -387,12 +376,9 @@ export default function ConversationsPage() {
       mime = "audio/ogg";
       ext = "ogg";
     } else {
-      audioBlob = await new Promise<Blob>((resolve) => {
-        rec.addEventListener("dataavailable", (e: BlobEvent) => resolve(e.data), { once: true });
-        rec.stop();
-      });
-      mime = "audio/mpeg";
-      ext = "mp3";
+      audioBlob = await (rec as WavRecorder).stop();
+      mime = "audio/wav";
+      ext = "wav";
     }
 
     teardownRecorder();
@@ -441,8 +427,8 @@ export default function ConversationsPage() {
           rec.ondataavailable = () => { /* discard */ };
           rec.stop();
         } else {
-          // Mp3MediaRecorder: no listener attached → blob is discarded
-          rec.stop();
+          // WavRecorder exposes a dedicated cancel() that releases mic + ctx
+          (rec as WavRecorder).cancel();
         }
       } catch (_) { /* ignore */ }
     }
