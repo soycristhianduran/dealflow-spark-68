@@ -33,6 +33,7 @@ import EmailCampaignsPage from "./pages/EmailCampaignsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import TermsPage from "./pages/TermsPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
@@ -119,6 +120,7 @@ function AppRoutes() {
       <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/terms" element={<TermsPage />} />
 
       {/* Workspace entry point: validates slug + renders workspace */}
       <Route path="/w/:slug/*" element={<WorkspaceEntryPage />} />
