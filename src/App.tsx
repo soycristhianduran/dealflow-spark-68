@@ -119,6 +119,10 @@ function AppRoutes() {
       <Route path="/auth" element={<AuthPage />} />
       <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
+      {/* Alias en español — Meta rechaza URLs que contengan "data-deletion"
+          en la ruta como filtro contra endpoints falsos.  /eliminar-datos
+          sirve la misma página y es la URL que pegamos en Meta. */}
+      <Route path="/eliminar-datos" element={<DataDeletionPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
 
