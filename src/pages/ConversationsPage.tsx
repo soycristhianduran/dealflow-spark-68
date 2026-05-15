@@ -29,8 +29,14 @@ import { ensureWhatsAppCompatibleImage } from "@/lib/image-convert";
 // includes a hash that's awkward to pass into the library's worker loader.
 // @ts-expect-error — opus-recorder ships without bundled types
 import Recorder from "opus-recorder";
+// mp3-mediarecorder is used ONLY for Instagram outgoing voice notes — Meta's
+// IG Messaging API rejects ogg/opus for outgoing audio (only mp3/m4a/aac/wav
+// are accepted).  WhatsApp keeps using opus-recorder so its voice notes
+// render as native voice messages with waveform.
+import { Mp3MediaRecorder } from "mp3-mediarecorder";
 
 const OPUS_ENCODER_WORKER_PATH = "/opus-encoder-worker.js";
+const MP3_RECORDER_WORKER_PATH = "/mp3-recorder-worker.js";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -104,11 +110,15 @@ export default function ConversationsPage() {
   // Template picker (WhatsApp only)
   const [showTemplatePicker, setShowTemplatePicker] = useState(false);
 
-  // Voice recording state (WhatsApp only) — uses opus-recorder for native
-  // ogg/opus output that WhatsApp delivers cleanly to recipients.
+  // Voice recording state — channel-aware: opus-recorder for WhatsApp (ogg
+  // voice notes render natively with waveform), mp3-mediarecorder for
+  // Instagram (Meta IG only accepts mp3/m4a/aac/wav for outgoing audio).
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const recorderRef = useRef<any>(null);
+  const recorderKindRef = useRef<"opus" | "mp3" | null>(null);
+  const mp3StreamRef = useRef<MediaStream | null>(null);
+  const mp3WorkerRef = useRef<Worker | null>(null);
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -294,72 +304,118 @@ export default function ConversationsPage() {
     }
   };
 
-  // ── Audio recording (WhatsApp + Instagram, via opus-recorder) ─────────────
-  // ogg/opus is accepted by both Meta APIs as voice/audio attachment.
+  // ── Audio recording (channel-aware) ───────────────────────────────────────
+  // WhatsApp: opus-recorder → ogg/opus → renders as a native voice note.
+  // Instagram: mp3-mediarecorder → mp3 → IG accepts this format for outgoing
+  // attachments (it rejects ogg/opus with error code 100, subcode 2534080).
   const startRecording = useCallback(async () => {
     if (!selected) return;
     try {
-      const rec = new Recorder({
-        encoderPath: OPUS_ENCODER_WORKER_PATH,
-        encoderApplication: 2048,   // VOIP — optimized for speech
-        encoderFrameSize: 20,
-        encoderSampleRate: 48000,
-        numberOfChannels: 1,
-        bitRate: 32000,             // 32 kbps mono — good speech quality, small file
-        streamPages: false,         // single final blob is easier to handle
-      });
+      if (selected.channel === "whatsapp") {
+        const rec = new Recorder({
+          encoderPath: OPUS_ENCODER_WORKER_PATH,
+          encoderApplication: 2048,   // VOIP — optimized for speech
+          encoderFrameSize: 20,
+          encoderSampleRate: 48000,
+          numberOfChannels: 1,
+          bitRate: 32000,             // 32 kbps mono — good speech quality, small file
+          streamPages: false,         // single final blob is easier to handle
+        });
+        await rec.start();
+        recorderRef.current = rec;
+        recorderKindRef.current = "opus";
+      } else {
+        // Instagram path: getUserMedia + Mp3MediaRecorder
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const worker = new Worker(MP3_RECORDER_WORKER_PATH);
+        const rec = new Mp3MediaRecorder(stream, { worker });
+        rec.start();
+        recorderRef.current = rec;
+        recorderKindRef.current = "mp3";
+        mp3StreamRef.current = stream;
+        mp3WorkerRef.current = worker;
+      }
 
-      await rec.start();
-      recorderRef.current = rec;
       setRecording(true);
       setRecSeconds(0);
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
-      console.error("opus-recorder start failed:", e);
+      console.error("recorder start failed:", e);
       toast.error("Micrófono no disponible: " + (e?.message || e));
     }
   }, [selected]);
 
+  /** Cleanly tear down whichever recorder was active. */
+  const teardownRecorder = useCallback(() => {
+    if (recTimerRef.current) {
+      clearInterval(recTimerRef.current);
+      recTimerRef.current = null;
+    }
+    mp3StreamRef.current?.getTracks().forEach((t) => t.stop());
+    mp3StreamRef.current = null;
+    mp3WorkerRef.current?.terminate();
+    mp3WorkerRef.current = null;
+    recorderRef.current = null;
+    recorderKindRef.current = null;
+  }, []);
+
   const stopAndSendRecording = useCallback(async () => {
     const rec = recorderRef.current;
-    if (!rec || !selected) return;
+    const kind = recorderKindRef.current;
+    if (!rec || !selected || !kind) return;
     if (recTimerRef.current) clearInterval(recTimerRef.current);
     setRecording(false);
 
-    // Wait for the final encoded blob from the worker
-    const oggBlob: Blob = await new Promise((resolve) => {
-      let resolved = false;
-      rec.ondataavailable = (chunk: Uint8Array) => {
-        if (resolved) return;
-        resolved = true;
-        // ondataavailable in non-streaming mode fires once with the full file
-        resolve(new Blob([chunk], { type: "audio/ogg;codecs=opus" }));
-      };
-      rec.stop();
-    });
-    recorderRef.current = null;
+    // Capture the final blob from whichever recorder is active.  Both APIs
+    // emit the encoded file once stop() is called, but opus-recorder uses an
+    // `ondataavailable(Uint8Array)` callback while Mp3MediaRecorder follows
+    // the standard MediaRecorder `addEventListener("dataavailable", e)`.
+    let audioBlob: Blob;
+    let mime: string;
+    let ext: string;
 
-    if (oggBlob.size < 500) return;
+    if (kind === "opus") {
+      audioBlob = await new Promise<Blob>((resolve) => {
+        let resolved = false;
+        rec.ondataavailable = (chunk: Uint8Array) => {
+          if (resolved) return;
+          resolved = true;
+          resolve(new Blob([chunk], { type: "audio/ogg;codecs=opus" }));
+        };
+        rec.stop();
+      });
+      mime = "audio/ogg";
+      ext = "ogg";
+    } else {
+      audioBlob = await new Promise<Blob>((resolve) => {
+        rec.addEventListener("dataavailable", (e: BlobEvent) => resolve(e.data), { once: true });
+        rec.stop();
+      });
+      mime = "audio/mpeg";
+      ext = "mp3";
+    }
+
+    teardownRecorder();
+
+    if (audioBlob.size < 500) return;
 
     try {
       const base64 = await new Promise<string>((res, rej) => {
         const reader = new FileReader();
         reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
         reader.onerror = rej;
-        reader.readAsDataURL(oggBlob);
+        reader.readAsDataURL(audioBlob);
       });
-      const fname = `voice-${Date.now()}.ogg`;
+      const fname = `voice-${Date.now()}.${ext}`;
       if (selected.channel === "whatsapp") {
-        await wa.sendMedia(selected.id, base64, "audio/ogg", fname, selected.contact_id);
+        await wa.sendMedia(selected.id, base64, mime, fname, selected.contact_id);
       } else {
-        // Instagram: send via attachment URL flow.  The conversation's
-        // participant_id is stored on the IgConversationRow we pulled.
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error("Conversación de Instagram no encontrada");
         await ig.sendDmMedia({
           recipient_id: igConv.participant_id,
           file_base64: base64,
-          mime_type: "audio/ogg",
+          mime_type: mime,
           filename: fname,
           conversation_id: igConv.id,
         });
@@ -374,26 +430,33 @@ export default function ConversationsPage() {
     } catch (e: any) {
       toast.error("Error al enviar audio: " + e.message);
     }
-  }, [selected, wa, ig, igConversations]);
+  }, [selected, wa, ig, igConversations, teardownRecorder]);
 
   const cancelRecording = useCallback(() => {
     const rec = recorderRef.current;
+    const kind = recorderKindRef.current;
     if (rec) {
-      if (recTimerRef.current) clearInterval(recTimerRef.current);
-      rec.ondataavailable = () => { /* discard */ };
-      try { rec.stop(); } catch (_) { /* ignore */ }
-      recorderRef.current = null;
+      try {
+        if (kind === "opus") {
+          rec.ondataavailable = () => { /* discard */ };
+          rec.stop();
+        } else {
+          // Mp3MediaRecorder: no listener attached → blob is discarded
+          rec.stop();
+        }
+      } catch (_) { /* ignore */ }
     }
+    teardownRecorder();
     setRecording(false);
     setRecSeconds(0);
-  }, []);
+  }, [teardownRecorder]);
 
   useEffect(() => () => {
-    if (recTimerRef.current) clearInterval(recTimerRef.current);
+    teardownRecorder();
     if (recorderRef.current) {
       try { recorderRef.current.stop(); } catch (_) { /* ignore */ }
     }
-  }, []);
+  }, [teardownRecorder]);
 
   // ── Media file upload (WhatsApp + Instagram) ──────────────────────────────
   const handleMediaFile = useCallback(async (rawFile: File) => {
