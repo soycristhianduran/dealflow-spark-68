@@ -98,6 +98,22 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .maybeSingle();
 
+      // Capture the Facebook App-Scoped User ID (ASID) — needed for the Meta
+      // data-deletion callback to match revocation events back to this row.
+      // We read it from facebook_tokens (populated by the FB OAuth callback)
+      // since the IG connect flow goes through Facebook Login first.
+      let fbUserId: string | null = null;
+      try {
+        const { data: tokenRow } = await supabase
+          .from("facebook_tokens")
+          .select("fb_user_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        fbUserId = tokenRow?.fb_user_id ?? null;
+      } catch (e) {
+        console.warn("Could not resolve fb_user_id for IG connect:", e);
+      }
+
       // Deactivate any previous IG accounts for this user (one active at a time)
       await supabase
         .from("instagram_accounts")
@@ -117,6 +133,7 @@ Deno.serve(async (req) => {
             page_id,
             page_name: page_name ?? null,
             page_access_token,
+            fb_user_id: fbUserId,
             is_active: true,
             updated_at: new Date().toISOString(),
           },

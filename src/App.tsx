@@ -32,6 +32,7 @@ import ConversationsPage from "./pages/ConversationsPage";
 import EmailCampaignsPage from "./pages/EmailCampaignsPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
+import DataDeletionStatusPage from "./pages/DataDeletionStatusPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
 import ProfilePage from "./pages/ProfilePage";
@@ -123,6 +124,9 @@ function AppRoutes() {
           en la ruta como filtro contra endpoints falsos.  /eliminar-datos
           sirve la misma página y es la URL que pegamos en Meta. */}
       <Route path="/eliminar-datos" element={<DataDeletionPage />} />
+      {/* Status page Meta surfaces to the end user after a deletion callback */}
+      <Route path="/data-deletion-status" element={<DataDeletionStatusPage />} />
+      <Route path="/estado-eliminacion" element={<DataDeletionStatusPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
 

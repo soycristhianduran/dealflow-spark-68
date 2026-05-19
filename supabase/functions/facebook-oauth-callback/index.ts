@@ -95,6 +95,26 @@ Deno.serve(async (req) => {
     const longLivedToken = longTokenData.access_token || tokenData.access_token;
     const expiresIn = longTokenData.expires_in || 5184000; // default 60 days
 
+    // Capture the Facebook App-Scoped User ID (ASID). Required for the
+    // Meta data-deletion callback to match revocation events back to this
+    // user's stored data. Failure here is non-fatal — we just won't be able
+    // to auto-delete this user's data if they later revoke from Facebook
+    // (they can still trigger deletion manually inside the CRM).
+    let fbUserId: string | null = null;
+    try {
+      const meRes = await fetch(
+        `${GRAPH_API}/me?fields=id&access_token=${encodeURIComponent(longLivedToken)}`,
+      );
+      const meData = await meRes.json();
+      if (meData?.id) {
+        fbUserId = String(meData.id);
+      } else {
+        console.warn("Failed to fetch FB ASID — /me response:", meData);
+      }
+    } catch (e) {
+      console.warn("FB ASID fetch threw:", e);
+    }
+
     // Store in DB
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     const userId = state;
@@ -106,6 +126,7 @@ Deno.serve(async (req) => {
         user_id: userId,
         access_token: longLivedToken,
         token_expires_at: expiresAt,
+        fb_user_id: fbUserId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id" }
