@@ -343,6 +343,32 @@ export default function IntegrationsPage() {
                   {/* Facebook status summary */}
                   {integration.id === "facebook" && fb.isConnected && fb.status && (
                     <div className="space-y-2">
+                      {/* Reconnect banner: shown when the daily refresh job
+                          flagged this token (user revoked permissions on the
+                          Meta side, password change, etc.) */}
+                      {fb.tokenHealth?.needs_reconnect && (
+                        <div className="rounded-md border border-red-400 bg-red-50 dark:bg-red-950/30 p-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-start gap-1.5">
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
+                            <p className="text-[11px] text-red-800 dark:text-red-300 leading-snug">
+                              <span className="font-semibold">Reconexión necesaria.</span>{" "}
+                              Tu token de Facebook ya no es válido (probablemente revocaste permisos o cambiaste contraseña). Los mensajes y leads dejarán de llegar hasta que reconectes.
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full text-xs gap-1.5 border-red-400 text-red-700 hover:bg-red-100"
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await fb.disconnect();
+                              await fb.connect();
+                            }}
+                          >
+                            Reconectar Facebook
+                          </Button>
+                        </div>
+                      )}
                       <div className="flex flex-wrap gap-1.5">
                         <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
                         <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>

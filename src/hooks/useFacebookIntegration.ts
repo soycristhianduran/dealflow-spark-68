@@ -31,12 +31,19 @@ interface FbStatus {
   campaigns_count: number;
 }
 
+interface FbTokenHealth {
+  needs_reconnect: boolean;
+  token_expires_at: string | null;
+  last_refresh_error: string | null;
+}
+
 export function useFacebookIntegration() {
   const { user } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState<FbStatus | null>(null);
+  const [tokenHealth, setTokenHealth] = useState<FbTokenHealth | null>(null);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
 
   // Fetch META_APP_ID from an edge function on mount
@@ -52,18 +59,29 @@ export function useFacebookIntegration() {
       setLoading(false);
       return;
     }
-    const { data } = await supabase
+    // Pull token health alongside the existence check so the UI can show a
+    // "Reconnect Facebook" banner BEFORE the user notices things broken.
+    // `as any` because the generated Supabase types don't include the new
+    // tracking columns until the next `gen types typescript` run.
+    const { data } = await (supabase as any)
       .from("facebook_tokens")
-      .select("id")
+      .select("id, needs_reconnect, token_expires_at, last_refresh_error")
       .eq("user_id", user.id)
       .maybeSingle();
     setIsConnected(!!data);
 
     if (data) {
+      setTokenHealth({
+        needs_reconnect: !!data.needs_reconnect,
+        token_expires_at: data.token_expires_at ?? null,
+        last_refresh_error: data.last_refresh_error ?? null,
+      });
       const { data: statusData } = await supabase.functions.invoke("facebook-api", {
         body: { action: "status" },
       });
       if (statusData) setStatus(statusData);
+    } else {
+      setTokenHealth(null);
     }
     setLoading(false);
   }, [user]);
@@ -252,7 +270,7 @@ export function useFacebookIntegration() {
   }, []);
 
   return {
-    isConnected, loading, connecting, status,
+    isConnected, loading, connecting, status, tokenHealth,
     connect, disconnect, checkConnection,
     getPages, savePages,
     getLeadForms, saveLeadForms, saveFieldMappings,
