@@ -92,12 +92,27 @@ export function useFacebookIntegration() {
   }, [checkConnection]);
 
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!user || !metaAppId) {
       toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
       return;
     }
     setConnecting(true);
+
+    // Request a single-use, server-bound nonce for the OAuth `state` param.
+    // This prevents CSRF: previously we used the raw user_id, which an
+    // attacker who knew the victim's UUID could spoof to plant their own
+    // Facebook tokens under the victim's account.
+    // `as any` until the generated Supabase types include this new RPC.
+    const { data: stateToken, error: stateErr } = await (supabase as any).rpc(
+      "create_oauth_state",
+      { p_provider: "facebook" },
+    );
+    if (stateErr || !stateToken) {
+      setConnecting(false);
+      toast.error("No se pudo iniciar la conexión con Facebook. Intenta de nuevo.");
+      return;
+    }
 
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
@@ -120,9 +135,8 @@ export function useFacebookIntegration() {
       "instagram_manage_comments",
       "instagram_manage_insights",
     ].join(",");
-    const state = user.id;
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${state}&response_type=code`;
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code`;
 
     // Use direct redirect instead of popup (cross-origin popup doesn't work)
     window.location.href = oauthUrl;

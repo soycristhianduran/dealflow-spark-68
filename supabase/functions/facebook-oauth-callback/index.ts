@@ -40,24 +40,51 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state"); // contains user_id
+    const state = url.searchParams.get("state"); // single-use nonce (see migration 20260519000000)
     const error = url.searchParams.get("error");
 
     const SUPABASE_URL_EARLY = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_SERVICE_KEY_EARLY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const earlySupabase = createClient(SUPABASE_URL_EARLY, SUPABASE_SERVICE_KEY_EARLY);
+    const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
+
+    // ── Validate & consume the CSRF nonce ──────────────────────────────────
+    // Resolves to the user_id who initiated this OAuth flow, or NULL on
+    // tampering / replay / expiry. Done before code exchange so we never
+    // hit Meta's servers with an unattributable request.
+    let userId: string | null = null;
+    if (state) {
+      const { data: consumed, error: consumeErr } = await earlySupabase.rpc(
+        "consume_oauth_state",
+        { p_token: state, p_provider: "facebook" },
+      );
+      if (consumeErr) {
+        console.error("consume_oauth_state RPC failed:", consumeErr);
+      }
+      userId = (consumed as string | null) || null;
+    }
+    if (!userId) {
+      console.warn("OAuth callback rejected: invalid/expired/replayed state token");
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": `${appUrl}/integrations?fb_error=invalid_state` },
+      });
+    }
 
     if (error) {
-      const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
-      const slug = state ? await resolveOrgSlug(earlySupabase, state) : null;
+      const slug = await resolveOrgSlug(earlySupabase, userId);
       return new Response(null, {
         status: 302,
         headers: { "Location": buildRedirect(appUrl, slug, `fb_error=${encodeURIComponent(error)}`) },
       });
     }
 
-    if (!code || !state) {
-      return new Response("Missing code or state", { status: 400, headers: corsHeaders });
+    if (!code) {
+      const slug = await resolveOrgSlug(earlySupabase, userId);
+      return new Response(null, {
+        status: 302,
+        headers: { "Location": buildRedirect(appUrl, slug, "fb_error=missing_code") },
+      });
     }
 
     const META_APP_ID = Deno.env.get("META_APP_ID");
@@ -79,8 +106,7 @@ Deno.serve(async (req) => {
 
     if (!tokenData.access_token) {
       console.error("Token exchange failed:", tokenData);
-      const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
-      const slug = await resolveOrgSlug(earlySupabase, state);
+      const slug = await resolveOrgSlug(earlySupabase, userId);
       return new Response(null, {
         status: 302,
         headers: { "Location": buildRedirect(appUrl, slug, "fb_error=token_exchange_failed") },
@@ -115,9 +141,9 @@ Deno.serve(async (req) => {
       console.warn("FB ASID fetch threw:", e);
     }
 
-    // Store in DB
+    // Store in DB — userId comes from the consume_oauth_state RPC above,
+    // NOT from the raw `state` query param (which is now an opaque nonce).
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const userId = state;
 
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 

@@ -16,10 +16,12 @@ interface WhatsAppConfig {
 
 
 // Build standard OAuth redirect URL for WhatsApp Cloud API connection
-function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, userId: string): string {
+// `stateToken` MUST be a single-use nonce from `create_oauth_state` — do NOT
+// pass raw user_id here (CSRF vector — see migration 20260519000000).
+function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, stateToken: string): string {
   const redirectUri = `${supabaseUrl}/functions/v1/whatsapp-oauth-callback`;
   const scopes = "whatsapp_business_management,whatsapp_business_messaging,business_management";
-  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${userId}&response_type=code`;
+  return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code`;
 }
 
 export function useWhatsAppIntegration() {
@@ -72,7 +74,7 @@ export function useWhatsAppIntegration() {
   // the URL param, with the wrong instance winning.
 
   // OAuth redirect flow
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!user || !metaAppId) {
       toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
       return;
@@ -84,7 +86,18 @@ export function useWhatsAppIntegration() {
       return;
     }
 
-    const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, user.id);
+    // Request a single-use, server-bound nonce for the OAuth `state` param
+    // (CSRF protection — see migration 20260519000000).
+    const { data: stateToken, error: stateErr } = await (supabase as any).rpc(
+      "create_oauth_state",
+      { p_provider: "whatsapp" },
+    );
+    if (stateErr || !stateToken) {
+      toast.error("No se pudo iniciar la conexión con WhatsApp. Intenta de nuevo.");
+      return;
+    }
+
+    const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, stateToken);
     window.location.href = oauthUrl;
   }, [user, metaAppId]);
 

@@ -6,12 +6,38 @@ Deno.serve(async (req) => {
   try {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state"); // user_id
+    const state = url.searchParams.get("state"); // single-use nonce (CSRF protection)
     const error = url.searchParams.get("error");
     const errorReason = url.searchParams.get("error_reason");
     const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
 
-    console.log("WhatsApp OAuth callback received:", { hasCode: !!code, state, error, errorReason });
+    const SUPABASE_URL_EARLY = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_KEY_EARLY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const earlySupabase = createClient(SUPABASE_URL_EARLY, SUPABASE_SERVICE_KEY_EARLY);
+
+    console.log("WhatsApp OAuth callback received:", { hasCode: !!code, hasState: !!state, error, errorReason });
+
+    // ── Validate & consume the CSRF nonce ──────────────────────────────────
+    // Resolves to the user_id who initiated this OAuth flow. Done before
+    // code exchange so a tampered/replayed callback never reaches Meta.
+    let userId: string | null = null;
+    if (state) {
+      const { data: consumed, error: consumeErr } = await earlySupabase.rpc(
+        "consume_oauth_state",
+        { p_token: state, p_provider: "whatsapp" },
+      );
+      if (consumeErr) {
+        console.error("consume_oauth_state RPC failed:", consumeErr);
+      }
+      userId = (consumed as string | null) || null;
+    }
+    if (!userId) {
+      console.warn("WhatsApp OAuth callback rejected: invalid/expired/replayed state token");
+      return new Response(null, {
+        status: 302,
+        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent("Sesión OAuth expirada o inválida. Intenta conectar de nuevo.")}` },
+      });
+    }
 
     if (error) {
       return new Response(null, {
@@ -20,10 +46,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!code || !state) {
+    if (!code) {
       return new Response(null, {
         status: 302,
-        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent("Faltan parámetros (code o state)")}` },
+        headers: { Location: `${appUrl}/integrations?wa_error=${encodeURIComponent("Falta parámetro code")}` },
       });
     }
 
@@ -71,7 +97,7 @@ Deno.serve(async (req) => {
     // whichever happens to appear first in the API.
     await supabase.from("whatsapp_configs").upsert(
       {
-        user_id: state,
+        user_id: userId,
         access_token: longLivedToken,
         phone_number_id: "pending",
         waba_id: "pending",
@@ -89,7 +115,7 @@ Deno.serve(async (req) => {
       const { data: memberRow } = await supabase
         .from("organization_members")
         .select("organization_id")
-        .eq("user_id", state)
+        .eq("user_id", userId)
         .maybeSingle();
       if (memberRow?.organization_id) {
         const { data: orgRow } = await supabase
