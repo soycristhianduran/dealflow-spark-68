@@ -103,6 +103,40 @@ Deno.serve(async (req) => {
     const { contact_id } = await req.json();
     if (!contact_id) throw new Error("contact_id es obligatorio");
 
+    // ── Billing gate: check that the user's org has AI quota left ───────────
+    // Resolves user_id → organization_id → consumes 1 credit. If the plan
+    // budget is exhausted AND there are no AI Boost credits, returns 402
+    // so the frontend can show the upgrade prompt.
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!membership?.organization_id) {
+      throw new Error("No estás asociado a ninguna organización");
+    }
+    const orgId = membership.organization_id;
+    const { data: hasQuota, error: quotaErr } = await supabase.rpc(
+      "consume_ai_credit",
+      { p_org_id: orgId, p_kind: "analyses", p_amount: 1 },
+    );
+    if (quotaErr) {
+      console.error("consume_ai_credit RPC failed:", quotaErr);
+      throw new Error("Error verificando cupo de IA");
+    }
+    if (!hasQuota) {
+      return new Response(
+        JSON.stringify({
+          error: "Has alcanzado el límite mensual de análisis IA de tu plan. Upgrade tu plan o compra un AI Boost para continuar.",
+          code: "ai_quota_exceeded",
+        }),
+        {
+          status: 402,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
     // ── Load contact + recent messages ───────────────────────────────────────
     const { data: contact } = await supabase
       .from("contacts")

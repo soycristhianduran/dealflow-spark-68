@@ -35,10 +35,15 @@ import DataDeletionPage from "./pages/DataDeletionPage";
 import DataDeletionStatusPage from "./pages/DataDeletionStatusPage";
 import PrivacyPage from "./pages/PrivacyPage";
 import TermsPage from "./pages/TermsPage";
+import PricingPage from "./pages/PricingPage";
+import BillingPage from "./pages/BillingPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
+import { TrialBanner } from "@/components/billing/TrialBanner";
+import { LockoutScreen } from "@/components/billing/LockoutScreen";
+import { useSubscription } from "@/hooks/useSubscription";
 
 const queryClient = new QueryClient();
 
@@ -79,37 +84,50 @@ function RootRedirect() {
 
 function WorkspaceRoutes() {
   const { session, loading } = useAuth();
+  const { locked } = useSubscription();
   useLeadNotifier();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
 
+  // If the trial expired without payment or subscription is canceled,
+  // replace the entire workspace with the lockout screen. The user can
+  // still reach /billing through the lockout's "Elegir un plan" button
+  // (which routes outside this WorkspaceRoutes via the public /pricing).
+  if (locked) {
+    return <LockoutScreen />;
+  }
+
   return (
-    <Routes>
-      {/* workspace root = dashboard */}
-      <Route index element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-      <Route path="leads" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-      <Route path="contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-      <Route path="contacts/:id" element={<ProtectedRoute><ContactDetailPage /></ProtectedRoute>} />
-      <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-      <Route path="companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
-      <Route path="deals" element={<ProtectedRoute><DealsPage /></ProtectedRoute>} />
-      <Route path="deals/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
-      <Route path="pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
-      <Route path="calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-      <Route path="tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
-      <Route path="settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-      <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-      <Route path="integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
-      <Route path="meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
-      <Route path="whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
-      <Route path="whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
-      <Route path="instagram/inbox" element={<ProtectedRoute><InstagramInboxPage /></ProtectedRoute>} />
-      <Route path="instagram/automations" element={<ProtectedRoute><InstagramAutomationsPage /></ProtectedRoute>} />
-      <Route path="conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
-      <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
-      <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
-      <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <>
+      <TrialBanner />
+      <Routes>
+        {/* workspace root = dashboard */}
+        <Route index element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="leads" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+        <Route path="contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
+        <Route path="contacts/:id" element={<ProtectedRoute><ContactDetailPage /></ProtectedRoute>} />
+        <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
+        <Route path="companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
+        <Route path="deals" element={<ProtectedRoute><DealsPage /></ProtectedRoute>} />
+        <Route path="deals/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
+        <Route path="pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
+        <Route path="calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+        <Route path="tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
+        <Route path="settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+        <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+        <Route path="billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+        <Route path="integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
+        <Route path="meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
+        <Route path="whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
+        <Route path="whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
+        <Route path="instagram/inbox" element={<ProtectedRoute><InstagramInboxPage /></ProtectedRoute>} />
+        <Route path="instagram/automations" element={<ProtectedRoute><InstagramAutomationsPage /></ProtectedRoute>} />
+        <Route path="conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
+        <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
+        <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
+        <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </>
   );
 }
 
@@ -129,6 +147,7 @@ function AppRoutes() {
       <Route path="/estado-eliminacion" element={<DataDeletionStatusPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
+      <Route path="/pricing" element={<PricingPage />} />
 
       {/* Workspace entry point: validates slug + renders workspace */}
       <Route path="/w/:slug/*" element={<WorkspaceEntryPage />} />
