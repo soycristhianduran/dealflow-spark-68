@@ -19,9 +19,27 @@ export function MsgBubble({
 }) {
   const out = msg.direction === "outgoing";
   const isMedia = MEDIA_MSG_TYPES.includes(msg.message_type);
-  const text =
-    msg.message_text ||
-    (!isMedia && msg.message_type !== "text" ? `[${msg.message_type}]` : "");
+
+  // Friendly labels for non-text, non-media incoming events. Older rows
+  // saved before the webhook learned to extract button/interactive text
+  // still have message_text='' and message_type='button' — show a hint
+  // instead of the raw "[button]" we used to render.
+  const placeholderLabel = (() => {
+    if (msg.message_text) return null;
+    if (isMedia || msg.message_type === "text") return null;
+    switch (msg.message_type) {
+      case "button":            return "👆 Botón presionado (sin texto)";
+      case "interactive":       return "👆 Respuesta interactiva (sin texto)";
+      case "reaction":          return "❤️ Reacción";
+      case "order":             return "🛒 Pedido";
+      case "location":          return "📍 Ubicación compartida";
+      case "contacts":          return "👤 Contacto compartido";
+      case "system":            return "ℹ️ Mensaje del sistema";
+      case "unsupported":       return "⚠️ Mensaje no soportado";
+      default:                  return `[${msg.message_type}]`;
+    }
+  })();
+  const text = msg.message_text || placeholderLabel || "";
 
   // "meta:{id}" means webhook stored the media_id but download failed — frontend can retry
   const isMetaRef =

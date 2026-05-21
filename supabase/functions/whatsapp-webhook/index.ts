@@ -100,9 +100,23 @@ Deno.serve(async (req) => {
               const messageType = msg.type || "text";
               const waMessageId = msg.id;
 
-              // Extract text: prefer text body, fall back to caption on media
+              // Extract text — Meta delivers the body in different shapes
+              // depending on what the customer did:
+              //   - Plain text:           msg.text.body
+              //   - Media (img/vid/etc):  msg.<type>.caption
+              //   - Template button tap:  msg.button.text   (+ msg.button.payload)
+              //   - Interactive reply:    msg.interactive.button_reply.title
+              //                           or msg.interactive.list_reply.title
+              //   - Reaction:             msg.reaction.emoji
               const mediaData = MEDIA_TYPES.includes(messageType) ? msg[messageType] : null;
-              const messageText = msg.text?.body || mediaData?.caption || "";
+              const messageText =
+                msg.text?.body
+                || mediaData?.caption
+                || msg.button?.text           // template button click — text shown on the button
+                || msg.interactive?.button_reply?.title
+                || msg.interactive?.list_reply?.title
+                || (msg.reaction?.emoji ? `Reaccionó con ${msg.reaction.emoji}` : "")
+                || "";
 
               // ── Download and store media ───────────────────────────────────
               // Default: store a "meta:{id}" reference so the frontend can retry on demand

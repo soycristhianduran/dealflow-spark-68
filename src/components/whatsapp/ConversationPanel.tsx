@@ -54,6 +54,7 @@ export function WhatsAppConversationPanel({
     messages,
     selectedPhone,
     setSelectedPhone,
+    selectConversation,
     loadingMessages,
     sending,
     sendMessage,
@@ -83,10 +84,13 @@ export function WhatsAppConversationPanel({
 
   const phoneDigits = phone.replace(/[^\d]/g, "");
 
-  // Sync hook's selected phone with our prop
+  // Sync hook's selected phone with our prop. Must use `selectConversation`
+  // (not `setSelectedPhone`) because the former also fires `fetchMessages`
+  // for the picked phone — otherwise the panel would render with an empty
+  // thread until the user manually refreshed.
   useEffect(() => {
     if (phoneDigits && phoneDigits !== selectedPhone) {
-      setSelectedPhone(phoneDigits);
+      selectConversation(phoneDigits);
     }
     return () => {
       // On unmount, clear the hook's selection so the standalone inbox
