@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Search, Building2, Globe, MapPin } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -114,7 +115,24 @@ export default function CompaniesPage() {
                 </tr>
               ))}
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Sin empresas</td></tr>
+                <tr><td colSpan={5} className="px-0 py-0">
+                  <EmptyState
+                    variant="companies"
+                    title={search ? "Sin resultados" : "Aún no tienes empresas"}
+                    description={
+                      search
+                        ? "Prueba con otro término de búsqueda."
+                        : "Agrupa tus contactos por empresa para tener visibilidad de cuentas completas. Crea la primera con el botón de arriba."
+                    }
+                    action={
+                      !search && (
+                        <Button onClick={() => setDialogOpen(true)} className="gap-1.5">
+                          <Plus className="h-4 w-4" /> Crear primera empresa
+                        </Button>
+                      )
+                    }
+                  />
+                </td></tr>
               )}
             </tbody>
           </table>

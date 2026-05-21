@@ -219,4 +219,28 @@
       hsl(18 88% 50%) 60%,
       hsl(351 84% 60%) 100%);
   }
+
+  /* ── Staggered fade-in for cards on page load ──────────────────────
+   * Apply to grids: each child fades in 50ms after the previous, so the
+   * page composes itself instead of "popping" all at once. */
+  .stagger > * {
+    animation: fade-in 0.4s ease-out both;
+  }
+  .stagger > *:nth-child(1)  { animation-delay: 0ms; }
+  .stagger > *:nth-child(2)  { animation-delay: 40ms; }
+  .stagger > *:nth-child(3)  { animation-delay: 80ms; }
+  .stagger > *:nth-child(4)  { animation-delay: 120ms; }
+  .stagger > *:nth-child(5)  { animation-delay: 160ms; }
+  .stagger > *:nth-child(6)  { animation-delay: 200ms; }
+  .stagger > *:nth-child(7)  { animation-delay: 240ms; }
+  .stagger > *:nth-child(8)  { animation-delay: 280ms; }
+  .stagger > *:nth-child(9)  { animation-delay: 320ms; }
+  .stagger > *:nth-child(10) { animation-delay: 360ms; }
+  .stagger > *:nth-child(11) { animation-delay: 400ms; }
+  .stagger > *:nth-child(12) { animation-delay: 440ms; }
+
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
 }

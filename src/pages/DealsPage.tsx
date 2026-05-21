@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -138,7 +139,17 @@ export default function DealsPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Sin deals</td></tr>
+                  <tr><td colSpan={6} className="px-0 py-0">
+                    <EmptyState
+                      variant="deals"
+                      title={search ? "Sin resultados" : "Aún no tienes deals"}
+                      description={
+                        search
+                          ? "Prueba con otro término de búsqueda."
+                          : "Los deals son las oportunidades de venta. Se crean automáticamente cuando un lead se convierte, o puedes crear uno manualmente desde el detalle de un contacto."
+                      }
+                    />
+                  </td></tr>
                 )}
               </tbody>
             </table>

@@ -17,6 +17,7 @@ import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
@@ -675,7 +676,11 @@ export default function ContactDetailPage() {
                     </Card>
                   );
                 }) : (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Sin deals asociados</div>
+                  <EmptyState
+                    variant="deals"
+                    title="Sin deals asociados"
+                    description="Cuando este contacto avance en tu pipeline, los deals aparecerán aquí."
+                  />
                 )}
               </TabsContent>
 
@@ -703,7 +708,11 @@ export default function ContactDetailPage() {
                     <Badge variant="outline" className="text-xs">{task.status}</Badge>
                   </div>
                 )) : (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Sin tareas asociadas</div>
+                  <EmptyState
+                    variant="tasks"
+                    title="Sin tareas asociadas"
+                    description="Las tareas que crees para este contacto (follow-up, llamada, etc.) aparecerán aquí."
+                  />
                 )}
               </TabsContent>
 
@@ -722,7 +731,11 @@ export default function ContactDetailPage() {
                     </CardContent>
                   </Card>
                 )) : (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Sin citas asociadas</div>
+                  <EmptyState
+                    variant="meetings"
+                    title="Sin citas asociadas"
+                    description="Agenda una llamada o reunión con este contacto desde el botón 'Agendar' arriba."
+                  />
                 )}
               </TabsContent>
             </Tabs>

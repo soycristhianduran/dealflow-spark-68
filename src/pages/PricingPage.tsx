@@ -142,19 +142,45 @@ export default function PricingPage() {
               return (
                 <Card
                   key={plan.id}
-                  className={isPro ? "border-primary border-2 shadow-lg relative" : ""}
+                  className={
+                    isPro
+                      // Pro: sunset gradient border + lift + glow effect
+                      ? "relative border-0 shadow-xl scale-105 md:scale-110 z-10 ring-2 ring-primary/30 overflow-hidden"
+                      : "relative border shadow-sm hover:shadow-md transition-shadow"
+                  }
+                  style={isPro ? {
+                    backgroundImage: "linear-gradient(180deg, hsl(24 100% 97%) 0%, hsl(0 0% 100%) 30%)",
+                  } : undefined}
                 >
                   {isPro && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-primary">Más popular</Badge>
-                    </div>
+                    <>
+                      {/* Decorative gradient orb in the top-right corner */}
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full opacity-20 blur-3xl"
+                        style={{ backgroundColor: "hsl(24 95% 53%)" }}
+                      />
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-20">
+                        <div
+                          className="rounded-full px-3 py-1 text-xs font-semibold text-white shadow-md"
+                          style={{
+                            backgroundImage:
+                              "linear-gradient(90deg, hsl(24 95% 53%), hsl(351 84% 56%))",
+                          }}
+                        >
+                          ⚡ Más popular
+                        </div>
+                      </div>
+                    </>
                   )}
-                  <CardHeader>
+                  <CardHeader className="relative">
                     <CardTitle className="text-2xl">{plan.name}</CardTitle>
                     <div className="mt-2">
-                      <span className="text-4xl font-bold">${price.toFixed(0)}</span>
-                      <span className="text-muted-foreground">
-                        {billingInterval === "month" ? " /mes" : " /año"}
+                      <span className={`text-5xl font-bold tracking-tight ${isPro ? "bg-gradient-to-r from-primary to-rose-500 bg-clip-text text-transparent" : ""}`}>
+                        ${price.toFixed(0)}
+                      </span>
+                      <span className="text-muted-foreground ml-1">
+                        {billingInterval === "month" ? "/mes" : "/año"}
                       </span>
                       {billingInterval === "year" && (
                         <p className="text-xs text-muted-foreground mt-1">
@@ -163,13 +189,16 @@ export default function PricingPage() {
                       )}
                     </div>
                   </CardHeader>
-                  <CardContent className="space-y-4">
+                  <CardContent className="space-y-4 relative">
                     <Button
-                      className="w-full"
+                      className={`w-full ${isPro ? "shadow-md hover:shadow-lg" : ""}`}
                       variant={isPro ? "default" : "outline"}
                       size="lg"
                       onClick={() => startCheckout(plan)}
                       disabled={submitting === plan.id}
+                      style={isPro ? {
+                        backgroundImage: "linear-gradient(90deg, hsl(24 95% 53%), hsl(351 84% 56%))",
+                      } : undefined}
                     >
                       {submitting === plan.id ? (
                         "Procesando..."

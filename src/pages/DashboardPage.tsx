@@ -299,7 +299,7 @@ export default function DashboardPage() {
         />
 
         {/* KPI grid with sparklines + trends */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 stagger">
           {statCards.map((stat) => {
             const trend = stat.spark ? trendPct(stat.spark) : null;
             const trendUp = trend !== null && trend > 0;
@@ -359,7 +359,11 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {upcomingMeetings.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin citas próximas</p>
+                <div className="flex flex-col items-center justify-center py-4 text-center">
+                  <CalendarDays className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">Sin citas próximas</p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Agenda una desde un lead</p>
+                </div>
               ) : upcomingMeetings.map((meeting) => (
                 <div key={meeting.id} className="flex items-start gap-3 rounded-lg border p-3">
                   <div className="text-center">
@@ -388,7 +392,11 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {pendingTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin tareas pendientes</p>
+                <div className="flex flex-col items-center justify-center py-4 text-center">
+                  <CheckSquare className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">¡Todo al día!</p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Sin tareas pendientes</p>
+                </div>
               ) : pendingTasks.map((task) => (
                 <div key={task.id} className="flex items-center gap-3 rounded-lg border p-3">
                   <div className={`h-2 w-2 rounded-full shrink-0 ${
@@ -415,7 +423,11 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {recentActivity.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Sin actividad reciente</p>
+                <div className="flex flex-col items-center justify-center py-4 text-center">
+                  <TrendingUp className="h-8 w-8 text-muted-foreground/40 mb-2" />
+                  <p className="text-sm text-muted-foreground">Sin actividad reciente</p>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">Cuando llegue un lead aparece aquí</p>
+                </div>
               ) : recentActivity.map((activity) => (
                 <div key={activity.id} className="flex items-start gap-2 py-2 border-b last:border-0">
                   <span className="text-sm shrink-0">{eventTypeIcons[activity.event_type] || '📋'}</span>
