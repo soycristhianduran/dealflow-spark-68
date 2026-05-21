@@ -49,16 +49,26 @@ export function AppSidebar() {
         collapsed ? "w-16" : "w-60"
       )}
     >
-      {/* Logo */}
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
+      {/* Logo — sunset gradient bg + filled Zap icon, with subtle shadow */}
+      <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
         {logoUrl ? (
           <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain shrink-0" />
         ) : (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary shrink-0">
-            <Zap className="h-4 w-4 text-sidebar-primary-foreground" />
+          <div
+            className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 shadow-md ring-1 ring-white/10"
+            style={{
+              backgroundImage:
+                "linear-gradient(135deg, hsl(24 95% 58%) 0%, hsl(18 88% 50%) 100%)",
+            }}
+          >
+            <Zap className="h-4 w-4 text-white fill-white" />
           </div>
         )}
-        {!collapsed && <span className="text-base font-bold tracking-tight text-sidebar-accent-foreground">Velocity CRM</span>}
+        {!collapsed && (
+          <span className="text-base font-bold tracking-tight text-white">
+            Velocity <span className="text-primary">CRM</span>
+          </span>
+        )}
       </div>
 
       {/* Main nav */}
@@ -77,10 +87,10 @@ export function AppSidebar() {
               to={path(item.url)}
               end={item.url === "/"}
               className={cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground relative",
-                collapsed && "justify-center px-2"
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5 relative",
+                collapsed && "justify-center px-2 hover:translate-x-0"
               )}
-              activeClassName="bg-sidebar-accent text-sidebar-accent-foreground"
+              activeClassName="bg-sidebar-accent text-sidebar-accent-foreground !translate-x-0 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-r before:bg-primary"
             >
               <item.icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span className="flex-1">{item.title}</span>}

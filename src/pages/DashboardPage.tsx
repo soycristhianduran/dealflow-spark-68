@@ -2,12 +2,14 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Sparkline, dailyCounts, trendPct } from "@/components/ui/sparkline";
+import { HeroCard } from "@/components/dashboard/HeroCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
 import {
   Users, Handshake, Trophy, XCircle, DollarSign,
   CalendarDays, CalendarCheck, CheckSquare,
-  TrendingUp, ArrowUpRight, UserPlus, Star, Loader2,
+  TrendingUp, ArrowUpRight, ArrowDownRight, UserPlus, Star, Loader2,
   AlertTriangle
 } from "lucide-react";
 import { format } from "date-fns";
@@ -111,6 +113,15 @@ export default function DashboardPage() {
   const [activeDeals, setActiveDeals] = useState<DealRow[]>([]);
   const [topObjections, setTopObjections] = useState<ObjectionRow[]>([]);
   const [objectionsAnalyzed, setObjectionsAnalyzed] = useState(0);
+  // 7-day time series for the sparklines on KPI cards.
+  // Keys come from fetched created_at timestamps so the sparkline reflects
+  // real activity, not random data.
+  const [sparkData, setSparkData] = useState<{
+    contacts: number[];
+    deals: number[];
+    meetings: number[];
+    tasks: number[];
+  }>({ contacts: [], deals: [], meetings: [], tasks: [] });
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
@@ -125,10 +136,10 @@ export default function DashboardPage() {
       pendingTasksRes,
       activeDealsRes,
     ] = await Promise.all([
-      supabase.from("contacts").select("id, status"),
-      supabase.from("deals").select("id, status, value, currency"),
-      supabase.from("meetings").select("id, status"),
-      supabase.from("tasks").select("id, status"),
+      supabase.from("contacts").select("id, status, created_at"),
+      supabase.from("deals").select("id, status, value, currency, created_at"),
+      supabase.from("meetings").select("id, status, created_at"),
+      supabase.from("tasks").select("id, status, created_at"),
       supabase.from("activities").select("id, event_type, summary, created_at").order("created_at", { ascending: false }).limit(6),
       supabase.from("meetings").select("id, title, start_at, meeting_type, contacts(full_name)")
         .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3),
@@ -179,6 +190,14 @@ export default function DashboardPage() {
     const wonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
     const wonCurrency = wonDeals.length > 0 ? wonDeals[0].currency : mainCurrency;
 
+    // Build 7-day sparkline series from real created_at timestamps
+    setSparkData({
+      contacts: dailyCounts(contacts.map((c: any) => c.created_at).filter(Boolean), 7),
+      deals: dailyCounts(deals.map((d: any) => d.created_at).filter(Boolean), 7),
+      meetings: dailyCounts(meetings.map((m: any) => m.created_at).filter(Boolean), 7),
+      tasks: dailyCounts(tasks.map((t: any) => t.created_at).filter(Boolean), 7),
+    });
+
     setStats({
       contactsTotal: contacts.length,
       contactsNew: contacts.filter(c => c.status === "new").length,
@@ -224,24 +243,34 @@ export default function DashboardPage() {
     return `${value.toLocaleString()} ${currency}`;
   };
 
-  const statCards = [
-    { label: "Contactos", value: stats.contactsTotal, icon: Users },
+  // KPI cards. `spark` (optional) is a 7-day series → drives a tiny chart
+  // and a trend pill on each card.
+  const statCards: Array<{
+    label: string;
+    value: string | number;
+    icon: any;
+    spark?: number[];
+  }> = [
+    { label: "Contactos", value: stats.contactsTotal, icon: Users, spark: sparkData.contacts },
     { label: "Nuevos", value: stats.contactsNew, icon: UserPlus },
     { label: "Calificados", value: stats.contactsQualified, icon: Star },
-    { label: "Deals abiertos", value: stats.dealsOpen, icon: Handshake },
+    { label: "Deals abiertos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
     { label: "Deals ganados", value: stats.dealsWon, icon: Trophy },
     { label: "Deals perdidos", value: stats.dealsLost, icon: XCircle },
-    { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign },
+    { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign, spark: sparkData.deals },
     { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
-    { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays },
+    { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays, spark: sparkData.meetings },
     { label: "Citas realizadas", value: stats.meetingsCompleted, icon: CalendarCheck },
-    { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare },
+    { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare, spark: sparkData.tasks },
     {
       label: "Objeciones detectadas",
       value: topObjections.reduce((sum, o) => sum + o.count, 0),
       icon: AlertTriangle,
     },
   ];
+
+  // New leads created this week — drives the contextual HeroCard CTA
+  const newLeadsThisWeek = sparkData.contacts.reduce((a, b) => a + b, 0);
 
   const maxObjectionCount = topObjections[0]?.count || 0;
 
@@ -260,20 +289,64 @@ export default function DashboardPage() {
     <AppLayout>
       <AppHeader title="Dashboard" subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })} />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-          {statCards.map((stat) => (
-            <Card key={stat.label} className="border-none shadow-sm">
-              <CardContent className="flex items-center gap-3 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <stat.icon className="h-5 w-5 text-primary" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground truncate">{stat.label}</p>
-                  <p className="text-xl font-bold text-foreground">{stat.value}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        {/* Hero — personalized greeting + sunset gradient + contextual CTA */}
+        <HeroCard
+          pipelineValue={stats.pipelineValue}
+          pipelineCurrency={stats.pipelineCurrency}
+          dealsOpen={stats.dealsOpen}
+          tasksPending={stats.tasksPending}
+          newLeadsThisWeek={newLeadsThisWeek}
+        />
+
+        {/* KPI grid with sparklines + trends */}
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {statCards.map((stat) => {
+            const trend = stat.spark ? trendPct(stat.spark) : null;
+            const trendUp = trend !== null && trend > 0;
+            const trendDown = trend !== null && trend < 0;
+            return (
+              <Card
+                key={stat.label}
+                className="border-none shadow-sm hover:shadow-md transition-shadow group"
+              >
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary group-hover:scale-105 transition-transform">
+                        <stat.icon className="h-4 w-4" />
+                      </div>
+                      <p className="text-xs font-medium text-muted-foreground truncate">{stat.label}</p>
+                    </div>
+                    {trend !== null && trend !== 0 && (
+                      <span
+                        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          trendUp
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                            : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                        }`}
+                      >
+                        {trendUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                        {Math.abs(trend)}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-end justify-between gap-2">
+                    <p className="text-2xl font-bold text-foreground tabular-nums leading-none">
+                      {stat.value}
+                    </p>
+                    {stat.spark && stat.spark.some((v) => v > 0) && (
+                      <Sparkline
+                        data={stat.spark}
+                        color={trendDown ? "hsl(0 84% 60%)" : "hsl(24 95% 53%)"}
+                        width={70}
+                        height={26}
+                      />
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
 
         <div className="grid gap-6 lg:grid-cols-3">

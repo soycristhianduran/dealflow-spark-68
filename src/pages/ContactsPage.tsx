@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Search } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -126,9 +127,38 @@ export default function ContactsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Cargando...</td></tr>
+                <tr><td colSpan={6} className="px-0 py-0">
+                  <div className="p-8 space-y-3">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="flex items-center gap-3 animate-pulse">
+                        <div className="h-8 w-8 rounded-full bg-muted" />
+                        <div className="flex-1 space-y-2">
+                          <div className="h-3 w-1/3 rounded bg-muted" />
+                          <div className="h-2 w-1/4 rounded bg-muted/60" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </td></tr>
               ) : contacts.length === 0 ? (
-                <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No se encontraron leads. Crea el primero.</td></tr>
+                <tr><td colSpan={6} className="px-0 py-0">
+                  <EmptyState
+                    variant={search || statusFilter !== "all" ? "search" : "contacts"}
+                    title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes leads"}
+                    description={
+                      search || statusFilter !== "all"
+                        ? "Prueba con otro filtro o término de búsqueda"
+                        : "Importa tus contactos desde Excel/CSV o crea el primero manualmente. También llegarán automáticamente si tienes Facebook Lead Ads conectado."
+                    }
+                    action={
+                      !search && statusFilter === "all" && (
+                        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+                          <Plus className="h-4 w-4" /> Crear mi primer lead
+                        </Button>
+                      )
+                    }
+                  />
+                </td></tr>
               ) : contacts.map((contact) => {
                 const status = statusConfig[contact.status] || statusConfig.new;
                 return (

@@ -4,9 +4,21 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ─────────────────────────────────────────────────────────────────────────
+ * Velocity CRM — "Sunset LATAM" palette
+ * ─────────────────────────────────────────────────────────────────────────
+ * Primary  — saturated orange #F97316 (HSL 24 95% 53%)
+ *            energetic, LATAM-warm, distinct from the sea-of-blue CRMs
+ * AI accent — deep purple #7C3AED (HSL 262 83% 58%)
+ *            reserved for AI features so they're visually distinct from
+ *            the primary action color
+ * Sidebar  — slate-900 navy with orange-tinted active states
+ * Status colors (success/warning/destructive) keep semantic blue/green/red.
+ * ──────────────────────────────────────────────────────────────────────── */
+
 @layer base {
   :root {
-    --background: 220 20% 97%;
+    --background: 30 40% 98%;          /* warm cream-white */
     --foreground: 222 47% 11%;
 
     --card: 0 0% 100%;
@@ -15,45 +27,54 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 47% 11%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 210 40% 98%;
+    /* ── Primary: vibrant orange ─────────────────────────────────────── */
+    --primary: 24 95% 53%;             /* #F97316 */
+    --primary-foreground: 0 0% 100%;
+    --primary-soft: 24 100% 96%;       /* light orange wash for hover/bg */
+    --primary-deep: 18 88% 47%;        /* darker orange for press states */
 
-    --secondary: 220 14% 96%;
+    /* ── AI / premium accent: deep purple ────────────────────────────── */
+    --ai: 262 83% 58%;                 /* #7C3AED */
+    --ai-foreground: 0 0% 100%;
+    --ai-soft: 270 100% 97%;           /* light purple wash */
+
+    --secondary: 30 20% 96%;           /* slightly warm secondary */
     --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 14% 96%;
+    --muted: 30 18% 95%;
     --muted-foreground: 220 9% 46%;
 
-    --accent: 220 14% 93%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 24 100% 95%;             /* warm peach accent for hover */
+    --accent-foreground: 18 88% 35%;
 
     --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
+    --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 222 47% 11%;
 
-    --border: 220 13% 91%;
-    --input: 220 13% 91%;
-    --ring: 221 83% 53%;
+    --border: 30 15% 91%;
+    --input: 30 15% 91%;
+    --ring: 24 95% 53%;                /* orange focus ring */
 
     --radius: 0.625rem;
 
+    /* ── Sidebar (stays navy with orange-tinted active state) ───────── */
     --sidebar-background: 222 47% 11%;
     --sidebar-foreground: 220 14% 72%;
-    --sidebar-primary: 221 83% 58%;
-    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-primary: 24 95% 58%;     /* orange highlight in dark sidebar */
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 222 30% 16%;
-    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-accent-foreground: 24 100% 88%;
     --sidebar-border: 222 30% 18%;
-    --sidebar-ring: 221 83% 58%;
+    --sidebar-ring: 24 95% 58%;
     --sidebar-muted: 222 20% 25%;
 
-    /* Pipeline stage colors */
-    --stage-new: 221 83% 53%;
+    /* ── Pipeline stage colors (kept distinct, primary stage now orange) */
+    --stage-new: 24 95% 53%;           /* orange — matches primary */
     --stage-contacted: 262 52% 47%;
     --stage-meeting-scheduled: 38 92% 50%;
     --stage-meeting-done: 25 95% 53%;
@@ -70,52 +91,59 @@
   }
 
   .dark {
+    /* ── Dark mode: slightly warmer than pure navy, primary brightens ── */
     --background: 224 30% 7%;
-    --foreground: 210 40% 96%;
+    --foreground: 30 20% 96%;
 
     --card: 224 28% 10%;
-    --card-foreground: 210 40% 96%;
+    --card-foreground: 30 20% 96%;
 
     --popover: 224 28% 10%;
-    --popover-foreground: 210 40% 96%;
+    --popover-foreground: 30 20% 96%;
 
-    --primary: 221 83% 58%;
+    --primary: 24 95% 60%;             /* brighter orange for dark backgrounds */
     --primary-foreground: 222 47% 6%;
+    --primary-soft: 24 50% 18%;
+    --primary-deep: 18 88% 50%;
+
+    --ai: 262 83% 65%;
+    --ai-foreground: 222 47% 6%;
+    --ai-soft: 262 40% 18%;
 
     --secondary: 222 30% 16%;
-    --secondary-foreground: 210 40% 96%;
+    --secondary-foreground: 30 20% 96%;
 
     --muted: 222 30% 16%;
-    --muted-foreground: 220 14% 55%;
+    --muted-foreground: 220 14% 60%;
 
     --accent: 222 30% 20%;
-    --accent-foreground: 210 40% 96%;
+    --accent-foreground: 24 100% 80%;
 
     --destructive: 0 72% 51%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 0 0% 100%;
 
     --success: 142 71% 45%;
-    --success-foreground: 210 40% 98%;
+    --success-foreground: 0 0% 100%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 222 47% 11%;
 
     --border: 222 25% 18%;
     --input: 222 25% 18%;
-    --ring: 221 83% 58%;
+    --ring: 24 95% 60%;
 
     --sidebar-background: 224 32% 6%;
     --sidebar-foreground: 220 14% 65%;
-    --sidebar-primary: 221 83% 58%;
-    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-primary: 24 95% 60%;
+    --sidebar-primary-foreground: 222 47% 6%;
     --sidebar-accent: 224 28% 12%;
-    --sidebar-accent-foreground: 220 14% 92%;
+    --sidebar-accent-foreground: 24 100% 85%;
     --sidebar-border: 222 25% 14%;
-    --sidebar-ring: 221 83% 58%;
+    --sidebar-ring: 24 95% 60%;
     --sidebar-muted: 222 20% 20%;
 
-    --stage-new: 221 83% 58%;
-    --stage-contacted: 262 52% 57%;
+    --stage-new: 24 95% 60%;
+    --stage-contacted: 262 52% 60%;
     --stage-meeting-scheduled: 38 92% 55%;
     --stage-meeting-done: 25 95% 58%;
     --stage-proposal: 173 58% 45%;
@@ -138,6 +166,12 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';  /* Inter's nicer alternates */
+  }
+
+  /* Headings get tighter tracking — feels more polished */
+  h1, h2, h3, h4 {
+    letter-spacing: -0.015em;
   }
 }
 
@@ -145,16 +179,16 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
-  
+
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background: hsl(var(--border));
     border-radius: 3px;
@@ -163,5 +197,26 @@
   .glass {
     backdrop-filter: blur(12px) saturate(180%);
     -webkit-backdrop-filter: blur(12px) saturate(180%);
+  }
+
+  /* ── Brand utility classes ───────────────────────────────────────────
+   * Reusable wrappers so we can sprinkle orange/purple accents without
+   * memorizing the HSL values. Use sparingly — neutrals should still
+   * dominate the UI. */
+  .bg-primary-soft   { background-color: hsl(var(--primary-soft)); }
+  .text-primary-deep { color: hsl(var(--primary-deep)); }
+  .border-primary-soft { border-color: hsl(var(--primary-soft)); }
+
+  .bg-ai           { background-color: hsl(var(--ai)); }
+  .text-ai         { color: hsl(var(--ai)); }
+  .bg-ai-soft      { background-color: hsl(var(--ai-soft)); }
+  .border-ai       { border-color: hsl(var(--ai)); }
+
+  /* Subtle sunset gradient for hero / branded headers */
+  .bg-sunset {
+    background-image: linear-gradient(135deg,
+      hsl(24 95% 53%) 0%,
+      hsl(18 88% 50%) 60%,
+      hsl(351 84% 60%) 100%);
   }
 }
