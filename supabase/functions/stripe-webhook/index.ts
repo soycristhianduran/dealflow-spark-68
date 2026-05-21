@@ -107,6 +107,134 @@ async function upsertSubscriptionFromStripe(
   );
 }
 
+// ---------------------------------------------------------------------------
+// Email dispatch helpers — fire-and-forget calls to send-transactional-email
+// ---------------------------------------------------------------------------
+
+async function getOrgOwnerEmail(
+  supabase: any,
+  organizationId: string,
+): Promise<{ email: string; first_name: string | null; slug: string | null } | null> {
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("slug, organization_members(user_id, role)")
+    .eq("id", organizationId)
+    .maybeSingle();
+  if (!org) return null;
+
+  const owner = (org as any).organization_members?.find((m: any) => m.role === "owner");
+  if (!owner) return null;
+
+  const { data: userData } = await supabase.auth.admin.getUserById(owner.user_id);
+  const email = userData?.user?.email;
+  if (!email) return null;
+
+  const firstName =
+    (userData?.user?.user_metadata?.first_name as string | undefined) ||
+    (userData?.user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+    null;
+
+  return { email, first_name: firstName, slug: (org as any).slug };
+}
+
+async function callEmailDispatcher(
+  supabase: any,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    await fetch(`${SUPABASE_URL}/functions/v1/send-transactional-email`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch (e) {
+    console.warn("Email dispatch failed (non-fatal):", e);
+  }
+}
+
+async function dispatchPaymentSuccessEmail(
+  supabase: any,
+  stripeSub: Stripe.Subscription,
+  invoice: Stripe.Invoice,
+): Promise<void> {
+  const orgId = stripeSub.metadata?.organization_id as string | undefined;
+  if (!orgId) return;
+  const recipient = await getOrgOwnerEmail(supabase, orgId);
+  if (!recipient) return;
+
+  // Resolve plan name from Stripe price metadata or our DB
+  const priceId = stripeSub.items?.data?.[0]?.price?.id;
+  let planName = "Pro";
+  if (priceId) {
+    const { data: plan } = await supabase
+      .from("plans")
+      .select("name")
+      .or(`stripe_price_id_monthly.eq.${priceId},stripe_price_id_annual.eq.${priceId}`)
+      .maybeSingle();
+    if (plan?.name) planName = plan.name;
+  }
+
+  // Amount in USD (Stripe gives cents)
+  const amountCents = invoice.amount_paid;
+  const amountDisplay = amountCents != null ? `$${(amountCents / 100).toFixed(2)} USD` : "";
+
+  const nextBillingDate = stripeSub.current_period_end
+    ? new Date(stripeSub.current_period_end * 1000).toLocaleDateString("es-CO", {
+        dateStyle: "long",
+      })
+    : "";
+
+  const appUrl = (Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co").replace(/\/$/, "");
+  const dashboardUrl = recipient.slug ? `${appUrl}/w/${recipient.slug}` : appUrl;
+
+  await callEmailDispatcher(supabase, {
+    to: recipient.email,
+    template: "payment_success",
+    data: {
+      first_name: recipient.first_name,
+      plan_name: planName,
+      amount_display: amountDisplay,
+      next_billing_date: nextBillingDate,
+      dashboard_url: dashboardUrl,
+    },
+    // Dedupe per invoice — Stripe can fire invoice.paid more than once on retries
+    dedupe_key: `payment_success:${invoice.id}`,
+    organization_id: orgId,
+  });
+}
+
+async function dispatchPaymentFailedEmail(
+  supabase: any,
+  stripeSubId: string,
+): Promise<void> {
+  const { data: sub } = await supabase
+    .from("subscriptions")
+    .select("organization_id")
+    .eq("stripe_subscription_id", stripeSubId)
+    .maybeSingle();
+  if (!sub?.organization_id) return;
+
+  const recipient = await getOrgOwnerEmail(supabase, sub.organization_id);
+  if (!recipient) return;
+
+  const appUrl = (Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co").replace(/\/$/, "");
+  const billingUrl = recipient.slug ? `${appUrl}/w/${recipient.slug}/billing` : `${appUrl}/billing`;
+
+  await callEmailDispatcher(supabase, {
+    to: recipient.email,
+    template: "payment_failed",
+    data: { first_name: recipient.first_name, billing_url: billingUrl },
+    // Dedupe per subscription per day so retries don't spam
+    dedupe_key: `payment_failed:${stripeSubId}:${new Date().toISOString().slice(0, 10)}`,
+    organization_id: sub.organization_id,
+  });
+}
+
 async function recordAiBoostPurchase(
   supabase: any,
   paymentIntent: Stripe.PaymentIntent,
@@ -252,7 +380,7 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ── Renewal succeeded → extend current_period_end ────────────────────
+      // ── Renewal succeeded → extend current_period_end + email confirmation ──
       case "invoice.paid": {
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription) {
@@ -261,11 +389,12 @@ Deno.serve(async (req) => {
             : invoice.subscription.id;
           const fullSub = await stripe.subscriptions.retrieve(subId);
           await upsertSubscriptionFromStripe(supabase, fullSub);
+          await dispatchPaymentSuccessEmail(supabase, fullSub, invoice);
         }
         break;
       }
 
-      // ── Payment failed → mark past_due ───────────────────────────────────
+      // ── Payment failed → mark past_due + email "update your card" ────────
       case "invoice.payment_failed": {
         const invoice = event.data.object as Stripe.Invoice;
         if (invoice.subscription) {
@@ -276,8 +405,8 @@ Deno.serve(async (req) => {
             status: "past_due",
             updated_at: new Date().toISOString(),
           }).eq("stripe_subscription_id", subId);
+          await dispatchPaymentFailedEmail(supabase, subId);
         }
-        // TODO: send email "Payment failed, update your card" (deferred to email phase)
         break;
       }
 
