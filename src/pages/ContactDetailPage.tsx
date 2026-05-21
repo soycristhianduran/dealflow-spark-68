@@ -15,6 +15,8 @@ import { Phone, Mail, Building2, ArrowLeft, MessageCircle, Calendar, MapPin, Meg
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
+import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
@@ -41,6 +43,14 @@ export default function ContactDetailPage() {
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [editForm, setEditForm] = useState({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "" });
+  // Controlled Tabs so the WhatsApp button can switch to the chat tab inline
+  // (avoids the previous behavior of navigating away to /whatsapp/inbox).
+  const [activeTab, setActiveTab] = useState("timeline");
+  // Stages of every pipeline currently used by any of this contact's deals.
+  // Pre-loaded so the Deals tab can render an inline stage-change dropdown
+  // without an extra fetch per deal.
+  const [pipelineStages, setPipelineStages] = useState<Record<string, { id: string; name: string; color: string; order: number }[]>>({});
+  const [stageUpdating, setStageUpdating] = useState<string | null>(null); // deal_id being updated
 
   const startEditing = () => {
     setEditForm({
@@ -88,10 +98,64 @@ export default function ContactDetailPage() {
       supabase.from("meetings").select("*").eq("contact_id", id).order("start_at", { ascending: false }),
       supabase.from("activities").select("*").eq("related_entity_id", id).order("created_at", { ascending: false }),
     ]);
-    setDeals(d.data || []);
+    const dealsData = d.data || [];
+    setDeals(dealsData);
     setTasks(t.data || []);
     setMeetings(m.data || []);
     setActivities(a.data || []);
+
+    // Load stages for every pipeline used by this contact's deals — used by
+    // the inline stage-change dropdown in the Deals tab so the user can move
+    // a deal without leaving this page.
+    const pipelineIds = Array.from(
+      new Set(dealsData.map((deal) => deal.pipeline_id).filter(Boolean))
+    );
+    if (pipelineIds.length > 0) {
+      const { data: stagesData } = await supabase
+        .from("pipeline_stages")
+        .select("id, pipeline_id, name, color, order")
+        .in("pipeline_id", pipelineIds)
+        .order("order", { ascending: true });
+      const byPipeline: Record<string, any[]> = {};
+      for (const stage of stagesData || []) {
+        if (!byPipeline[stage.pipeline_id]) byPipeline[stage.pipeline_id] = [];
+        byPipeline[stage.pipeline_id].push(stage);
+      }
+      setPipelineStages(byPipeline);
+    } else {
+      setPipelineStages({});
+    }
+  };
+
+  // Move a deal to a new stage without leaving this page. Logs an activity
+  // (so the contact's timeline reflects the change) and refreshes the
+  // local deals list.
+  const handleStageChange = async (dealId: string, newStageId: string, newStageName: string) => {
+    setStageUpdating(dealId);
+    try {
+      const { error } = await supabase
+        .from("deals")
+        .update({ stage_id: newStageId, updated_at: new Date().toISOString() })
+        .eq("id", dealId);
+      if (error) throw error;
+
+      // Log activity so the timeline shows the move
+      await supabase.from("activities").insert({
+        related_entity_type: "deal",
+        related_entity_id: dealId,
+        event_type: "stage_changed",
+        event_source: "contact_detail_inline",
+        summary: `Etapa cambiada a "${newStageName}"`,
+        payload: { stage_id: newStageId, stage_name: newStageName },
+      });
+
+      toast.success(`Movido a "${newStageName}"`);
+      await fetchRelated();
+    } catch (e: any) {
+      toast.error("Error al cambiar etapa: " + (e?.message || "desconocido"));
+    } finally {
+      setStageUpdating(null);
+    }
   };
 
   // Re-fetches the contact row.  Extracted so the realtime hook can call it.
@@ -397,7 +461,8 @@ export default function ContactDetailPage() {
                   <Phone className="h-3.5 w-3.5" /> Llamar
                 </Button>
 
-                {/* WhatsApp — opens the WA Inbox already focused on this contact's conversation */}
+                {/* WhatsApp — switches to the inline WhatsApp tab so the user
+                    sees the conversation without leaving the lead's page. */}
                 <Button
                   variant="outline"
                   size="sm"
@@ -405,10 +470,7 @@ export default function ContactDetailPage() {
                   disabled={!contact.primary_phone}
                   onClick={() => {
                     if (!contact.primary_phone) return;
-                    const phoneDigits = contact.primary_phone.replace(/[^\d]/g, "");
-                    // Send the user to the CRM's WA Inbox with a query param the
-                    // inbox can read to auto-select the conversation by phone.
-                    navigate(path(`/whatsapp/inbox?phone=${phoneDigits}`));
+                    setActiveTab("whatsapp");
                   }}
                   title={contact.primary_phone ? `Chatear por WhatsApp con ${contact.primary_phone}` : "Sin teléfono registrado"}
                 >
@@ -439,13 +501,18 @@ export default function ContactDetailPage() {
           </div>
 
           <div className="lg:col-span-2">
-            <Tabs defaultValue="timeline">
+            <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="info">Info</TabsTrigger>
                 <TabsTrigger value="deals">Deals ({deals.length})</TabsTrigger>
                 <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
                 <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
+                {contact.primary_phone && (
+                  <TabsTrigger value="whatsapp">
+                    <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
+                  </TabsTrigger>
+                )}
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
@@ -538,23 +605,89 @@ export default function ContactDetailPage() {
               </TabsContent>
 
               <TabsContent value="deals" className="mt-4 space-y-3">
-                {deals.length > 0 ? deals.map(deal => (
-                  <Card key={deal.id} className="border shadow-sm cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(path(`/deals/${deal.id}`))}>
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{deal.title}</p>
-                        <Badge variant="outline" className="mt-1 text-xs">{deal.status}</Badge>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold text-foreground">${Number(deal.value).toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground">{deal.currency}</p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                )) : (
+                {deals.length > 0 ? deals.map(deal => {
+                  const stages = pipelineStages[deal.pipeline_id] || [];
+                  const currentStage = stages.find(s => s.id === deal.stage_id);
+                  return (
+                    <Card key={deal.id} className="border shadow-sm">
+                      <CardContent className="p-4 space-y-3">
+                        {/* Top row: title + value (click navigates to deal detail) */}
+                        <div
+                          className="flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
+                          onClick={() => navigate(path(`/deals/${deal.id}`))}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{deal.title}</p>
+                            <Badge variant="outline" className="mt-1 text-xs">{deal.status}</Badge>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <p className="text-sm font-bold text-foreground">${Number(deal.value).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground">{deal.currency}</p>
+                          </div>
+                        </div>
+
+                        {/* Inline stage selector — change without leaving this page */}
+                        {stages.length > 0 && (
+                          <div className="flex items-center gap-2 pt-2 border-t">
+                            <span className="text-xs text-muted-foreground shrink-0">Etapa:</span>
+                            <Select
+                              value={deal.stage_id || undefined}
+                              onValueChange={(newStageId) => {
+                                const newStage = stages.find(s => s.id === newStageId);
+                                if (!newStage || newStageId === deal.stage_id) return;
+                                handleStageChange(deal.id, newStageId, newStage.name);
+                              }}
+                              disabled={stageUpdating === deal.id}
+                            >
+                              <SelectTrigger className="h-8 text-xs flex-1">
+                                {currentStage ? (
+                                  <span className="flex items-center gap-1.5">
+                                    <span
+                                      className="h-2 w-2 rounded-full shrink-0"
+                                      style={{ backgroundColor: currentStage.color }}
+                                    />
+                                    {currentStage.name}
+                                  </span>
+                                ) : (
+                                  <SelectValue placeholder="Sin etapa" />
+                                )}
+                              </SelectTrigger>
+                              <SelectContent>
+                                {stages.map(stage => (
+                                  <SelectItem key={stage.id} value={stage.id}>
+                                    <span className="flex items-center gap-1.5">
+                                      <span
+                                        className="h-2 w-2 rounded-full shrink-0"
+                                        style={{ backgroundColor: stage.color }}
+                                      />
+                                      {stage.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {stageUpdating === deal.id && (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  );
+                }) : (
                   <div className="text-center py-12 text-muted-foreground text-sm">Sin deals asociados</div>
                 )}
               </TabsContent>
+
+              {contact.primary_phone && (
+                <TabsContent value="whatsapp" className="mt-4">
+                  <ContactWhatsAppThread
+                    phone={contact.primary_phone}
+                    contactId={contact.id}
+                    contactName={contact.full_name}
+                  />
+                </TabsContent>
+              )}
 
               <TabsContent value="tasks" className="mt-4 space-y-2">
                 {tasks.length > 0 ? tasks.map(task => (
