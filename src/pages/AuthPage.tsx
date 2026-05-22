@@ -166,54 +166,58 @@ export default function AuthPage() {
                     <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
                   </div>
                 )}
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <CountryPhoneInput
-                    value={phone}
-                    onChange={setPhone}
-                    countryCode={countryCode}
-                    onCountryChange={setCountryCode}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Industria</Label>
-                  <Select value={industry} onValueChange={setIndustry}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona tu industria" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {industries.map(i => (
-                        <SelectItem key={i} value={i}>{i}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Tamaño de empresa</Label>
-                  <Select value={companySize} onValueChange={setCompanySize}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Número de empleados" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companySizes.map(s => (
-                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Rol / Cargo</Label>
-                  <Select value={jobTitle} onValueChange={setJobTitle}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona tu cargo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {["CEO / Director General", "Director Comercial", "Gerente de Ventas", "Ejecutivo de Ventas", "Director de Marketing", "Gerente de Marketing", "Director de Operaciones", "Gerente de Proyecto", "Fundador / Co-fundador", "Consultor", "Freelancer", "Otro"].map(r => (
-                        <SelectItem key={r} value={r}>{r}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!inviteToken && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Teléfono</Label>
+                      <CountryPhoneInput
+                        value={phone}
+                        onChange={setPhone}
+                        countryCode={countryCode}
+                        onCountryChange={setCountryCode}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Industria</Label>
+                      <Select value={industry} onValueChange={setIndustry}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona tu industria" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {industries.map(i => (
+                            <SelectItem key={i} value={i}>{i}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Tamaño de empresa</Label>
+                      <Select value={companySize} onValueChange={setCompanySize}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Número de empleados" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {companySizes.map(s => (
+                            <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Rol / Cargo</Label>
+                      <Select value={jobTitle} onValueChange={setJobTitle}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecciona tu cargo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["CEO / Director General", "Director Comercial", "Gerente de Ventas", "Ejecutivo de Ventas", "Director de Marketing", "Gerente de Marketing", "Director de Operaciones", "Gerente de Proyecto", "Fundador / Co-fundador", "Consultor", "Freelancer", "Otro"].map(r => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
                 <div className="space-y-2">
                   <Label>Contraseña *</Label>
                   <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
