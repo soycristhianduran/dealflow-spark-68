@@ -35,10 +35,11 @@ export default function ContactDetailPage() {
   const [savingContact, setSavingContact] = useState(false);
   const [editForm, setEditForm] = useState<{
     first_name: string; last_name: string; primary_phone: string; primary_email: string;
-    birthday: string; customFields: Record<string, string>; newFieldKey: string; newFieldValue: string;
+    birthday: string; customFields: Record<string, any>; newFieldKey: string; newFieldValue: string;
+    newFieldType: string; newFieldOptions: string;
   }>({
     first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "",
-    customFields: {}, newFieldKey: "", newFieldValue: "",
+    customFields: {}, newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
   });
   // Inline pipeline state — Kommo-style, always editable without entering global edit mode
   const [ppl, setPpl] = useState({ pipeline_id: "", stage_id: "", budget: "", budget_currency: "USD", expected_close_date: "" });
@@ -58,18 +59,34 @@ export default function ContactDetailPage() {
       primary_phone: contact?.primary_phone || "",
       primary_email: contact?.primary_email || "",
       birthday: contact?.birthday || "",
-      customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, string>) } : {},
-      newFieldKey: "",
-      newFieldValue: "",
+      customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, any>) } : {},
+      newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
     });
     setEditingContact(true);
   };
 
   const addCustomField = () => {
-    const key = editForm.newFieldKey.trim();
-    if (!key) return;
-    const slug = key.toLowerCase().replace(/\s+/g, "_");
-    setEditForm(p => ({ ...p, customFields: { ...p.customFields, [slug]: p.newFieldValue }, newFieldKey: "", newFieldValue: "" }));
+    const label = editForm.newFieldKey.trim();
+    if (!label) return;
+    const slug = label.toLowerCase().replace(/\s+/g, "_");
+    let fieldData: any;
+    if (editForm.newFieldType === "text") {
+      fieldData = editForm.newFieldValue;
+    } else {
+      fieldData = {
+        type: editForm.newFieldType,
+        value: editForm.newFieldValue,
+        label,
+        ...(editForm.newFieldType === "select" && editForm.newFieldOptions
+          ? { options: editForm.newFieldOptions.split(",").map((o: string) => o.trim()).filter(Boolean) }
+          : {}),
+      };
+    }
+    setEditForm(p => ({
+      ...p,
+      customFields: { ...p.customFields, [slug]: fieldData },
+      newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
+    }));
   };
 
   const removeCustomField = (key: string) => {
@@ -392,39 +409,92 @@ export default function ContactDetailPage() {
                     <div className="pt-1 border-t">
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Campos personalizados</p>
                       <div className="space-y-1.5">
-                        {Object.entries(editForm.customFields).map(([key, val]) => (
-                          <div key={key} className="flex items-center gap-1.5">
-                            <span className="text-xs text-muted-foreground w-24 truncate shrink-0">{key}</span>
+                        {Object.entries(editForm.customFields).map(([key, val]) => {
+                          const isObj = typeof val === "object" && val !== null;
+                          const type = isObj ? (val.type ?? "text") : "text";
+                          const value = isObj ? String(val.value ?? "") : String(val ?? "");
+                          const opts: string[] = isObj && Array.isArray(val.options) ? val.options : [];
+                          const setVal = (newVal: string) => setEditForm(p => ({
+                            ...p,
+                            customFields: { ...p.customFields, [key]: isObj ? { ...val, value: newVal } : newVal },
+                          }));
+                          return (
+                            <div key={key} className="flex items-center gap-1.5">
+                              <span className="text-xs text-muted-foreground w-20 truncate shrink-0">{key.replace(/_/g, " ")}</span>
+                              {type === "switch" ? (
+                                <button
+                                  className={`h-7 px-3 rounded text-xs font-medium border flex-1 text-left ${value === "true" ? "bg-green-50 text-green-700 border-green-300" : "bg-muted text-muted-foreground border-border"}`}
+                                  onClick={() => setVal(value === "true" ? "false" : "true")}
+                                >{value === "true" ? "Sí" : "No"}</button>
+                              ) : type === "select" ? (
+                                <Select value={value} onValueChange={setVal}>
+                                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{opts.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                                </Select>
+                              ) : (
+                                <Input
+                                  type={type === "number" ? "number" : type === "date" ? "date" : type === "url" ? "url" : "text"}
+                                  value={value}
+                                  onChange={e => setVal(e.target.value)}
+                                  className="h-7 text-xs flex-1"
+                                />
+                              )}
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => removeCustomField(key)}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Add new field — with type selector */}
+                      <div className="mt-2 space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            placeholder="Nombre del campo"
+                            value={editForm.newFieldKey}
+                            onChange={e => setEditForm(p => ({ ...p, newFieldKey: e.target.value }))}
+                            className="h-7 text-xs flex-1"
+                          />
+                          <Select value={editForm.newFieldType} onValueChange={v => setEditForm(p => ({ ...p, newFieldType: v, newFieldValue: "", newFieldOptions: "" }))}>
+                            <SelectTrigger className="h-7 w-24 text-xs shrink-0"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="text">Texto</SelectItem>
+                              <SelectItem value="number">Número</SelectItem>
+                              <SelectItem value="switch">Interruptor</SelectItem>
+                              <SelectItem value="select">Selección</SelectItem>
+                              <SelectItem value="date">Fecha</SelectItem>
+                              <SelectItem value="url">URL</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {editForm.newFieldType === "select" && (
+                          <Input
+                            placeholder="Opciones separadas por coma (ej: A, B, C)"
+                            value={editForm.newFieldOptions}
+                            onChange={e => setEditForm(p => ({ ...p, newFieldOptions: e.target.value }))}
+                            className="h-7 text-xs"
+                          />
+                        )}
+                        <div className="flex items-center gap-1.5">
+                          {editForm.newFieldType === "switch" ? (
+                            <button
+                              className={`h-7 px-3 rounded text-xs font-medium border flex-1 text-left ${editForm.newFieldValue === "true" ? "bg-green-50 text-green-700 border-green-300" : "bg-muted text-muted-foreground border-border"}`}
+                              onClick={() => setEditForm(p => ({ ...p, newFieldValue: p.newFieldValue === "true" ? "false" : "true" }))}
+                            >{editForm.newFieldValue === "true" ? "Sí" : "No"}</button>
+                          ) : (
                             <Input
-                              value={val}
-                              onChange={e => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [key]: e.target.value } }))}
+                              type={editForm.newFieldType === "number" ? "number" : editForm.newFieldType === "date" ? "date" : editForm.newFieldType === "url" ? "url" : "text"}
+                              placeholder="Valor (opcional)"
+                              value={editForm.newFieldValue}
+                              onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
+                              onKeyDown={e => e.key === "Enter" && addCustomField()}
                               className="h-7 text-xs flex-1"
                             />
-                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => removeCustomField(key)}>
-                              <X className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                      {/* Add new field row */}
-                      <div className="flex items-center gap-1.5 mt-2">
-                        <Input
-                          placeholder="Nombre del campo"
-                          value={editForm.newFieldKey}
-                          onChange={e => setEditForm(p => ({ ...p, newFieldKey: e.target.value }))}
-                          onKeyDown={e => e.key === "Enter" && addCustomField()}
-                          className="h-7 text-xs flex-1"
-                        />
-                        <Input
-                          placeholder="Valor"
-                          value={editForm.newFieldValue}
-                          onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
-                          onKeyDown={e => e.key === "Enter" && addCustomField()}
-                          className="h-7 text-xs flex-1"
-                        />
-                        <Button size="sm" variant="outline" className="h-7 w-7 p-0 shrink-0" onClick={addCustomField}>
-                          <Plus className="h-3 w-3" />
-                        </Button>
+                          )}
+                          <Button size="sm" variant="outline" className="h-7 w-7 p-0 shrink-0" onClick={addCustomField} disabled={!editForm.newFieldKey.trim()}>
+                            <Plus className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -456,12 +526,22 @@ export default function ContactDetailPage() {
                     )}
                     {contact.custom_fields && typeof contact.custom_fields === "object" && Object.keys(contact.custom_fields).length > 0 && (
                       <div className="pt-2 mt-1 border-t space-y-1.5">
-                        {Object.entries(contact.custom_fields as Record<string, string>).map(([key, val]) => (
-                          <div key={key} className="flex items-start justify-between gap-2 text-sm">
-                            <span className="text-muted-foreground capitalize shrink-0">{key.replace(/_/g, " ")}:</span>
-                            <span className="text-foreground text-right break-all">{val || "—"}</span>
-                          </div>
-                        ))}
+                        {Object.entries(contact.custom_fields as Record<string, any>).map(([key, val]) => {
+                          const isObj = typeof val === "object" && val !== null;
+                          const type = isObj ? (val.type ?? "text") : "text";
+                          const value = isObj ? String(val.value ?? "") : String(val ?? "");
+                          const displayLabel = isObj && val.label ? val.label : key.replace(/_/g, " ");
+                          let displayValue: React.ReactNode = value || "—";
+                          if (type === "switch") displayValue = value === "true" ? <Badge className="bg-green-500 text-white border-0 text-[10px] py-0">Sí</Badge> : <Badge variant="outline" className="text-[10px] py-0">No</Badge>;
+                          else if (type === "date" && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                          else if (type === "url" && value) displayValue = <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{value}</a>;
+                          return (
+                            <div key={key} className="flex items-start justify-between gap-2 text-sm">
+                              <span className="text-muted-foreground capitalize shrink-0">{displayLabel}:</span>
+                              <span className="text-foreground text-right">{displayValue}</span>
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
 
