@@ -137,7 +137,7 @@ export default function DashboardPage() {
       activeDealsRes,
     ] = await Promise.all([
       supabase.from("contacts").select("id, status, created_at"),
-      supabase.from("deals").select("id, status, value, currency, created_at"),
+      supabase.from("contacts").select("id, lead_status, budget, budget_currency, created_at").not("pipeline_id", "is", null),
       supabase.from("meetings").select("id, status, created_at"),
       supabase.from("tasks").select("id, status, created_at"),
       supabase.from("activities").select("id, event_type, summary, created_at").order("created_at", { ascending: false }).limit(6),
@@ -145,8 +145,8 @@ export default function DashboardPage() {
         .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3),
       supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
         .eq("status", "pending").order("due_date").limit(4),
-      supabase.from("deals").select("id, title, value, currency, status, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
-        .order("created_at", { ascending: false }).limit(10),
+      supabase.from("contacts").select("id, full_name, budget, budget_currency, lead_status, expected_close_date, pipeline_stages(name, color)")
+        .not("pipeline_id", "is", null).eq("lead_status", "active").order("created_at", { ascending: false }).limit(10),
     ]);
 
     // Top objections: fetch all AI analyses with non-empty objections.
@@ -179,39 +179,39 @@ export default function DashboardPage() {
     setObjectionsAnalyzed(analyzedCount);
 
     const contacts = contactsRes.data || [];
-    const deals = dealsRes.data || [];
+    const pipelineContacts = dealsRes.data || [];
     const meetings = meetingsRes.data || [];
     const tasks = tasksRes.data || [];
 
-    const openDeals = deals.filter(d => d.status === "open");
-    const wonDeals = deals.filter(d => d.status === "won");
-    const pipelineValue = openDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const mainCurrency = openDeals.length > 0 ? openDeals[0].currency : (deals.length > 0 ? deals[0].currency : "USD");
-    const wonValue = wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0);
-    const wonCurrency = wonDeals.length > 0 ? wonDeals[0].currency : mainCurrency;
+    const activeLeads = pipelineContacts.filter((d: any) => d.lead_status === "active");
+    const wonLeads = pipelineContacts.filter((d: any) => d.lead_status === "won");
+    const pipelineValue = activeLeads.reduce((sum: number, d: any) => sum + Number(d.budget || 0), 0);
+    const mainCurrency = activeLeads.length > 0 ? activeLeads[0].budget_currency : (pipelineContacts.length > 0 ? pipelineContacts[0].budget_currency : "USD");
+    const wonValue = wonLeads.reduce((sum: number, d: any) => sum + Number(d.budget || 0), 0);
+    const wonCurrency = wonLeads.length > 0 ? wonLeads[0].budget_currency : mainCurrency;
 
     // Build 7-day sparkline series from real created_at timestamps
     setSparkData({
       contacts: dailyCounts(contacts.map((c: any) => c.created_at).filter(Boolean), 7),
-      deals: dailyCounts(deals.map((d: any) => d.created_at).filter(Boolean), 7),
+      deals: dailyCounts(pipelineContacts.map((d: any) => d.created_at).filter(Boolean), 7),
       meetings: dailyCounts(meetings.map((m: any) => m.created_at).filter(Boolean), 7),
       tasks: dailyCounts(tasks.map((t: any) => t.created_at).filter(Boolean), 7),
     });
 
     setStats({
       contactsTotal: contacts.length,
-      contactsNew: contacts.filter(c => c.status === "new").length,
-      contactsQualified: contacts.filter(c => c.status === "qualified").length,
-      dealsOpen: openDeals.length,
-      dealsWon: deals.filter(d => d.status === "won").length,
-      dealsLost: deals.filter(d => d.status === "lost").length,
+      contactsNew: contacts.filter((c: any) => c.status === "new").length,
+      contactsQualified: contacts.filter((c: any) => c.status === "qualified").length,
+      dealsOpen: activeLeads.length,
+      dealsWon: wonLeads.length,
+      dealsLost: pipelineContacts.filter((d: any) => d.lead_status === "lost").length,
       pipelineValue,
-      pipelineCurrency: mainCurrency,
+      pipelineCurrency: mainCurrency || "USD",
       wonValue,
-      wonCurrency,
-      meetingsScheduled: meetings.filter(m => m.status === "scheduled").length,
-      meetingsCompleted: meetings.filter(m => m.status === "completed").length,
-      tasksPending: tasks.filter(t => t.status === "pending").length,
+      wonCurrency: wonCurrency || "USD",
+      meetingsScheduled: meetings.filter((m: any) => m.status === "scheduled").length,
+      meetingsCompleted: meetings.filter((m: any) => m.status === "completed").length,
+      tasksPending: tasks.filter((t: any) => t.status === "pending").length,
     });
 
     setRecentActivity((activitiesRes.data || []) as ActivityRow[]);
@@ -224,10 +224,10 @@ export default function DashboardPage() {
     setPendingTasks((pendingTasksRes.data || []) as TaskRow[]);
 
     setActiveDeals((activeDealsRes.data || []).map((d: any) => ({
-      id: d.id, title: d.title, value: d.value, currency: d.currency,
-      status: d.status,
+      id: d.id, title: d.full_name, value: d.budget, currency: d.budget_currency,
+      status: d.lead_status,
       expected_close_date: d.expected_close_date,
-      contact_name: d.contacts?.full_name || null,
+      contact_name: null,
       stage_name: d.pipeline_stages?.name || null,
       stage_color: d.pipeline_stages?.color || null,
     })));
@@ -251,12 +251,12 @@ export default function DashboardPage() {
     icon: any;
     spark?: number[];
   }> = [
-    { label: "Contactos", value: stats.contactsTotal, icon: Users, spark: sparkData.contacts },
+    { label: "Leads", value: stats.contactsTotal, icon: Users, spark: sparkData.contacts },
     { label: "Nuevos", value: stats.contactsNew, icon: UserPlus },
     { label: "Calificados", value: stats.contactsQualified, icon: Star },
-    { label: "Deals abiertos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
-    { label: "Deals ganados", value: stats.dealsWon, icon: Trophy },
-    { label: "Deals perdidos", value: stats.dealsLost, icon: XCircle },
+    { label: "Leads activos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
+    { label: "Leads ganados", value: stats.dealsWon, icon: Trophy },
+    { label: "Leads perdidos", value: stats.dealsLost, icon: XCircle },
     { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign, spark: sparkData.deals },
     { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
     { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays, spark: sparkData.meetings },

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import {
-  LayoutDashboard, Users, Building2, Handshake,
-  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3, MessageSquare, Mail, Instagram, Sparkles
+  LayoutDashboard, Users, Building2,
+  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3, MessageSquare, Mail, Sparkles
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -12,7 +12,6 @@ const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Leads", url: "/contacts", icon: Users },
   { title: "Empresas", url: "/companies", icon: Building2 },
-  { title: "Deals", url: "/leads", icon: Handshake },
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },
   { title: "Calendario", url: "/calendar", icon: CalendarDays },
   { title: "Tareas", url: "/tasks", icon: CheckSquare },

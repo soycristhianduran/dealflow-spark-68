@@ -56,6 +56,10 @@ interface ContactRow {
   source: string | null;
   tags: string[] | null;
   created_at: string;
+  stage_id: string | null;
+  pipeline_id: string | null;
+  lead_status: string | null;
+  pipeline_stages?: { id: string; name: string; color: string } | null;
 }
 
 interface ProfileOption {
@@ -106,11 +110,13 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
-    let query = supabase.from("contacts").select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at").order("created_at", { ascending: false });
+    let query = supabase.from("contacts")
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, pipeline_stages(id, name, color)")
+      .order("created_at", { ascending: false });
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
     const { data, error } = await query;
-    if (!error && data) setContacts(data);
+    if (!error && data) setContacts(data as any);
     setLoading(false);
   }, [statusFilter, search]);
 
@@ -347,7 +353,7 @@ export default function ContactsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Score</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Tags</th>
               </tr>
@@ -387,7 +393,7 @@ export default function ContactsPage() {
                   />
                 </td></tr>
               ) : contacts.map((contact) => {
-                const status = statusConfig[contact.status] || statusConfig.new;
+                const stage = contact.pipeline_stages as { id: string; name: string; color: string } | null;
                 const isSelected = selected.has(contact.id);
                 return (
                   <tr key={contact.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
@@ -409,7 +415,20 @@ export default function ContactsPage() {
                     </td>
                     <td className="px-4 py-3 text-muted-foreground hidden md:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>{contact.primary_phone || '—'}</td>
                     <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>{contact.source || '—'}</td>
-                    <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}><Badge variant={status.variant}>{status.label}</Badge></td>
+                    <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
+                      {stage ? (
+                        <Badge variant="outline" className="gap-1.5 text-xs">
+                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                          {stage.name}
+                        </Badge>
+                      ) : contact.lead_status === "won" ? (
+                        <Badge className="bg-green-500 text-white border-0 text-xs">Ganado</Badge>
+                      ) : contact.lead_status === "lost" ? (
+                        <Badge variant="destructive" className="text-xs">Perdido</Badge>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 hidden md:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
                       <div className="flex items-center gap-2">
                         <div className="h-1.5 w-12 rounded-full bg-muted overflow-hidden">

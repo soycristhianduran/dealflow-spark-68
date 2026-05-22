@@ -14,7 +14,6 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus } from "lucide-react";
-import { closeDeal } from "@/lib/deal-actions";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -32,16 +31,16 @@ interface Stage {
   probability: number;
 }
 
-interface DealRow {
+interface ContactRow {
   id: string;
-  title: string;
-  value: number;
-  currency: string;
-  status: string;
+  full_name: string;
+  primary_phone: string | null;
   stage_id: string | null;
-  contact_id: string | null;
+  pipeline_id: string | null;
+  budget: number | null;
+  budget_currency: string | null;
   expected_close_date: string | null;
-  contact_name?: string;
+  lead_status: string;
 }
 
 const stageColorOptions = [
@@ -65,9 +64,9 @@ export default function PipelinePage() {
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
-  const [deals, setDeals] = useState<DealRow[]>([]);
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [draggedDeal, setDraggedDeal] = useState<string | null>(null);
+  const [draggedContact, setDraggedContact] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
   const [dragOverStageCol, setDragOverStageCol] = useState<string | null>(null);
@@ -89,16 +88,15 @@ export default function PipelinePage() {
   const [pipelineName, setPipelineName] = useState("");
   const [savingPipeline, setSavingPipeline] = useState(false);
 
-  // Deal creation dialog
-  const [dealDialogOpen, setDealDialogOpen] = useState(false);
-  const [dealStageId, setDealStageId] = useState<string | null>(null);
-  const [dealTitle, setDealTitle] = useState("");
-  const [dealValue, setDealValue] = useState("");
-  const [dealCurrency, setDealCurrency] = useState("USD");
-  const [dealContactId, setDealContactId] = useState("");
-  const [dealCloseDate, setDealCloseDate] = useState("");
-  const [savingDeal, setSavingDeal] = useState(false);
-  const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
+  // Lead creation dialog (creates a contact with stage + pipeline)
+  const [leadDialogOpen, setLeadDialogOpen] = useState(false);
+  const [leadStageId, setLeadStageId] = useState<string | null>(null);
+  const [leadFullName, setLeadFullName] = useState("");
+  const [leadPhone, setLeadPhone] = useState("");
+  const [leadBudget, setLeadBudget] = useState("");
+  const [leadCurrency, setLeadCurrency] = useState("USD");
+  const [leadCloseDate, setLeadCloseDate] = useState("");
+  const [savingLead, setSavingLead] = useState(false);
 
   const fetchPipelines = useCallback(async () => {
     const { data } = await supabase.from("pipelines").select("id, name").order("created_at", { ascending: true });
@@ -107,18 +105,17 @@ export default function PipelinePage() {
     return list;
   }, []);
 
-  const fetchStagesAndDeals = useCallback(async (pid: string) => {
-    const [{ data: stagesData }, { data: dealsData }] = await Promise.all([
+  const fetchStagesAndContacts = useCallback(async (pid: string) => {
+    const [{ data: stagesData }, { data: contactsData }] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pid).order("order", { ascending: true }),
-      supabase.from("deals").select("id, title, value, currency, status, stage_id, contact_id, expected_close_date, contacts(full_name)").eq("pipeline_id", pid).eq("status", "open").order("created_at", { ascending: false }),
+      supabase.from("contacts")
+        .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
+        .eq("pipeline_id", pid)
+        .eq("lead_status", "active")
+        .order("created_at", { ascending: false }),
     ]);
     setStages(stagesData || []);
-    const mapped = (dealsData || []).map((d: any) => ({
-      ...d,
-      contact_name: d.contacts?.full_name || null,
-      contacts: undefined,
-    }));
-    setDeals(mapped);
+    setContacts(contactsData || []);
   }, []);
 
   const fetchData = useCallback(async () => {
@@ -138,38 +135,35 @@ export default function PipelinePage() {
       }
     }
     setSelectedPipelineId(pid);
-    if (pid) await fetchStagesAndDeals(pid);
+    if (pid) await fetchStagesAndContacts(pid);
     setLoading(false);
-  }, [selectedPipelineId, fetchPipelines, fetchStagesAndDeals]);
+  }, [selectedPipelineId, fetchPipelines, fetchStagesAndContacts]);
 
   useEffect(() => {
     fetchData();
-    supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
-      if (data) setContacts(data);
-    });
     const handleFocus = () => fetchData();
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, [fetchData]);
 
-  // Realtime: refresh deals on inserts/updates/deletes for the active pipeline
+  // Realtime: refresh on contact inserts/updates/deletes for the active pipeline
   useEffect(() => {
     if (!selectedPipelineId) return;
     const channel = supabase
-      .channel(`pipeline-deals-${selectedPipelineId}`)
+      .channel(`pipeline-contacts-${selectedPipelineId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "deals", filter: `pipeline_id=eq.${selectedPipelineId}` },
-        () => fetchStagesAndDeals(selectedPipelineId),
+        { event: "*", schema: "public", table: "contacts", filter: `pipeline_id=eq.${selectedPipelineId}` },
+        () => fetchStagesAndContacts(selectedPipelineId),
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [selectedPipelineId, fetchStagesAndDeals]);
+  }, [selectedPipelineId, fetchStagesAndContacts]);
 
   const switchPipeline = async (pid: string) => {
     setSelectedPipelineId(pid);
     setLoading(true);
-    await fetchStagesAndDeals(pid);
+    await fetchStagesAndContacts(pid);
     setLoading(false);
   };
 
@@ -201,7 +195,7 @@ export default function PipelinePage() {
         setPipelines(prev => [...prev, data]);
         setSelectedPipelineId(data.id);
         setStages([]);
-        setDeals([]);
+        setContacts([]);
       }
     }
     setSavingPipeline(false);
@@ -210,10 +204,8 @@ export default function PipelinePage() {
 
   const handleDeletePipeline = async (pid: string) => {
     if (pipelines.length <= 1) { toast.error("Debes tener al menos un pipeline"); return; }
-    // Check if pipeline has deals
-    const { count } = await supabase.from("deals").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
+    const { count } = await supabase.from("contacts").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
     if (count && count > 0) { toast.error("No puedes eliminar un pipeline con leads. Mueve o elimina los leads primero."); return; }
-    // Delete stages first
     await supabase.from("pipeline_stages").delete().eq("pipeline_id", pid);
     const { error } = await supabase.from("pipelines").delete().eq("id", pid);
     if (error) { toast.error("Error: " + error.message); return; }
@@ -225,58 +217,59 @@ export default function PipelinePage() {
     }
   };
 
-  // Deal creation
-  const openCreateDeal = (stageId: string) => {
-    setDealStageId(stageId);
-    setDealTitle("");
-    setDealValue("");
-    setDealCurrency("USD");
-    setDealContactId("");
-    setDealCloseDate("");
-    setDealDialogOpen(true);
+  // Lead creation
+  const openCreateLead = (stageId: string) => {
+    setLeadStageId(stageId);
+    setLeadFullName("");
+    setLeadPhone("");
+    setLeadBudget("");
+    setLeadCurrency("USD");
+    setLeadCloseDate("");
+    setLeadDialogOpen(true);
   };
 
-  const handleCreateDeal = async () => {
-    if (!dealTitle.trim() || !selectedPipelineId || !dealStageId) {
-      toast.error("El título es requerido");
+  const handleCreateLead = async () => {
+    if (!leadFullName.trim() || !selectedPipelineId || !leadStageId) {
+      toast.error("El nombre es requerido");
       return;
     }
-    setSavingDeal(true);
-    const { error } = await supabase.from("deals").insert({
-      title: dealTitle.trim(),
-      value: Number(dealValue) || 0,
-      currency: dealCurrency,
-      stage_id: dealStageId,
+    setSavingLead(true);
+    const nameParts = leadFullName.trim().split(" ");
+    const first_name = nameParts[0] || "";
+    const last_name = nameParts.slice(1).join(" ") || "";
+    const { error } = await supabase.from("contacts").insert({
+      full_name: leadFullName.trim(),
+      first_name,
+      last_name: last_name || null,
+      primary_phone: leadPhone.trim() || null,
+      budget: Number(leadBudget) || null,
+      budget_currency: leadCurrency,
+      stage_id: leadStageId,
       pipeline_id: selectedPipelineId,
-      contact_id: dealContactId && dealContactId !== "none" ? dealContactId : null,
-      expected_close_date: dealCloseDate || null,
+      expected_close_date: leadCloseDate || null,
       owner_id: session?.user?.id || null,
-      status: "open",
+      lead_status: "active",
       ...(organizationId ? { organization_id: organizationId } : {}),
     });
-    setSavingDeal(false);
+    setSavingLead(false);
     if (error) { toast.error("Error: " + error.message); return; }
-    toast.success("Deal creado");
-    setDealDialogOpen(false);
-    if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
+    toast.success("Lead creado");
+    setLeadDialogOpen(false);
+    if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
-  // Drag & drop deals
+  // Drag & drop contacts between stages
   const handleDrop = async (stageId: string) => {
-    if (!draggedDeal) return;
+    if (!draggedContact) return;
     setDragOverStage(null);
-    const deal = deals.find(d => d.id === draggedDeal);
-    setDeals(prev => prev.map(d => d.id === draggedDeal ? { ...d, stage_id: stageId } : d));
-    setDraggedDeal(null);
-    await supabase.from("deals").update({ stage_id: stageId }).eq("id", draggedDeal);
-    // Re-score in background after stage change
-    if (deal?.contact_id) {
-      supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
-    }
+    setContacts(prev => prev.map(c => c.id === draggedContact ? { ...c, stage_id: stageId } : c));
+    setDraggedContact(null);
+    await supabase.from("contacts").update({ stage_id: stageId }).eq("id", draggedContact);
+    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: draggedContact } }).catch(() => {});
   };
 
   const getStageValue = (stageId: string) =>
-    deals.filter(d => d.stage_id === stageId).reduce((sum, d) => sum + Number(d.value), 0);
+    contacts.filter(c => c.stage_id === stageId).reduce((sum, c) => sum + Number(c.budget || 0), 0);
 
   // Stage CRUD
   const openAddStage = () => {
@@ -322,18 +315,18 @@ export default function PipelinePage() {
 
     setSavingStage(false);
     setStageDialogOpen(false);
-    fetchStagesAndDeals(selectedPipelineId!);
+    fetchStagesAndContacts(selectedPipelineId!);
   };
 
   const handleDeleteStage = async (stageId: string) => {
-    const stageDeals = deals.filter(d => d.stage_id === stageId);
-    if (stageDeals.length > 0) {
+    const stageContacts = contacts.filter(c => c.stage_id === stageId);
+    if (stageContacts.length > 0) {
       toast.error("No puedes eliminar una etapa con leads. Mueve los leads primero.");
       return;
     }
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stageId);
     if (error) toast.error("Error: " + error.message);
-    else { toast.success("Etapa eliminada"); if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId); }
+    else { toast.success("Etapa eliminada"); if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId); }
   };
 
   const handleMoveStage = async (stageId: string, direction: "up" | "down") => {
@@ -341,15 +334,13 @@ export default function PipelinePage() {
     if (idx < 0) return;
     const swapIdx = direction === "up" ? idx - 1 : idx + 1;
     if (swapIdx < 0 || swapIdx >= stages.length) return;
-
     const current = stages[idx];
     const swap = stages[swapIdx];
-
     await Promise.all([
       supabase.from("pipeline_stages").update({ order: swap.order }).eq("id", current.id),
       supabase.from("pipeline_stages").update({ order: current.order }).eq("id", swap.id),
     ]);
-    if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
+    if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
   const handleStageDrop = async (targetStageId: string) => {
@@ -361,20 +352,39 @@ export default function PipelinePage() {
     const fromIdx = stages.findIndex(s => s.id === draggedStageId);
     const toIdx = stages.findIndex(s => s.id === targetStageId);
     if (fromIdx < 0 || toIdx < 0) return;
-
     const reordered = [...stages];
     const [moved] = reordered.splice(fromIdx, 1);
     reordered.splice(toIdx, 0, moved);
     setStages(reordered);
     setDraggedStageId(null);
     setDragOverStageCol(null);
-
     await Promise.all(
       reordered.map((s, i) =>
         supabase.from("pipeline_stages").update({ order: i + 1 }).eq("id", s.id)
       )
     );
-    if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
+    if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
+  };
+
+  const closeContact = async (contactId: string, status: "won" | "lost") => {
+    if (status === "won") {
+      const c = contacts.find(x => x.id === contactId);
+      if (!c || !c.budget || Number(c.budget) <= 0) {
+        toast.error("El lead debe tener un presupuesto asignado (> 0) para marcarse como ganado");
+        return;
+      }
+    }
+    await supabase.from("contacts").update({ lead_status: status }).eq("id", contactId);
+    await supabase.from("activities").insert({
+      related_entity_id: contactId,
+      related_entity_type: "contact",
+      event_type: status === "won" ? "deal_won" : "deal_lost",
+      summary: status === "won" ? "Lead marcado como ganado 🎉" : "Lead marcado como perdido",
+      created_by: session?.user?.id || null,
+    });
+    toast.success(status === "won" ? "Lead marcado como ganado 🎉" : "Lead marcado como perdido");
+    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
+    if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
   const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
@@ -383,7 +393,7 @@ export default function PipelinePage() {
     <AppLayout>
       <AppHeader
         title="Pipeline"
-        subtitle="Vista Kanban de oportunidades"
+        subtitle="Vista Kanban de leads"
         actions={
           <div className="flex items-center gap-2">
             {/* Pipeline selector */}
@@ -463,7 +473,7 @@ export default function PipelinePage() {
         ) : (
           <div className="flex gap-4 min-w-max h-full">
             {stages.map((stage, idx) => {
-              const stageDeals = deals.filter(d => d.stage_id === stage.id);
+              const stageContacts = contacts.filter(c => c.stage_id === stage.id);
               return (
                 <div
                   key={stage.id}
@@ -485,7 +495,7 @@ export default function PipelinePage() {
                     e.preventDefault();
                     if (draggedStageId && manageMode) {
                       setDragOverStageCol(stage.id);
-                    } else if (draggedDeal) {
+                    } else if (draggedContact) {
                       setDragOverStage(stage.id);
                     }
                   }}
@@ -494,7 +504,7 @@ export default function PipelinePage() {
                     e.preventDefault();
                     if (draggedStageId && manageMode) {
                       handleStageDrop(stage.id);
-                    } else if (draggedDeal) {
+                    } else if (draggedContact) {
                       handleDrop(stage.id);
                     }
                   }}
@@ -505,7 +515,7 @@ export default function PipelinePage() {
                       <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
                       <span className="text-sm font-semibold text-foreground truncate">{stage.name}</span>
                       <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground shrink-0">
-                        {stageDeals.length}
+                        {stageContacts.length}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -513,7 +523,7 @@ export default function PipelinePage() {
                         ${(getStageValue(stage.id) / 1000).toFixed(0)}K
                       </span>
                       {!manageMode && (
-                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openCreateDeal(stage.id); }}>
+                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openCreateLead(stage.id); }}>
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       )}
@@ -552,16 +562,16 @@ export default function PipelinePage() {
 
                   {/* Cards */}
                   <div className="flex-1 space-y-2 p-2 overflow-y-auto scrollbar-thin">
-                    {stageDeals.map((deal) => (
+                    {stageContacts.map((contact) => (
                       <div
-                        key={deal.id}
+                        key={contact.id}
                         draggable={!manageMode}
-                        onDragStart={() => setDraggedDeal(deal.id)}
-                        onClick={() => !manageMode && navigate(path(`/leads/${deal.id}`))}
+                        onDragStart={() => setDraggedContact(contact.id)}
+                        onClick={() => !manageMode && navigate(path(`/contacts/${contact.id}`))}
                         className="group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-1">
-                          <p className="text-sm font-medium text-foreground flex-1 mr-1">{deal.title}</p>
+                          <p className="text-sm font-medium text-foreground flex-1 mr-1">{contact.full_name}</p>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
@@ -569,43 +579,37 @@ export default function PipelinePage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenuItem onClick={() => navigate(path(`/leads/${deal.id}`))}>
+                              <DropdownMenuItem onClick={() => navigate(path(`/contacts/${contact.id}`))}>
                                 <Pencil className="h-3.5 w-3.5 mr-2" /> Ver / Editar
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={async () => {
-                                try {
-                                  await closeDeal(deal.id, "won", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Deal marcado como ganado 🎉");
-                                  if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
-                                  if (deal.contact_id) supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>
+                              <DropdownMenuItem onClick={() => closeContact(contact.id, "won")}>
                                 <Trophy className="h-3.5 w-3.5 mr-2 text-green-500" /> Marcar ganado
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={async () => {
-                                try {
-                                  await closeDeal(deal.id, "lost", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Deal marcado como perdido");
-                                  if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
-                                  if (deal.contact_id) supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
-                                } catch (err: any) { toast.error(err.message); }
-                              }}>
+                              <DropdownMenuItem onClick={() => closeContact(contact.id, "lost")}>
                                 <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> Marcar perdido
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
-                        <p className="text-xs text-muted-foreground mb-2">{deal.contact_name || "Sin contacto"}</p>
+                        {contact.primary_phone && (
+                          <p className="text-xs text-muted-foreground mb-1">{contact.primary_phone}</p>
+                        )}
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-semibold text-foreground">${Number(deal.value).toLocaleString()}</span>
-                          <Badge variant="outline" className="text-xs">{deal.currency}</Badge>
+                          {contact.budget ? (
+                            <span className="text-sm font-semibold text-foreground">${Number(contact.budget).toLocaleString()}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Sin presupuesto</span>
+                          )}
+                          {contact.budget_currency && contact.budget && (
+                            <Badge variant="outline" className="text-xs">{contact.budget_currency}</Badge>
+                          )}
                         </div>
-                        {deal.expected_close_date && (
-                          <p className="text-xs text-muted-foreground mt-1.5">Cierre: {deal.expected_close_date}</p>
+                        {contact.expected_close_date && (
+                          <p className="text-xs text-muted-foreground mt-1.5">Cierre: {contact.expected_close_date}</p>
                         )}
                       </div>
                     ))}
-                    {stageDeals.length === 0 && (
+                    {stageContacts.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-6">Sin leads</p>
                     )}
                   </div>
@@ -692,25 +696,29 @@ export default function PipelinePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Deal Creation Dialog */}
-      <Dialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
+      {/* New Lead Dialog */}
+      <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo deal</DialogTitle>
+            <DialogTitle>Nuevo lead</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Título *</Label>
-              <Input value={dealTitle} onChange={e => setDealTitle(e.target.value)} placeholder="Ej: Venta de servicio premium" />
+              <Label>Nombre completo *</Label>
+              <Input value={leadFullName} onChange={e => setLeadFullName(e.target.value)} placeholder="Ej: Juan Pérez" />
+            </div>
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input value={leadPhone} onChange={e => setLeadPhone(e.target.value)} placeholder="+52 55 1234 5678" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Valor</Label>
-                <Input type="number" min={0} value={dealValue} onChange={e => setDealValue(e.target.value)} placeholder="0" />
+                <Label>Presupuesto</Label>
+                <Input type="number" min={0} value={leadBudget} onChange={e => setLeadBudget(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
                 <Label>Moneda</Label>
-                <Select value={dealCurrency} onValueChange={setDealCurrency}>
+                <Select value={leadCurrency} onValueChange={setLeadCurrency}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="USD">USD</SelectItem>
@@ -723,30 +731,16 @@ export default function PipelinePage() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Contacto</Label>
-                <Select value={dealContactId} onValueChange={setDealContactId}>
-                  <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin contacto</SelectItem>
-                    {contacts.map(c => (
-                      <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Fecha cierre</Label>
-                <Input type="date" value={dealCloseDate} onChange={e => setDealCloseDate(e.target.value)} />
-              </div>
+            <div className="space-y-2">
+              <Label>Fecha de cierre estimada</Label>
+              <Input type="date" value={leadCloseDate} onChange={e => setLeadCloseDate(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDealDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateDeal} disabled={savingDeal || !dealTitle.trim()}>
-              {savingDeal && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Crear deal
+            <Button variant="outline" onClick={() => setLeadDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateLead} disabled={savingLead || !leadFullName.trim()}>
+              {savingLead && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              Crear lead
             </Button>
           </DialogFooter>
         </DialogContent>

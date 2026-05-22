@@ -79,6 +79,62 @@ Deno.serve(async (req) => {
     await sql`CREATE INDEX IF NOT EXISTS idx_enrollments_contact ON automation_enrollments(contact_id)`;
     await sql`CREATE INDEX IF NOT EXISTS idx_enrollments_next_run ON automation_enrollments(next_run_at) WHERE status IN ('active','waiting')`;
 
+    // ── Leads + Deals unification ────────────────────────────────────────────
+    // Add pipeline / deal fields directly to contacts so every lead is a
+    // self-contained entity (no separate deals row needed for new data).
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS stage_id uuid`;
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS pipeline_id uuid`;
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS budget numeric(15,2)`;
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS budget_currency text DEFAULT 'USD'`;
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS expected_close_date date`;
+    await sql`ALTER TABLE contacts ADD COLUMN IF NOT EXISTS lead_status text DEFAULT 'active'`;
+
+    // FK: stage_id → pipeline_stages
+    await sql`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'contacts_stage_id_fkey' AND table_name = 'contacts'
+      ) THEN
+        ALTER TABLE contacts ADD CONSTRAINT contacts_stage_id_fkey
+          FOREIGN KEY (stage_id) REFERENCES pipeline_stages(id) ON DELETE SET NULL;
+      END IF;
+    END $$`;
+
+    // FK: pipeline_id → pipelines
+    await sql`DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE constraint_name = 'contacts_pipeline_id_fkey' AND table_name = 'contacts'
+      ) THEN
+        ALTER TABLE contacts ADD CONSTRAINT contacts_pipeline_id_fkey
+          FOREIGN KEY (pipeline_id) REFERENCES pipelines(id) ON DELETE SET NULL;
+      END IF;
+    END $$`;
+
+    // Migrate existing deals → contacts (most recent deal per contact wins)
+    await sql`UPDATE contacts c
+      SET
+        stage_id        = d.stage_id,
+        pipeline_id     = d.pipeline_id,
+        budget          = d.value,
+        budget_currency = d.currency,
+        expected_close_date = d.expected_close_date,
+        lead_status     = CASE WHEN d.status = 'won' THEN 'won'
+                               WHEN d.status = 'lost' THEN 'lost'
+                               ELSE 'active' END
+      FROM (
+        SELECT DISTINCT ON (contact_id)
+          contact_id, stage_id, pipeline_id, value, currency, expected_close_date, status
+        FROM deals
+        WHERE contact_id IS NOT NULL
+        ORDER BY contact_id, created_at DESC
+      ) d
+      WHERE c.id = d.contact_id AND c.pipeline_id IS NULL`;
+
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_pipeline_id ON contacts(pipeline_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_stage_id ON contacts(stage_id)`;
+    await sql`CREATE INDEX IF NOT EXISTS idx_contacts_lead_status ON contacts(lead_status)`;
+
     await sql.end();
     return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json" } });
   } catch (e: any) {

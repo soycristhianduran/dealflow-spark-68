@@ -5,7 +5,7 @@
  * The slug stays visible in the URL for all navigation.
  */
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Routes, Route } from "react-router-dom";
+import { useParams, useNavigate, Routes, Route, Navigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { getRootAppUrl } from "@/lib/subdomain";
@@ -90,9 +90,9 @@ export default function WorkspaceEntryPage() {
         <Route path="contacts/:id" element={<P><ContactDetailPage /></P>} />
         <Route path="companies" element={<P><CompaniesPage /></P>} />
         <Route path="companies/:id" element={<P><CompanyDetailPage /></P>} />
-        <Route path="leads" element={<P><DealsPage /></P>} />
+        <Route path="leads" element={<Navigate to="../contacts" replace />} />
         <Route path="leads/:id" element={<P><DealDetailPage /></P>} />
-        <Route path="deals" element={<P><DealsPage /></P>} />
+        <Route path="deals" element={<Navigate to="../contacts" replace />} />
         <Route path="deals/:id" element={<P><DealDetailPage /></P>} />
         <Route path="pipeline" element={<P><PipelinePage /></P>} />
         <Route path="calendar" element={<P><CalendarPage /></P>} />
