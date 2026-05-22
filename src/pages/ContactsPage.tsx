@@ -205,8 +205,26 @@ export default function ContactsPage() {
   const handleBulkReassign = async () => {
     if (!selectedOwner) return;
     setBulkWorking(true);
-    const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", [...selected]);
+    const contactIds = [...selected];
+
+    // 1. Update contact owner
+    const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", contactIds);
     if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+
+    // 2. Migrate WhatsApp message history to new owner so they can see it
+    await supabase.from("whatsapp_messages").update({ user_id: selectedOwner }).in("contact_id", contactIds);
+
+    // 3. Migrate Instagram conversations + their messages
+    const { data: igConvs } = await supabase
+      .from("instagram_conversations")
+      .select("id")
+      .in("contact_id", contactIds);
+    if (igConvs?.length) {
+      const convIds = igConvs.map((c: any) => c.id);
+      await supabase.from("instagram_conversations").update({ user_id: selectedOwner }).in("id", convIds);
+      await supabase.from("instagram_messages").update({ user_id: selectedOwner }).in("conversation_id", convIds);
+    }
+
     setReassignOpen(false);
     setSelectedOwner("");
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} reasignado${selected.size !== 1 ? "s" : ""}`);
