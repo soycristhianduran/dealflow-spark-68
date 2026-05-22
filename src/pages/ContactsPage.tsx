@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -73,6 +73,10 @@ export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [ownerFilter, setOwnerFilter] = useState("all");
+  const [pipelineFilter, setPipelineFilter] = useState("all");
+  const [stageFilter, setStageFilter] = useState("all");
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [stagesForFilter, setStagesForFilter] = useState<{ id: string; name: string; color: string }[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -120,6 +124,8 @@ export default function ContactsPage() {
       .order("created_at", { ascending: false });
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+    if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
+    if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
     // Vendors only see their own leads
     if (isVendor && myUserId) {
       query = query.eq("owner_id", myUserId);
@@ -129,7 +135,7 @@ export default function ContactsPage() {
     const { data, error } = await query;
     if (!error && data) setContacts(data as any);
     setLoading(false);
-  }, [statusFilter, search, ownerFilter, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -158,6 +164,29 @@ export default function ContactsPage() {
         }
       });
   }, []);
+
+  // Load pipelines for the filter dropdown
+  useEffect(() => {
+    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
+      .then(({ data }) => setPipelines(data || []));
+  }, []);
+
+  // When pipeline filter changes, load its stages
+  useEffect(() => {
+    if (pipelineFilter === "all") {
+      setStagesForFilter([]);
+      setStageFilter("all");
+      return;
+    }
+    supabase.from("pipeline_stages")
+      .select("id, name, color")
+      .eq("pipeline_id", pipelineFilter)
+      .order("order", { ascending: true })
+      .then(({ data }) => {
+        setStagesForFilter(data || []);
+        setStageFilter("all");
+      });
+  }, [pipelineFilter]);
 
   const visibleIds = contacts.map(c => c.id);
   const allChecked = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
@@ -341,6 +370,38 @@ export default function ContactsPage() {
                   <SelectItem value="all">Todos los vendedores</SelectItem>
                   {profiles.map(p => (
                     <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {pipelines.length > 0 && (
+              <Select value={pipelineFilter} onValueChange={setPipelineFilter}>
+                <SelectTrigger className="h-8 w-40 text-xs gap-1.5">
+                  <KanbanSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Pipeline" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los pipelines</SelectItem>
+                  {pipelines.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {pipelineFilter !== "all" && stagesForFilter.length > 0 && (
+              <Select value={stageFilter} onValueChange={setStageFilter}>
+                <SelectTrigger className="h-8 w-40 text-xs gap-1.5">
+                  <SelectValue placeholder="Etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las etapas</SelectItem>
+                  {stagesForFilter.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="flex items-center gap-1.5">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color || "#94a3b8" }} />
+                        {s.name}
+                      </span>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
