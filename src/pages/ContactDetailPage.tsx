@@ -61,7 +61,13 @@ export default function ContactDetailPage() {
       primary_phone: contact?.primary_phone || "",
       primary_email: contact?.primary_email || "",
       birthday: contact?.birthday || "",
-      customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, any>) } : {},
+      customFields: Object.fromEntries(
+        Object.entries(contact?.custom_fields && typeof contact.custom_fields === "object" ? contact.custom_fields as Record<string, any> : {})
+          .map(([k, v]) => [k, typeof v === "string"
+            ? { id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, type: "text", value: v, label: k.replace(/_/g, " ") }
+            : v
+          ])
+      ),
       newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
     });
     setEditingContact(true);
