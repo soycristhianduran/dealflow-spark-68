@@ -405,24 +405,39 @@ export default function ContactDetailPage() {
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground">Nombre</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-muted-foreground">Nombre</label>
+                          <CopyIdBtn fieldId="first_name" />
+                        </div>
                         <Input value={editForm.first_name} onChange={e => setEditForm(p => ({ ...p, first_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">Apellido</label>
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs text-muted-foreground">Apellido</label>
+                          <CopyIdBtn fieldId="last_name" />
+                        </div>
                         <Input value={editForm.last_name} onChange={e => setEditForm(p => ({ ...p, last_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Teléfono</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-muted-foreground">Teléfono</label>
+                        <CopyIdBtn fieldId="primary_phone" />
+                      </div>
                       <Input value={editForm.primary_phone} onChange={e => setEditForm(p => ({ ...p, primary_phone: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="+52 55 1234 5678" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Email</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-muted-foreground">Email</label>
+                        <CopyIdBtn fieldId="primary_email" />
+                      </div>
                       <Input type="email" value={editForm.primary_email} onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="email@ejemplo.com" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground">Cumpleaños</label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-muted-foreground">Cumpleaños</label>
+                        <CopyIdBtn fieldId="birthday" />
+                      </div>
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
 
@@ -982,6 +997,24 @@ export default function ContactDetailPage() {
         defaultContactId={id}
       />
     </AppLayout>
+  );
+}
+
+function CopyIdBtn({ fieldId }: { fieldId: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      title={`Copiar ID: ${fieldId}`}
+      onClick={() => {
+        navigator.clipboard.writeText(fieldId);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
+      <span className="font-mono">{fieldId}</span>
+    </button>
   );
 }
 
