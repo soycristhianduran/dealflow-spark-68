@@ -493,7 +493,7 @@ export default function ContactDetailPage() {
                       </div>
                     )}
 
-                    {/* Pipeline summary — always visible at the bottom of contact info */}
+                    {/* Pipeline summary */}
                     {(currentStage || currentPipeline || contact.budget != null) && (
                       <div className="pt-3 mt-2 border-t flex flex-wrap items-center gap-2">
                         <KanbanSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
@@ -515,6 +515,48 @@ export default function ContactDetailPage() {
                         )}
                       </div>
                     )}
+
+                    {/* Quick actions — always visible inside the card */}
+                    <div className="pt-3 mt-2 border-t grid grid-cols-4 gap-1.5">
+                      <Button
+                        variant="outline" size="sm"
+                        className="flex-col h-auto py-2 gap-1 text-xs"
+                        disabled={!contact.primary_phone}
+                        onClick={() => { if (contact.primary_phone) window.location.href = `tel:${contact.primary_phone.replace(/[^+\d]/g, "")}`; }}
+                        title={contact.primary_phone ? `Llamar a ${contact.primary_phone}` : "Sin teléfono"}
+                      >
+                        <Phone className="h-4 w-4" />
+                        Llamar
+                      </Button>
+                      <Button
+                        variant="outline" size="sm"
+                        className="flex-col h-auto py-2 gap-1 text-xs"
+                        disabled={!contact.primary_phone}
+                        onClick={() => { if (contact.primary_phone) setActiveTab("whatsapp"); }}
+                        title={contact.primary_phone ? "Abrir chat de WhatsApp" : "Sin teléfono"}
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        WhatsApp
+                      </Button>
+                      <Button
+                        variant="outline" size="sm"
+                        className="flex-col h-auto py-2 gap-1 text-xs"
+                        disabled={!contact.primary_email}
+                        onClick={() => { if (contact.primary_email) { const s = `Hola ${contact.full_name?.split(" ")[0] || ""}`.trim(); window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(s)}`; } }}
+                        title={contact.primary_email ? `Email a ${contact.primary_email}` : "Sin email"}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Email
+                      </Button>
+                      <Button
+                        variant="outline" size="sm"
+                        className="flex-col h-auto py-2 gap-1 text-xs"
+                        onClick={() => setMeetingDialogOpen(true)}
+                      >
+                        <Calendar className="h-4 w-4" />
+                        Agendar
+                      </Button>
+                    </div>
                   </div>
                 )}
 
@@ -584,64 +626,6 @@ export default function ContactDetailPage() {
                     ))}
                   </div>
                 )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-none shadow-sm">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Acciones rápidas</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-2">
-                {/* Llamar — opens phone dialer (mobile) or default tel handler (desktop) */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={!contact.primary_phone}
-                  onClick={() => {
-                    if (!contact.primary_phone) return;
-                    window.location.href = `tel:${contact.primary_phone.replace(/[^+\d]/g, "")}`;
-                  }}
-                  title={contact.primary_phone ? `Llamar a ${contact.primary_phone}` : "Sin teléfono registrado"}
-                >
-                  <Phone className="h-3.5 w-3.5" /> Llamar
-                </Button>
-
-                {/* WhatsApp — switches to the inline WhatsApp tab so the user
-                    sees the conversation without leaving the lead's page. */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={!contact.primary_phone}
-                  onClick={() => {
-                    if (!contact.primary_phone) return;
-                    setActiveTab("whatsapp");
-                  }}
-                  title={contact.primary_phone ? `Chatear por WhatsApp con ${contact.primary_phone}` : "Sin teléfono registrado"}
-                >
-                  <MessageCircle className="h-3.5 w-3.5" /> WhatsApp
-                </Button>
-
-                {/* Email — opens the user's mail client with the recipient prefilled */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={!contact.primary_email}
-                  onClick={() => {
-                    if (!contact.primary_email) return;
-                    const subject = `Hola ${contact.full_name?.split(" ")[0] || ""}`.trim();
-                    window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(subject)}`;
-                  }}
-                  title={contact.primary_email ? `Enviar correo a ${contact.primary_email}` : "Sin email registrado"}
-                >
-                  <Mail className="h-3.5 w-3.5" /> Email
-                </Button>
-
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setMeetingDialogOpen(true)}>
-                  <Calendar className="h-3.5 w-3.5" /> Agendar
-                </Button>
               </CardContent>
             </Card>
 
