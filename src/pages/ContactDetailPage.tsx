@@ -19,6 +19,7 @@ import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
@@ -48,6 +49,8 @@ export default function ContactDetailPage() {
   const [pplDirty, setPplDirty] = useState(false);
   const [savingPpl, setSavingPpl] = useState(false);
   const [budgetEditing, setBudgetEditing] = useState(false);
+  const [stagePickerOpen, setStagePickerOpen] = useState(false);
+  const [savingStage, setSavingStage] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline");
 
   // Pipeline state for stage dropdowns (loaded on demand when editing)
@@ -236,6 +239,33 @@ export default function ContactDetailPage() {
     setSavingPpl(false);
   };
 
+  // Quick stage change — saves immediately, no Guardar needed
+  const quickChangeStage = async (newStageId: string) => {
+    if (!id || savingStage) return;
+    setSavingStage(true);
+    setStagePickerOpen(false);
+    const prevStageId = contact?.stage_id;
+    const { error } = await supabase.from("contacts").update({ stage_id: newStageId }).eq("id", id);
+    if (error) {
+      toast.error("Error al cambiar etapa: " + error.message);
+    } else {
+      const stageName = stagesForPipeline.find(s => s.id === newStageId)?.name || "";
+      if (newStageId !== prevStageId) {
+        await supabase.from("activities").insert({
+          related_entity_type: "contact", related_entity_id: id,
+          event_type: "stage_changed", event_source: "contact_detail_inline",
+          summary: `Etapa cambiada a "${stageName}"`,
+        });
+        supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
+      }
+      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+      setContact(data);
+      setPpl(p => ({ ...p, stage_id: newStageId }));
+      toast.success(`Etapa: ${stageName}`);
+    }
+    setSavingStage(false);
+  };
+
   // Re-fetches the contact row.  Extracted so the realtime hook can call it.
   const refetchContact = useCallback(async () => {
     if (!id) return;
@@ -376,11 +406,33 @@ export default function ContactDetailPage() {
                         {contact.lead_status === "lost" && (
                           <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Perdido</Badge>
                         )}
-                        {currentStage && (
-                          <Badge variant="outline" className="gap-1.5">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />
-                            {currentStage.name}
-                          </Badge>
+                        {contact.pipeline_id && (
+                          <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
+                            <PopoverTrigger asChild>
+                              <button className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium hover:bg-muted transition-colors" disabled={savingStage}>
+                                {savingStage
+                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  : currentStage
+                                    ? <><span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
+                                    : <span className="text-muted-foreground">Sin etapa</span>
+                                }
+                                <svg className="h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-52 p-1" align="start">
+                              {stagesForPipeline.map(stage => (
+                                <button
+                                  key={stage.id}
+                                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors text-left ${stage.id === contact.stage_id ? "font-semibold" : ""}`}
+                                  onClick={() => quickChangeStage(stage.id)}
+                                >
+                                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                                  {stage.name}
+                                  {stage.id === contact.stage_id && <Check className="h-3.5 w-3.5 ml-auto text-primary" />}
+                                </button>
+                              ))}
+                            </PopoverContent>
+                          </Popover>
                         )}
                       </div>
                     </div>
