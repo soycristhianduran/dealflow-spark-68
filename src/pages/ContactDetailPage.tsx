@@ -1004,7 +1004,7 @@ function CopyIdBtn({ fieldId }: { fieldId: string }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
-      className="flex items-center gap-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+      className="text-muted-foreground hover:text-foreground transition-colors"
       title={`Copiar ID: ${fieldId}`}
       onClick={() => {
         navigator.clipboard.writeText(fieldId);
@@ -1012,8 +1012,7 @@ function CopyIdBtn({ fieldId }: { fieldId: string }) {
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? <Check className="h-2.5 w-2.5 text-green-500" /> : <Copy className="h-2.5 w-2.5" />}
-      <span className="font-mono">{fieldId}</span>
+      {copied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
     </button>
   );
 }
