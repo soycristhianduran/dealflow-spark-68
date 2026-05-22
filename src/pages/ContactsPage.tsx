@@ -8,13 +8,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
 
@@ -53,6 +54,7 @@ interface ContactRow {
   primary_email: string | null;
   status: string;
   score: number | null;
+  owner_id: string | null;
   source: string | null;
   tags: string[] | null;
   created_at: string;
@@ -70,6 +72,7 @@ interface ProfileOption {
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [ownerFilter, setOwnerFilter] = useState("all");
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -77,6 +80,7 @@ export default function ContactsPage() {
   const [bulkWorking, setBulkWorking] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
 
   // Bulk action dialog state
   const [reassignOpen, setReassignOpen] = useState(false);
@@ -85,8 +89,9 @@ export default function ContactsPage() {
   const [tagsOpen, setTagsOpen] = useState(false);
   const [statusOpen, setStatusOpen] = useState(false);
 
-  // Profiles for reassign
+  // Profiles — loaded on mount for owner filter + reassign
   const [profiles, setProfiles] = useState<ProfileOption[]>([]);
+  const [profileMap, setProfileMap] = useState<Record<string, string>>({});
   const [selectedOwner, setSelectedOwner] = useState("");
 
   // Task form
@@ -111,14 +116,20 @@ export default function ContactsPage() {
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, pipeline_stages(id, name, color)")
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color)")
       .order("created_at", { ascending: false });
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+    // Vendors only see their own leads
+    if (isVendor && myUserId) {
+      query = query.eq("owner_id", myUserId);
+    } else if (isOwnerOrAdmin && ownerFilter !== "all") {
+      query = query.eq("owner_id", ownerFilter);
+    }
     const { data, error } = await query;
     if (!error && data) setContacts(data as any);
     setLoading(false);
-  }, [statusFilter, search]);
+  }, [statusFilter, search, ownerFilter, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -130,18 +141,21 @@ export default function ContactsPage() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchContacts]);
 
-  useEffect(() => { setSelected(new Set()); }, [statusFilter, search]);
+  useEffect(() => { setSelected(new Set()); }, [statusFilter, search, ownerFilter]);
 
-  // Fetch profiles when reassign dialog opens
+  // Fetch profiles on mount — used for owner filter dropdown AND reassign dialog
   useEffect(() => {
-    if (!reassignOpen) return;
     supabase.from("profiles").select("user_id, first_name, last_name").then(({ data }) => {
-      if (data) setProfiles(data.map(p => ({
-        user_id: p.user_id,
-        full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.user_id,
-      })));
+      if (data) {
+        const list = data.map(p => ({
+          user_id: p.user_id,
+          full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.user_id,
+        }));
+        setProfiles(list);
+        setProfileMap(Object.fromEntries(list.map(p => [p.user_id, p.full_name])));
+      }
     });
-  }, [reassignOpen]);
+  }, []);
 
   const visibleIds = contacts.map(c => c.id);
   const allChecked = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
@@ -291,12 +305,26 @@ export default function ContactsPage() {
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
-          <div className="flex gap-1.5 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap items-center">
             {statusFilters.map(f => (
               <Button key={f.value} variant={statusFilter === f.value ? "default" : "outline"} size="sm" className="text-xs h-8" onClick={() => setStatusFilter(f.value)}>
                 {f.label}
               </Button>
             ))}
+            {isOwnerOrAdmin && profiles.length > 0 && (
+              <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+                <SelectTrigger className="h-8 w-44 text-xs gap-1.5">
+                  <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <SelectValue placeholder="Vendedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los vendedores</SelectItem>
+                  {profiles.map(p => (
+                    <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </div>
 
@@ -355,6 +383,7 @@ export default function ContactsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Score</th>
+                {isOwnerOrAdmin && <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden xl:table-cell">Vendedor</th>}
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Tags</th>
               </tr>
             </thead>
@@ -437,6 +466,11 @@ export default function ContactsPage() {
                         <span className="text-xs text-muted-foreground">{contact.score || 0}</span>
                       </div>
                     </td>
+                    {isOwnerOrAdmin && (
+                      <td className="px-4 py-3 hidden xl:table-cell cursor-pointer text-xs text-muted-foreground" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
+                        {contact.owner_id ? (profileMap[contact.owner_id] || "—") : "—"}
+                      </td>
+                    )}
                     <td className="px-4 py-3 hidden lg:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
                       <div className="flex gap-1 flex-wrap">
                         {(contact.tags || []).slice(0, 2).map(tag => (
