@@ -196,8 +196,9 @@ export default function SettingsPage() {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
         body: { action: "invite", email: inviteEmail.trim(), role: inviteRole },
       });
-      if (error) throw error;
+      // Prefer the specific error message from the function body over the generic HTTP error
       if (data?.error) throw new Error(data.error);
+      if (error) throw error;
       toast.success(`Invitación enviada a ${inviteEmail.trim()}`);
       setInviteEmail("");
       setInviteRole("member");

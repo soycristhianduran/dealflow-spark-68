@@ -27,42 +27,48 @@ Deno.serve(async (req) => {
 
   // ── Invite a user by email ──────────────────────────────────────────────────
   if (action === "invite") {
-    const { email, role = "member" } = body;
+    const { email, role = "vendor" } = body;
     if (!email) return new Response(JSON.stringify({ error: "Email requerido" }), { status: 400, headers: corsHeaders });
 
-    // Get user's organization
-    const { data: membership } = await supabase
+    // Get user's organization — fetch any role, then check permission in code
+    const { data: membership, error: memErr } = await supabase
       .from("organization_members")
-      .select("organization_id, role, organizations(name)")
+      .select("organization_id, role")
       .eq("user_id", user.id)
-      .in("role", ["owner", "admin"])
-      .single();
+      .maybeSingle();
 
-    if (!membership) return new Response(JSON.stringify({ error: "No tienes permisos para invitar" }), { status: 403, headers: corsHeaders });
+    console.log("membership lookup:", JSON.stringify({ membership, memErr, userId: user.id }));
+
+    if (!membership) {
+      return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 403, headers: corsHeaders });
+    }
+    if (!["owner", "admin"].includes(membership.role)) {
+      return new Response(JSON.stringify({ error: `Sin permisos (rol actual: ${membership.role})` }), { status: 403, headers: corsHeaders });
+    }
 
     const orgId = membership.organization_id;
-    const orgName = (membership.organizations as any)?.name || "tu equipo";
 
-    // Check if already a member
-    const { data: existingUser } = await supabase.auth.admin.getUserByEmail(email);
-    if (existingUser?.user) {
-      const { data: alreadyMember } = await supabase
-        .from("organization_members")
-        .select("id")
-        .eq("organization_id", orgId)
-        .eq("user_id", existingUser.user.id)
-        .maybeSingle();
-      if (alreadyMember) return new Response(JSON.stringify({ error: "Este usuario ya es miembro" }), { status: 400, headers: corsHeaders });
-    }
+    // Fetch org name separately to avoid join issues
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", orgId)
+      .maybeSingle();
+    const orgName = orgRow?.name || "tu equipo";
 
     // Create or update invitation
     const { data: invitation, error: invErr } = await supabase
       .from("organization_invitations")
-      .upsert({ organization_id: orgId, email, role, invited_by: user.id }, { onConflict: "organization_id,email" })
+      .upsert(
+        { organization_id: orgId, email, role, invited_by: user.id },
+        { onConflict: "organization_id,email" }
+      )
       .select()
-      .single();
+      .maybeSingle();
 
-    if (invErr) throw invErr;
+    console.log("invitation upsert:", JSON.stringify({ invitation, invErr }));
+    if (invErr) return new Response(JSON.stringify({ error: invErr.message }), { status: 500, headers: corsHeaders });
+    if (!invitation) return new Response(JSON.stringify({ error: "No se pudo crear la invitación" }), { status: 500, headers: corsHeaders });
 
     // Send invite email via Resend
     const appUrl = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
