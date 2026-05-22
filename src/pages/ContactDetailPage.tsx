@@ -76,6 +76,7 @@ export default function ContactDetailPage() {
       fieldData = editForm.newFieldValue;
     } else {
       fieldData = {
+        id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
         type: editForm.newFieldType,
         value: editForm.newFieldValue,
         label,
