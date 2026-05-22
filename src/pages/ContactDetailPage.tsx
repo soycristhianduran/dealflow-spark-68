@@ -36,12 +36,15 @@ export default function ContactDetailPage() {
   const [editForm, setEditForm] = useState<{
     first_name: string; last_name: string; primary_phone: string; primary_email: string;
     birthday: string; customFields: Record<string, string>; newFieldKey: string; newFieldValue: string;
-    pipeline_id: string; stage_id: string; budget: string; budget_currency: string; expected_close_date: string;
   }>({
     first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "",
     customFields: {}, newFieldKey: "", newFieldValue: "",
-    pipeline_id: "", stage_id: "", budget: "", budget_currency: "USD", expected_close_date: "",
   });
+  // Inline pipeline state — Kommo-style, always editable without entering global edit mode
+  const [ppl, setPpl] = useState({ pipeline_id: "", stage_id: "", budget: "", budget_currency: "USD", expected_close_date: "" });
+  const [pplDirty, setPplDirty] = useState(false);
+  const [savingPpl, setSavingPpl] = useState(false);
+  const [budgetEditing, setBudgetEditing] = useState(false);
   const [activeTab, setActiveTab] = useState("timeline");
 
   // Pipeline state for stage dropdowns (loaded on demand when editing)
@@ -58,19 +61,7 @@ export default function ContactDetailPage() {
       customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, string>) } : {},
       newFieldKey: "",
       newFieldValue: "",
-      pipeline_id: contact?.pipeline_id || "",
-      stage_id: contact?.stage_id || "",
-      budget: contact?.budget != null ? String(contact.budget) : "",
-      budget_currency: contact?.budget_currency || "USD",
-      expected_close_date: contact?.expected_close_date || "",
     });
-    // Ensure pipeline list and stages are ready for the dropdowns
-    if (!pipelines.length) loadPipelinesForEdit(contact?.pipeline_id);
-    else if (contact?.pipeline_id && !stagesForPipeline.length) {
-      supabase.from("pipeline_stages").select("id, name, color, order")
-        .eq("pipeline_id", contact.pipeline_id).order("order", { ascending: true })
-        .then(({ data }) => setStagesForPipeline(data || []));
-    }
     setEditingContact(true);
   };
 
@@ -97,7 +88,6 @@ export default function ContactDetailPage() {
     if (!id) return;
     setSavingContact(true);
     const fullName = [editForm.first_name.trim(), editForm.last_name.trim()].filter(Boolean).join(" ") || contact.full_name;
-    const prevStageId = contact?.stage_id;
     const { error } = await supabase.from("contacts").update({
       first_name: editForm.first_name.trim() || null,
       last_name: editForm.last_name.trim() || null,
@@ -106,25 +96,10 @@ export default function ContactDetailPage() {
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
       custom_fields: Object.keys(editForm.customFields).length > 0 ? editForm.customFields : null,
-      pipeline_id: editForm.pipeline_id || null,
-      stage_id: editForm.stage_id || null,
-      budget: editForm.budget ? Number(editForm.budget) : null,
-      budget_currency: editForm.budget_currency || "USD",
-      expected_close_date: editForm.expected_close_date || null,
     }).eq("id", id);
     if (error) {
       toast.error("Error al guardar: " + error.message);
     } else {
-      // Log stage change activity if stage moved
-      if (editForm.stage_id && editForm.stage_id !== prevStageId) {
-        const stageName = stagesForPipeline.find(s => s.id === editForm.stage_id)?.name || "";
-        await supabase.from("activities").insert({
-          related_entity_type: "contact", related_entity_id: id,
-          event_type: "stage_changed", event_source: "contact_detail_inline",
-          summary: `Etapa cambiada a "${stageName}"`,
-        });
-        supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
-      }
       toast.success("Lead actualizado");
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(data);
@@ -155,13 +130,72 @@ export default function ContactDetailPage() {
   }, []);
 
   const handlePipelineChange = async (newPipelineId: string) => {
-    setEditForm(p => ({ ...p, pipeline_id: newPipelineId, stage_id: "" }));
     if (newPipelineId) {
       const { data: stages } = await supabase.from("pipeline_stages").select("id, name, color, order").eq("pipeline_id", newPipelineId).order("order", { ascending: true });
       setStagesForPipeline(stages || []);
     } else {
       setStagesForPipeline([]);
     }
+  };
+
+  // Sync ppl inline state from contact (runs on first load; manual sync after saves)
+  useEffect(() => {
+    if (!contact) return;
+    setPpl({
+      pipeline_id: contact.pipeline_id || "",
+      stage_id: contact.stage_id || "",
+      budget: contact.budget != null ? String(contact.budget) : "",
+      budget_currency: contact.budget_currency || "USD",
+      expected_close_date: contact.expected_close_date || "",
+    });
+    setPplDirty(false);
+    // Eagerly load pipelines so the selects work without clicking Editar
+    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
+      .then(({ data }) => setPipelines(data || []));
+  }, [contact?.id]);
+
+  const updatePpl = (changes: Partial<typeof ppl>) => {
+    setPpl(p => ({ ...p, ...changes }));
+    setPplDirty(true);
+  };
+
+  const savePipelineFields = async () => {
+    if (!id) return;
+    setSavingPpl(true);
+    const prevStageId = contact?.stage_id;
+    const { error } = await supabase.from("contacts").update({
+      pipeline_id: ppl.pipeline_id || null,
+      stage_id: ppl.stage_id || null,
+      budget: ppl.budget ? Number(ppl.budget) : null,
+      budget_currency: ppl.budget_currency || "USD",
+      expected_close_date: ppl.expected_close_date || null,
+    }).eq("id", id);
+    if (error) {
+      toast.error("Error al guardar: " + error.message);
+    } else {
+      if (ppl.stage_id && ppl.stage_id !== prevStageId) {
+        const stageName = stagesForPipeline.find(s => s.id === ppl.stage_id)?.name || "";
+        await supabase.from("activities").insert({
+          related_entity_type: "contact", related_entity_id: id,
+          event_type: "stage_changed", event_source: "contact_detail_inline",
+          summary: `Etapa cambiada a "${stageName}"`,
+        });
+        supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
+      }
+      toast.success("Pipeline actualizado");
+      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+      setContact(data);
+      setPpl({
+        pipeline_id: data?.pipeline_id || "",
+        stage_id: data?.stage_id || "",
+        budget: data?.budget != null ? String(data.budget) : "",
+        budget_currency: data?.budget_currency || "USD",
+        expected_close_date: data?.expected_close_date || "",
+      });
+      setPplDirty(false);
+      setBudgetEditing(false);
+    }
+    setSavingPpl(false);
   };
 
   // Re-fetches the contact row.  Extracted so the realtime hook can call it.
@@ -244,7 +278,6 @@ export default function ContactDetailPage() {
   }
 
   const currentStage = stagesForPipeline.find(s => s.id === contact.stage_id);
-  const currentPipeline = pipelines.find(p => p.id === contact.pipeline_id);
 
   return (
     <AppLayout>
@@ -355,61 +388,6 @@ export default function ContactDetailPage() {
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
 
-                    {/* Pipeline fields */}
-                    <div className="pt-1 border-t">
-                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><KanbanSquare className="h-3 w-3" /> Pipeline</p>
-                      <div className="space-y-2">
-                        <div>
-                          <label className="text-xs text-muted-foreground">Pipeline</label>
-                          <Select value={editForm.pipeline_id || "none"} onValueChange={v => v === "none" ? setEditForm(p => ({ ...p, pipeline_id: "", stage_id: "" })) : handlePipelineChange(v)}>
-                            <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin pipeline" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">Sin pipeline</SelectItem>
-                              {pipelines.map(pl => <SelectItem key={pl.id} value={pl.id}>{pl.name}</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        {editForm.pipeline_id && (
-                          <div>
-                            <label className="text-xs text-muted-foreground">Etapa</label>
-                            <Select value={editForm.stage_id || "none"} onValueChange={v => setEditForm(p => ({ ...p, stage_id: v === "none" ? "" : v }))}>
-                              <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin etapa" /></SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">Sin etapa</SelectItem>
-                                {stagesForPipeline.map(s => (
-                                  <SelectItem key={s.id} value={s.id}>
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                                      {s.name}
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        )}
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-xs text-muted-foreground">Presupuesto</label>
-                            <Input type="number" min={0} value={editForm.budget} onChange={e => setEditForm(p => ({ ...p, budget: e.target.value }))} className="h-8 text-xs mt-0.5" placeholder="0" />
-                          </div>
-                          <div>
-                            <label className="text-xs text-muted-foreground">Moneda</label>
-                            <Select value={editForm.budget_currency} onValueChange={v => setEditForm(p => ({ ...p, budget_currency: v }))}>
-                              <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
-                          <Input type="date" value={editForm.expected_close_date} onChange={e => setEditForm(p => ({ ...p, expected_close_date: e.target.value }))} className="h-8 text-xs mt-0.5" />
-                        </div>
-                      </div>
-                    </div>
-
                     {/* Custom fields */}
                     <div className="pt-1 border-t">
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Campos personalizados</p>
@@ -487,28 +465,104 @@ export default function ContactDetailPage() {
                       </div>
                     )}
 
-                    {/* Pipeline summary */}
-                    {(currentStage || currentPipeline || contact.budget != null) && (
-                      <div className="pt-3 mt-2 border-t flex flex-wrap items-center gap-2">
-                        <KanbanSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        {currentStage ? (
-                          <Badge variant="outline" className="gap-1.5 text-xs">
-                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />
-                            {currentStage.name}
-                          </Badge>
-                        ) : currentPipeline ? (
-                          <span className="text-xs text-muted-foreground">{currentPipeline.name}</span>
-                        ) : null}
-                        {contact.budget != null && (
-                          <span className="text-xs font-semibold text-foreground">
-                            ${Number(contact.budget).toLocaleString()} <span className="font-normal text-muted-foreground">{contact.budget_currency}</span>
-                          </span>
-                        )}
-                        {contact.expected_close_date && (
-                          <span className="text-xs text-muted-foreground">· {contact.expected_close_date}</span>
+                    {/* Pipeline inline panel — Kommo-style, always editable */}
+                    <div className="pt-3 mt-2 border-t space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                          <KanbanSquare className="h-3 w-3" /> Pipeline
+                        </span>
+                        {pplDirty && (
+                          <Button size="sm" variant="default" className="h-6 text-[10px] px-2 gap-1" onClick={savePipelineFields} disabled={savingPpl}>
+                            {savingPpl ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                            Guardar
+                          </Button>
                         )}
                       </div>
-                    )}
+
+                      {/* Budget — prominent display, click to edit */}
+                      <div className="rounded-lg bg-primary/5 border border-primary/10 px-3 py-2.5">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Presupuesto</p>
+                        {budgetEditing ? (
+                          <div className="flex gap-1.5 items-center">
+                            <Input
+                              type="number" min={0} value={ppl.budget}
+                              onChange={e => updatePpl({ budget: e.target.value })}
+                              className="h-8 text-base font-bold flex-1"
+                              autoFocus
+                              placeholder="0"
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setBudgetEditing(false); }}
+                              onBlur={() => setBudgetEditing(false)}
+                            />
+                            <Select value={ppl.budget_currency} onValueChange={v => updatePpl({ budget_currency: v })}>
+                              <SelectTrigger className="h-8 w-16 text-xs shrink-0"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        ) : (
+                          <button
+                            className="w-full text-left flex items-baseline gap-1.5 group"
+                            onClick={() => setBudgetEditing(true)}
+                            title="Clic para editar presupuesto"
+                          >
+                            <span className="text-2xl font-bold text-foreground leading-none">
+                              {ppl.budget ? `$${Number(ppl.budget).toLocaleString()}` : "—"}
+                            </span>
+                            <span className="text-sm text-muted-foreground">{ppl.budget_currency}</span>
+                            <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Stage select */}
+                      <div>
+                        <label className="text-xs text-muted-foreground">Etapa</label>
+                        <Select value={ppl.stage_id || "none"} onValueChange={v => updatePpl({ stage_id: v === "none" ? "" : v })}>
+                          <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin etapa" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin etapa</SelectItem>
+                            {stagesForPipeline.map(s => (
+                              <SelectItem key={s.id} value={s.id}>
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                  {s.name}
+                                </span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Pipeline select */}
+                      <div>
+                        <label className="text-xs text-muted-foreground">Pipeline</label>
+                        <Select
+                          value={ppl.pipeline_id || "none"}
+                          onValueChange={v => {
+                            const newId = v === "none" ? "" : v;
+                            updatePpl({ pipeline_id: newId, stage_id: "" });
+                            handlePipelineChange(newId);
+                          }}
+                        >
+                          <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin pipeline" /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Sin pipeline</SelectItem>
+                            {pipelines.map(pl => <SelectItem key={pl.id} value={pl.id}>{pl.name}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Expected close date */}
+                      <div>
+                        <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
+                        <Input
+                          type="date" value={ppl.expected_close_date}
+                          onChange={e => updatePpl({ expected_close_date: e.target.value })}
+                          className="h-8 text-xs mt-0.5"
+                        />
+                      </div>
+                    </div>
 
                     {/* Quick actions — always visible inside the card */}
                     <div className="pt-3 mt-2 border-t grid grid-cols-4 gap-1.5">
