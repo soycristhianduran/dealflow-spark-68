@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface DashboardStats {
   contactsTotal: number;
@@ -99,6 +100,7 @@ const eventTypeIcons: Record<string, string> = {
 };
 
 export default function DashboardPage() {
+  const { isVendor, myUserId } = usePermissions();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<DashboardStats>({
     contactsTotal: 0, contactsNew: 0, contactsQualified: 0,
@@ -126,6 +128,9 @@ export default function DashboardPage() {
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
 
+    // For vendor role: scope all queries to their own records only
+    const vendorFilter = isVendor && myUserId ? myUserId : null;
+
     const [
       contactsRes,
       dealsRes,
@@ -136,17 +141,49 @@ export default function DashboardPage() {
       pendingTasksRes,
       activeDealsRes,
     ] = await Promise.all([
-      supabase.from("contacts").select("id, status, created_at"),
-      supabase.from("contacts").select("id, lead_status, budget, budget_currency, created_at").not("pipeline_id", "is", null),
-      supabase.from("meetings").select("id, status, created_at"),
-      supabase.from("tasks").select("id, status, created_at"),
-      supabase.from("activities").select("id, event_type, summary, created_at").order("created_at", { ascending: false }).limit(6),
-      supabase.from("meetings").select("id, title, start_at, meeting_type, contacts(full_name)")
-        .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3),
-      supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
-        .eq("status", "pending").order("due_date").limit(4),
-      supabase.from("contacts").select("id, full_name, budget, budget_currency, lead_status, expected_close_date, pipeline_stages(name, color)")
-        .not("pipeline_id", "is", null).eq("lead_status", "active").order("created_at", { ascending: false }).limit(10),
+      (() => {
+        let q = supabase.from("contacts").select("id, status, created_at");
+        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("contacts").select("id, lead_status, budget, budget_currency, created_at").not("pipeline_id", "is", null);
+        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("meetings").select("id, status, created_at");
+        if (vendorFilter) q = q.eq("advisor_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("tasks").select("id, status, created_at");
+        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("activities").select("id, event_type, summary, created_at").order("created_at", { ascending: false }).limit(6);
+        if (vendorFilter) q = q.eq("created_by", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("meetings").select("id, title, start_at, meeting_type, contacts(full_name)")
+          .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3);
+        if (vendorFilter) q = q.eq("advisor_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
+          .eq("status", "pending").order("due_date").limit(4);
+        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+        return q;
+      })(),
+      (() => {
+        let q = supabase.from("contacts").select("id, full_name, budget, budget_currency, lead_status, expected_close_date, pipeline_stages(name, color)")
+          .not("pipeline_id", "is", null).eq("lead_status", "active").order("created_at", { ascending: false }).limit(10);
+        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+        return q;
+      })(),
     ]);
 
     // Top objections: fetch all AI analyses with non-empty objections.
@@ -233,7 +270,7 @@ export default function DashboardPage() {
     })));
 
     setLoading(false);
-  }, []);
+  }, [isVendor, myUserId]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
