@@ -18,6 +18,7 @@ import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
@@ -423,10 +424,10 @@ export default function ContactDetailPage() {
                             <div key={key} className="flex items-center gap-1.5">
                               <span className="text-xs text-muted-foreground w-20 truncate shrink-0">{key.replace(/_/g, " ")}</span>
                               {type === "switch" ? (
-                                <button
-                                  className={`h-7 px-3 rounded text-xs font-medium border flex-1 text-left ${value === "true" ? "bg-green-50 text-green-700 border-green-300" : "bg-muted text-muted-foreground border-border"}`}
-                                  onClick={() => setVal(value === "true" ? "false" : "true")}
-                                >{value === "true" ? "Sí" : "No"}</button>
+                                <div className="flex-1 flex items-center gap-2">
+                                  <Switch checked={value === "true"} onCheckedChange={v => setVal(v ? "true" : "false")} />
+                                  <span className="text-xs text-muted-foreground">{value === "true" ? "Sí" : "No"}</span>
+                                </div>
                               ) : type === "select" ? (
                                 <Select value={value} onValueChange={setVal}>
                                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
@@ -499,10 +500,13 @@ export default function ContactDetailPage() {
                         )}
                         <div className="flex items-center gap-1.5">
                           {editForm.newFieldType === "switch" ? (
-                            <button
-                              className={`h-7 px-3 rounded text-xs font-medium border flex-1 text-left ${editForm.newFieldValue === "true" ? "bg-green-50 text-green-700 border-green-300" : "bg-muted text-muted-foreground border-border"}`}
-                              onClick={() => setEditForm(p => ({ ...p, newFieldValue: p.newFieldValue === "true" ? "false" : "true" }))}
-                            >{editForm.newFieldValue === "true" ? "Sí" : "No"}</button>
+                            <div className="flex-1 flex items-center gap-2">
+                              <Switch
+                                checked={editForm.newFieldValue === "true"}
+                                onCheckedChange={v => setEditForm(p => ({ ...p, newFieldValue: v ? "true" : "false" }))}
+                              />
+                              <span className="text-xs text-muted-foreground">{editForm.newFieldValue === "true" ? "Sí" : "No"}</span>
+                            </div>
                           ) : editForm.newFieldType === "textarea" || editForm.newFieldType === "address" ? (
                             <Textarea
                               placeholder="Valor (opcional)"
@@ -563,7 +567,7 @@ export default function ContactDetailPage() {
                           const value = isObj ? String(val.value ?? "") : String(val ?? "");
                           const displayLabel = isObj && val.label ? val.label : key.replace(/_/g, " ");
                           let displayValue: React.ReactNode = value || "—";
-                          if (type === "switch") displayValue = value === "true" ? <Badge className="bg-green-500 text-white border-0 text-[10px] py-0">Sí</Badge> : <Badge variant="outline" className="text-[10px] py-0">No</Badge>;
+                          if (type === "switch") displayValue = <Switch checked={value === "true"} disabled className="scale-75 origin-right" />;
                           else if ((type === "date" || type === "birthday") && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
                           else if (type === "datetime" && value) displayValue = new Date(value).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
                           else if (type === "url" && value) displayValue = <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{value}</a>;
