@@ -72,19 +72,15 @@ export default function ContactDetailPage() {
     if (!label) return;
     const slug = label.toLowerCase().replace(/\s+/g, "_");
     let fieldData: any;
-    if (editForm.newFieldType === "text") {
-      fieldData = editForm.newFieldValue;
-    } else {
-      fieldData = {
-        id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
-        type: editForm.newFieldType,
-        value: editForm.newFieldValue,
-        label,
-        ...((editForm.newFieldType === "select" || editForm.newFieldType === "multiselect") && editForm.newFieldOptions
-          ? { options: editForm.newFieldOptions.split(",").map((o: string) => o.trim()).filter(Boolean) }
-          : {}),
-      };
-    }
+    fieldData = {
+      id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`,
+      type: editForm.newFieldType,
+      value: editForm.newFieldValue,
+      label,
+      ...((editForm.newFieldType === "select" || editForm.newFieldType === "multiselect") && editForm.newFieldOptions
+        ? { options: editForm.newFieldOptions.split(",").map((o: string) => o.trim()).filter(Boolean) }
+        : {}),
+    };
     setEditForm(p => ({
       ...p,
       customFields: { ...p.customFields, [slug]: fieldData },
