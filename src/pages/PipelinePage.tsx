@@ -16,6 +16,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface Pipeline {
   id: string;
@@ -61,6 +62,7 @@ export default function PipelinePage() {
   const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId } = useOrganizationContext();
+  const { isVendor, myUserId } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -106,17 +108,24 @@ export default function PipelinePage() {
   }, []);
 
   const fetchStagesAndContacts = useCallback(async (pid: string) => {
+    let contactsQuery = supabase.from("contacts")
+      .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
+      .eq("pipeline_id", pid)
+      .eq("lead_status", "active")
+      .order("created_at", { ascending: false });
+
+    // Vendors only see their own leads
+    if (isVendor && myUserId) {
+      contactsQuery = contactsQuery.eq("owner_id", myUserId);
+    }
+
     const [{ data: stagesData }, { data: contactsData }] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pid).order("order", { ascending: true }),
-      supabase.from("contacts")
-        .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
-        .eq("pipeline_id", pid)
-        .eq("lead_status", "active")
-        .order("created_at", { ascending: false }),
+      contactsQuery,
     ]);
     setStages(stagesData || []);
     setContacts(contactsData || []);
-  }, []);
+  }, [isVendor, myUserId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
