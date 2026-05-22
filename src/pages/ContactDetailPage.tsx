@@ -725,19 +725,16 @@ export default function ContactDetailPage() {
                       </div>
                     )}
 
-                    {/* Pipeline inline panel — Kommo-style, always editable */}
+                    {/* Budget + close date panel */}
                     <div className="pt-3 mt-2 border-t space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                          <KanbanSquare className="h-3 w-3" /> Pipeline
-                        </span>
-                        {pplDirty && (
+                      {pplDirty && (
+                        <div className="flex justify-end">
                           <Button size="sm" variant="default" className="h-6 text-[10px] px-2 gap-1" onClick={savePipelineFields} disabled={savingPpl}>
                             {savingPpl ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
                             Guardar
                           </Button>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
                       {/* Budget — visible solo si tiene permiso */}
                       {canSeeBudget(contact?.owner_id) && (
