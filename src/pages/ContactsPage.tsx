@@ -143,18 +143,20 @@ export default function ContactsPage() {
 
   useEffect(() => { setSelected(new Set()); }, [statusFilter, search, ownerFilter]);
 
-  // Fetch profiles on mount — used for owner filter dropdown AND reassign dialog
+  // Fetch team members via edge function (bypasses RLS on profiles table).
+  // Used for: owner filter dropdown, reassign dialog, Vendedor column display.
   useEffect(() => {
-    supabase.from("profiles").select("user_id, first_name, last_name").then(({ data }) => {
-      if (data) {
-        const list = data.map(p => ({
-          user_id: p.user_id,
-          full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.user_id,
-        }));
-        setProfiles(list);
-        setProfileMap(Object.fromEntries(list.map(p => [p.user_id, p.full_name])));
-      }
-    });
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+      .then(({ data }) => {
+        if (data?.members) {
+          const list = (data.members as any[]).map(m => ({
+            user_id: m.user_id,
+            full_name: m.full_name || m.email || m.user_id,
+          }));
+          setProfiles(list);
+          setProfileMap(Object.fromEntries(list.map(p => [p.user_id, p.full_name])));
+        }
+      });
   }, []);
 
   const visibleIds = contacts.map(c => c.id);
