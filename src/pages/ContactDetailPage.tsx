@@ -506,7 +506,7 @@ export default function ContactDetailPage() {
               <TabsList>
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="info">Info</TabsTrigger>
-                <TabsTrigger value="deals">Deals ({deals.length})</TabsTrigger>
+                <TabsTrigger value="deals">Leads ({deals.length})</TabsTrigger>
                 <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
                 <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
                 {contact.primary_phone && (
@@ -615,7 +615,7 @@ export default function ContactDetailPage() {
                         {/* Top row: title + value (click navigates to deal detail) */}
                         <div
                           className="flex items-center justify-between cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => navigate(path(`/deals/${deal.id}`))}
+                          onClick={() => navigate(path(`/leads/${deal.id}`))}
                         >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground truncate">{deal.title}</p>
@@ -678,8 +678,8 @@ export default function ContactDetailPage() {
                 }) : (
                   <EmptyState
                     variant="deals"
-                    title="Sin deals asociados"
-                    description="Cuando este contacto avance en tu pipeline, los deals aparecerán aquí."
+                    title="Sin leads asociados"
+                    description="Cuando este contacto avance en tu pipeline, los leads aparecerán aquí."
                   />
                 )}
               </TabsContent>

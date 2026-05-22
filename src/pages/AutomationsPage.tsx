@@ -109,7 +109,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   manual:             "Manual",
   contact_created:    "Contacto creado",
   tag_added:          "Tag añadido",
-  deal_stage_changed: "Etapa de deal cambiada",
+  deal_stage_changed: "Etapa de lead cambiada",
   whatsapp_incoming:  "WhatsApp entrante",
   scheduled:          "Programado",
   meta_lead_form:     "Formulario de Meta Lead Ads",

@@ -68,9 +68,9 @@ export function HeroCard({
     };
   } else if (dealsOpen > 0) {
     cta = {
-      label: `Ver pipeline (${dealsOpen} deals abiertos)`,
+      label: `Ver pipeline (${dealsOpen} leads abiertos)`,
       to: path("/pipeline"),
-      subtitle: "Empuja tus deals abiertos a la siguiente etapa.",
+      subtitle: "Empuja tus leads abiertos a la siguiente etapa.",
     };
   } else if (newLeadsThisWeek > 0) {
     cta = {
@@ -142,7 +142,7 @@ export function HeroCard({
             icon={<TrendingUp className="h-4 w-4" />}
           />
           <MetricTile
-            label="Deals abiertos"
+            label="Leads abiertos"
             value={String(dealsOpen)}
             icon={<Sparkles className="h-4 w-4" />}
           />

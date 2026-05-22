@@ -10,9 +10,9 @@ import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Leads", url: "/contacts", icon: Users },
+  { title: "Contactos", url: "/contacts", icon: Users },
   { title: "Empresas", url: "/companies", icon: Building2 },
-  { title: "Deals", url: "/deals", icon: Handshake },
+  { title: "Leads", url: "/leads", icon: Handshake },
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },
   { title: "Calendario", url: "/calendar", icon: CalendarDays },
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
