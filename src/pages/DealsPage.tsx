@@ -3,7 +3,9 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Plus, Search } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Plus, Search, Trash2, KanbanSquare, Tag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect } from "react";
@@ -26,11 +28,16 @@ type DealRow = {
   pipeline_stages: { name: string; color: string } | null;
 };
 
+type Stage = { id: string; name: string; color: string };
+
 export default function DealsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "won" | "lost">("all");
   const [deals, setDeals] = useState<DealRow[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkWorking, setBulkWorking] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
 
@@ -44,15 +51,17 @@ export default function DealsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchDeals(); }, []);
+  const fetchStages = async () => {
+    const { data } = await supabase.from("pipeline_stages").select("id, name, color").order("order");
+    if (data) setStages(data as Stage[]);
+  };
 
-  // Realtime: refresh whenever a deal changes (stage moved by AI suggestion,
-  // status updated, new deal created, etc.)
-  useRealtimeRefresh({
-    table: "deals",
-    channelKey: "deals-page-all",
-    onChange: fetchDeals,
-  });
+  useEffect(() => { fetchDeals(); fetchStages(); }, []);
+
+  useRealtimeRefresh({ table: "deals", channelKey: "deals-page-all", onChange: fetchDeals });
+
+  // Clear selection on filter change
+  useEffect(() => { setSelected(new Set()); }, [statusFilter, search]);
 
   const filtered = deals.filter(d =>
     d.title.toLowerCase().includes(search.toLowerCase()) &&
@@ -64,6 +73,48 @@ export default function DealsPage() {
     open: deals.filter(d => d.status === "open").length,
     won: deals.filter(d => d.status === "won").length,
     lost: deals.filter(d => d.status === "lost").length,
+  };
+
+  const visibleIds = filtered.map(d => d.id);
+  const allChecked = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
+  const someChecked = selected.size > 0;
+
+  const toggleAll = () => {
+    if (allChecked) setSelected(new Set());
+    else setSelected(new Set(visibleIds));
+  };
+
+  const toggleOne = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const handleBulkDelete = async () => {
+    if (!confirm(`¿Eliminar ${selected.size} deal${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
+    setBulkWorking(true);
+    const { error } = await supabase.from("deals").delete().in("id", [...selected]);
+    if (error) { toast.error("Error al eliminar: " + error.message); }
+    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    setBulkWorking(false);
+  };
+
+  const handleBulkStatus = async (newStatus: string) => {
+    setBulkWorking(true);
+    const { error } = await supabase.from("deals").update({ status: newStatus }).in("id", [...selected]);
+    if (error) { toast.error("Error al actualizar: " + error.message); }
+    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    setBulkWorking(false);
+  };
+
+  const handleBulkStage = async (stageId: string) => {
+    setBulkWorking(true);
+    const { error } = await supabase.from("deals").update({ stage_id: stageId }).in("id", [...selected]);
+    if (error) { toast.error("Error al cambiar etapa: " + error.message); }
+    else { toast.success(`Etapa actualizada en ${selected.size} deal${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    setBulkWorking(false);
   };
 
   return (
@@ -102,6 +153,52 @@ export default function DealsPage() {
           </div>
         </div>
 
+        {/* Bulk action bar */}
+        {someChecked && (
+          <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-2.5 shadow-sm flex-wrap">
+            <span className="text-sm font-medium text-foreground">
+              {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-2 flex-wrap flex-1">
+              {/* Change stage */}
+              <Select onValueChange={handleBulkStage} disabled={bulkWorking}>
+                <SelectTrigger className="h-8 text-xs w-48 gap-1">
+                  <KanbanSquare className="h-3.5 w-3.5 shrink-0" />
+                  <SelectValue placeholder="Cambiar etapa" />
+                </SelectTrigger>
+                <SelectContent>
+                  {stages.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                        {s.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {/* Change status */}
+              <Select onValueChange={handleBulkStatus} disabled={bulkWorking}>
+                <SelectTrigger className="h-8 text-xs w-44 gap-1">
+                  <Tag className="h-3.5 w-3.5 shrink-0" />
+                  <SelectValue placeholder="Cambiar estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Abierto</SelectItem>
+                  <SelectItem value="won">Ganado</SelectItem>
+                  <SelectItem value="lost">Perdido</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="destructive" className="h-8 gap-1.5 text-xs" onClick={handleBulkDelete} disabled={bulkWorking}>
+                <Trash2 className="h-3.5 w-3.5" /> Eliminar
+              </Button>
+            </div>
+            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelected(new Set())}>
+              Cancelar
+            </Button>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
         ) : (
@@ -109,6 +206,13 @@ export default function DealsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
+                  <th className="px-4 py-3 w-10">
+                    <Checkbox
+                      checked={allChecked}
+                      onCheckedChange={toggleAll}
+                      aria-label="Seleccionar todos"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deal</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
@@ -118,28 +222,38 @@ export default function DealsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((deal) => (
-                  <tr key={deal.id} onClick={() => navigate(path(`/deals/${deal.id}`))} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
-                    <td className="px-4 py-3 font-medium text-foreground">{deal.title}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{deal.contacts?.full_name || '-'}</td>
-                    <td className="px-4 py-3">
-                      {deal.pipeline_stages ? (
-                        <Badge variant="outline" className="text-xs" style={{ borderColor: deal.pipeline_stages.color, color: deal.pipeline_stages.color }}>
-                          {deal.pipeline_stages.name}
+                {filtered.map((deal) => {
+                  const isSelected = selected.has(deal.id);
+                  return (
+                    <tr key={deal.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => toggleOne(deal.id)}
+                          aria-label={`Seleccionar ${deal.title}`}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.title}</td>
+                      <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.contacts?.full_name || '-'}</td>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>
+                        {deal.pipeline_stages ? (
+                          <Badge variant="outline" className="text-xs" style={{ borderColor: deal.pipeline_stages.color, color: deal.pipeline_stages.color }}>
+                            {deal.pipeline_stages.name}
+                          </Badge>
+                        ) : '-'}
+                      </td>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>
+                        <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'secondary'}>
+                          {deal.status === 'won' ? 'Ganado' : deal.status === 'lost' ? 'Perdido' : 'Abierto'}
                         </Badge>
-                      ) : '-'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'secondary'}>
-                        {deal.status === 'won' ? 'Ganado' : deal.status === 'lost' ? 'Perdido' : 'Abierto'}
-                      </Badge>
-                    </td>
-                    <td className="px-4 py-3 text-right font-medium text-foreground">${Number(deal.value).toLocaleString()}</td>
-                    <td className="px-4 py-3 text-muted-foreground text-xs">{deal.expected_close_date || '-'}</td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>${Number(deal.value).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.expected_close_date || '-'}</td>
+                    </tr>
+                  );
+                })}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={6} className="px-0 py-0">
+                  <tr><td colSpan={7} className="px-0 py-0">
                     <EmptyState
                       variant="deals"
                       title={search ? "Sin resultados" : "Aún no tienes deals"}
