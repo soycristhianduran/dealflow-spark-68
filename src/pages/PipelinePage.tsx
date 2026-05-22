@@ -256,7 +256,7 @@ export default function PipelinePage() {
     });
     setSavingDeal(false);
     if (error) { toast.error("Error: " + error.message); return; }
-    toast.success("Lead creado");
+    toast.success("Deal creado");
     setDealDialogOpen(false);
     if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
   };
@@ -570,7 +570,7 @@ export default function PipelinePage() {
                               <DropdownMenuItem onClick={async () => {
                                 try {
                                   await closeDeal(deal.id, "won", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Lead marcado como ganado 🎉");
+                                  toast.success("Deal marcado como ganado 🎉");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
@@ -579,7 +579,7 @@ export default function PipelinePage() {
                               <DropdownMenuItem onClick={async () => {
                                 try {
                                   await closeDeal(deal.id, "lost", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Lead marcado como perdido");
+                                  toast.success("Deal marcado como perdido");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
@@ -689,7 +689,7 @@ export default function PipelinePage() {
       <Dialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo lead</DialogTitle>
+            <DialogTitle>Nuevo deal</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">

@@ -115,16 +115,16 @@ export default function DealDetailPage() {
     }).eq("id", id);
     setSaving(false);
     if (error) { toast.error("Error al guardar"); return; }
-    toast.success("Lead actualizado");
+    toast.success("Deal actualizado");
     setEditOpen(false);
     fetchDeal();
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm("¿Eliminar este lead?")) return;
+    if (!id || !confirm("¿Eliminar este deal?")) return;
     const { error } = await supabase.from("deals").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar"); return; }
-    toast.success("Lead eliminado");
+    toast.success("Deal eliminado");
     navigate(path("/leads"));
   };
 
@@ -140,7 +140,7 @@ export default function DealDetailPage() {
       }
       fetchDeal();
       fetchRelated();
-      toast.success(`Lead ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
+      toast.success(`Deal ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
     } catch (err: any) {
       toast.error("Error: " + err.message);
     }
@@ -160,9 +160,9 @@ export default function DealDetailPage() {
   if (!deal) {
     return (
       <AppLayout>
-        <AppHeader title="Lead no encontrado" />
+        <AppHeader title="Deal no encontrado" />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">El lead no existe.</p>
+          <p className="text-muted-foreground">El deal no existe.</p>
         </main>
       </AppLayout>
     );
@@ -250,7 +250,7 @@ export default function DealDetailPage() {
                   </div>
                 )}
                 {deal.status !== "open" && (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>Reabrir lead</Button>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>Reabrir deal</Button>
                 )}
               </CardContent>
             </Card>
@@ -326,7 +326,7 @@ export default function DealDetailPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar lead</DialogTitle>
+            <DialogTitle>Editar deal</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>

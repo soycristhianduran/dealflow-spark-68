@@ -575,7 +575,7 @@ export default function ContactDetailPage() {
               <TabsList>
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
                 <TabsTrigger value="info">Info</TabsTrigger>
-                <TabsTrigger value="deals">Leads ({deals.length})</TabsTrigger>
+                <TabsTrigger value="deals">Deals ({deals.length})</TabsTrigger>
                 <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
                 <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
                 {contact.primary_phone && (

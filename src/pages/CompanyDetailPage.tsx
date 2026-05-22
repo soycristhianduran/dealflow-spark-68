@@ -253,7 +253,7 @@ export default function CompanyDetailPage() {
                     </Badge>
                   </div>
                 ))}
-                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin leads vinculados</p>}
+                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin deals vinculados</p>}
               </CardContent>
             </Card>
           </div>

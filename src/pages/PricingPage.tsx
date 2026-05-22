@@ -214,7 +214,7 @@ export default function PricingPage() {
                         {plan.max_users === null ? "Usuarios ilimitados" : `${plan.max_users} usuario${plan.max_users > 1 ? "s" : ""}`}
                       </FeatureRow>
                       <FeatureRow ok>{formatLimit(plan.max_contacts)} contactos</FeatureRow>
-                      <FeatureRow ok>{formatLimit(plan.max_active_deals)} leads activos</FeatureRow>
+                      <FeatureRow ok>{formatLimit(plan.max_active_deals)} deals activos</FeatureRow>
                       <FeatureRow ok>
                         {formatLimit(plan.monthly_automated_messages)} mensajes automatizados/mes
                       </FeatureRow>

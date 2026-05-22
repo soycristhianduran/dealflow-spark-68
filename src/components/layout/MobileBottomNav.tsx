@@ -6,8 +6,8 @@ import { NavLink } from "@/components/NavLink";
 
 const mobileNavItems = [
   { title: "Inicio", url: "/", icon: LayoutDashboard },
-  { title: "Contactos", url: "/contacts", icon: Users },
-  { title: "Leads", url: "/leads", icon: Handshake },
+  { title: "Leads", url: "/contacts", icon: Users },
+  { title: "Deals", url: "/leads", icon: Handshake },
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },
   { title: "Más", url: "/more", icon: MoreHorizontal },
 ];
