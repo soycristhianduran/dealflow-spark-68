@@ -7,9 +7,13 @@ const corsHeaders = {
 
 const RESEND_API = "https://api.resend.com";
 
+const ok = (data: any) => new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+const err = (msg: string) => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  try {
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -17,10 +21,10 @@ Deno.serve(async (req) => {
 
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
-  if (!token) return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers: corsHeaders });
+  if (!token) return err("No autorizado");
 
   const { data: { user } } = await supabase.auth.getUser(token);
-  if (!user) return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers: corsHeaders });
+  if (!user) return err("No autorizado");
 
   const body = await req.json();
   const { action } = body;
@@ -28,7 +32,7 @@ Deno.serve(async (req) => {
   // ── Invite a user by email ──────────────────────────────────────────────────
   if (action === "invite") {
     const { email, role = "vendor" } = body;
-    if (!email) return new Response(JSON.stringify({ error: "Email requerido" }), { status: 400, headers: corsHeaders });
+    if (!email) return new Response(JSON.stringify({ error: "Email requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Get user's organization — fetch any role, then check permission in code
     const { data: membership, error: memErr } = await supabase
@@ -40,10 +44,10 @@ Deno.serve(async (req) => {
     console.log("membership lookup:", JSON.stringify({ membership, memErr, userId: user.id }));
 
     if (!membership) {
-      return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 403, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
     if (!["owner", "admin"].includes(membership.role)) {
-      return new Response(JSON.stringify({ error: `Sin permisos (rol actual: ${membership.role})` }), { status: 403, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: `Sin permisos (rol actual: ${membership.role})` }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const orgId = membership.organization_id;
@@ -67,8 +71,8 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     console.log("invitation upsert:", JSON.stringify({ invitation, invErr }));
-    if (invErr) return new Response(JSON.stringify({ error: invErr.message }), { status: 500, headers: corsHeaders });
-    if (!invitation) return new Response(JSON.stringify({ error: "No se pudo crear la invitación" }), { status: 500, headers: corsHeaders });
+    if (invErr) return new Response(JSON.stringify({ error: invErr.message }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!invitation) return new Response(JSON.stringify({ error: "No se pudo crear la invitación" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Send invite email via Resend
     const appUrl = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
@@ -106,7 +110,7 @@ Deno.serve(async (req) => {
   // ── Accept an invitation ───────────────────────────────────────────────────
   if (action === "accept") {
     const { token: inviteToken } = body;
-    if (!inviteToken) return new Response(JSON.stringify({ error: "Token requerido" }), { status: 400, headers: corsHeaders });
+    if (!inviteToken) return new Response(JSON.stringify({ error: "Token requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const { data: invitation } = await supabase
       .from("organization_invitations")
@@ -116,7 +120,7 @@ Deno.serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .single();
 
-    if (!invitation) return new Response(JSON.stringify({ error: "Invitación inválida o expirada" }), { status: 400, headers: corsHeaders });
+    if (!invitation) return new Response(JSON.stringify({ error: "Invitación inválida o expirada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Add user to org
     const { error: memberErr } = await supabase
@@ -175,7 +179,7 @@ Deno.serve(async (req) => {
     const { member_user_id, new_role } = body;
     const validRoles = ["admin", "vendor", "readonly"];
     if (!member_user_id || !validRoles.includes(new_role)) {
-      return new Response(JSON.stringify({ error: "Parámetros inválidos" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Parámetros inválidos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { data: myMembership } = await supabase
@@ -185,8 +189,8 @@ Deno.serve(async (req) => {
       .in("role", ["owner", "admin"])
       .single();
 
-    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 403, headers: corsHeaders });
-    if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes cambiar tu propio rol" }), { status: 400, headers: corsHeaders });
+    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes cambiar tu propio rol" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Cannot change the owner's role
     const { data: target } = await supabase
@@ -196,8 +200,8 @@ Deno.serve(async (req) => {
       .eq("user_id", member_user_id)
       .maybeSingle();
 
-    if (!target) return new Response(JSON.stringify({ error: "Miembro no encontrado" }), { status: 404, headers: corsHeaders });
-    if (target.role === "owner") return new Response(JSON.stringify({ error: "No puedes cambiar el rol del propietario" }), { status: 403, headers: corsHeaders });
+    if (!target) return new Response(JSON.stringify({ error: "Miembro no encontrado" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (target.role === "owner") return new Response(JSON.stringify({ error: "No puedes cambiar el rol del propietario" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const { error: roleErr } = await supabase
       .from("organization_members")
@@ -220,8 +224,8 @@ Deno.serve(async (req) => {
       .in("role", ["owner", "admin"])
       .single();
 
-    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 403, headers: corsHeaders });
-    if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes removerte a ti mismo" }), { status: 400, headers: corsHeaders });
+    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes removerte a ti mismo" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     await supabase.from("organization_members")
       .delete()
@@ -256,11 +260,11 @@ Deno.serve(async (req) => {
   // ── Save workspace slug ────────────────────────────────────────────────────
   if (action === "save_slug") {
     const { slug } = body;
-    if (!slug) return new Response(JSON.stringify({ error: "Slug requerido" }), { status: 400, headers: corsHeaders });
+    if (!slug) return new Response(JSON.stringify({ error: "Slug requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Validate slug format
     if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(slug)) {
-      return new Response(JSON.stringify({ error: "Formato de slug inválido" }), { status: 400, headers: corsHeaders });
+      return new Response(JSON.stringify({ error: "Formato de slug inválido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Get user's organization (service role bypasses RLS)
@@ -271,7 +275,7 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
 
-    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 403, headers: corsHeaders });
+    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Check slug is not taken by another org
     const { data: existing } = await supabase
@@ -281,7 +285,7 @@ Deno.serve(async (req) => {
       .neq("id", membership.organization_id)
       .maybeSingle();
 
-    if (existing) return new Response(JSON.stringify({ error: "Esa dirección ya está en uso" }), { status: 409, headers: corsHeaders });
+    if (existing) return new Response(JSON.stringify({ error: "Esa dirección ya está en uso" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Save slug
     const { error: updateErr } = await supabase
@@ -296,5 +300,13 @@ Deno.serve(async (req) => {
     });
   }
 
-  return new Response(JSON.stringify({ error: "Acción no reconocida" }), { status: 400, headers: corsHeaders });
+  return new Response(JSON.stringify({ error: "Acción no reconocida" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+  } catch (e: any) {
+    console.error("Unhandled error in org-invitations:", e?.message ?? e);
+    return new Response(JSON.stringify({ error: e?.message ?? "Error interno del servidor" }), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 });

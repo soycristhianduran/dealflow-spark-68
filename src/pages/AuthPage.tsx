@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Zap } from "lucide-react";
 import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
 const industries = [
@@ -32,7 +32,13 @@ const companySizes = [
 export default function AuthPage() {
   const navigate = useNavigate();
   const { session } = useAuth();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+
+  // Detect if arriving from an invitation link
+  const redirectParam = searchParams.get("redirect") || "";
+  const inviteTokenMatch = redirectParam.match(/\/invite\?token=([^&]+)/);
+  const inviteToken = inviteTokenMatch ? inviteTokenMatch[1] : null;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -44,10 +50,15 @@ export default function AuthPage() {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
 
-  // Redirect to workspace after login
+  // Redirect to workspace (or back to invite page) after login
   useEffect(() => {
-    if (session) navigate("/", { replace: true });
-  }, [session, navigate]);
+    if (!session) return;
+    if (redirectParam) {
+      navigate(redirectParam, { replace: true });
+    } else {
+      navigate("/", { replace: true });
+    }
+  }, [session, navigate, redirectParam]);
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
@@ -82,6 +93,8 @@ export default function AuthPage() {
           company_size: companySize,
           job_title: jobTitle,
           company_name: companyName.trim(),
+          // Signal to the DB trigger to skip auto-creating an org
+          ...(inviteToken ? { invite_token: inviteToken } : {}),
         },
       },
     });
@@ -103,7 +116,13 @@ export default function AuthPage() {
           <p className="text-sm text-muted-foreground mt-1">Gestión comercial inteligente</p>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="login">
+          {inviteToken && (
+            <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-center">
+              🎉 Te están invitando a unirte a un equipo. <br />
+              <span className="text-muted-foreground">Inicia sesión o crea tu cuenta para continuar.</span>
+            </div>
+          )}
+          <Tabs defaultValue={inviteToken ? "register" : "login"}>
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
               <TabsTrigger value="register">Registrarse</TabsTrigger>
@@ -141,10 +160,12 @@ export default function AuthPage() {
                   <Label>Email *</Label>
                   <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
                 </div>
-                <div className="space-y-2">
-                  <Label>Nombre de la empresa</Label>
-                  <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
-                </div>
+                {!inviteToken && (
+                  <div className="space-y-2">
+                    <Label>Nombre de la empresa</Label>
+                    <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label>Teléfono</Label>
                   <CountryPhoneInput
