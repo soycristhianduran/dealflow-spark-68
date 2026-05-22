@@ -777,25 +777,6 @@ export default function ContactDetailPage() {
                         </div>
                       )}
 
-                      {/* Pipeline select */}
-                      <div>
-                        <label className="text-xs text-muted-foreground">Pipeline</label>
-                        <Select
-                          value={ppl.pipeline_id || "none"}
-                          onValueChange={v => {
-                            const newId = v === "none" ? "" : v;
-                            updatePpl({ pipeline_id: newId, stage_id: "" });
-                            handlePipelineChange(newId);
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin pipeline" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin pipeline</SelectItem>
-                            {pipelines.map(pl => <SelectItem key={pl.id} value={pl.id}>{pl.name}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-
                       {/* Expected close date */}
                       <div>
                         <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
