@@ -43,7 +43,7 @@ export default function ContactDetailPage() {
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
-  const [editForm, setEditForm] = useState({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "" });
+  const [editForm, setEditForm] = useState<{ first_name: string; last_name: string; primary_phone: string; primary_email: string; birthday: string; customFields: Record<string, string>; newFieldKey: string; newFieldValue: string }>({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "", customFields: {}, newFieldKey: "", newFieldValue: "" });
   // Controlled Tabs so the WhatsApp button can switch to the chat tab inline
   // (avoids the previous behavior of navigating away to /whatsapp/inbox).
   const [activeTab, setActiveTab] = useState("timeline");
@@ -60,8 +60,26 @@ export default function ContactDetailPage() {
       primary_phone: contact?.primary_phone || "",
       primary_email: contact?.primary_email || "",
       birthday: contact?.birthday || "",
+      customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, string>) } : {},
+      newFieldKey: "",
+      newFieldValue: "",
     });
     setEditingContact(true);
+  };
+
+  const addCustomField = () => {
+    const key = editForm.newFieldKey.trim();
+    if (!key) return;
+    const slug = key.toLowerCase().replace(/\s+/g, "_");
+    setEditForm(p => ({ ...p, customFields: { ...p.customFields, [slug]: p.newFieldValue }, newFieldKey: "", newFieldValue: "" }));
+  };
+
+  const removeCustomField = (key: string) => {
+    setEditForm(p => {
+      const next = { ...p.customFields };
+      delete next[key];
+      return { ...p, customFields: next };
+    });
   };
 
   const cancelEditing = () => {
@@ -79,6 +97,7 @@ export default function ContactDetailPage() {
       primary_phone: editForm.primary_phone.trim() || null,
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
+      custom_fields: Object.keys(editForm.customFields).length > 0 ? editForm.customFields : null,
     }).eq("id", id);
     if (error) {
       toast.error("Error al guardar: " + error.message);
@@ -337,6 +356,46 @@ export default function ContactDetailPage() {
                       <label className="text-xs text-muted-foreground">Cumpleaños</label>
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
+
+                    {/* Custom fields */}
+                    <div className="pt-1 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Campos personalizados</p>
+                      <div className="space-y-1.5">
+                        {Object.entries(editForm.customFields).map(([key, val]) => (
+                          <div key={key} className="flex items-center gap-1.5">
+                            <span className="text-xs text-muted-foreground w-24 truncate shrink-0">{key}</span>
+                            <Input
+                              value={val}
+                              onChange={e => setEditForm(p => ({ ...p, customFields: { ...p.customFields, [key]: e.target.value } }))}
+                              className="h-7 text-xs flex-1"
+                            />
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => removeCustomField(key)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                      {/* Add new field row */}
+                      <div className="flex items-center gap-1.5 mt-2">
+                        <Input
+                          placeholder="Nombre del campo"
+                          value={editForm.newFieldKey}
+                          onChange={e => setEditForm(p => ({ ...p, newFieldKey: e.target.value }))}
+                          onKeyDown={e => e.key === "Enter" && addCustomField()}
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Input
+                          placeholder="Valor"
+                          value={editForm.newFieldValue}
+                          onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
+                          onKeyDown={e => e.key === "Enter" && addCustomField()}
+                          className="h-7 text-xs flex-1"
+                        />
+                        <Button size="sm" variant="outline" className="h-7 w-7 p-0 shrink-0" onClick={addCustomField}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -368,6 +427,16 @@ export default function ContactDetailPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <Cake className="h-4 w-4 text-muted-foreground" />
                         <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                    )}
+                    {contact.custom_fields && typeof contact.custom_fields === "object" && Object.keys(contact.custom_fields).length > 0 && (
+                      <div className="pt-2 mt-1 border-t space-y-1.5">
+                        {Object.entries(contact.custom_fields as Record<string, string>).map(([key, val]) => (
+                          <div key={key} className="flex items-start justify-between gap-2 text-sm">
+                            <span className="text-muted-foreground capitalize shrink-0">{key.replace(/_/g, " ")}:</span>
+                            <span className="text-foreground text-right break-all">{val || "—"}</span>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -596,13 +665,6 @@ export default function ContactDetailPage() {
                   </CardContent>
                 </Card>
 
-                <CustomFieldsCard
-                  customFields={contact.custom_fields}
-                  contactId={contact.id}
-                  onUpdated={() => {
-                    supabase.from("contacts").select("*").eq("id", id).maybeSingle().then(({ data }) => setContact(data));
-                  }}
-                />
               </TabsContent>
 
               <TabsContent value="deals" className="mt-4 space-y-3">
