@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, DollarSign, Trophy, XCircle } from "lucide-react";
+import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
@@ -33,15 +33,20 @@ export default function ContactDetailPage() {
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
-  const [editForm, setEditForm] = useState<{ first_name: string; last_name: string; primary_phone: string; primary_email: string; birthday: string; customFields: Record<string, string>; newFieldKey: string; newFieldValue: string }>({ first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "", customFields: {}, newFieldKey: "", newFieldValue: "" });
+  const [editForm, setEditForm] = useState<{
+    first_name: string; last_name: string; primary_phone: string; primary_email: string;
+    birthday: string; customFields: Record<string, string>; newFieldKey: string; newFieldValue: string;
+    pipeline_id: string; stage_id: string; budget: string; budget_currency: string; expected_close_date: string;
+  }>({
+    first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "",
+    customFields: {}, newFieldKey: "", newFieldValue: "",
+    pipeline_id: "", stage_id: "", budget: "", budget_currency: "USD", expected_close_date: "",
+  });
   const [activeTab, setActiveTab] = useState("timeline");
 
-  // Pipeline state for inline stage editing
+  // Pipeline state for stage dropdowns (loaded on demand when editing)
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stagesForPipeline, setStagesForPipeline] = useState<{ id: string; name: string; color: string; order: number }[]>([]);
-  const [pipelineEdit, setPipelineEdit] = useState(false);
-  const [savingPipeline, setSavingPipeline] = useState(false);
-  const [pipelineForm, setPipelineForm] = useState({ pipeline_id: "", stage_id: "", budget: "", budget_currency: "USD", expected_close_date: "" });
 
   const startEditing = () => {
     setEditForm({
@@ -53,7 +58,19 @@ export default function ContactDetailPage() {
       customFields: contact?.custom_fields && typeof contact.custom_fields === "object" ? { ...(contact.custom_fields as Record<string, string>) } : {},
       newFieldKey: "",
       newFieldValue: "",
+      pipeline_id: contact?.pipeline_id || "",
+      stage_id: contact?.stage_id || "",
+      budget: contact?.budget != null ? String(contact.budget) : "",
+      budget_currency: contact?.budget_currency || "USD",
+      expected_close_date: contact?.expected_close_date || "",
     });
+    // Ensure pipeline list and stages are ready for the dropdowns
+    if (!pipelines.length) loadPipelinesForEdit(contact?.pipeline_id);
+    else if (contact?.pipeline_id && !stagesForPipeline.length) {
+      supabase.from("pipeline_stages").select("id, name, color, order")
+        .eq("pipeline_id", contact.pipeline_id).order("order", { ascending: true })
+        .then(({ data }) => setStagesForPipeline(data || []));
+    }
     setEditingContact(true);
   };
 
@@ -80,6 +97,7 @@ export default function ContactDetailPage() {
     if (!id) return;
     setSavingContact(true);
     const fullName = [editForm.first_name.trim(), editForm.last_name.trim()].filter(Boolean).join(" ") || contact.full_name;
+    const prevStageId = contact?.stage_id;
     const { error } = await supabase.from("contacts").update({
       first_name: editForm.first_name.trim() || null,
       last_name: editForm.last_name.trim() || null,
@@ -88,11 +106,26 @@ export default function ContactDetailPage() {
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
       custom_fields: Object.keys(editForm.customFields).length > 0 ? editForm.customFields : null,
+      pipeline_id: editForm.pipeline_id || null,
+      stage_id: editForm.stage_id || null,
+      budget: editForm.budget ? Number(editForm.budget) : null,
+      budget_currency: editForm.budget_currency || "USD",
+      expected_close_date: editForm.expected_close_date || null,
     }).eq("id", id);
     if (error) {
       toast.error("Error al guardar: " + error.message);
     } else {
-      toast.success("Contacto actualizado");
+      // Log stage change activity if stage moved
+      if (editForm.stage_id && editForm.stage_id !== prevStageId) {
+        const stageName = stagesForPipeline.find(s => s.id === editForm.stage_id)?.name || "";
+        await supabase.from("activities").insert({
+          related_entity_type: "contact", related_entity_id: id,
+          event_type: "stage_changed", event_source: "contact_detail_inline",
+          summary: `Etapa cambiada a "${stageName}"`,
+        });
+        supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
+      }
+      toast.success("Lead actualizado");
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(data);
       setEditingContact(false);
@@ -122,42 +155,13 @@ export default function ContactDetailPage() {
   }, []);
 
   const handlePipelineChange = async (newPipelineId: string) => {
-    setPipelineForm(p => ({ ...p, pipeline_id: newPipelineId, stage_id: "" }));
-    const { data: stages } = await supabase.from("pipeline_stages").select("id, name, color, order").eq("pipeline_id", newPipelineId).order("order", { ascending: true });
-    setStagesForPipeline(stages || []);
-  };
-
-  const savePipelineInfo = async () => {
-    if (!id) return;
-    setSavingPipeline(true);
-    const payload: Record<string, unknown> = {
-      pipeline_id: pipelineForm.pipeline_id || null,
-      stage_id: pipelineForm.stage_id || null,
-      budget: pipelineForm.budget ? Number(pipelineForm.budget) : null,
-      budget_currency: pipelineForm.budget_currency || "USD",
-      expected_close_date: pipelineForm.expected_close_date || null,
-    };
-    const { error } = await supabase.from("contacts").update(payload).eq("id", id);
-    if (error) {
-      toast.error("Error al guardar: " + error.message);
+    setEditForm(p => ({ ...p, pipeline_id: newPipelineId, stage_id: "" }));
+    if (newPipelineId) {
+      const { data: stages } = await supabase.from("pipeline_stages").select("id, name, color, order").eq("pipeline_id", newPipelineId).order("order", { ascending: true });
+      setStagesForPipeline(stages || []);
     } else {
-      toast.success("Pipeline actualizado");
-      if (pipelineForm.stage_id) {
-        const stageName = stagesForPipeline.find(s => s.id === pipelineForm.stage_id)?.name || "";
-        await supabase.from("activities").insert({
-          related_entity_type: "contact",
-          related_entity_id: id,
-          event_type: "stage_changed",
-          event_source: "contact_detail_inline",
-          summary: `Etapa cambiada a "${stageName}"`,
-        });
-        supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
-      }
-      const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-      setContact(data);
-      setPipelineEdit(false);
+      setStagesForPipeline([]);
     }
-    setSavingPipeline(false);
   };
 
   // Re-fetches the contact row.  Extracted so the realtime hook can call it.
@@ -174,31 +178,13 @@ export default function ContactDetailPage() {
     fetchRelated();
   }, [id, refetchContact]);
 
-  // Load pipelines once on mount for the pipeline edit panel
+  // Pre-load stages when contact has a pipeline (for view-mode display)
   useEffect(() => {
-    if (!id) return;
-    // Load after contact is fetched (so we can pass current pipeline_id)
-    refetchContact().then(() => {
-      // re-load pipelines; contact is fetched in refetchContact
-    });
-    loadPipelinesForEdit();
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Sync pipeline form when contact loads/updates
-  useEffect(() => {
-    if (!contact) return;
-    setPipelineForm({
-      pipeline_id: contact.pipeline_id || "",
-      stage_id: contact.stage_id || "",
-      budget: contact.budget != null ? String(contact.budget) : "",
-      budget_currency: contact.budget_currency || "USD",
-      expected_close_date: contact.expected_close_date || "",
-    });
-    if (contact.pipeline_id) {
-      supabase.from("pipeline_stages").select("id, name, color, order").eq("pipeline_id", contact.pipeline_id).order("order", { ascending: true })
-        .then(({ data }) => setStagesForPipeline(data || []));
-    }
-  }, [contact]);
+    if (!contact?.pipeline_id) return;
+    supabase.from("pipeline_stages").select("id, name, color, order")
+      .eq("pipeline_id", contact.pipeline_id).order("order", { ascending: true })
+      .then(({ data }) => setStagesForPipeline(data || []));
+  }, [contact?.pipeline_id]);
 
   // ── Realtime: keep the page in sync with DB changes ──────────────────────
   // Contact row (score, status, etc.)
@@ -369,6 +355,61 @@ export default function ContactDetailPage() {
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
 
+                    {/* Pipeline fields */}
+                    <div className="pt-1 border-t">
+                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><KanbanSquare className="h-3 w-3" /> Pipeline</p>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-xs text-muted-foreground">Pipeline</label>
+                          <Select value={editForm.pipeline_id || "none"} onValueChange={v => v === "none" ? setEditForm(p => ({ ...p, pipeline_id: "", stage_id: "" })) : handlePipelineChange(v)}>
+                            <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin pipeline" /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sin pipeline</SelectItem>
+                              {pipelines.map(pl => <SelectItem key={pl.id} value={pl.id}>{pl.name}</SelectItem>)}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {editForm.pipeline_id && (
+                          <div>
+                            <label className="text-xs text-muted-foreground">Etapa</label>
+                            <Select value={editForm.stage_id || "none"} onValueChange={v => setEditForm(p => ({ ...p, stage_id: v === "none" ? "" : v }))}>
+                              <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin etapa" /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">Sin etapa</SelectItem>
+                                {stagesForPipeline.map(s => (
+                                  <SelectItem key={s.id} value={s.id}>
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
+                                      {s.name}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-xs text-muted-foreground">Presupuesto</label>
+                            <Input type="number" min={0} value={editForm.budget} onChange={e => setEditForm(p => ({ ...p, budget: e.target.value }))} className="h-8 text-xs mt-0.5" placeholder="0" />
+                          </div>
+                          <div>
+                            <label className="text-xs text-muted-foreground">Moneda</label>
+                            <Select value={editForm.budget_currency} onValueChange={v => setEditForm(p => ({ ...p, budget_currency: v }))}>
+                              <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
+                          <Input type="date" value={editForm.expected_close_date} onChange={e => setEditForm(p => ({ ...p, expected_close_date: e.target.value }))} className="h-8 text-xs mt-0.5" />
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Custom fields */}
                     <div className="pt-1 border-t">
                       <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Campos personalizados</p>
@@ -449,6 +490,29 @@ export default function ContactDetailPage() {
                             <span className="text-foreground text-right break-all">{val || "—"}</span>
                           </div>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Pipeline summary — always visible at the bottom of contact info */}
+                    {(currentStage || currentPipeline || contact.budget != null) && (
+                      <div className="pt-3 mt-2 border-t flex flex-wrap items-center gap-2">
+                        <KanbanSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        {currentStage ? (
+                          <Badge variant="outline" className="gap-1.5 text-xs">
+                            <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />
+                            {currentStage.name}
+                          </Badge>
+                        ) : currentPipeline ? (
+                          <span className="text-xs text-muted-foreground">{currentPipeline.name}</span>
+                        ) : null}
+                        {contact.budget != null && (
+                          <span className="text-xs font-semibold text-foreground">
+                            ${Number(contact.budget).toLocaleString()} <span className="font-normal text-muted-foreground">{contact.budget_currency}</span>
+                          </span>
+                        )}
+                        {contact.expected_close_date && (
+                          <span className="text-xs text-muted-foreground">· {contact.expected_close_date}</span>
+                        )}
                       </div>
                     )}
                   </div>
@@ -581,122 +645,6 @@ export default function ContactDetailPage() {
               </CardContent>
             </Card>
 
-            {/* Pipeline card */}
-            <Card className="border-none shadow-sm">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <KanbanSquare className="h-3.5 w-3.5" /> Pipeline
-                  </CardTitle>
-                  {!pipelineEdit ? (
-                    <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => { loadPipelinesForEdit(contact.pipeline_id); setPipelineEdit(true); }}>
-                      <Pencil className="h-3 w-3" /> Editar
-                    </Button>
-                  ) : (
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => setPipelineEdit(false)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                      <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={savePipelineInfo} disabled={savingPipeline}>
-                        <Check className="h-3 w-3" /> {savingPipeline ? "..." : "Guardar"}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {pipelineEdit ? (
-                  <div className="space-y-2">
-                    <div>
-                      <label className="text-xs text-muted-foreground">Pipeline</label>
-                      <Select value={pipelineForm.pipeline_id || "none"} onValueChange={v => v === "none" ? setPipelineForm(p => ({ ...p, pipeline_id: "", stage_id: "" })) : handlePipelineChange(v)}>
-                        <SelectTrigger className="h-8 text-xs mt-0.5">
-                          <SelectValue placeholder="Sin pipeline" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin pipeline</SelectItem>
-                          {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    {pipelineForm.pipeline_id && (
-                      <div>
-                        <label className="text-xs text-muted-foreground">Etapa</label>
-                        <Select value={pipelineForm.stage_id || "none"} onValueChange={v => setPipelineForm(p => ({ ...p, stage_id: v === "none" ? "" : v }))}>
-                          <SelectTrigger className="h-8 text-xs mt-0.5">
-                            <SelectValue placeholder="Sin etapa" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin etapa</SelectItem>
-                            {stagesForPipeline.map(s => (
-                              <SelectItem key={s.id} value={s.id}>
-                                <span className="flex items-center gap-1.5">
-                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                                  {s.name}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="text-xs text-muted-foreground">Presupuesto</label>
-                        <Input type="number" min={0} value={pipelineForm.budget} onChange={e => setPipelineForm(p => ({ ...p, budget: e.target.value }))} className="h-8 text-xs mt-0.5" placeholder="0" />
-                      </div>
-                      <div>
-                        <label className="text-xs text-muted-foreground">Moneda</label>
-                        <Select value={pipelineForm.budget_currency} onValueChange={v => setPipelineForm(p => ({ ...p, budget_currency: v }))}>
-                          <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
-                      <Input type="date" value={pipelineForm.expected_close_date} onChange={e => setPipelineForm(p => ({ ...p, expected_close_date: e.target.value }))} className="h-8 text-xs mt-0.5" />
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    {currentPipeline ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">Pipeline</span>
-                          <span className="text-xs font-medium">{currentPipeline.name}</span>
-                        </div>
-                        {currentStage && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Etapa</span>
-                            <Badge variant="outline" className="text-xs gap-1.5">
-                              <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />
-                              {currentStage.name}
-                            </Badge>
-                          </div>
-                        )}
-                        {contact.budget != null && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Presupuesto</span>
-                            <span className="text-xs font-semibold">${Number(contact.budget).toLocaleString()} {contact.budget_currency}</span>
-                          </div>
-                        )}
-                        {contact.expected_close_date && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-muted-foreground">Cierre est.</span>
-                            <span className="text-xs">{contact.expected_close_date}</span>
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <p className="text-xs text-muted-foreground text-center py-2">Sin pipeline asignado</p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
           </div>
 
           <div className="lg:col-span-2">
