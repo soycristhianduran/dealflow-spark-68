@@ -8,13 +8,15 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
+import { TemplatePicker } from "@/components/whatsapp/TemplatePicker";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { ContactStatus } from "@/types/crm";
@@ -116,6 +118,18 @@ export default function ContactsPage() {
   // AI bulk analysis
   const [aiAnalysisOpen, setAiAnalysisOpen] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Bulk WhatsApp template blast
+  const [waBlastOpen, setWaBlastOpen] = useState(false);
+  const [waBlastSending, setWaBlastSending] = useState(false);
+  const [waBlastProgress, setWaBlastProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Bulk email blast
+  const [emailBlastOpen, setEmailBlastOpen] = useState(false);
+  const [emailBlastSending, setEmailBlastSending] = useState(false);
+  const [emailBlastProgress, setEmailBlastProgress] = useState<{ done: number; total: number } | null>(null);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -278,6 +292,61 @@ export default function ContactsPage() {
     done(`${rows.length} tarea${rows.length !== 1 ? "s" : ""} creada${rows.length !== 1 ? "s" : ""}`);
   };
 
+  // ── Bulk WhatsApp template blast ──────────────────────────────────────────
+  const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string) => {
+    const targets = contacts.filter(c => selected.has(c.id) && c.primary_phone);
+    if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); return; }
+    setWaBlastSending(true);
+    setWaBlastProgress({ done: 0, total: targets.length });
+    let sent = 0; let failed = 0;
+    for (const c of targets) {
+      try {
+        const phone = c.primary_phone!.replace(/[^0-9]/g, "");
+        const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+          body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message);
+        sent++;
+      } catch { failed++; }
+      setWaBlastProgress({ done: sent + failed, total: targets.length });
+    }
+    setWaBlastSending(false);
+    setWaBlastOpen(false);
+    setWaBlastProgress(null);
+    toast.success(`WhatsApp enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
+    setSelected(new Set());
+  };
+
+  // ── Bulk email blast ──────────────────────────────────────────────────────
+  const handleEmailBlast = async () => {
+    if (!emailSubject.trim() || !emailBody.trim()) { toast.error("El asunto y el cuerpo son obligatorios"); return; }
+    const targets = contacts.filter(c => selected.has(c.id) && c.primary_email);
+    if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
+    setEmailBlastSending(true);
+    setEmailBlastProgress({ done: 0, total: targets.length });
+    let sent = 0; let failed = 0;
+    for (const c of targets) {
+      try {
+        const html = emailBody.replace(/\n/g, "<br>")
+          .replace(/\{\{nombre\}\}/gi, c.full_name || "")
+          .replace(/\{\{name\}\}/gi, c.full_name || "");
+        const { data, error } = await supabase.functions.invoke("send-email", {
+          body: { action: "send_single", to: c.primary_email, subject: emailSubject, html, contact_id: c.id },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message);
+        sent++;
+      } catch { failed++; }
+      setEmailBlastProgress({ done: sent + failed, total: targets.length });
+    }
+    setEmailBlastSending(false);
+    setEmailBlastOpen(false);
+    setEmailBlastProgress(null);
+    setEmailSubject("");
+    setEmailBody("");
+    toast.success(`Email enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
+    setSelected(new Set());
+  };
+
   const handleBulkFieldChange = async () => {
     if (!fieldName || !fieldValue.trim()) { toast.error("Selecciona un campo y escribe un valor"); return; }
     setBulkWorking(true);
@@ -415,6 +484,16 @@ export default function ContactsPage() {
             <span className="text-sm font-semibold text-foreground mr-1">
               {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
             </span>
+            <div className="h-4 w-px bg-border" />
+
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-green-700 dark:text-green-400 hover:text-green-700" onClick={() => setWaBlastOpen(true)} disabled={bulkWorking}>
+              <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+            </Button>
+
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-blue-700 dark:text-blue-400 hover:text-blue-700" onClick={() => { setEmailSubject(""); setEmailBody(""); setEmailBlastOpen(true); }} disabled={bulkWorking}>
+              <Mail className="h-3.5 w-3.5" /> Email
+            </Button>
+
             <div className="h-4 w-px bg-border" />
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setSelectedOwner(""); setReassignOpen(true); }} disabled={bulkWorking}>
@@ -818,6 +897,62 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setStatusOpen(false)}>Cancelar</Button>
             <Button onClick={handleBulkStatus} disabled={!bulkStatus || bulkWorking}>
               {bulkWorking ? "Actualizando..." : "Aplicar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* ── Bulk WhatsApp template picker ──────────────────────────────── */}
+      <TemplatePicker
+        open={waBlastOpen}
+        onClose={() => !waBlastSending && setWaBlastOpen(false)}
+        sending={waBlastSending}
+        onSend={handleWaBlast}
+      />
+      {waBlastProgress && (
+        <div className="fixed bottom-6 right-6 z-50 bg-card border rounded-xl px-5 py-3 shadow-lg flex items-center gap-3 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin text-green-600" />
+          <span>Enviando WhatsApp… {waBlastProgress.done}/{waBlastProgress.total}</span>
+        </div>
+      )}
+
+      {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
+      <Dialog open={emailBlastOpen} onOpenChange={v => !emailBlastSending && setEmailBlastOpen(v)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-blue-600" />
+              Enviar email a {contacts.filter(c => selected.has(c.id) && c.primary_email).length} leads
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>Usa <code className="bg-muted px-1 rounded text-xs">{"{{"} nombre {"}}"}</code> para personalizar con el nombre del lead.</p>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <Label>Asunto</Label>
+              <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Ej: Tenemos algo para ti, {{nombre}}" />
+            </div>
+            <div>
+              <Label>Cuerpo del email</Label>
+              <Textarea
+                value={emailBody}
+                onChange={e => setEmailBody(e.target.value)}
+                placeholder={"Hola {{nombre}},\n\nEscribo para..."}
+                rows={8}
+                className="text-sm"
+              />
+            </div>
+          </div>
+          {emailBlastProgress && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Enviando {emailBlastProgress.done}/{emailBlastProgress.total}…
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>Cancelar</Button>
+            <Button onClick={handleEmailBlast} disabled={emailBlastSending || !emailSubject.trim() || !emailBody.trim()} className="bg-blue-600 hover:bg-blue-700">
+              {emailBlastSending ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Enviando…</> : <><Mail className="h-4 w-4 mr-1" /> Enviar email</>}
             </Button>
           </DialogFooter>
         </DialogContent>
