@@ -257,6 +257,100 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── Resend invitation ─────────────────────────────────────────────────────
+  if (action === "resend_invitation") {
+    const { invitation_id } = body;
+    if (!invitation_id) return err("invitation_id requerido");
+
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!membership) return err("No perteneces a ninguna organización");
+    if (!["owner", "admin"].includes(membership.role)) return err("Sin permisos");
+
+    const { data: invitation } = await supabase
+      .from("organization_invitations")
+      .select("*")
+      .eq("id", invitation_id)
+      .eq("organization_id", membership.organization_id)
+      .is("accepted_at", null)
+      .maybeSingle();
+
+    if (!invitation) return err("Invitación no encontrada");
+
+    // Extend expiry 7 more days
+    const newExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await supabase
+      .from("organization_invitations")
+      .update({ expires_at: newExpiry })
+      .eq("id", invitation_id);
+
+    // Resend email
+    const appUrl = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
+    const inviteUrl = `${appUrl}/invite?token=${invitation.token}`;
+    const inviterName = user.user_metadata?.full_name || user.email;
+
+    const { data: orgRow } = await supabase
+      .from("organizations")
+      .select("name")
+      .eq("id", membership.organization_id)
+      .maybeSingle();
+    const orgName = orgRow?.name || "tu equipo";
+
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    if (RESEND_API_KEY) {
+      await fetch(`${RESEND_API}/emails`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "CRM <noreply@aceleradoradeventas.co>",
+          to: [invitation.email],
+          subject: `${inviterName} te recuerda unirte a ${orgName}`,
+          html: `
+            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+              <h2 style="color:#1a1a1a">Recordatorio de invitación</h2>
+              <p><strong>${inviterName}</strong> te recuerda que tienes una invitación pendiente para unirte a <strong>${orgName}</strong> en Velocity CRM.</p>
+              <a href="${inviteUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
+                Aceptar invitación
+              </a>
+              <p style="color:#666;font-size:13px">Este enlace expira en 7 días. Si no esperabas esta invitación, ignora este correo.</p>
+            </div>
+          `,
+        }),
+      });
+    }
+
+    return ok({ success: true });
+  }
+
+  // ── Cancel / delete invitation ─────────────────────────────────────────────
+  if (action === "cancel_invitation") {
+    const { invitation_id } = body;
+    if (!invitation_id) return err("invitation_id requerido");
+
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (!membership) return err("No perteneces a ninguna organización");
+    if (!["owner", "admin"].includes(membership.role)) return err("Sin permisos");
+
+    const { error: delErr } = await supabase
+      .from("organization_invitations")
+      .delete()
+      .eq("id", invitation_id)
+      .eq("organization_id", membership.organization_id);
+
+    if (delErr) throw delErr;
+
+    return ok({ success: true });
+  }
+
   // ── Save workspace slug ────────────────────────────────────────────────────
   if (action === "save_slug") {
     const { slug } = body;

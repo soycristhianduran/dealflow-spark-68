@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
@@ -96,6 +96,8 @@ export default function SettingsPage() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [updatingRoleFor, setUpdatingRoleFor] = useState<string | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
+  const [resendingInvite, setResendingInvite] = useState<string | null>(null);
+  const [cancelingInvite, setCancelingInvite] = useState<string | null>(null);
   const { isOwnerOrAdmin, myUserId } = usePermissions();
 
   // Tags state
@@ -225,6 +227,40 @@ export default function SettingsPage() {
       toast.error("Error al cambiar rol: " + (err.message ?? "Error desconocido"));
     } finally {
       setUpdatingRoleFor(null);
+    }
+  };
+
+  const handleResendInvite = async (invitationId: string, email: string) => {
+    setResendingInvite(invitationId);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "resend_invitation", invitation_id: invitationId },
+      });
+      if (data?.error) throw new Error(data.error);
+      if (error) throw error;
+      toast.success(`Invitación reenviada a ${email}`);
+      fetchTeam(); // refresh to show updated expiry
+    } catch (err: any) {
+      toast.error("Error al reenviar: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setResendingInvite(null);
+    }
+  };
+
+  const handleCancelInvite = async (invitationId: string, email: string) => {
+    setCancelingInvite(invitationId);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "cancel_invitation", invitation_id: invitationId },
+      });
+      if (data?.error) throw new Error(data.error);
+      if (error) throw error;
+      setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
+      toast.success(`Invitación de ${email} cancelada`);
+    } catch (err: any) {
+      toast.error("Error al cancelar: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setCancelingInvite(null);
     }
   };
 
@@ -622,10 +658,36 @@ export default function SettingsPage() {
                           </p>
                         )}
                       </div>
-                      <Badge variant="outline">
+                      <Badge variant="outline" className="shrink-0">
                         {inv.role === "admin" ? "Admin" : inv.role === "vendor" ? "Vendedor" : inv.role === "readonly" ? "Solo lectura" : "Miembro"}
                       </Badge>
-                      <Badge variant="secondary" className="text-xs">Pendiente</Badge>
+                      <Badge variant="secondary" className="text-xs shrink-0">Pendiente</Badge>
+                      {isOwnerOrAdmin && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          {/* Resend */}
+                          <button
+                            title="Reenviar invitación"
+                            disabled={resendingInvite === inv.id || cancelingInvite === inv.id}
+                            onClick={() => handleResendInvite(inv.id, inv.email)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
+                          >
+                            {resendingInvite === inv.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <RotateCcw className="h-4 w-4" />}
+                          </button>
+                          {/* Cancel */}
+                          <button
+                            title="Cancelar invitación"
+                            disabled={cancelingInvite === inv.id || resendingInvite === inv.id}
+                            onClick={() => handleCancelInvite(inv.id, inv.email)}
+                            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                          >
+                            {cancelingInvite === inv.id
+                              ? <Loader2 className="h-4 w-4 animate-spin" />
+                              : <X className="h-4 w-4" />}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </CardContent>
