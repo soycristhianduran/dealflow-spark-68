@@ -105,7 +105,8 @@ export function useOrganization(): UseOrganizationResult {
           if (!cancelled) {
             setOrganizationId(orgBySlug.id);
             setOrganization(orgBySlug as Organization);
-            setRole(membership.role);
+            // RPC returns member_role (not role) — support both field names
+            setRole(membership.member_role ?? membership.role ?? null);
           }
           return;
         }
