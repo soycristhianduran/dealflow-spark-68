@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle } from "lucide-react";
+import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
@@ -451,6 +451,16 @@ export default function ContactDetailPage() {
                                   onChange={e => setVal(e.target.value)}
                                   className="h-7 text-xs flex-1"
                                 />
+                              )}
+                              {isObj && val.id && (
+                                <Button
+                                  size="sm" variant="ghost"
+                                  className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+                                  title={`Copiar ID: ${val.id}`}
+                                  onClick={() => { navigator.clipboard.writeText(val.id); toast.success(`ID copiado: ${val.id}`); }}
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
                               )}
                               <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => removeCustomField(key)}>
                                 <X className="h-3 w-3" />
