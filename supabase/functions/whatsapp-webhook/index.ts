@@ -215,6 +215,25 @@ Deno.serve(async (req) => {
                   .from("contacts")
                   .update({ last_contact_at: new Date().toISOString() })
                   .eq("id", contact.id);
+
+                // Trigger AI score analysis in background (fire-and-forget)
+                const analysisPromise = fetch(
+                  `${Deno.env.get("SUPABASE_URL")}/functions/v1/analyze-contact-ai`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({
+                      contact_id: contact.id,
+                      user_id: config.user_id,
+                      auto_trigger: true,
+                    }),
+                  }
+                ).catch(e => console.warn("Auto AI analysis failed:", e));
+                // @ts-ignore — EdgeRuntime is Deno Deploy specific
+                if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
               }
             }
           }

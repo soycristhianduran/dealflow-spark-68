@@ -97,20 +97,26 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("No authorization header");
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-    if (authError || !user) throw new Error("Unauthorized");
 
-    const { contact_id } = await req.json();
+    const body = await req.json();
+    const { contact_id, user_id: bodyUserId, auto_trigger } = body;
     if (!contact_id) throw new Error("contact_id es obligatorio");
 
+    // auto_trigger: called server-side (webhook) with service role key + user_id in body
+    let resolvedUserId: string;
+    if (auto_trigger && bodyUserId && token === SUPABASE_SERVICE_ROLE_KEY) {
+      resolvedUserId = bodyUserId;
+    } else {
+      const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+      if (authError || !user) throw new Error("Unauthorized");
+      resolvedUserId = user.id;
+    }
+
     // ── Billing gate: check that the user's org has AI quota left ───────────
-    // Resolves user_id → organization_id → consumes 1 credit. If the plan
-    // budget is exhausted AND there are no AI Boost credits, returns 402
-    // so the frontend can show the upgrade prompt.
     const { data: membership } = await supabase
       .from("organization_members")
       .select("organization_id")
-      .eq("user_id", user.id)
+      .eq("user_id", resolvedUserId)
       .maybeSingle();
     if (!membership?.organization_id) {
       throw new Error("No estás asociado a ninguna organización");
@@ -144,7 +150,7 @@ Deno.serve(async (req) => {
       .eq("id", contact_id)
       .maybeSingle();
     if (!contact) throw new Error("Contacto no encontrado");
-    if (contact.owner_id && contact.owner_id !== user.id) {
+    if (contact.owner_id && contact.owner_id !== resolvedUserId) {
       throw new Error("No tienes permiso sobre este contacto");
     }
 
@@ -279,7 +285,7 @@ Deno.serve(async (req) => {
       await supabase.from("contact_ai_analyses").upsert(
         {
           contact_id,
-          user_id: user.id,
+          user_id: resolvedUserId,
           ...empty,
           messages_analyzed: 0,
           model_used: MODEL,
@@ -405,7 +411,7 @@ Deno.serve(async (req) => {
             priority: temperature >= 80 ? "high" : "medium",
             due_date: dueDate.toISOString().slice(0, 10),
             status: "pending",
-            owner_id: contact.owner_id || user.id,
+            owner_id: contact.owner_id || resolvedUserId,
             contact_id,
             deal_id: currentDealId,
             source: "ai_suggestion",
@@ -422,7 +428,7 @@ Deno.serve(async (req) => {
       .upsert(
         {
           contact_id,
-          user_id: user.id,
+          user_id: resolvedUserId,
           temperature,
           sentiment,
           buying_intent,

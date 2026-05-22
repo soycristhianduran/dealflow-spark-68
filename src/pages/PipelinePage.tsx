@@ -265,9 +265,14 @@ export default function PipelinePage() {
   const handleDrop = async (stageId: string) => {
     if (!draggedDeal) return;
     setDragOverStage(null);
+    const deal = deals.find(d => d.id === draggedDeal);
     setDeals(prev => prev.map(d => d.id === draggedDeal ? { ...d, stage_id: stageId } : d));
     setDraggedDeal(null);
     await supabase.from("deals").update({ stage_id: stageId }).eq("id", draggedDeal);
+    // Re-score in background after stage change
+    if (deal?.contact_id) {
+      supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
+    }
   };
 
   const getStageValue = (stageId: string) =>
@@ -572,6 +577,7 @@ export default function PipelinePage() {
                                   await closeDeal(deal.id, "won", deal.contact_id || null, session?.user?.id);
                                   toast.success("Deal marcado como ganado 🎉");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
+                                  if (deal.contact_id) supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
                                 <Trophy className="h-3.5 w-3.5 mr-2 text-green-500" /> Marcar ganado
@@ -581,6 +587,7 @@ export default function PipelinePage() {
                                   await closeDeal(deal.id, "lost", deal.contact_id || null, session?.user?.id);
                                   toast.success("Deal marcado como perdido");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
+                                  if (deal.contact_id) supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: deal.contact_id } }).catch(() => {});
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
                                 <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> Marcar perdido

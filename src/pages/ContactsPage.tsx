@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -99,6 +99,10 @@ export default function ContactsPage() {
 
   // Status dialog
   const [bulkStatus, setBulkStatus] = useState("");
+
+  // AI bulk analysis
+  const [aiAnalysisOpen, setAiAnalysisOpen] = useState(false);
+  const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -242,6 +246,25 @@ export default function ContactsPage() {
     done(`Etiquetas actualizadas en ${ids.length} lead${ids.length !== 1 ? "s" : ""}`);
   };
 
+  const handleBulkAIAnalysis = async () => {
+    const ids = [...selected];
+    setAiProgress({ done: 0, total: ids.length });
+    setBulkWorking(true);
+    let succeeded = 0;
+    for (const contactId of ids) {
+      try {
+        const { error } = await supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } });
+        if (!error) succeeded++;
+      } catch (_) {}
+      setAiProgress(p => p ? { ...p, done: p.done + 1 } : null);
+    }
+    setAiAnalysisOpen(false);
+    setAiProgress(null);
+    setBulkWorking(false);
+    toast.success(`Score IA actualizado en ${succeeded} lead${succeeded !== 1 ? "s" : ""}`);
+    fetchContacts();
+  };
+
   const addPendingTag = () => {
     const t = tagInput.trim().toLowerCase();
     if (!t) return;
@@ -301,6 +324,10 @@ export default function ContactsPage() {
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive" onClick={handleBulkDelete} disabled={bulkWorking}>
               <Trash2 className="h-3.5 w-3.5" /> Eliminar
+            </Button>
+
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-primary hover:text-primary" onClick={() => setAiAnalysisOpen(true)} disabled={bulkWorking}>
+              <Sparkles className="h-3.5 w-3.5" /> Score IA
             </Button>
 
             <div className="h-4 w-px bg-border" />
@@ -594,6 +621,45 @@ export default function ContactsPage() {
               {bulkWorking ? "Aplicando..." : "Aplicar etiquetas"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Score IA masivo ───────────────────────────────────────────── */}
+      <Dialog open={aiAnalysisOpen} onOpenChange={v => { if (!bulkWorking) setAiAnalysisOpen(v); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Analizar score IA</DialogTitle></DialogHeader>
+          {aiProgress ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">Analizando leads...</p>
+              <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${(aiProgress.done / aiProgress.total) * 100}%` }} />
+              </div>
+              <p className="text-xs text-center text-muted-foreground">{aiProgress.done} / {aiProgress.total}</p>
+            </div>
+          ) : (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-foreground">
+                Se analizarán <strong>{selected.size} lead{selected.size !== 1 ? "s" : ""}</strong> con inteligencia artificial para calcular su score de compra.
+              </p>
+              <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1">
+                <p className="text-xs font-semibold text-warning">Aviso de costo</p>
+                <p className="text-xs text-muted-foreground">
+                  Cada análisis consume créditos IA de tu plan. Costo estimado de esta operación: <strong>~${(selected.size * 0.0004).toFixed(3)} USD</strong>.
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Leads sin conversaciones recientes pueden generar un score menos preciso.
+                </p>
+              </div>
+            </div>
+          )}
+          {!aiProgress && (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAiAnalysisOpen(false)}>Cancelar</Button>
+              <Button onClick={handleBulkAIAnalysis} disabled={bulkWorking} className="gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Analizar {selected.size} lead{selected.size !== 1 ? "s" : ""}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
