@@ -9,6 +9,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { usePermissions } from "@/hooks/usePermissions";
 
+// Visible to all roles (vendor, readonly, admin, owner)
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Leads", url: "/contacts", icon: Users },
@@ -16,9 +17,13 @@ const navItems = [
   { title: "Pipeline", url: "/pipeline", icon: KanbanSquare },
   { title: "Calendario", url: "/calendar", icon: CalendarDays },
   { title: "Tareas", url: "/tasks", icon: CheckSquare },
+  { title: "Conversaciones", url: "/conversations", icon: MessageSquare },
+];
+
+// Visible to admin/owner only
+const powerNavItems = [
   { title: "Integraciones", url: "/integrations", icon: Plug },
   { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
-  { title: "Conversaciones", url: "/conversations", icon: MessageSquare },
   { title: "WA Plantillas", url: "/whatsapp/templates", icon: MessageSquare },
   { title: "IG Automatizaciones", url: "/instagram/automations", icon: Sparkles },
   { title: "Email Campañas", url: "/email-campaigns", icon: Mail },
@@ -34,7 +39,7 @@ export function AppSidebar() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { path } = useWorkspace();
   const { waUnread, igUnread } = useUnreadCounts();
-  const { canAccessSettings } = usePermissions();
+  const { canAccessSettings, canAccessPowerFeatures } = usePermissions();
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -74,10 +79,8 @@ export function AppSidebar() {
 
       {/* Main nav */}
       <nav className="flex-1 space-y-1 p-2 overflow-y-auto scrollbar-thin">
+        {/* Items visible to all roles */}
         {navItems.map((item) => {
-          // Single unified "Conversaciones" badge sums both channels.  The
-          // legacy /whatsapp/inbox and /instagram/inbox routes are still
-          // reachable by direct URL but no longer in the sidebar.
           const badge =
             item.url === "/conversations" && (waUnread + igUnread) > 0
               ? waUnread + igUnread
@@ -110,6 +113,32 @@ export function AppSidebar() {
             </NavLink>
           );
         })}
+
+        {/* Power features: admin / owner only */}
+        {canAccessPowerFeatures && (
+          <>
+            {!collapsed && (
+              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
+                Avanzado
+              </p>
+            )}
+            {powerNavItems.map((item) => (
+              <NavLink
+                key={item.url}
+                to={path(item.url)}
+                end={false}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-all duration-150 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-0.5 relative",
+                  collapsed && "justify-center px-2 hover:translate-x-0"
+                )}
+                activeClassName="bg-sidebar-accent text-sidebar-accent-foreground !translate-x-0 before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-r before:bg-primary"
+              >
+                <item.icon className="h-4 w-4 shrink-0" />
+                {!collapsed && <span className="flex-1">{item.title}</span>}
+              </NavLink>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Bottom */}
