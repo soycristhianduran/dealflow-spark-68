@@ -638,11 +638,6 @@ export default function ContactDetailPage() {
                 <TabsTrigger value="info">Info</TabsTrigger>
                 <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
                 <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
-                {contact.primary_phone && (
-                  <TabsTrigger value="whatsapp">
-                    <MessageCircle className="h-3.5 w-3.5 mr-1.5" /> WhatsApp
-                  </TabsTrigger>
-                )}
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
