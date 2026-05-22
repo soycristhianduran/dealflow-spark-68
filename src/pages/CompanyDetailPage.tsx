@@ -148,7 +148,7 @@ export default function CompanyDetailPage() {
               <AlertDialogContent>
                 <AlertDialogHeader>
                   <AlertDialogTitle>¿Eliminar empresa?</AlertDialogTitle>
-                  <AlertDialogDescription>Esta acción no se puede deshacer. Los leads y deals vinculados no se eliminarán, pero perderán la asociación.</AlertDialogDescription>
+                  <AlertDialogDescription>Esta acción no se puede deshacer. Los contactos y leads vinculados no se eliminarán, pero perderán la asociación.</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -201,7 +201,7 @@ export default function CompanyDetailPage() {
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-2xl font-bold text-foreground">{deals.length}</p>
-                  <p className="text-xs text-muted-foreground">Deals</p>
+                  <p className="text-xs text-muted-foreground">Leads</p>
                 </div>
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-center">
@@ -240,7 +240,7 @@ export default function CompanyDetailPage() {
               </CardHeader>
               <CardContent className="space-y-2">
                 {deals.map(deal => (
-                  <div key={deal.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/deals/${deal.id}`))}>
+                  <div key={deal.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/leads/${deal.id}`))}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{deal.title}</p>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -253,7 +253,7 @@ export default function CompanyDetailPage() {
                     </Badge>
                   </div>
                 ))}
-                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin deals vinculados</p>}
+                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin leads vinculados</p>}
               </CardContent>
             </Card>
           </div>

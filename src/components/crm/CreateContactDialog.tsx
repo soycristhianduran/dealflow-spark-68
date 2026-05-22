@@ -129,7 +129,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
         if (firstStage) {
           await supabase.from("deals").insert({
-            title: `Deal - ${fullName}`,
+            title: `Lead - ${fullName}`,
             contact_id: contact.id,
             company_id: companyId,
             pipeline_id: pipeline.id,

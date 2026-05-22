@@ -93,11 +93,11 @@ export default function DealsPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`¿Eliminar ${selected.size} deal${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar ${selected.size} lead${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
     setBulkWorking(true);
     const { error } = await supabase.from("deals").delete().in("id", [...selected]);
     if (error) { toast.error("Error al eliminar: " + error.message); }
-    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    else { toast.success(`${selected.size} lead${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
@@ -105,7 +105,7 @@ export default function DealsPage() {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").update({ status: newStatus }).in("id", [...selected]);
     if (error) { toast.error("Error al actualizar: " + error.message); }
-    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    else { toast.success(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
@@ -113,20 +113,20 @@ export default function DealsPage() {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").update({ stage_id: stageId }).in("id", [...selected]);
     if (error) { toast.error("Error al cambiar etapa: " + error.message); }
-    else { toast.success(`Etapa actualizada en ${selected.size} deal${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    else { toast.success(`Etapa actualizada en ${selected.size} lead${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
   return (
     <AppLayout>
-      <AppHeader title="Deals" subtitle={`${deals.length} oportunidades`} actions={
-        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo deal</Button>
+      <AppHeader title="Leads" subtitle={`${deals.length} oportunidades`} actions={
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo lead</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+            <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex rounded-lg border overflow-hidden">
             {([
@@ -213,7 +213,7 @@ export default function DealsPage() {
                       aria-label="Seleccionar todos"
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deal</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
@@ -233,22 +233,22 @@ export default function DealsPage() {
                           aria-label={`Seleccionar ${deal.title}`}
                         />
                       </td>
-                      <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.title}</td>
-                      <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.contacts?.full_name || '-'}</td>
-                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>
+                      <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>{deal.title}</td>
+                      <td className="px-4 py-3 text-muted-foreground cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>{deal.contacts?.full_name || '-'}</td>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>
                         {deal.pipeline_stages ? (
                           <Badge variant="outline" className="text-xs" style={{ borderColor: deal.pipeline_stages.color, color: deal.pipeline_stages.color }}>
                             {deal.pipeline_stages.name}
                           </Badge>
                         ) : '-'}
                       </td>
-                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>
+                      <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>
                         <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'secondary'}>
                           {deal.status === 'won' ? 'Ganado' : deal.status === 'lost' ? 'Perdido' : 'Abierto'}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-right font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>${Number(deal.value).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs cursor-pointer" onClick={() => navigate(path(`/deals/${deal.id}`))}>{deal.expected_close_date || '-'}</td>
+                      <td className="px-4 py-3 text-right font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>${Number(deal.value).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>{deal.expected_close_date || '-'}</td>
                     </tr>
                   );
                 })}
@@ -256,11 +256,11 @@ export default function DealsPage() {
                   <tr><td colSpan={7} className="px-0 py-0">
                     <EmptyState
                       variant="deals"
-                      title={search ? "Sin resultados" : "Aún no tienes deals"}
+                      title={search ? "Sin resultados" : "Aún no tienes leads"}
                       description={
                         search
                           ? "Prueba con otro término de búsqueda."
-                          : "Los deals son las oportunidades de venta. Se crean automáticamente cuando un lead se convierte, o puedes crear uno manualmente desde el detalle de un contacto."
+                          : "Los leads son las oportunidades de venta que se mueven por tu pipeline. Créalos desde el pipeline o desde el detalle de un contacto."
                       }
                     />
                   </td></tr>

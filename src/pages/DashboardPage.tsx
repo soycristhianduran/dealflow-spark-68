@@ -254,9 +254,9 @@ export default function DashboardPage() {
     { label: "Contactos", value: stats.contactsTotal, icon: Users, spark: sparkData.contacts },
     { label: "Nuevos", value: stats.contactsNew, icon: UserPlus },
     { label: "Calificados", value: stats.contactsQualified, icon: Star },
-    { label: "Deals abiertos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
-    { label: "Deals ganados", value: stats.dealsWon, icon: Trophy },
-    { label: "Deals perdidos", value: stats.dealsLost, icon: XCircle },
+    { label: "Leads abiertos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
+    { label: "Leads ganados", value: stats.dealsWon, icon: Trophy },
+    { label: "Leads perdidos", value: stats.dealsLost, icon: XCircle },
     { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign, spark: sparkData.deals },
     { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
     { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays, spark: sparkData.meetings },
@@ -493,18 +493,18 @@ export default function DashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Handshake className="h-4 w-4 text-primary" />
-              Deals recientes
+              Leads recientes
             </CardTitle>
           </CardHeader>
           <CardContent>
             {activeDeals.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Sin deals</p>
+              <p className="text-sm text-muted-foreground text-center py-4">Sin leads</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
-                      <th className="pb-2 font-medium text-muted-foreground">Deal</th>
+                      <th className="pb-2 font-medium text-muted-foreground">Lead</th>
                       <th className="pb-2 font-medium text-muted-foreground">Contacto</th>
                       <th className="pb-2 font-medium text-muted-foreground">Etapa</th>
                       <th className="pb-2 font-medium text-muted-foreground text-right">Valor</th>

@@ -246,7 +246,7 @@ export function useFacebookIntegration() {
     if (error) { toast.error("Error al importar leads"); return null; }
     const imported = data?.imported || { contacts: 0, deals: 0 };
     if (imported.contacts > 0) {
-      toast.success(`${imported.contacts} leads importados, ${imported.deals} deals creados`);
+      toast.success(`${imported.contacts} contactos importados, ${imported.deals} leads creados`);
     } else {
       toast.info("No se encontraron leads nuevos para importar");
     }

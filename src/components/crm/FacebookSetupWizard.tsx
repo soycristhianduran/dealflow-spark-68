@@ -692,7 +692,7 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                 {leadsImported && (
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Leads importados</span>
-                    <span className="font-medium text-foreground">{leadsImported.contacts} contactos, {leadsImported.deals} deals</span>
+                    <span className="font-medium text-foreground">{leadsImported.contacts} contactos, {leadsImported.deals} leads</span>
                   </div>
                 )}
               </div>

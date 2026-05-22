@@ -100,11 +100,11 @@ export default function ContactsPage() {
   };
 
   const handleBulkDelete = async () => {
-    if (!confirm(`¿Eliminar ${selected.size} lead${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`¿Eliminar ${selected.size} contacto${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
     setBulkWorking(true);
     const { error } = await supabase.from("contacts").delete().in("id", [...selected]);
     if (error) { toast.error("Error al eliminar: " + error.message); }
-    else { toast.success(`${selected.size} lead${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchContacts(); }
+    else { toast.success(`${selected.size} contacto${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchContacts(); }
     setBulkWorking(false);
   };
 
@@ -112,22 +112,22 @@ export default function ContactsPage() {
     setBulkWorking(true);
     const { error } = await supabase.from("contacts").update({ status: newStatus }).in("id", [...selected]);
     if (error) { toast.error("Error al actualizar: " + error.message); }
-    else { toast.success(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchContacts(); }
+    else { toast.success(`${selected.size} contacto${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchContacts(); }
     setBulkWorking(false);
   };
 
   return (
     <AppLayout>
-      <AppHeader title="Leads" subtitle={`${contacts.length} leads`} actions={
+      <AppHeader title="Contactos" subtitle={`${contacts.length} contactos`} actions={
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuevo lead
+          <Plus className="h-4 w-4" /> Nuevo contacto
         </Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+            <Input placeholder="Buscar contactos..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex gap-1.5 flex-wrap">
             {statusFilters.map(f => (
@@ -179,7 +179,7 @@ export default function ContactsPage() {
                     aria-label="Seleccionar todos"
                   />
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
@@ -206,7 +206,7 @@ export default function ContactsPage() {
                 <tr><td colSpan={7} className="px-0 py-0">
                   <EmptyState
                     variant={search || statusFilter !== "all" ? "search" : "contacts"}
-                    title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes leads"}
+                    title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes contactos"}
                     description={
                       search || statusFilter !== "all"
                         ? "Prueba con otro filtro o término de búsqueda"
@@ -215,7 +215,7 @@ export default function ContactsPage() {
                     action={
                       !search && statusFilter === "all" && (
                         <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-                          <Plus className="h-4 w-4" /> Crear mi primer lead
+                          <Plus className="h-4 w-4" /> Crear mi primer contacto
                         </Button>
                       )
                     }

@@ -115,17 +115,17 @@ export default function DealDetailPage() {
     }).eq("id", id);
     setSaving(false);
     if (error) { toast.error("Error al guardar"); return; }
-    toast.success("Deal actualizado");
+    toast.success("Lead actualizado");
     setEditOpen(false);
     fetchDeal();
   };
 
   const handleDelete = async () => {
-    if (!id || !confirm("¿Eliminar este deal?")) return;
+    if (!id || !confirm("¿Eliminar este lead?")) return;
     const { error } = await supabase.from("deals").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar"); return; }
-    toast.success("Deal eliminado");
-    navigate(path("/deals"));
+    toast.success("Lead eliminado");
+    navigate(path("/leads"));
   };
 
   const handleStatusChange = async (newStatus: string) => {
@@ -140,7 +140,7 @@ export default function DealDetailPage() {
       }
       fetchDeal();
       fetchRelated();
-      toast.success(`Deal ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
+      toast.success(`Lead ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
     } catch (err: any) {
       toast.error("Error: " + err.message);
     }
@@ -160,9 +160,9 @@ export default function DealDetailPage() {
   if (!deal) {
     return (
       <AppLayout>
-        <AppHeader title="Deal no encontrado" />
+        <AppHeader title="Lead no encontrado" />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">El deal no existe.</p>
+          <p className="text-muted-foreground">El lead no existe.</p>
         </main>
       </AppLayout>
     );
@@ -182,7 +182,7 @@ export default function DealDetailPage() {
             <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-1.5 text-destructive hover:text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate(path('/deals'))} className="gap-1.5">
+            <Button variant="ghost" size="sm" onClick={() => navigate(path('/leads'))} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" /> Volver
             </Button>
           </div>
@@ -250,7 +250,7 @@ export default function DealDetailPage() {
                   </div>
                 )}
                 {deal.status !== "open" && (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>Reabrir deal</Button>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>Reabrir lead</Button>
                 )}
               </CardContent>
             </Card>
@@ -326,7 +326,7 @@ export default function DealDetailPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar deal</DialogTitle>
+            <DialogTitle>Editar lead</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
