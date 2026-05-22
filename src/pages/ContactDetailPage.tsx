@@ -51,6 +51,8 @@ export default function ContactDetailPage() {
   const [budgetEditing, setBudgetEditing] = useState(false);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
+  const [pickerPipelineId, setPickerPipelineId] = useState("");
+  const [stagesForPicker, setStagesForPicker] = useState<{ id: string; name: string; color: string; order: number }[]>([]);
   const [activeTab, setActiveTab] = useState("timeline");
 
   // Pipeline state for stage dropdowns (loaded on demand when editing)
@@ -239,17 +241,39 @@ export default function ContactDetailPage() {
     setSavingPpl(false);
   };
 
+  // Sync picker state when popover opens
+  useEffect(() => {
+    if (!stagePickerOpen) return;
+    const pid = contact?.pipeline_id || "";
+    setPickerPipelineId(pid);
+    setStagesForPicker(stagesForPipeline);
+  }, [stagePickerOpen]);
+
+  const handlePickerPipeline = async (pipelineId: string) => {
+    setPickerPipelineId(pipelineId);
+    if (pipelineId) {
+      const { data } = await supabase.from("pipeline_stages").select("id, name, color, order")
+        .eq("pipeline_id", pipelineId).order("order", { ascending: true });
+      setStagesForPicker(data || []);
+    } else {
+      setStagesForPicker([]);
+    }
+  };
+
   // Quick stage change — saves immediately, no Guardar needed
-  const quickChangeStage = async (newStageId: string) => {
+  const quickChangeStage = async (newStageId: string, newPipelineId: string) => {
     if (!id || savingStage) return;
     setSavingStage(true);
     setStagePickerOpen(false);
     const prevStageId = contact?.stage_id;
-    const { error } = await supabase.from("contacts").update({ stage_id: newStageId }).eq("id", id);
+    const { error } = await supabase.from("contacts").update({
+      stage_id: newStageId,
+      pipeline_id: newPipelineId,
+    }).eq("id", id);
     if (error) {
       toast.error("Error al cambiar etapa: " + error.message);
     } else {
-      const stageName = stagesForPipeline.find(s => s.id === newStageId)?.name || "";
+      const stageName = stagesForPicker.find(s => s.id === newStageId)?.name || "";
       if (newStageId !== prevStageId) {
         await supabase.from("activities").insert({
           related_entity_type: "contact", related_entity_id: id,
@@ -260,7 +284,8 @@ export default function ContactDetailPage() {
       }
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(data);
-      setPpl(p => ({ ...p, stage_id: newStageId }));
+      setPpl(p => ({ ...p, stage_id: newStageId, pipeline_id: newPipelineId }));
+      setStagesForPipeline(stagesForPicker);
       toast.success(`Etapa: ${stageName}`);
     }
     setSavingStage(false);
@@ -419,18 +444,38 @@ export default function ContactDetailPage() {
                                 <svg className="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
                               </button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-52 p-1" align="start">
-                              {stagesForPipeline.map(stage => (
-                                <button
-                                  key={stage.id}
-                                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors text-left ${stage.id === contact.stage_id ? "font-semibold" : ""}`}
-                                  onClick={() => quickChangeStage(stage.id)}
-                                >
-                                  <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                                  {stage.name}
-                                  {stage.id === contact.stage_id && <Check className="h-3.5 w-3.5 ml-auto text-primary" />}
-                                </button>
-                              ))}
+                            <PopoverContent className="w-64 p-0" align="start">
+                              {/* Pipeline selector */}
+                              {pipelines.length > 0 && (
+                                <div className="border-b p-1.5 space-y-0.5">
+                                  {pipelines.map(pl => (
+                                    <button
+                                      key={pl.id}
+                                      className={`w-full text-left px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-between ${pickerPipelineId === pl.id ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground"}`}
+                                      onClick={() => handlePickerPipeline(pl.id)}
+                                    >
+                                      {pl.name}
+                                      {pickerPipelineId === pl.id && <Check className="h-3 w-3" />}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              {/* Stages for selected pipeline */}
+                              <div className="p-1">
+                                {stagesForPicker.length === 0 ? (
+                                  <p className="text-xs text-muted-foreground px-3 py-2">Selecciona un pipeline</p>
+                                ) : stagesForPicker.map(stage => (
+                                  <button
+                                    key={stage.id}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-sm hover:bg-muted transition-colors text-left ${stage.id === contact.stage_id && pickerPipelineId === contact.pipeline_id ? "font-semibold" : ""}`}
+                                    onClick={() => quickChangeStage(stage.id, pickerPipelineId)}
+                                  >
+                                    <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                                    {stage.name}
+                                    {stage.id === contact.stage_id && pickerPipelineId === contact.pipeline_id && <Check className="h-3.5 w-3.5 ml-auto text-primary" />}
+                                  </button>
+                                ))}
+                              </div>
                             </PopoverContent>
                           </Popover>
                         )}
