@@ -409,14 +409,14 @@ export default function ContactDetailPage() {
                         {contact.pipeline_id && (
                           <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
                             <PopoverTrigger asChild>
-                              <button className="flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs font-medium hover:bg-muted transition-colors" disabled={savingStage}>
+                              <button className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors" disabled={savingStage}>
                                 {savingStage
-                                  ? <Loader2 className="h-3 w-3 animate-spin" />
+                                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   : currentStage
-                                    ? <><span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
+                                    ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
                                     : <span className="text-muted-foreground">Sin etapa</span>
                                 }
-                                <svg className="h-3 w-3 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
+                                <svg className="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
                               </button>
                             </PopoverTrigger>
                             <PopoverContent className="w-52 p-1" align="start">
@@ -726,25 +726,6 @@ export default function ContactDetailPage() {
                             <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />
                           </button>
                         )}
-                      </div>
-
-                      {/* Stage select */}
-                      <div>
-                        <label className="text-xs text-muted-foreground">Etapa</label>
-                        <Select value={ppl.stage_id || "none"} onValueChange={v => updatePpl({ stage_id: v === "none" ? "" : v })}>
-                          <SelectTrigger className="h-8 text-xs mt-0.5"><SelectValue placeholder="Sin etapa" /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">Sin etapa</SelectItem>
-                            {stagesForPipeline.map(s => (
-                              <SelectItem key={s.id} value={s.id}>
-                                <span className="flex items-center gap-1.5">
-                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color }} />
-                                  {s.name}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
                       </div>
 
                       {/* Pipeline select */}
