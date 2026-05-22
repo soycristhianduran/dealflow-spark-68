@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
@@ -75,10 +76,10 @@ const timezones = [
   { value: "UTC", label: "UTC" },
 ];
 
-const roles = [
-  { value: "admin", label: "Admin" },
-  { value: "manager", label: "Manager" },
-  { value: "sales_rep", label: "Sales Rep" },
+const editableRoles = [
+  { value: "admin", label: "Admin", description: "Acceso total al CRM" },
+  { value: "vendor", label: "Vendedor", description: "Crea y edita contactos, sin settings" },
+  { value: "readonly", label: "Solo lectura", description: "Solo puede ver, no editar" },
 ];
 
 export default function SettingsPage() {
@@ -93,6 +94,9 @@ export default function SettingsPage() {
   const [inviteRole, setInviteRole] = useState("member");
   const [inviting, setInviting] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [updatingRoleFor, setUpdatingRoleFor] = useState<string | null>(null);
+  const [removingMember, setRemovingMember] = useState<string | null>(null);
+  const { isOwnerOrAdmin, myUserId } = usePermissions();
 
   // Tags state
   const [tags, setTags] = useState(["vip", "real-estate", "healthcare", "education", "enterprise", "new", "hot-lead"]);
@@ -203,6 +207,40 @@ export default function SettingsPage() {
       toast.error("Error al invitar: " + (err.message ?? "Error desconocido"));
     } finally {
       setInviting(false);
+    }
+  };
+
+  const handleUpdateRole = async (memberUserId: string, newRole: string) => {
+    setUpdatingRoleFor(memberUserId);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "update_role", member_user_id: memberUserId, new_role: newRole },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMembers(prev => prev.map(m => m.user_id === memberUserId ? { ...m, role: newRole } : m));
+      toast.success("Rol actualizado");
+    } catch (err: any) {
+      toast.error("Error al cambiar rol: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setUpdatingRoleFor(null);
+    }
+  };
+
+  const handleRemoveMember = async (memberUserId: string) => {
+    setRemovingMember(memberUserId);
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "remove_member", member_user_id: memberUserId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setMembers(prev => prev.filter(m => m.user_id !== memberUserId));
+      toast.success("Miembro eliminado del equipo");
+    } catch (err: any) {
+      toast.error("Error al eliminar miembro: " + (err.message ?? "Error desconocido"));
+    } finally {
+      setRemovingMember(null);
     }
   };
 
@@ -466,8 +504,14 @@ export default function SettingsPage() {
                           <Select value={inviteRole} onValueChange={setInviteRole}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="member">Miembro</SelectItem>
+                              {editableRoles.map(r => (
+                                <SelectItem key={r.value} value={r.value}>
+                                  <div>
+                                    <div className="font-medium">{r.label}</div>
+                                    <div className="text-xs text-muted-foreground">{r.description}</div>
+                                  </div>
+                                </SelectItem>
+                              ))}
                             </SelectContent>
                           </Select>
                         </div>
@@ -496,19 +540,60 @@ export default function SettingsPage() {
                   </p>
                 ) : members.map(member => {
                   const nameDisplay = member.full_name || member.email;
-                  const initials = nameDisplay.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                  const isOwner = member.role === "owner";
+                  const isMe = member.user_id === myUserId;
+                  const canEdit = isOwnerOrAdmin && !isOwner && !isMe;
+                  const roleLabel = isOwner ? "Propietario" : member.role === "admin" ? "Admin" : member.role === "vendor" ? "Vendedor" : member.role === "readonly" ? "Solo lectura" : "Miembro";
                   return (
                     <div key={member.id} className="flex items-center gap-3 rounded-lg border p-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium shrink-0">
                         <UserCheck className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">{nameDisplay}</p>
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {nameDisplay}{isMe && <span className="ml-1.5 text-xs text-muted-foreground">(tú)</span>}
+                        </p>
                         <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                       </div>
-                      <Badge variant={member.role === "owner" ? "default" : "secondary"}>
-                        {member.role === "owner" ? "Propietario" : member.role === "admin" ? "Admin" : "Miembro"}
-                      </Badge>
+                      {canEdit ? (
+                        <Select
+                          value={member.role}
+                          onValueChange={val => handleUpdateRole(member.user_id, val)}
+                          disabled={updatingRoleFor === member.user_id}
+                        >
+                          <SelectTrigger className="h-8 w-36 text-xs">
+                            {updatingRoleFor === member.user_id
+                              ? <Loader2 className="h-3 w-3 animate-spin" />
+                              : <SelectValue />}
+                          </SelectTrigger>
+                          <SelectContent>
+                            {editableRoles.map(r => (
+                              <SelectItem key={r.value} value={r.value}>
+                                <div>
+                                  <div className="font-medium">{r.label}</div>
+                                  <div className="text-xs text-muted-foreground">{r.description}</div>
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge variant={isOwner ? "default" : "secondary"}>
+                          {roleLabel}
+                        </Badge>
+                      )}
+                      {canEdit && (
+                        <button
+                          title="Eliminar del equipo"
+                          disabled={removingMember === member.user_id}
+                          onClick={() => handleRemoveMember(member.user_id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                        >
+                          {removingMember === member.user_id
+                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                            : <UserX className="h-4 w-4" />}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -537,7 +622,7 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <Badge variant="outline">
-                        {inv.role === "admin" ? "Admin" : "Miembro"}
+                        {inv.role === "admin" ? "Admin" : inv.role === "vendor" ? "Vendedor" : inv.role === "readonly" ? "Solo lectura" : "Miembro"}
                       </Badge>
                       <Badge variant="secondary" className="text-xs">Pendiente</Badge>
                     </div>

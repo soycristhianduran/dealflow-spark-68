@@ -22,12 +22,14 @@ import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { canDeleteContacts, canEditContacts, canSeeBudget } = usePermissions();
   const [contact, setContact] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -378,7 +380,7 @@ export default function ContactDetailPage() {
         title={contact.full_name}
         actions={
           <div className="flex items-center gap-2">
-            <AlertDialog>
+            {canDeleteContacts && <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
                   <Trash2 className="h-4 w-4" /> Eliminar
@@ -403,7 +405,7 @@ export default function ContactDetailPage() {
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
-            </AlertDialog>
+            </AlertDialog>}
             <Button variant="ghost" size="sm" onClick={() => navigate(path('/contacts'))} className="gap-1.5">
               <ArrowLeft className="h-4 w-4" /> Volver
             </Button>
@@ -737,41 +739,43 @@ export default function ContactDetailPage() {
                         )}
                       </div>
 
-                      {/* Budget — prominent display, click to edit */}
-                      <div className="rounded-lg bg-primary/5 border border-primary/10 px-3 py-2.5">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Presupuesto</p>
-                        {budgetEditing ? (
-                          <div className="flex gap-1.5 items-center">
-                            <Input
-                              type="number" min={0} value={ppl.budget}
-                              onChange={e => updatePpl({ budget: e.target.value })}
-                              className="h-8 text-base font-bold flex-1"
-                              autoFocus
-                              placeholder="0"
-                              onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setBudgetEditing(false); }}
-                              onBlur={() => setBudgetEditing(false)}
-                            />
-                            <Select value={ppl.budget_currency} onValueChange={v => updatePpl({ budget_currency: v })}>
-                              <SelectTrigger className="h-8 w-16 text-xs shrink-0"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        ) : (
-                          <button
-                            className="w-full text-left flex items-baseline gap-1.5 group"
-                            onClick={() => setBudgetEditing(true)}
-                            title="Clic para editar presupuesto"
-                          >
-                            <span className="text-2xl font-bold text-foreground leading-none">
-                              {ppl.budget ? `$${Number(ppl.budget).toLocaleString()}` : "—"}
-                            </span>
-                            <span className="text-sm text-muted-foreground">{ppl.budget_currency}</span>
-                            <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />
-                          </button>
-                        )}
-                      </div>
+                      {/* Budget — visible solo si tiene permiso */}
+                      {canSeeBudget(contact?.owner_id) && (
+                        <div className="rounded-lg bg-primary/5 border border-primary/10 px-3 py-2.5">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Presupuesto</p>
+                          {budgetEditing ? (
+                            <div className="flex gap-1.5 items-center">
+                              <Input
+                                type="number" min={0} value={ppl.budget}
+                                onChange={e => updatePpl({ budget: e.target.value })}
+                                className="h-8 text-base font-bold flex-1"
+                                autoFocus
+                                placeholder="0"
+                                onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setBudgetEditing(false); }}
+                                onBlur={() => setBudgetEditing(false)}
+                              />
+                              <Select value={ppl.budget_currency} onValueChange={v => updatePpl({ budget_currency: v })}>
+                                <SelectTrigger className="h-8 w-16 text-xs shrink-0"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  {["USD","EUR","MXN","COP","ARS","BRL"].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ) : (
+                            <button
+                              className="w-full text-left flex items-baseline gap-1.5 group"
+                              onClick={() => canEditContacts && setBudgetEditing(true)}
+                              title={canEditContacts ? "Clic para editar presupuesto" : undefined}
+                            >
+                              <span className="text-2xl font-bold text-foreground leading-none">
+                                {ppl.budget ? `$${Number(ppl.budget).toLocaleString()}` : "—"}
+                              </span>
+                              <span className="text-sm text-muted-foreground">{ppl.budget_currency}</span>
+                              {canEditContacts && <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />}
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* Pipeline select */}
                       <div>

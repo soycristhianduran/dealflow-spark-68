@@ -7,6 +7,7 @@ import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
+import { usePermissions } from "@/hooks/usePermissions";
 
 const navItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -33,6 +34,7 @@ export function AppSidebar() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const { path } = useWorkspace();
   const { waUnread, igUnread } = useUnreadCounts();
+  const { canAccessSettings } = usePermissions();
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -112,7 +114,7 @@ export function AppSidebar() {
 
       {/* Bottom */}
       <div className="border-t border-sidebar-border p-2 space-y-1">
-        {bottomItems.map((item) => (
+        {canAccessSettings && bottomItems.map((item) => (
           <NavLink
             key={item.url}
             to={path(item.url)}

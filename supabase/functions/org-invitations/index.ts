@@ -164,6 +164,45 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── Update member role ────────────────────────────────────────────────────
+  if (action === "update_role") {
+    const { member_user_id, new_role } = body;
+    const validRoles = ["admin", "vendor", "readonly"];
+    if (!member_user_id || !validRoles.includes(new_role)) {
+      return new Response(JSON.stringify({ error: "Parámetros inválidos" }), { status: 400, headers: corsHeaders });
+    }
+
+    const { data: myMembership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .single();
+
+    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 403, headers: corsHeaders });
+    if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes cambiar tu propio rol" }), { status: 400, headers: corsHeaders });
+
+    // Cannot change the owner's role
+    const { data: target } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", myMembership.organization_id)
+      .eq("user_id", member_user_id)
+      .maybeSingle();
+
+    if (!target) return new Response(JSON.stringify({ error: "Miembro no encontrado" }), { status: 404, headers: corsHeaders });
+    if (target.role === "owner") return new Response(JSON.stringify({ error: "No puedes cambiar el rol del propietario" }), { status: 403, headers: corsHeaders });
+
+    const { error: roleErr } = await supabase
+      .from("organization_members")
+      .update({ role: new_role })
+      .eq("organization_id", myMembership.organization_id)
+      .eq("user_id", member_user_id);
+
+    if (roleErr) throw roleErr;
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   // ── Remove member ──────────────────────────────────────────────────────────
   if (action === "remove_member") {
     const { member_user_id } = body;

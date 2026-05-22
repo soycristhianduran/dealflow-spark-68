@@ -182,7 +182,15 @@ async function processLeadgenChange(
   }
 
   if (existingContactId) {
-    console.log(`Lead ${leadgenId} already exists as contact ${existingContactId}, skipping`);
+    console.log(`Lead ${leadgenId} already exists as contact ${existingContactId} — logging duplicate activity`);
+    // Log an activity so the team knows this person re-submitted the form
+    await supabase.from("activities").insert({
+      related_entity_type: "contact",
+      related_entity_id: existingContactId,
+      event_type: "note",
+      event_source: "facebook_lead_form",
+      summary: `🔁 Nuevo lead recibido desde Facebook Lead Form (contacto duplicado)\nFormulario: ${formId} · Lead ID: ${leadgenId}`,
+    }).catch((e: any) => console.warn("Could not log duplicate activity:", e));
     return;
   }
 
@@ -224,22 +232,25 @@ async function processLeadgenChange(
     return;
   }
 
-  const { error: dealErr } = await supabase.from("deals").insert({
-    title: `Lead FB - ${contactData.full_name}`,
-    contact_id: newContact.id,
-    pipeline_id: pipeline.id,
-    stage_id: stage.id,
-    owner_id: userId,
-    organization_id: organizationId,
-    value: 0,
-    currency: "USD",
-    status: "open",
-    source: "facebook",
-  });
-  if (dealErr) {
-    console.error(`Error creating deal for contact ${newContact.id}:`, dealErr);
+  // Leads+Deals Unification: contacts ARE the pipeline entity — update the
+  // contact row with pipeline/stage instead of creating a separate deal.
+  const { error: stageErr } = await supabase
+    .from("contacts")
+    .update({ pipeline_id: pipeline.id, stage_id: stage.id })
+    .eq("id", newContact.id);
+
+  if (stageErr) {
+    console.error(`Error assigning pipeline/stage to contact ${newContact.id}:`, stageErr);
   } else {
-    console.log(`Created deal for contact ${newContact.id}`);
+    console.log(`Assigned contact ${newContact.id} → pipeline ${pipeline.id}, stage ${stage.id}`);
+    // Activity log so the timeline shows the initial stage assignment
+    await supabase.from("activities").insert({
+      related_entity_type: "contact",
+      related_entity_id: newContact.id,
+      event_type: "stage_changed",
+      event_source: "facebook_lead_form",
+      summary: `Contacto creado desde Facebook Lead Form`,
+    }).catch((e: any) => console.warn("Could not log activity:", e));
   }
 
   // ── Trigger automations with trigger_type = "meta_lead_form" ────────────────
