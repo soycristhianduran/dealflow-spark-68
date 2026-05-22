@@ -464,12 +464,6 @@ export default function ContactDetailPage() {
                         <span className="text-foreground">{contact.primary_email}</span>
                       </div>
                     )}
-                    {contact.preferred_channel && (
-                      <div className="flex items-center gap-2 text-sm">
-                        <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-foreground capitalize">{contact.preferred_channel}</span>
-                      </div>
-                    )}
                     {(contact.city || contact.country) && (
                       <div className="flex items-center gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground" />
