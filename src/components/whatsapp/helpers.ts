@@ -21,7 +21,6 @@ export function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es", {
     hour: "2-digit",
     minute: "2-digit",
-    hour12: true,
   });
 }
 

@@ -150,10 +150,16 @@ export function MsgBubble({
         )}
         <div
           className={cn(
-            "flex items-center gap-1 mt-1",
+            "flex items-center gap-1.5 mt-1",
             out ? "justify-end" : "justify-start",
           )}
         >
+          {/* Agent name — outgoing only, when available */}
+          {out && msg.sent_by_name && (
+            <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
+              {msg.sent_by_name}
+            </span>
+          )}
           <span className="text-[10px] text-gray-400">
             {fmtTime(msg.created_at)}
           </span>
