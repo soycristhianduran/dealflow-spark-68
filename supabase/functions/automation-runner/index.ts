@@ -326,6 +326,14 @@ async function processEnrollment(enr: any, supabase: any) {
       }
     }
 
+    else if (step.type === "assign_owner") {
+      const { owner_id, owner_name } = step.config || {};
+      if (owner_id) {
+        await supabase.from("contacts").update({ owner_id }).eq("id", contact.id);
+        logs = addLog(`Lead asignado a ${owner_name || owner_id}`);
+      }
+    }
+
     // Log activity
     await supabase.from("activities").insert({
       related_entity_type: "contact",

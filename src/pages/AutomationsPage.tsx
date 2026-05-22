@@ -75,7 +75,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "update_contact" | "condition";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "update_contact" | "condition" | "assign_owner";
   config: Record<string, any>;
 }
 
@@ -97,12 +97,13 @@ const STEP_META: Record<string, {
   label: string; icon: React.ElementType;
   color: string; bg: string; border: string; ring: string;
 }> = {
-  wait:           { label: "Esperar",         icon: Clock,         color: "#b45309", bg: "#fef9c3", border: "#fde047", ring: "#fef08a" },
-  send_email:     { label: "Enviar Email",    icon: Mail,          color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", ring: "#bfdbfe" },
-  send_whatsapp:  { label: "Enviar WhatsApp", icon: MessageSquare, color: "#15803d", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
-  add_tag:        { label: "Añadir Tag",      icon: Tag,           color: "#6d28d9", bg: "#f5f3ff", border: "#c4b5fd", ring: "#ddd6fe" },
-  update_contact: { label: "Actualizar CRM",  icon: User,          color: "#0e7490", bg: "#ecfeff", border: "#67e8f9", ring: "#a5f3fc" },
-  condition:      { label: "Condición",       icon: GitBranch,     color: "#c2410c", bg: "#fff7ed", border: "#fdba74", ring: "#fed7aa" },
+  wait:           { label: "Esperar",           icon: Clock,         color: "#b45309", bg: "#fef9c3", border: "#fde047", ring: "#fef08a" },
+  send_email:     { label: "Enviar Email",      icon: Mail,          color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", ring: "#bfdbfe" },
+  send_whatsapp:  { label: "Enviar WhatsApp",   icon: MessageSquare, color: "#15803d", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
+  add_tag:        { label: "Añadir Tag",        icon: Tag,           color: "#6d28d9", bg: "#f5f3ff", border: "#c4b5fd", ring: "#ddd6fe" },
+  update_contact: { label: "Actualizar CRM",    icon: User,          color: "#0e7490", bg: "#ecfeff", border: "#67e8f9", ring: "#a5f3fc" },
+  condition:      { label: "Condición",         icon: GitBranch,     color: "#c2410c", bg: "#fff7ed", border: "#fdba74", ring: "#fed7aa" },
+  assign_owner:   { label: "Asignar vendedor",  icon: Users,         color: "#0369a1", bg: "#f0f9ff", border: "#7dd3fc", ring: "#bae6fd" },
 };
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -130,6 +131,7 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "add_tag":        return { tag: "" };
     case "update_contact": return { field: "", value: "" };
     case "condition":      return { field: "tags", operator: "contains", value: "" };
+    case "assign_owner":   return { owner_id: "", owner_name: "" };
     default:               return {};
   }
 }
@@ -143,6 +145,7 @@ function stepSummary(step: AutomationStep): string {
     case "add_tag":        return c.tag ? `"${c.tag}"` : "(sin tag)";
     case "update_contact": return c.field ? `${c.field} = ${c.value}` : "(sin campo)";
     case "condition":      return `${c.field} ${c.operator} ${c.value || "?"}`;
+    case "assign_owner":   return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
     default:               return "";
   }
 }
@@ -751,6 +754,47 @@ function WhatsAppStepEditor({ step, onChange }: {
   );
 }
 
+// ── Assign owner step editor ──────────────────────────────────────────────────
+function AssignOwnerStepEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const [profiles, setProfiles] = useState<{ user_id: string; full_name: string }[]>([]);
+  useEffect(() => {
+    supabase.from("profiles").select("user_id, first_name, last_name").then(({ data }) => {
+      if (data) setProfiles(data.map(p => ({
+        user_id: p.user_id,
+        full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.user_id,
+      })));
+    });
+  }, []);
+  const c = step.config;
+  return (
+    <div>
+      <Label className="text-xs">Asignar lead a</Label>
+      <Select
+        value={c.owner_id ?? ""}
+        onValueChange={v => {
+          const profile = profiles.find(p => p.user_id === v);
+          onChange({ ...step, config: { ...c, owner_id: v, owner_name: profile?.full_name ?? "" } });
+        }}
+      >
+        <SelectTrigger className="mt-1">
+          <SelectValue placeholder="Selecciona un vendedor..." />
+        </SelectTrigger>
+        <SelectContent>
+          {profiles.map(p => (
+            <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground mt-1.5">
+        El lead quedará asignado a este vendedor cuando se ejecute el paso.
+      </p>
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -830,6 +874,10 @@ function StepConfigEditor({ step, onChange }: {
         <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)} placeholder="Nuevo valor" />
       </div>
     </div>
+  );
+
+  if (step.type === "assign_owner") return (
+    <AssignOwnerStepEditor step={step} onChange={onChange} />
   );
 
   if (step.type === "condition") return (
