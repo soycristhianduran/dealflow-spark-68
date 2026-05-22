@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import {
   Plus, Search, Phone, MessageCircle, Mail, Calendar,
   ArrowRight, CreditCard, FileText, CheckCircle2, Circle, Clock, Loader2
@@ -65,6 +66,7 @@ const nextStatus: Record<string, string> = {
 
 export default function TasksPage() {
   const { session } = useAuth();
+  const { isVendor, myUserId } = usePermissions();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -84,10 +86,12 @@ export default function TasksPage() {
 
   const fetchTasks = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("tasks")
       .select("id, title, description, task_type, priority, due_date, due_time, status, contact_id, deal_id, contacts(full_name)")
       .order("due_date", { ascending: true });
+    if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
+    const { data } = await query;
     const mapped = (data || []).map((t: any) => ({
       ...t,
       contact_name: t.contacts?.full_name || null,
@@ -95,14 +99,18 @@ export default function TasksPage() {
     }));
     setTasks(mapped);
     setLoading(false);
-  }, []);
+  }, [isVendor, myUserId]);
 
   useEffect(() => {
     fetchTasks();
-    supabase.from("contacts").select("id, full_name").order("full_name").then(({ data }) => {
+    // Vendors only see their own contacts in the picker
+    const contactsQuery = isVendor && myUserId
+      ? supabase.from("contacts").select("id, full_name").eq("owner_id", myUserId).order("full_name")
+      : supabase.from("contacts").select("id, full_name").order("full_name");
+    contactsQuery.then(({ data }) => {
       if (data) setContacts(data);
     });
-  }, [fetchTasks]);
+  }, [fetchTasks, isVendor, myUserId]);
 
   const today = format(new Date(), "yyyy-MM-dd");
 

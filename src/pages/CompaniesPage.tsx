@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 
 type Company = {
@@ -33,12 +34,15 @@ export default function CompaniesPage() {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { isVendor, myUserId } = usePermissions();
 
   const fetchCompanies = useCallback(async () => {
-    const { data } = await supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
+    let query = supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
+    if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
+    const { data } = await query;
     setCompanies((data as any) || []);
     setLoading(false);
-  }, []);
+  }, [isVendor, myUserId]);
 
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 

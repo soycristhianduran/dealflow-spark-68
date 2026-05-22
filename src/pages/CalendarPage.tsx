@@ -14,6 +14,7 @@ import {
 } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { usePermissions } from "@/hooks/usePermissions";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -44,6 +45,7 @@ function getMeetingDisplayTitle(m: MeetingRow) {
 }
 
 export default function CalendarPage() {
+  const { isVendor, myUserId } = usePermissions();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
   const [meetings, setMeetings] = useState<MeetingRow[]>([]);
@@ -56,10 +58,12 @@ export default function CalendarPage() {
 
   const fetchMeetings = useCallback(async () => {
     setLoading(true);
-    const { data } = await supabase
+    let query = supabase
       .from("meetings")
       .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, contacts(full_name)")
       .order("start_at", { ascending: true });
+    if (isVendor && myUserId) query = query.eq("advisor_id", myUserId);
+    const { data } = await query;
     if (data) {
       setMeetings(data.map((m: any) => ({
         ...m,
@@ -67,7 +71,7 @@ export default function CalendarPage() {
       })));
     }
     setLoading(false);
-  }, []);
+  }, [isVendor, myUserId]);
 
   useEffect(() => { fetchMeetings(); }, [fetchMeetings]);
 
