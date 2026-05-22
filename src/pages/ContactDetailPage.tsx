@@ -17,6 +17,7 @@ import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { toast } from "sonner";
@@ -77,7 +78,7 @@ export default function ContactDetailPage() {
         type: editForm.newFieldType,
         value: editForm.newFieldValue,
         label,
-        ...(editForm.newFieldType === "select" && editForm.newFieldOptions
+        ...((editForm.newFieldType === "select" || editForm.newFieldType === "multiselect") && editForm.newFieldOptions
           ? { options: editForm.newFieldOptions.split(",").map((o: string) => o.trim()).filter(Boolean) }
           : {}),
       };
@@ -431,9 +432,23 @@ export default function ContactDetailPage() {
                                   <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
                                   <SelectContent>{opts.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                                 </Select>
+                              ) : type === "multiselect" ? (
+                                <div className="flex flex-wrap gap-1 flex-1">
+                                  {opts.map((o: string) => {
+                                    const selected = value.split(",").map((s: string) => s.trim()).filter(Boolean).includes(o);
+                                    return (
+                                      <button key={o} onClick={() => {
+                                        const cur = value.split(",").map((s: string) => s.trim()).filter(Boolean);
+                                        setVal(selected ? cur.filter((s: string) => s !== o).join(", ") : [...cur, o].join(", "));
+                                      }} className={`px-2 py-0.5 rounded text-[10px] border ${selected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"}`}>{o}</button>
+                                    );
+                                  })}
+                                </div>
+                              ) : type === "textarea" || type === "address" ? (
+                                <Textarea value={value} onChange={e => setVal(e.target.value)} className="text-xs flex-1 min-h-[56px] resize-none" />
                               ) : (
                                 <Input
-                                  type={type === "number" ? "number" : type === "date" ? "date" : type === "url" ? "url" : "text"}
+                                  type={type === "number" ? "number" : ["date","birthday"].includes(type) ? "date" : type === "datetime" ? "datetime-local" : type === "url" ? "url" : "text"}
                                   value={value}
                                   onChange={e => setVal(e.target.value)}
                                   className="h-7 text-xs flex-1"
@@ -456,18 +471,25 @@ export default function ContactDetailPage() {
                             className="h-7 text-xs flex-1"
                           />
                           <Select value={editForm.newFieldType} onValueChange={v => setEditForm(p => ({ ...p, newFieldType: v, newFieldValue: "", newFieldOptions: "" }))}>
-                            <SelectTrigger className="h-7 w-24 text-xs shrink-0"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-7 w-28 text-xs shrink-0"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               <SelectItem value="text">Texto</SelectItem>
+                              <SelectItem value="textarea">Texto Largo</SelectItem>
                               <SelectItem value="number">Número</SelectItem>
                               <SelectItem value="switch">Interruptor</SelectItem>
                               <SelectItem value="select">Selección</SelectItem>
+                              <SelectItem value="multiselect">Multiselección</SelectItem>
                               <SelectItem value="date">Fecha</SelectItem>
+                              <SelectItem value="datetime">Fecha y hora</SelectItem>
+                              <SelectItem value="birthday">Cumpleaños</SelectItem>
                               <SelectItem value="url">URL</SelectItem>
+                              <SelectItem value="address_short">Dirección corta</SelectItem>
+                              <SelectItem value="address">Dirección</SelectItem>
+                              <SelectItem value="taxid">Tax ID</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                        {editForm.newFieldType === "select" && (
+                        {(editForm.newFieldType === "select" || editForm.newFieldType === "multiselect") && (
                           <Input
                             placeholder="Opciones separadas por coma (ej: A, B, C)"
                             value={editForm.newFieldOptions}
@@ -481,9 +503,18 @@ export default function ContactDetailPage() {
                               className={`h-7 px-3 rounded text-xs font-medium border flex-1 text-left ${editForm.newFieldValue === "true" ? "bg-green-50 text-green-700 border-green-300" : "bg-muted text-muted-foreground border-border"}`}
                               onClick={() => setEditForm(p => ({ ...p, newFieldValue: p.newFieldValue === "true" ? "false" : "true" }))}
                             >{editForm.newFieldValue === "true" ? "Sí" : "No"}</button>
+                          ) : editForm.newFieldType === "textarea" || editForm.newFieldType === "address" ? (
+                            <Textarea
+                              placeholder="Valor (opcional)"
+                              value={editForm.newFieldValue}
+                              onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
+                              className="text-xs flex-1 min-h-[56px] resize-none"
+                            />
+                          ) : editForm.newFieldType === "select" || editForm.newFieldType === "multiselect" ? (
+                            <Input placeholder="Valor inicial (opcional)" value={editForm.newFieldValue} onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))} className="h-7 text-xs flex-1" />
                           ) : (
                             <Input
-                              type={editForm.newFieldType === "number" ? "number" : editForm.newFieldType === "date" ? "date" : editForm.newFieldType === "url" ? "url" : "text"}
+                              type={editForm.newFieldType === "number" ? "number" : ["date","birthday"].includes(editForm.newFieldType) ? "date" : editForm.newFieldType === "datetime" ? "datetime-local" : editForm.newFieldType === "url" ? "url" : "text"}
                               placeholder="Valor (opcional)"
                               value={editForm.newFieldValue}
                               onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
@@ -533,8 +564,10 @@ export default function ContactDetailPage() {
                           const displayLabel = isObj && val.label ? val.label : key.replace(/_/g, " ");
                           let displayValue: React.ReactNode = value || "—";
                           if (type === "switch") displayValue = value === "true" ? <Badge className="bg-green-500 text-white border-0 text-[10px] py-0">Sí</Badge> : <Badge variant="outline" className="text-[10px] py-0">No</Badge>;
-                          else if (type === "date" && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                          else if ((type === "date" || type === "birthday") && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                          else if (type === "datetime" && value) displayValue = new Date(value).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
                           else if (type === "url" && value) displayValue = <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{value}</a>;
+                          else if (type === "multiselect" && value) displayValue = <div className="flex flex-wrap gap-1 justify-end">{value.split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => <Badge key={s} variant="secondary" className="text-[10px] py-0">{s}</Badge>)}</div>;
                           return (
                             <div key={key} className="flex items-start justify-between gap-2 text-sm">
                               <span className="text-muted-foreground capitalize shrink-0">{displayLabel}:</span>
