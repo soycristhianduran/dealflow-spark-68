@@ -22,6 +22,7 @@ export interface WaMessage {
   status: string;
   created_at: string;
   media_url?: string | null;
+  sent_by_name?: string | null;
 }
 
 export function useWhatsAppInbox() {

@@ -37,7 +37,6 @@ import Recorder from "opus-recorder";
 import { WavRecorder } from "@/lib/wav-recorder";
 
 const OPUS_ENCODER_WORKER_PATH = "/opus-encoder-worker.js";
-import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -67,6 +66,7 @@ interface UnifiedMessage {
   message_type: string;
   status: string;
   sent_at: string;
+  sent_by_name?: string | null;
 }
 
 interface IgConvRow {
@@ -256,6 +256,7 @@ export default function ConversationsPage() {
         message_type: m.message_type,
         status: m.status,
         sent_at: m.created_at,
+        sent_by_name: m.sent_by_name || null,
       }));
     }
     return igMessages.map((m) => ({
@@ -836,6 +837,12 @@ function MessageBubble({
   onFetchMedia?: (messageId: string, waMediaId: string) => void;
 }) {
   const out = msg.direction === "outgoing";
+  // Format as HH:MM (exact time, same as Kommo)
+  const timeLabel = (() => {
+    try {
+      return new Date(msg.sent_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
+    } catch { return ""; }
+  })();
   // WhatsApp uses chat-style green-on-light bubbles; IG uses pink for outgoing
   const bubbleColor = out
     ? channel === "whatsapp"
@@ -918,9 +925,21 @@ function MessageBubble({
       <div className={cn("max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm", bubbleColor)}>
         {renderMedia()}
         {msg.text && <p className="whitespace-pre-wrap break-words leading-snug">{msg.text}</p>}
-        <div className={cn("flex items-center gap-1 mt-1", out ? "justify-end" : "justify-start")}>
-          <span className={cn("text-[10px]", out && channel === "whatsapp" ? "text-gray-500 dark:text-gray-400" : out ? "text-white/70" : "text-gray-400")}>
-            {formatDistanceToNow(new Date(msg.sent_at), { addSuffix: true, locale: es })}
+        <div className={cn("flex items-center gap-1.5 mt-1", out ? "justify-end" : "justify-start")}>
+          {/* Agent name — only on outgoing, only when we have a name */}
+          {out && msg.sent_by_name && (
+            <span className={cn(
+              "text-[10px] font-semibold",
+              channel === "whatsapp" ? "text-gray-500 dark:text-gray-400" : "text-white/80"
+            )}>
+              {msg.sent_by_name}
+            </span>
+          )}
+          <span className={cn(
+            "text-[10px]",
+            out && channel === "whatsapp" ? "text-gray-500 dark:text-gray-400" : out ? "text-white/70" : "text-gray-400"
+          )}>
+            {timeLabel}
           </span>
           {out && channel === "whatsapp" && <MsgStatus status={msg.status} />}
         </div>

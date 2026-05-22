@@ -82,6 +82,12 @@ Deno.serve(async (req) => {
       throw new Error(`Meta (código ${errCode}): ${errMsg}`);
     }
 
+    // Resolve sender's display name from auth metadata
+    const senderName = user.user_metadata?.full_name
+      || [user.user_metadata?.first_name, user.user_metadata?.last_name].filter(Boolean).join(" ")
+      || user.email
+      || "Agente";
+
     // Save message with NORMALIZED phone (same format as incoming)
     const waMessageId = waData.messages?.[0]?.id;
     await supabase.from("whatsapp_messages").insert({
@@ -93,6 +99,8 @@ Deno.serve(async (req) => {
       message_type: "text",
       message_text: message,
       status: "sent",
+      sent_by_user_id: user.id,
+      sent_by_name: senderName,
     });
 
     // Log activity if contact
