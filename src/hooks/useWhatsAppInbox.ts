@@ -401,6 +401,21 @@ export function useWhatsAppInbox() {
 
     const channel = supabase
       .channel("wa_inbox_realtime")
+      // ── Status updates (delivered / read) ────────────────────────────────
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "whatsapp_messages" },
+        (payload) => {
+          const msg = payload.new as WaMessage;
+          // Reflect status change in the currently open conversation
+          if (msg.phone_number === selectedPhone) {
+            setMessages((prev) =>
+              prev.map((m) => m.id === msg.id ? { ...m, ...msg } : m)
+            );
+          }
+        }
+      )
+      // ── New incoming / outgoing messages ─────────────────────────────────
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "whatsapp_messages" },

@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Play, Pause, Loader2, Check, AlertCircle, Send,
+  Play, Pause, Loader2, AlertCircle, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -33,14 +33,56 @@ export const MEDIA_HEADER_TYPES = ["IMAGE", "VIDEO", "DOCUMENT"];
 export const MEDIA_MSG_TYPES = ["image", "audio", "voice", "video", "document", "sticker"];
 
 // ───────────────────────────── Status icons ──────────────────────────────────
+// Exact WhatsApp color palette
+const WA_GREY  = "#8696a0";
+const WA_BLUE  = "#53bdeb";
+
+/** Single checkmark — "sent" state */
+function WaSingleTick({ color }: { color: string }) {
+  return (
+    <svg width="14" height="10" viewBox="0 0 14 10" fill="none" className="inline-block align-middle">
+      <path
+        d="M1.5 5L5 8.5L12.5 1.5"
+        stroke={color}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Double checkmark — "delivered" (grey) or "read" (blue) state */
+function WaDoubleTick({ color }: { color: string }) {
+  return (
+    <svg width="18" height="10" viewBox="0 0 18 10" fill="none" className="inline-block align-middle">
+      {/* left tick */}
+      <path
+        d="M1.5 5L5 8.5L12.5 1.5"
+        stroke={color}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* right tick — offset +4px right */}
+      <path
+        d="M5.5 5L9 8.5L16.5 1.5"
+        stroke={color}
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function MsgStatus({ status }: { status: string }) {
-  if (status === "sending") return <Loader2 className="h-3 w-3 animate-spin text-gray-400" />;
-  if (status === "failed") return <AlertCircle className="h-3 w-3 text-red-400" />;
-  if (status === "read")
-    return <span className="text-blue-500 text-[10px] font-bold leading-none">✓✓</span>;
-  if (status === "delivered")
-    return <span className="text-gray-400 text-[10px] font-bold leading-none">✓✓</span>;
-  return <Check className="h-3 w-3 text-gray-400" />;
+  if (status === "sending") return <Loader2 className="h-3 w-3 animate-spin" style={{ color: WA_GREY }} />;
+  if (status === "failed")  return <AlertCircle className="h-3 w-3 text-red-400" />;
+  if (status === "read")      return <WaDoubleTick color={WA_BLUE} />;
+  if (status === "delivered") return <WaDoubleTick color={WA_GREY} />;
+  // "sent" or any unknown status → single grey tick
+  return <WaSingleTick color={WA_GREY} />;
 }
 
 // ───────────────────────────── Audio Player ──────────────────────────────────
