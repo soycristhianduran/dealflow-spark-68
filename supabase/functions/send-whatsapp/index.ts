@@ -30,16 +30,18 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (!cleanPhone) throw new Error("Número de teléfono inválido");
 
-    // Get user's WhatsApp config
+    // Get the org's shared WhatsApp config.
+    // RLS (get_org_member_ids) now exposes configs of all org members, so any
+    // agent can send using the shared number — no user_id filter needed.
     const { data: config, error: configError } = await supabase
       .from("whatsapp_configs")
       .select("*")
-      .eq("user_id", user.id)
       .eq("is_active", true)
-      .single();
+      .limit(1)
+      .maybeSingle();
 
     if (configError || !config) {
-      throw new Error("WhatsApp no está configurado. Configura tus credenciales primero.");
+      throw new Error("WhatsApp no está configurado. El administrador debe conectar el número primero.");
     }
 
     // Send message via WhatsApp Cloud API

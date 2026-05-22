@@ -126,10 +126,10 @@ export default function ConversationsPage() {
   const loadIgConversations = useCallback(async () => {
     if (!user) return;
     setLoadingIg(true);
+    // No user_id filter — RLS (get_org_member_ids) exposes all org conversations
     const { data } = await supabase
       .from("instagram_conversations")
       .select("*")
-      .eq("user_id", user.id)
       .order("last_message_at", { ascending: false });
     setIgConversations((data || []) as IgConvRow[]);
     setLoadingIg(false);
@@ -149,8 +149,8 @@ export default function ConversationsPage() {
   });
   useRealtimeRefresh({
     table: "instagram_conversations",
-    filter: user ? `user_id=eq.${user.id}` : undefined,
-    channelKey: `conv-page-ig-${user?.id || "anon"}`,
+    // No user_id filter — org-scoped via RLS
+    channelKey: `conv-page-ig-org`,
     onChange: loadIgConversations,
     enabled: !!user,
   });
