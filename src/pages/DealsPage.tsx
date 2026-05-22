@@ -39,7 +39,7 @@ export default function DealsPage() {
       .from("deals")
       .select("id, title, value, currency, status, stage_id, contact_id, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
       .order("created_at", { ascending: false });
-    if (error) { toast.error("Error cargando leads"); return; }
+    if (error) { toast.error("Error cargando deals"); return; }
     setDeals((data as any) || []);
     setLoading(false);
   };
@@ -68,14 +68,14 @@ export default function DealsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Leads" subtitle={`${deals.length} oportunidades`} actions={
-        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo lead</Button>
+      <AppHeader title="Deals" subtitle={`${deals.length} oportunidades`} actions={
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo deal</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+            <Input placeholder="Buscar deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex rounded-lg border overflow-hidden">
             {([
@@ -109,7 +109,7 @@ export default function DealsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/50">
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deal</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
                   <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
@@ -119,7 +119,7 @@ export default function DealsPage() {
               </thead>
               <tbody>
                 {filtered.map((deal) => (
-                  <tr key={deal.id} onClick={() => navigate(path(`/leads/${deal.id}`))} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
+                  <tr key={deal.id} onClick={() => navigate(path(`/deals/${deal.id}`))} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer transition-colors">
                     <td className="px-4 py-3 font-medium text-foreground">{deal.title}</td>
                     <td className="px-4 py-3 text-muted-foreground">{deal.contacts?.full_name || '-'}</td>
                     <td className="px-4 py-3">
@@ -142,11 +142,11 @@ export default function DealsPage() {
                   <tr><td colSpan={6} className="px-0 py-0">
                     <EmptyState
                       variant="deals"
-                      title={search ? "Sin resultados" : "Aún no tienes leads"}
+                      title={search ? "Sin resultados" : "Aún no tienes deals"}
                       description={
                         search
                           ? "Prueba con otro término de búsqueda."
-                          : "Los leads son las oportunidades de venta en tu pipeline. Puedes crear uno desde el detalle de un contacto o directamente en el pipeline."
+                          : "Los deals son las oportunidades de venta. Se crean automáticamente cuando un lead se convierte, o puedes crear uno manualmente desde el detalle de un contacto."
                       }
                     />
                   </td></tr>

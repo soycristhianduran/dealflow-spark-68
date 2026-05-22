@@ -212,7 +212,7 @@ export default function PipelinePage() {
     if (pipelines.length <= 1) { toast.error("Debes tener al menos un pipeline"); return; }
     // Check if pipeline has deals
     const { count } = await supabase.from("deals").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
-    if (count && count > 0) { toast.error("No puedes eliminar un pipeline con leads. Mueve o elimina los leads primero."); return; }
+    if (count && count > 0) { toast.error("No puedes eliminar un pipeline con deals. Mueve o elimina los deals primero."); return; }
     // Delete stages first
     await supabase.from("pipeline_stages").delete().eq("pipeline_id", pid);
     const { error } = await supabase.from("pipelines").delete().eq("id", pid);
@@ -256,7 +256,7 @@ export default function PipelinePage() {
     });
     setSavingDeal(false);
     if (error) { toast.error("Error: " + error.message); return; }
-    toast.success("Lead creado");
+    toast.success("Deal creado");
     setDealDialogOpen(false);
     if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
   };
@@ -323,7 +323,7 @@ export default function PipelinePage() {
   const handleDeleteStage = async (stageId: string) => {
     const stageDeals = deals.filter(d => d.stage_id === stageId);
     if (stageDeals.length > 0) {
-      toast.error("No puedes eliminar una etapa con leads. Mueve los leads primero.");
+      toast.error("No puedes eliminar una etapa con deals. Mueve los deals primero.");
       return;
     }
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stageId);
@@ -552,7 +552,7 @@ export default function PipelinePage() {
                         key={deal.id}
                         draggable={!manageMode}
                         onDragStart={() => setDraggedDeal(deal.id)}
-                        onClick={() => !manageMode && navigate(path(`/leads/${deal.id}`))}
+                        onClick={() => !manageMode && navigate(path(`/deals/${deal.id}`))}
                         className="group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
                       >
                         <div className="flex items-start justify-between mb-1">
@@ -564,13 +564,13 @@ export default function PipelinePage() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                              <DropdownMenuItem onClick={() => navigate(path(`/leads/${deal.id}`))}>
+                              <DropdownMenuItem onClick={() => navigate(path(`/deals/${deal.id}`))}>
                                 <Pencil className="h-3.5 w-3.5 mr-2" /> Ver / Editar
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={async () => {
                                 try {
                                   await closeDeal(deal.id, "won", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Lead marcado como ganado 🎉");
+                                  toast.success("Deal marcado como ganado 🎉");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
@@ -579,7 +579,7 @@ export default function PipelinePage() {
                               <DropdownMenuItem onClick={async () => {
                                 try {
                                   await closeDeal(deal.id, "lost", deal.contact_id || null, session?.user?.id);
-                                  toast.success("Lead marcado como perdido");
+                                  toast.success("Deal marcado como perdido");
                                   if (selectedPipelineId) fetchStagesAndDeals(selectedPipelineId);
                                 } catch (err: any) { toast.error(err.message); }
                               }}>
@@ -599,7 +599,7 @@ export default function PipelinePage() {
                       </div>
                     ))}
                     {stageDeals.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-6">Sin leads</p>
+                      <p className="text-xs text-muted-foreground text-center py-6">Sin deals</p>
                     )}
                   </div>
                 </div>
@@ -689,7 +689,7 @@ export default function PipelinePage() {
       <Dialog open={dealDialogOpen} onOpenChange={setDealDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo lead</DialogTitle>
+            <DialogTitle>Nuevo deal</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
