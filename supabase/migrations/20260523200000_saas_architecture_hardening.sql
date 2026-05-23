@@ -45,8 +45,9 @@ ALTER TABLE public.whatsapp_sends
 ALTER TABLE public.automations
   ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE;
 
-ALTER TABLE public.email_templates
-  ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES public.organizations(id) ON DELETE CASCADE;
+-- NOTE: email_templates is NOT included here — it was already org-scoped
+-- with organization_id + correct RLS + trigger in migration 20260522100000.
+-- That table uses `created_by` (not user_id) so it is handled separately.
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -104,13 +105,6 @@ WHERE a.organization_id IS NULL
   AND a.user_id IS NOT NULL
   AND m.user_id = a.user_id;
 
-UPDATE public.email_templates et
-SET organization_id = m.organization_id
-FROM public.organization_members m
-WHERE et.organization_id IS NULL
-  AND et.user_id IS NOT NULL
-  AND m.user_id = et.user_id;
-
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. Indexes for org-scoping predicate
@@ -131,10 +125,6 @@ CREATE INDEX IF NOT EXISTS idx_whatsapp_sends_organization_id
 CREATE INDEX IF NOT EXISTS idx_automations_organization_id
   ON public.automations(organization_id);
 
-CREATE INDEX IF NOT EXISTS idx_email_templates_organization_id
-  ON public.email_templates(organization_id);
-
-
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 4. Auto-populate organization_id on INSERT via existing trigger function
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -151,8 +141,7 @@ BEGIN
     ARRAY['email_sends',        'user_id'],
     ARRAY['whatsapp_campaigns', 'user_id'],
     ARRAY['whatsapp_sends',     'user_id'],
-    ARRAY['automations',        'user_id'],
-    ARRAY['email_templates',    'user_id']
+    ARRAY['automations',        'user_id']
   ] LOOP
     EXECUTE format(
       'DROP TRIGGER IF EXISTS set_organization_id_trigger ON public.%I;',
@@ -180,7 +169,7 @@ BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'email_campaigns', 'email_sends',
     'whatsapp_campaigns', 'whatsapp_sends',
-    'automations', 'email_templates'
+    'automations'
   ] LOOP
     FOR pol IN
       SELECT policyname
@@ -206,7 +195,7 @@ BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'email_campaigns', 'email_sends',
     'whatsapp_campaigns', 'whatsapp_sends',
-    'automations', 'email_templates'
+    'automations'
   ] LOOP
     EXECUTE format($f$
       CREATE POLICY "%1$s_org_select" ON public.%1$I
@@ -291,7 +280,7 @@ BEGIN
   FOREACH tbl IN ARRAY ARRAY[
     'email_campaigns', 'email_sends',
     'whatsapp_campaigns', 'whatsapp_sends',
-    'automations', 'email_templates'
+    'automations'
   ] LOOP
     EXECUTE format(
       'SELECT count(*) FROM public.%I WHERE organization_id IS NULL', tbl
