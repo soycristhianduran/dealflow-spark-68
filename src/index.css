@@ -244,3 +244,14 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 }
+
+/* ── Hide Unlayer branding watermark ── */
+.blockbuilder-branding,
+#blockbuilder-branding,
+a[href*="unlayer"],
+div[class*="branding"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
