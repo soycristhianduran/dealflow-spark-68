@@ -7,8 +7,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Save, Plus, Trash2, Loader2, FileText, ChevronLeft } from "lucide-react";
+import { Save, Plus, Trash2, Loader2, FileText, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { STARTER_TEMPLATES } from "@/data/starterEmailTemplates";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
@@ -37,6 +38,9 @@ export default function EmailBuilderPage() {
   // Save-as dialog
   const [saveAsOpen, setSaveAsOpen] = useState(false);
   const [newName, setNewName] = useState("");
+
+  // Gallery dialog
+  const [galleryOpen, setGalleryOpen] = useState(false);
 
   // ── Load template list ──────────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
@@ -126,6 +130,18 @@ export default function EmailBuilderPage() {
     editorRef.current?.editor?.loadDesign(null);
   };
 
+  // ── Load starter template ────────────────────────────────────────────────
+  const handleLoadStarter = (tpl: typeof STARTER_TEMPLATES[0]) => {
+    setSelectedId(null);
+    setName(tpl.name);
+    setSubject(tpl.subject);
+    if (editorReady) {
+      editorRef.current?.editor?.loadDesign(tpl.design);
+    }
+    setGalleryOpen(false);
+    toast.success(`Plantilla "${tpl.name}" cargada — personalízala y guarda`);
+  };
+
   // ── Delete ──────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     if (!confirm("¿Eliminar esta plantilla?")) return;
@@ -145,6 +161,9 @@ export default function EmailBuilderPage() {
         subtitle="Diseña plantillas con drag & drop"
         actions={
           <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setGalleryOpen(true)}>
+              <LayoutTemplate className="h-4 w-4" /> Plantillas
+            </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNew}>
               <Plus className="h-4 w-4" /> Nueva
             </Button>
@@ -243,6 +262,46 @@ export default function EmailBuilderPage() {
           </div>
         </div>
       </div>
+
+      {/* ── Gallery dialog ── */}
+      <Dialog open={galleryOpen} onOpenChange={setGalleryOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <LayoutTemplate className="h-5 w-5 text-primary" />
+              Plantillas prediseñadas
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-1">
+            Elige una plantilla de inicio. Podrás personalizarla con tu marca antes de guardar.
+          </p>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            {STARTER_TEMPLATES.map((tpl) => (
+              <button
+                key={tpl.id}
+                onClick={() => handleLoadStarter(tpl)}
+                className="group text-left rounded-xl border border-border hover:border-primary hover:shadow-md transition-all p-4 bg-card"
+              >
+                <div
+                  className="w-full h-20 rounded-lg flex items-center justify-center text-4xl mb-3"
+                  style={{ background: `${tpl.color}18` }}
+                >
+                  <span>{tpl.emoji}</span>
+                </div>
+                <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
+                  {tpl.name}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(false)}>
+              Cancelar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Save-as dialog */}
       <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
