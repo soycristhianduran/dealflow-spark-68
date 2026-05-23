@@ -251,7 +251,14 @@ export default function EmailBuilderPage() {
                 locale: "es-ES",
                 displayMode: "email",
                 features: { textEditor: { spellChecker: false } },
-                appearance: { theme: "modern_light" },
+                appearance: {
+                  theme: "modern_light",
+                  customCSS: [
+                    ".blockbuilder-branding { display: none !important; }",
+                    "#blockbuilder-branding { display: none !important; }",
+                    "[class*='branding'] { display: none !important; }",
+                  ],
+                },
                 mergeTags: {
                   nombre:   { name: "Nombre del lead",   value: "{{nombre}}",   sample: "Juan" },
                   apellido: { name: "Apellido",           value: "{{apellido}}", sample: "Pérez" },
