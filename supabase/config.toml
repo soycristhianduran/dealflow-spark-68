@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.analyze-contact-ai]
 verify_jwt = false
+
+[functions.track-email]
+verify_jwt = false

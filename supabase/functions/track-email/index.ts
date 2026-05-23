@@ -1,0 +1,89 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+// 1×1 transparent GIF
+const PIXEL = new Uint8Array([
+  0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,0x80,0x00,0x00,
+  0xff,0xff,0xff,0x00,0x00,0x00,0x21,0xf9,0x04,0x01,0x00,0x00,0x00,
+  0x00,0x2c,0x00,0x00,0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x02,0x02,
+  0x44,0x01,0x00,0x3b,
+]);
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: cors });
+
+  const url = new URL(req.url);
+  const sendId  = url.searchParams.get("sid");
+  const type    = url.searchParams.get("t");   // "o" = open, "c" = click
+  const destUrl = url.searchParams.get("url"); // click redirect target
+
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    if (sendId && type === "o") {
+      // Only record first open
+      const { data: send } = await supabase
+        .from("email_sends")
+        .select("campaign_id, opened_at")
+        .eq("id", sendId)
+        .maybeSingle();
+
+      if (send && !send.opened_at) {
+        await supabase
+          .from("email_sends")
+          .update({ opened_at: new Date().toISOString(), status: "opened" })
+          .eq("id", sendId);
+
+        if (send.campaign_id) {
+          await supabase.rpc("inc_email_campaign_opened", { p_campaign_id: send.campaign_id });
+        }
+      }
+    }
+
+    if (sendId && type === "c" && destUrl) {
+      const { data: send } = await supabase
+        .from("email_sends")
+        .select("campaign_id, clicked_at")
+        .eq("id", sendId)
+        .maybeSingle();
+
+      if (send && !send.clicked_at) {
+        await supabase
+          .from("email_sends")
+          .update({ clicked_at: new Date().toISOString(), status: "clicked" })
+          .eq("id", sendId);
+
+        if (send.campaign_id) {
+          await supabase
+            .from("email_campaigns")
+            .update({ clicked_count: supabase.raw?.("clicked_count + 1") })
+            .eq("id", send.campaign_id)
+            .catch(() => null);
+        }
+      }
+      // Redirect to original URL
+      return new Response(null, {
+        status: 302,
+        headers: { Location: decodeURIComponent(destUrl), "Cache-Control": "no-cache" },
+      });
+    }
+  } catch (_) {
+    // Never fail — always return the pixel
+  }
+
+  return new Response(PIXEL, {
+    headers: {
+      ...cors,
+      "Content-Type": "image/gif",
+      "Cache-Control": "no-cache, no-store, must-revalidate, private",
+      "Pragma": "no-cache",
+    },
+  });
+});

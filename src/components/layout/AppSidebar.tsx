@@ -26,7 +26,7 @@ const powerNavItems = [
   { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
   { title: "WA Plantillas", url: "/whatsapp/templates", icon: MessageSquare },
   { title: "IG Automatizaciones", url: "/instagram/automations", icon: Sparkles },
-  { title: "Email Campañas", url: "/email-campaigns", icon: Mail },
+  { title: "Campañas", url: "/email-campaigns", icon: BarChart3 },
   { title: "Email Builder", url: "/email-builder", icon: Mail },
   { title: "Automatizaciones", url: "/automations", icon: Zap },
 ];

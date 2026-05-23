@@ -146,9 +146,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── SEND SINGLE EMAIL (for automations) ────────────────────────────────────
+    // ── SEND SINGLE EMAIL (for automations / blasts) ──────────────────────────
     if (action === "send_single") {
-      const { to, subject, html, from_name, from_email, contact_id, enrollment_id } = body;
+      const { to, subject, html, from_name, from_email, contact_id, enrollment_id, campaign_id } = body;
       if (!to || !subject || !html) throw new Error("to, subject y html son obligatorios");
 
       const buildFrom = (name: string | undefined, email: string) => {
@@ -160,15 +160,31 @@ Deno.serve(async (req) => {
         ? buildFrom(from_name, from_email)
         : buildFrom(from_name || "Equipo", "onboarding@resend.dev");
 
+      // Pre-generate send ID so we can embed the tracking pixel before sending
+      const sendId = crypto.randomUUID();
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const pixelUrl = `${supabaseUrl}/functions/v1/track-email?sid=${sendId}&t=o`;
+
+      // Inject tracking pixel just before </body>, or append at end
+      let finalHtml = html;
+      const trackingPixel = `<img src="${pixelUrl}" width="1" height="1" alt="" style="display:none;width:1px;height:1px;border:0;position:absolute;left:-9999px" />`;
+      if (finalHtml.includes("</body>")) {
+        finalHtml = finalHtml.replace("</body>", `${trackingPixel}</body>`);
+      } else {
+        finalHtml = finalHtml + trackingPixel;
+      }
+
       const res = await fetch(`${RESEND_API}/emails`, {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: fromAddress, to: [to], subject, html }),
+        body: JSON.stringify({ from: fromAddress, to: [to], subject, html: finalHtml }),
       });
       const resData = await res.json();
       if (resData.error) throw new Error(resData.error.message);
 
       await supabase.from("email_sends").insert({
+        id: sendId,
+        campaign_id: campaign_id || null,
         automation_enrollment_id: enrollment_id || null,
         contact_id: contact_id || null,
         user_id: user.id,
@@ -178,7 +194,7 @@ Deno.serve(async (req) => {
         sent_at: new Date().toISOString(),
       });
 
-      return new Response(JSON.stringify({ success: true, message_id: resData.id }), {
+      return new Response(JSON.stringify({ success: true, message_id: resData.id, send_id: sendId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

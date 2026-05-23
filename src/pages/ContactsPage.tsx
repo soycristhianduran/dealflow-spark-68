@@ -128,6 +128,7 @@ export default function ContactsPage() {
   const [emailBlastOpen, setEmailBlastOpen] = useState(false);
   const [emailBlastSending, setEmailBlastSending] = useState(false);
   const [emailBlastProgress, setEmailBlastProgress] = useState<{ done: number; total: number } | null>(null);
+  const [emailCampaignName, setEmailCampaignName] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   // Email template picker
@@ -139,6 +140,8 @@ export default function ContactsPage() {
   // Sender config
   const [fromName, setFromName] = useState("");
   const [fromEmail, setFromEmail] = useState("");
+  // WhatsApp campaign name
+  const [waCampaignName, setWaCampaignName] = useState("");
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -322,12 +325,27 @@ export default function ContactsPage() {
   };
 
   // ── Bulk WhatsApp template blast ──────────────────────────────────────────
-  const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string) => {
+  const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string, campaignName?: string) => {
     const targets = contacts.filter(c => selected.has(c.id) && c.primary_phone);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); return; }
+
+    const campName = (campaignName || waCampaignName || "").trim();
+    if (!campName) { toast.error("El nombre de la campaña es obligatorio"); return; }
+
+    // Create WhatsApp campaign record
+    const { data: campData } = await supabase.from("whatsapp_campaigns").insert({
+      name: campName,
+      template_name: templateName,
+      status: "sending",
+      total_recipients: targets.length,
+    }).select("id").single();
+    const campaignId = campData?.id || null;
+
     setWaBlastSending(true);
     setWaBlastProgress({ done: 0, total: targets.length });
     let sent = 0; let failed = 0;
+    const sends: any[] = [];
+
     for (const c of targets) {
       try {
         const phone = c.primary_phone!.replace(/[^0-9]/g, "");
@@ -335,13 +353,25 @@ export default function ContactsPage() {
           body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
+        sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null });
         sent++;
-      } catch { failed++; }
+      } catch (e: any) {
+        sends.push({ campaign_id: campaignId, contact_id: c.id, phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "failed", error_message: e?.message });
+        failed++;
+      }
       setWaBlastProgress({ done: sent + failed, total: targets.length });
     }
+
+    // Store per-contact sends
+    if (campaignId && sends.length > 0) {
+      await supabase.from("whatsapp_sends").insert(sends);
+      await supabase.from("whatsapp_campaigns").update({ status: "sent", sent_count: sent, failed_count: failed }).eq("id", campaignId);
+    }
+
     setWaBlastSending(false);
     setWaBlastOpen(false);
     setWaBlastProgress(null);
+    setWaCampaignName("");
     toast.success(`WhatsApp enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
     setSelected(new Set());
   };
@@ -351,18 +381,30 @@ export default function ContactsPage() {
     const usingTemplate = emailMode === "template" && selectedEmailTpl;
     const htmlSource = usingTemplate ? selectedEmailTpl!.html : emailBody;
     const subjectSource = emailSubject.trim();
+    if (!emailCampaignName.trim()) { toast.error("El nombre de la campaña es obligatorio"); return; }
     if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
     if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
     if (!fromEmail.trim()) { toast.error("El email del remitente es obligatorio. Configúralo en Ajustes → Remitente de emails."); return; }
     const targets = contacts.filter(c => selected.has(c.id) && c.primary_email);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
 
-    // Build RFC 5322 from address: "Name <email>" or just "email" if no name
     const senderEmail = fromEmail.trim();
     const senderName = fromName.trim();
-    // If name contains special chars, wrap in quotes
-    const safeFromName = senderName ? `"${senderName.replace(/"/g, "'")}"` : null;
-    const fromAddress = safeFromName ? `${safeFromName} <${senderEmail}>` : senderEmail;
+
+    // Create campaign record BEFORE sending
+    const { data: campData, error: campErr } = await supabase.from("email_campaigns").insert({
+      name: emailCampaignName.trim(),
+      subject: subjectSource,
+      from_name: senderName,
+      from_email: senderEmail,
+      html_content: htmlSource || "",
+      status: "sending",
+      recipient_filter: { type: "manual", contact_ids: targets.map(c => c.id) },
+      total_recipients: targets.length,
+    }).select("id").single();
+
+    if (campErr || !campData) { toast.error("Error al crear la campaña, intenta de nuevo"); return; }
+    const campaignId = campData.id;
 
     setEmailBlastSending(true);
     setEmailBlastProgress({ done: 0, total: targets.length });
@@ -379,16 +421,26 @@ export default function ContactsPage() {
         const subject = subjectSource
           .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");
         const { data, error } = await supabase.functions.invoke("send-email", {
-          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: senderName || undefined, from_email: senderEmail },
+          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: senderName || undefined, from_email: senderEmail, campaign_id: campaignId },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sent++;
       } catch { failed++; }
       setEmailBlastProgress({ done: sent + failed, total: targets.length });
     }
+
+    // Update campaign with final counts
+    await supabase.from("email_campaigns").update({
+      status: "sent",
+      sent_at: new Date().toISOString(),
+      sent_count: sent,
+      failed_count: failed,
+    }).eq("id", campaignId);
+
     setEmailBlastSending(false);
     setEmailBlastOpen(false);
     setEmailBlastProgress(null);
+    setEmailCampaignName("");
     setEmailSubject("");
     setEmailBody("");
     setSelectedEmailTpl(null);
@@ -966,7 +1018,7 @@ export default function ContactsPage() {
       )}
 
       {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
-      <Dialog open={emailBlastOpen} onOpenChange={v => { if (!emailBlastSending) { setEmailBlastOpen(v); if (!v) { setSelectedEmailTpl(null); setPreviewHtml(null); setEmailMode("template"); setEmailSubject(""); setEmailBody(""); } } }}>
+      <Dialog open={emailBlastOpen} onOpenChange={v => { if (!emailBlastSending) { setEmailBlastOpen(v); if (!v) { setSelectedEmailTpl(null); setPreviewHtml(null); setEmailMode("template"); setEmailSubject(""); setEmailBody(""); setEmailCampaignName(""); } } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
           {/* Header */}
           <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
@@ -1075,6 +1127,20 @@ export default function ContactsPage() {
               </div>
             )}
 
+            {/* ── Campaign name (required) ── */}
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
+              <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                🏷️ Nombre de la campaña <span className="text-red-500">*</span>
+              </p>
+              <Input
+                value={emailCampaignName}
+                onChange={e => setEmailCampaignName(e.target.value)}
+                placeholder="Ej: Promo Mayo 2026, Seguimiento leads fríos…"
+                className="h-8 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">Aparecerá en Campañas para identificar y ver las estadísticas de este envío.</p>
+            </div>
+
             {/* ── Sender config ── */}
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
               <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
@@ -1129,7 +1195,7 @@ export default function ContactsPage() {
               <Button
                 size="sm"
                 onClick={handleEmailBlast}
-                disabled={emailBlastSending || !emailSubject.trim() || !fromEmail.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
+                disabled={emailBlastSending || !emailCampaignName.trim() || !emailSubject.trim() || !fromEmail.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {emailBlastSending
