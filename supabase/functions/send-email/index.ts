@@ -38,27 +38,43 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
+    // ── Resolve caller's organization (used by several actions) ───────────────
+    const { data: memberRow } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .single();
+    const orgId: string | null = memberRow?.organization_id ?? null;
+
     // ── SEND CAMPAIGN ──────────────────────────────────────────────────────────
     if (action === "send_campaign") {
       const { campaign_id } = body;
       if (!campaign_id) throw new Error("campaign_id es obligatorio");
 
+      // Accept campaigns belonging to the caller's org (not just user_id)
       const { data: campaign, error: campErr } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", campaign_id)
-        .eq("user_id", user.id)
         .single();
       if (campErr || !campaign) throw new Error("Campaña no encontrada");
       if (campaign.status === "sent") throw new Error("Esta campaña ya fue enviada");
 
-      // Resolve recipients
+      // Resolve recipients — org-scoped, not owner-scoped (Fix #8)
       let contactsQuery = supabase
         .from("contacts")
         .select("id, first_name, last_name, email: primary_email, company: company_name")
-        .eq("owner_id", user.id)
         .not("primary_email", "is", null)
         .neq("primary_email", "");
+
+      // Filter by org if available, otherwise fall back to the calling user's contacts
+      if (orgId) {
+        contactsQuery = contactsQuery.eq("organization_id", orgId);
+      } else {
+        contactsQuery = contactsQuery.eq("owner_id", user.id);
+      }
 
       const filter = campaign.recipient_filter as any;
       if (filter?.type === "tag" && filter?.value) {
@@ -113,6 +129,7 @@ Deno.serve(async (req) => {
               campaign_id,
               contact_id: contact.id,
               user_id: user.id,
+              organization_id: orgId,
               email_address: contact.email,
               status: "sent",
               provider_message_id: resData.id,
@@ -124,6 +141,7 @@ Deno.serve(async (req) => {
               campaign_id,
               contact_id: contact.id,
               user_id: user.id,
+              organization_id: orgId,
               email_address: contact.email,
               status: "failed",
               error_message: e.message,
@@ -131,6 +149,11 @@ Deno.serve(async (req) => {
             failed++;
           }
         }));
+      }
+
+      // Increment billing quota counter (fire-and-forget — don't block delivery)
+      if (orgId && sent > 0) {
+        await supabase.rpc("consume_email_quota", { p_org_id: orgId, p_amount: sent });
       }
 
       await supabase.from("email_campaigns").update({
@@ -188,11 +211,17 @@ Deno.serve(async (req) => {
         automation_enrollment_id: enrollment_id || null,
         contact_id: contact_id || null,
         user_id: user.id,
+        organization_id: orgId,
         email_address: to,
         status: "sent",
         provider_message_id: resData.id,
         sent_at: new Date().toISOString(),
       });
+
+      // Increment billing quota counter
+      if (orgId) {
+        await supabase.rpc("consume_email_quota", { p_org_id: orgId, p_amount: 1 });
+      }
 
       return new Response(JSON.stringify({ success: true, message_id: resData.id, send_id: sendId }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
