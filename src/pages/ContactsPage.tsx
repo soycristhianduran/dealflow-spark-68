@@ -136,6 +136,9 @@ export default function ContactsPage() {
   const [loadingEmailTpls, setLoadingEmailTpls] = useState(false);
   const [selectedEmailTpl, setSelectedEmailTpl] = useState<{ id: string; name: string; subject: string; html: string } | null>(null);
   const [previewHtml, setPreviewHtml] = useState<string | null>(null);
+  // Sender config
+  const [fromName, setFromName] = useState("");
+  const [fromEmail, setFromEmail] = useState("");
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -361,7 +364,7 @@ export default function ContactsPage() {
         const subject = subjectSource
           .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");
         const { data, error } = await supabase.functions.invoke("send-email", {
-          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id },
+          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: fromName.trim() || undefined, from_email: fromEmail.trim() || undefined },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sent++;
@@ -948,7 +951,7 @@ export default function ContactsPage() {
       )}
 
       {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
-      <Dialog open={emailBlastOpen} onOpenChange={v => { if (!emailBlastSending) { setEmailBlastOpen(v); if (!v) { setSelectedEmailTpl(null); setPreviewHtml(null); setEmailMode("template"); } } }}>
+      <Dialog open={emailBlastOpen} onOpenChange={v => { if (!emailBlastSending) { setEmailBlastOpen(v); if (!v) { setSelectedEmailTpl(null); setPreviewHtml(null); setEmailMode("template"); setEmailSubject(""); setEmailBody(""); } } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
           {/* Header */}
           <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
@@ -1056,6 +1059,27 @@ export default function ContactsPage() {
                 </div>
               </div>
             )}
+
+            {/* ── Sender config ── */}
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                📤 Remitente
+                {!fromEmail.trim() && (
+                  <span className="text-amber-600 font-normal ml-1">⚠ Configura un email verificado en Resend para que llegue</span>
+                )}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-xs mb-1 block">Nombre del remitente</Label>
+                  <Input value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Ej: Cristhian de Aceleradora" className="h-8 text-sm" />
+                </div>
+                <div>
+                  <Label className="text-xs mb-1 block">Email del remitente <span className="text-red-500">*</span></Label>
+                  <Input value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder="Ej: hola@tudominio.com" type="email" className="h-8 text-sm" />
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Debe ser un email de un dominio verificado en <strong>resend.com → Domains</strong></p>
+            </div>
 
             {/* ── Subject (always visible) ── */}
             <div>
