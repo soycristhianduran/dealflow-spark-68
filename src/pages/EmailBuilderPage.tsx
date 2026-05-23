@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Save, Plus, Trash2, Loader2, FileText, LayoutTemplate } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { STARTER_TEMPLATES } from "@/data/starterEmailTemplates";
+import { STARTER_TEMPLATES, CATEGORIES, CATEGORY_COLORS } from "@/data/starterEmailTemplates";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
@@ -41,6 +41,7 @@ export default function EmailBuilderPage() {
 
   // Gallery dialog
   const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryCategory, setGalleryCategory] = useState<string>("Todos");
 
   // ── Load template list ──────────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
@@ -264,42 +265,84 @@ export default function EmailBuilderPage() {
       </div>
 
       {/* ── Gallery dialog ── */}
-      <Dialog open={galleryOpen} onOpenChange={setGalleryOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <LayoutTemplate className="h-5 w-5 text-primary" />
-              Plantillas prediseñadas
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground -mt-1">
-            Elige una plantilla de inicio. Podrás personalizarla con tu marca antes de guardar.
-          </p>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            {STARTER_TEMPLATES.map((tpl) => (
+      <Dialog open={galleryOpen} onOpenChange={v => { setGalleryOpen(v); if (!v) setGalleryCategory("Todos"); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0">
+          {/* Header */}
+          <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
+            <LayoutTemplate className="h-5 w-5 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <h2 className="text-base font-semibold">Galería de plantillas</h2>
+              <p className="text-xs text-muted-foreground">28 diseños listos para personalizar con tu marca</p>
+            </div>
+            <button onClick={() => setGalleryOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none">✕</button>
+          </div>
+
+          {/* Category tabs */}
+          <div className="flex gap-1.5 px-6 py-3 border-b shrink-0 overflow-x-auto scrollbar-thin">
+            {CATEGORIES.map(cat => (
               <button
-                key={tpl.id}
-                onClick={() => handleLoadStarter(tpl)}
-                className="group text-left rounded-xl border border-border hover:border-primary hover:shadow-md transition-all p-4 bg-card"
+                key={cat}
+                onClick={() => setGalleryCategory(cat)}
+                className={cn(
+                  "shrink-0 px-3 py-1.5 rounded-full text-xs font-semibold transition-all border",
+                  galleryCategory === cat
+                    ? "text-white border-transparent"
+                    : "bg-muted/50 text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                )}
+                style={galleryCategory === cat ? {
+                  background: cat === "Todos" ? "#FF6B35" : CATEGORY_COLORS[cat],
+                  borderColor: "transparent",
+                } : {}}
               >
-                <div
-                  className="w-full h-20 rounded-lg flex items-center justify-center text-4xl mb-3"
-                  style={{ background: `${tpl.color}18` }}
-                >
-                  <span>{tpl.emoji}</span>
-                </div>
-                <p className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
-                  {tpl.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{tpl.description}</p>
+                {cat === "Todos" ? `Todos (${STARTER_TEMPLATES.length})` : `${cat} (${STARTER_TEMPLATES.filter(t => t.category === cat).length})`}
               </button>
             ))}
           </div>
-          <DialogFooter>
-            <Button variant="ghost" size="sm" onClick={() => setGalleryOpen(false)}>
-              Cancelar
-            </Button>
-          </DialogFooter>
+
+          {/* Grid */}
+          <div className="flex-1 overflow-y-auto p-5">
+            <div className="grid grid-cols-3 gap-3">
+              {STARTER_TEMPLATES
+                .filter(t => galleryCategory === "Todos" || t.category === galleryCategory)
+                .map(tpl => (
+                  <button
+                    key={tpl.id}
+                    onClick={() => handleLoadStarter(tpl)}
+                    className="group text-left rounded-xl border border-border hover:border-primary hover:shadow-md transition-all overflow-hidden bg-card"
+                  >
+                    {/* Color preview strip */}
+                    <div
+                      className="h-14 w-full flex items-center justify-center relative overflow-hidden"
+                      style={{ background: tpl.color }}
+                    >
+                      <div className="absolute inset-0 opacity-20" style={{
+                        backgroundImage: "repeating-linear-gradient(45deg, rgba(255,255,255,.1) 0px, rgba(255,255,255,.1) 1px, transparent 1px, transparent 8px)"
+                      }} />
+                      <span className="text-white font-black text-[10px] uppercase tracking-widest opacity-80 z-10 px-3 text-center leading-tight">
+                        {tpl.name}
+                      </span>
+                    </div>
+                    {/* Info */}
+                    <div className="p-3">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <span
+                          className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full text-white"
+                          style={{ background: CATEGORY_COLORS[tpl.category] ?? "#999" }}
+                        >
+                          {tpl.category}
+                        </span>
+                      </div>
+                      <p className="font-semibold text-[13px] text-foreground group-hover:text-primary transition-colors leading-tight">
+                        {tpl.name}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">
+                        {tpl.description}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
 
