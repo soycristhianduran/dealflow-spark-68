@@ -151,9 +151,14 @@ Deno.serve(async (req) => {
       const { to, subject, html, from_name, from_email, contact_id, enrollment_id } = body;
       if (!to || !subject || !html) throw new Error("to, subject y html son obligatorios");
 
+      const buildFrom = (name: string | undefined, email: string) => {
+        if (!name) return email;
+        const safe = name.replace(/"/g, "'");
+        return `"${safe}" <${email}>`;
+      };
       const fromAddress = from_email
-        ? `${from_name || "Equipo"} <${from_email}>`
-        : `${from_name || "Equipo"} <onboarding@resend.dev>`;
+        ? buildFrom(from_name, from_email)
+        : buildFrom(from_name || "Equipo", "onboarding@resend.dev");
 
       const res = await fetch(`${RESEND_API}/emails`, {
         method: "POST",

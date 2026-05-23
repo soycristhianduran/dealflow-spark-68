@@ -353,8 +353,17 @@ export default function ContactsPage() {
     const subjectSource = emailSubject.trim();
     if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
     if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
+    if (!fromEmail.trim()) { toast.error("El email del remitente es obligatorio. Configúralo en Ajustes → Remitente de emails."); return; }
     const targets = contacts.filter(c => selected.has(c.id) && c.primary_email);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
+
+    // Build RFC 5322 from address: "Name <email>" or just "email" if no name
+    const senderEmail = fromEmail.trim();
+    const senderName = fromName.trim();
+    // If name contains special chars, wrap in quotes
+    const safeFromName = senderName ? `"${senderName.replace(/"/g, "'")}"` : null;
+    const fromAddress = safeFromName ? `${safeFromName} <${senderEmail}>` : senderEmail;
+
     setEmailBlastSending(true);
     setEmailBlastProgress({ done: 0, total: targets.length });
     let sent = 0; let failed = 0;
@@ -370,7 +379,7 @@ export default function ContactsPage() {
         const subject = subjectSource
           .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");
         const { data, error } = await supabase.functions.invoke("send-email", {
-          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: fromName.trim() || undefined, from_email: fromEmail.trim() || undefined },
+          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: senderName || undefined, from_email: senderEmail },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sent++;
@@ -1120,7 +1129,7 @@ export default function ContactsPage() {
               <Button
                 size="sm"
                 onClick={handleEmailBlast}
-                disabled={emailBlastSending || !emailSubject.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
+                disabled={emailBlastSending || !emailSubject.trim() || !fromEmail.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {emailBlastSending
