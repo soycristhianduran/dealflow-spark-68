@@ -338,6 +338,7 @@ export default function ContactsPage() {
       template_name: templateName,
       status: "sending",
       total_recipients: targets.length,
+      user_id: myUserId,
     }).select("id").single();
     const campaignId = campData?.id || null;
 
@@ -353,10 +354,10 @@ export default function ContactsPage() {
           body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
-        sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null });
+        sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null, user_id: myUserId });
         sent++;
       } catch (e: any) {
-        sends.push({ campaign_id: campaignId, contact_id: c.id, phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "failed", error_message: e?.message });
+        sends.push({ campaign_id: campaignId, contact_id: c.id, phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "failed", error_message: e?.message, user_id: myUserId });
         failed++;
       }
       setWaBlastProgress({ done: sent + failed, total: targets.length });
@@ -401,9 +402,14 @@ export default function ContactsPage() {
       status: "sending",
       recipient_filter: { type: "manual", contact_ids: targets.map(c => c.id) },
       total_recipients: targets.length,
+      user_id: myUserId,
     }).select("id").single();
 
-    if (campErr || !campData) { toast.error("Error al crear la campaña, intenta de nuevo"); return; }
+    if (campErr || !campData) {
+      console.error("Campaign insert error:", campErr);
+      toast.error(`Error al crear la campaña: ${campErr?.message ?? "intenta de nuevo"}`);
+      return;
+    }
     const campaignId = campData.id;
 
     setEmailBlastSending(true);
