@@ -333,12 +333,14 @@ export default function ContactsPage() {
     if (!campName) { toast.error("El nombre de la campaña es obligatorio"); return; }
 
     // Create WhatsApp campaign record
+    const { data: { user: waAuthUser } } = await supabase.auth.getUser();
+    const waUserId = waAuthUser?.id ?? myUserId;
     const { data: campData } = await supabase.from("whatsapp_campaigns").insert({
       name: campName,
       template_name: templateName,
       status: "sending",
       total_recipients: targets.length,
-      user_id: myUserId,
+      user_id: waUserId,
     }).select("id").single();
     const campaignId = campData?.id || null;
 
@@ -392,6 +394,11 @@ export default function ContactsPage() {
     const senderEmail = fromEmail.trim();
     const senderName = fromName.trim();
 
+    // Get user ID directly from auth session (most reliable source)
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const userId = authUser?.id ?? myUserId;
+    if (!userId) { toast.error("No se pudo verificar tu sesión, recarga la página"); return; }
+
     // Create campaign record BEFORE sending
     const { data: campData, error: campErr } = await supabase.from("email_campaigns").insert({
       name: emailCampaignName.trim(),
@@ -402,7 +409,7 @@ export default function ContactsPage() {
       status: "sending",
       recipient_filter: { type: "manual", contact_ids: targets.map(c => c.id) },
       total_recipients: targets.length,
-      user_id: myUserId,
+      user_id: userId,
     }).select("id").single();
 
     if (campErr || !campData) {
