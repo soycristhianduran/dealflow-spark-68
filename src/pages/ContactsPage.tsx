@@ -211,7 +211,7 @@ export default function ContactsPage() {
       });
   }, [pipelineFilter]);
 
-  // Load saved email templates when dialog opens
+  // Load saved email templates + org sender when dialog opens
   useEffect(() => {
     if (!emailBlastOpen) return;
     setLoadingEmailTpls(true);
@@ -222,6 +222,12 @@ export default function ContactsPage() {
       .then(({ data }) => {
         setSavedTemplates((data || []) as { id: string; name: string; subject: string; html: string }[]);
         setLoadingEmailTpls(false);
+      });
+    // Pre-populate sender from org settings (only if user hasn't typed anything)
+    supabase.functions.invoke("org-invitations", { body: { action: "get_email_sender" } })
+      .then(({ data }) => {
+        if (data?.email_from_name) setFromName(prev => prev || data.email_from_name);
+        if (data?.email_from_email) setFromEmail(prev => prev || data.email_from_email);
       });
   }, [emailBlastOpen]);
 

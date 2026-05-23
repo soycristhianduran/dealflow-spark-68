@@ -129,6 +129,11 @@ export default function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // Email sender state
+  const [emailFromName, setEmailFromName] = useState("");
+  const [emailFromEmail, setEmailFromEmail] = useState("");
+  const [senderSaving, setSenderSaving] = useState(false);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       const meta = data.user?.user_metadata;
@@ -169,6 +174,25 @@ export default function SettingsPage() {
     };
     loadOrgSlug();
   }, []);
+
+  // Load email sender config
+  useEffect(() => {
+    supabase.functions.invoke("org-invitations", { body: { action: "get_email_sender" } })
+      .then(({ data }) => {
+        if (data?.email_from_name) setEmailFromName(data.email_from_name);
+        if (data?.email_from_email) setEmailFromEmail(data.email_from_email);
+      });
+  }, []);
+
+  const handleSaveSender = async () => {
+    setSenderSaving(true);
+    const { data, error } = await supabase.functions.invoke("org-invitations", {
+      body: { action: "save_email_sender", email_from_name: emailFromName.trim(), email_from_email: emailFromEmail.trim() },
+    });
+    setSenderSaving(false);
+    if (error || data?.error) { toast.error(data?.error || "Error al guardar"); return; }
+    toast.success("Remitente guardado correctamente");
+  };
 
   const fetchTeam = async () => {
     if (!organizationId) return;
@@ -834,6 +858,45 @@ export default function SettingsPage() {
                     </div>
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Email sender card */}
+            <Card className="border-none shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-sm font-semibold">Remitente de emails</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 max-w-md">
+                <p className="text-sm text-muted-foreground">
+                  Nombre y dirección desde los que se envían los emails masivos.
+                  Debe ser un email de un dominio verificado en Resend.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Nombre del remitente</Label>
+                    <Input
+                      value={emailFromName}
+                      onChange={e => setEmailFromName(e.target.value)}
+                      placeholder="Ej: Cristhian de Aceleradora"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Email del remitente</Label>
+                    <Input
+                      value={emailFromEmail}
+                      onChange={e => setEmailFromEmail(e.target.value)}
+                      placeholder="hola@aceleradoradeventas.co"
+                      type="email"
+                    />
+                  </div>
+                </div>
+                <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  ⚠️ El dominio debe estar verificado en tu cuenta de Resend. Emails desde dominios no verificados no se entregarán.
+                </div>
+                <Button onClick={handleSaveSender} disabled={senderSaving} size="sm">
+                  {senderSaving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
+                  Guardar remitente
+                </Button>
               </CardContent>
             </Card>
 

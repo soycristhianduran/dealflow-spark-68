@@ -394,6 +394,54 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── SAVE EMAIL SENDER ──────────────────────────────────────────────────────
+  if (action === "save_email_sender") {
+    const { email_from_name, email_from_email } = body;
+
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!["admin", "owner"].includes(membership.role)) return new Response(JSON.stringify({ error: "Solo admins pueden cambiar el remitente" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { error: updateErr } = await supabase
+      .from("organizations")
+      .update({ email_from_name: email_from_name || null, email_from_email: email_from_email || null })
+      .eq("id", membership.organization_id);
+
+    if (updateErr) throw updateErr;
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
+  // ── GET EMAIL SENDER ───────────────────────────────────────────────────────
+  if (action === "get_email_sender") {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!membership) return new Response(JSON.stringify({ error: "No org" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("email_from_name, email_from_email")
+      .eq("id", membership.organization_id)
+      .maybeSingle();
+
+    return new Response(JSON.stringify({ email_from_name: org?.email_from_name || "", email_from_email: org?.email_from_email || "" }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" }
+    });
+  }
+
   return new Response(JSON.stringify({ error: "Acción no reconocida" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (e: any) {
