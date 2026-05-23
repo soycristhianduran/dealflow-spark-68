@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2 } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
@@ -130,6 +130,12 @@ export default function ContactsPage() {
   const [emailBlastProgress, setEmailBlastProgress] = useState<{ done: number; total: number } | null>(null);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  // Email template picker
+  const [emailMode, setEmailMode] = useState<"template" | "custom">("template");
+  const [savedTemplates, setSavedTemplates] = useState<{ id: string; name: string; subject: string; html: string }[]>([]);
+  const [loadingEmailTpls, setLoadingEmailTpls] = useState(false);
+  const [selectedEmailTpl, setSelectedEmailTpl] = useState<{ id: string; name: string; subject: string; html: string } | null>(null);
+  const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -201,6 +207,20 @@ export default function ContactsPage() {
         setStageFilter("all");
       });
   }, [pipelineFilter]);
+
+  // Load saved email templates when dialog opens
+  useEffect(() => {
+    if (!emailBlastOpen) return;
+    setLoadingEmailTpls(true);
+    supabase.from("email_templates")
+      .select("id, name, subject, html")
+      .not("html", "is", null)
+      .order("updated_at", { ascending: false })
+      .then(({ data }) => {
+        setSavedTemplates((data || []) as { id: string; name: string; subject: string; html: string }[]);
+        setLoadingEmailTpls(false);
+      });
+  }, [emailBlastOpen]);
 
   const visibleIds = contacts.map(c => c.id);
   const allChecked = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
@@ -319,7 +339,11 @@ export default function ContactsPage() {
 
   // ── Bulk email blast ──────────────────────────────────────────────────────
   const handleEmailBlast = async () => {
-    if (!emailSubject.trim() || !emailBody.trim()) { toast.error("El asunto y el cuerpo son obligatorios"); return; }
+    const usingTemplate = emailMode === "template" && selectedEmailTpl;
+    const htmlSource = usingTemplate ? selectedEmailTpl!.html : emailBody;
+    const subjectSource = emailSubject.trim();
+    if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
+    if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
     const targets = contacts.filter(c => selected.has(c.id) && c.primary_email);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
     setEmailBlastSending(true);
@@ -327,11 +351,17 @@ export default function ContactsPage() {
     let sent = 0; let failed = 0;
     for (const c of targets) {
       try {
-        const html = emailBody.replace(/\n/g, "<br>")
-          .replace(/\{\{nombre\}\}/gi, c.full_name || "")
-          .replace(/\{\{name\}\}/gi, c.full_name || "");
+        const firstName = (c.full_name || "").split(" ")[0];
+        const html = htmlSource
+          .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "")
+          .replace(/\{\{apellido\}\}/gi, (c.full_name || "").split(" ").slice(1).join(" "))
+          .replace(/\{\{email\}\}/gi, c.primary_email || "")
+          .replace(/\{\{empresa\}\}/gi, (c as any).company_name || "")
+          .replace(/\n/g, usingTemplate ? "\n" : "<br>");
+        const subject = subjectSource
+          .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");
         const { data, error } = await supabase.functions.invoke("send-email", {
-          body: { action: "send_single", to: c.primary_email, subject: emailSubject, html, contact_id: c.id },
+          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sent++;
@@ -343,6 +373,8 @@ export default function ContactsPage() {
     setEmailBlastProgress(null);
     setEmailSubject("");
     setEmailBody("");
+    setSelectedEmailTpl(null);
+    setPreviewHtml(null);
     toast.success(`Email enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
     setSelected(new Set());
   };
@@ -916,45 +948,157 @@ export default function ContactsPage() {
       )}
 
       {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
-      <Dialog open={emailBlastOpen} onOpenChange={v => !emailBlastSending && setEmailBlastOpen(v)}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Mail className="h-4 w-4 text-blue-600" />
-              Enviar email a {contacts.filter(c => selected.has(c.id) && c.primary_email).length} leads
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-sm text-muted-foreground">
-            <p>Usa <code className="bg-muted px-1 rounded text-xs">{"{{"} nombre {"}}"}</code> para personalizar con el nombre del lead.</p>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <Label>Asunto</Label>
-              <Input value={emailSubject} onChange={e => setEmailSubject(e.target.value)} placeholder="Ej: Tenemos algo para ti, {{nombre}}" />
+      <Dialog open={emailBlastOpen} onOpenChange={v => { if (!emailBlastSending) { setEmailBlastOpen(v); if (!v) { setSelectedEmailTpl(null); setPreviewHtml(null); setEmailMode("template"); } } }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 gap-0">
+          {/* Header */}
+          <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
+            <Mail className="h-5 w-5 text-blue-600 shrink-0" />
+            <div className="flex-1">
+              <h2 className="text-base font-semibold">Enviar email a {contacts.filter(c => selected.has(c.id) && c.primary_email).length} leads</h2>
+              <p className="text-xs text-muted-foreground">
+                Usa <code className="bg-muted px-1 rounded">{"{{nombre}}"}</code> para personalizar automáticamente
+              </p>
             </div>
+          </div>
+
+          {/* Mode tabs */}
+          <div className="flex gap-1 px-6 py-3 border-b shrink-0 bg-muted/30">
+            <button
+              onClick={() => setEmailMode("template")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${emailMode === "template" ? "bg-white shadow text-foreground border" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <LayoutTemplate className="h-3.5 w-3.5" /> Usar plantilla guardada
+            </button>
+            <button
+              onClick={() => setEmailMode("custom")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${emailMode === "custom" ? "bg-white shadow text-foreground border" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              <FileText className="h-3.5 w-3.5" /> Escribir email nuevo
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+            {/* ── Template mode ── */}
+            {emailMode === "template" && (
+              <>
+                {loadingEmailTpls ? (
+                  <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+                ) : savedTemplates.length === 0 ? (
+                  <div className="text-center py-8 space-y-2">
+                    <LayoutTemplate className="h-10 w-10 mx-auto text-muted-foreground/40" />
+                    <p className="text-sm font-medium">No tienes plantillas guardadas</p>
+                    <p className="text-xs text-muted-foreground">Ve a <strong>Email Builder</strong> en el sidebar para crear y guardar plantillas de diseño.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    {savedTemplates.map(tpl => (
+                      <button
+                        key={tpl.id}
+                        onClick={() => { setSelectedEmailTpl(tpl); setEmailSubject(tpl.subject || ""); }}
+                        className={`text-left rounded-lg border p-3 transition-all hover:border-blue-400 ${selectedEmailTpl?.id === tpl.id ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500" : "border-border bg-card"}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold truncate">{tpl.name}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{tpl.subject || "Sin asunto"}</p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {selectedEmailTpl?.id === tpl.id && <span className="text-blue-600 text-xs font-bold">✓</span>}
+                            <button
+                              onClick={e => { e.stopPropagation(); setPreviewHtml(tpl.html); }}
+                              className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
+                              title="Previsualizar"
+                            >
+                              <Eye className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Preview modal */}
+                {previewHtml && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="bg-white rounded-xl shadow-2xl w-[660px] max-h-[80vh] flex flex-col overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-3 border-b">
+                        <p className="font-semibold text-sm">Vista previa</p>
+                        <button onClick={() => setPreviewHtml(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
+                      </div>
+                      <div className="flex-1 overflow-auto p-2">
+                        <iframe
+                          srcDoc={previewHtml}
+                          title="Email preview"
+                          className="w-full border-0 rounded"
+                          style={{ minHeight: 480 }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Custom mode ── */}
+            {emailMode === "custom" && (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs font-semibold mb-1 block">Cuerpo del email</Label>
+                  <Textarea
+                    value={emailBody}
+                    onChange={e => setEmailBody(e.target.value)}
+                    placeholder={"Hola {{nombre}},\n\nEscribo para..."}
+                    rows={9}
+                    className="text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">El texto se envía tal cual con saltos de línea respetados.</p>
+                </div>
+              </div>
+            )}
+
+            {/* ── Subject (always visible) ── */}
             <div>
-              <Label>Cuerpo del email</Label>
-              <Textarea
-                value={emailBody}
-                onChange={e => setEmailBody(e.target.value)}
-                placeholder={"Hola {{nombre}},\n\nEscribo para..."}
-                rows={8}
-                className="text-sm"
+              <Label className="text-xs font-semibold mb-1 block">Asunto del email</Label>
+              <Input
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                placeholder="Ej: Tenemos algo para ti, {{nombre}}"
               />
             </div>
+
+            {/* Progress */}
+            {emailBlastProgress && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Enviando {emailBlastProgress.done}/{emailBlastProgress.total}…
+              </div>
+            )}
           </div>
-          {emailBlastProgress && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Enviando {emailBlastProgress.done}/{emailBlastProgress.total}…
+
+          {/* Footer */}
+          <div className="border-t px-6 py-4 flex items-center justify-between shrink-0 bg-background">
+            <p className="text-xs text-muted-foreground">
+              {emailMode === "template" && selectedEmailTpl
+                ? <>Plantilla: <strong>{selectedEmailTpl.name}</strong></>
+                : emailMode === "template"
+                ? "Selecciona una plantilla arriba"
+                : "Email personalizado"}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>Cancelar</Button>
+              <Button
+                size="sm"
+                onClick={handleEmailBlast}
+                disabled={emailBlastSending || !emailSubject.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {emailBlastSending
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Enviando…</>
+                  : <><Mail className="h-4 w-4 mr-1" /> Enviar email</>}
+              </Button>
             </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>Cancelar</Button>
-            <Button onClick={handleEmailBlast} disabled={emailBlastSending || !emailSubject.trim() || !emailBody.trim()} className="bg-blue-600 hover:bg-blue-700">
-              {emailBlastSending ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Enviando…</> : <><Mail className="h-4 w-4 mr-1" /> Enviar email</>}
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </AppLayout>
