@@ -7,6 +7,16 @@ const corsHeaders = {
 
 const RESEND_API = "https://api.resend.com";
 
+// ── HMAC-SHA256 helper for signing tracking pixel URLs (Fix #6) ──────────────
+// Uses the service role key as the HMAC secret — it's already present in both
+// send-email and track-email, so no new secret management is needed.
+async function signTrackingId(sendId: string): Promise<string> {
+  const raw = new TextEncoder().encode(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  const key = await crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(sendId));
+  return Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
 // Simple {{contact.field}} and {{variable}} substitution
 function renderVars(template: string, ctx: Record<string, any>): string {
   return template.replace(/\{\{([\w.]+)\}\}/g, (match, path) => {
@@ -186,7 +196,8 @@ Deno.serve(async (req) => {
       // Pre-generate send ID so we can embed the tracking pixel before sending
       const sendId = crypto.randomUUID();
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-      const pixelUrl = `${supabaseUrl}/functions/v1/track-email?sid=${sendId}&t=o`;
+      const trackingSig = await signTrackingId(sendId);
+      const pixelUrl = `${supabaseUrl}/functions/v1/track-email?sid=${sendId}&t=o&sig=${trackingSig}`;
 
       // Inject tracking pixel just before </body>, or append at end
       let finalHtml = html;

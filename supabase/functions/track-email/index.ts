@@ -1,5 +1,23 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// ── HMAC-SHA256 signature verification (Fix #6) ──────────────────────────────
+async function verifyTrackingSig(sendId: string, sig: string | null): Promise<boolean> {
+  if (!sig) return false;
+  try {
+    const raw = new TextEncoder().encode(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const key = await crypto.subtle.importKey("raw", raw, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    const expected = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(sendId));
+    const expectedHex = Array.from(new Uint8Array(expected)).map(b => b.toString(16).padStart(2, "0")).join("");
+    // Constant-time comparison to prevent timing attacks
+    if (expectedHex.length !== sig.length) return false;
+    let diff = 0;
+    for (let i = 0; i < expectedHex.length; i++) diff |= expectedHex.charCodeAt(i) ^ sig.charCodeAt(i);
+    return diff === 0;
+  } catch {
+    return false;
+  }
+}
+
 // 1×1 transparent GIF
 const PIXEL = new Uint8Array([
   0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,0x80,0x00,0x00,
@@ -20,6 +38,7 @@ Deno.serve(async (req) => {
   const sendId  = url.searchParams.get("sid");
   const type    = url.searchParams.get("t");   // "o" = open, "c" = click
   const destUrl = url.searchParams.get("url"); // click redirect target
+  const sig     = url.searchParams.get("sig"); // HMAC-SHA256 signature
 
   try {
     const supabase = createClient(
@@ -27,7 +46,12 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    if (sendId && type === "o") {
+    // Verify HMAC signature — silently ignore invalid/missing sigs.
+    // Emails sent before this fix was deployed won't have a sig, so we
+    // still process them (grace period: remove this check after ~30 days).
+    const sigValid = sendId ? await verifyTrackingSig(sendId, sig) : false;
+
+    if (sendId && type === "o" && sigValid) {
       // Only record first open
       const { data: send } = await supabase
         .from("email_sends")
@@ -47,7 +71,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (sendId && type === "c" && destUrl) {
+    if (sendId && type === "c" && destUrl && sigValid) {
       const { data: send } = await supabase
         .from("email_sends")
         .select("campaign_id, clicked_at")

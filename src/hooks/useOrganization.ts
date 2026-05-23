@@ -108,6 +108,9 @@ export function useOrganization(): UseOrganizationResult {
             // RPC returns member_role (not role) — support both field names
             setRole(membership.member_role ?? membership.role ?? null);
           }
+          // Fix #5: mark this org as the user's most-recently-active workspace
+          // so auth_user_org_id() returns the right org for multi-org users.
+          supabase.rpc("touch_active_org", { p_org_id: orgBySlug.id }).catch(() => null);
           return;
         }
 
@@ -138,6 +141,8 @@ export function useOrganization(): UseOrganizationResult {
           });
           setRole(row.member_role);
         }
+        // Fix #5: touch active org for default resolution too
+        supabase.rpc("touch_active_org", { p_org_id: row.organization_id }).catch(() => null);
       } catch (err: any) {
         if (!cancelled) {
           setError(err.message ?? "Error fetching organization");
