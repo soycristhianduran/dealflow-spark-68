@@ -52,7 +52,7 @@ function makeButton(label: string, bg = "#FF6B35", url = "#") {
   };
 }
 
-function makeDivider(color = "#e8e8e8", padding = "8px 32px") {
+function makeDividerContent(color = "#e8e8e8", padding = "8px 32px") {
   return {
     id: uid(), type: "divider",
     values: {
@@ -81,6 +81,9 @@ function makeRow(contents: object[], bg = "#FFFFFF", padding = "0px") {
     },
   };
 }
+
+/** Convenience: a full row that just contains a horizontal divider line */
+const makeDividerRow = (color = "#e8e8e8") => makeRow([makeDividerContent(color)]);
 
 function makeDesign(rows: object[]) {
   return {
@@ -113,22 +116,19 @@ function makeDesign(rows: object[]) {
 
 // ─── Template 1: Bienvenida ───────────────────────────────────────────────────
 const bienvenida = makeDesign([
-  // Header naranja
   makeRow([
     makeText(
       `<p style="font-size:26px;font-weight:700;color:#ffffff;margin:0;text-align:center">¡Bienvenido/a, {{nombre}}! 🎉</p>`,
       { padding: "36px 32px 28px", align: "center" }
     ),
   ], "#FF6B35"),
-  // Subtítulo
   makeRow([
     makeText(
       `<p style="font-size:15px;color:#555555;text-align:center;margin:0">Nos alegra tenerte aquí. Estamos listos para ayudarte a alcanzar tus metas.</p>`,
       { padding: "28px 40px 8px", align: "center" }
     ),
   ]),
-  makeDivider(),
-  // Beneficios
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:16px;font-weight:700;color:#222222;margin:0 0 12px">¿Qué puedes esperar?</p>
@@ -138,12 +138,8 @@ const bienvenida = makeDesign([
       { padding: "16px 40px" }
     ),
   ]),
-  // CTA
-  makeRow([
-    makeButton("Empezar ahora →", "#FF6B35"),
-  ]),
-  makeDivider(),
-  // Footer
+  makeRow([makeButton("Empezar ahora →", "#FF6B35")]),
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:12px;color:#999999;text-align:center;margin:0">Recibiste este mensaje porque te registraste en nuestra plataforma.<br>Si tienes preguntas, responde a este correo.</p>`,
@@ -154,14 +150,12 @@ const bienvenida = makeDesign([
 
 // ─── Template 2: Seguimiento post-reunión ────────────────────────────────────
 const seguimiento = makeDesign([
-  // Header azul
   makeRow([
     makeText(
       `<p style="font-size:22px;font-weight:700;color:#ffffff;margin:0">📋 Resumen de nuestra reunión</p>`,
       { padding: "32px 32px 24px", align: "left" }
     ),
   ], "#1E40AF"),
-  // Saludo
   makeRow([
     makeText(
       `<p style="color:#333;margin:0">Hola <strong>{{nombre}}</strong>,</p>
@@ -170,8 +164,7 @@ const seguimiento = makeDesign([
       { padding: "28px 36px 8px" }
     ),
   ]),
-  makeDivider(),
-  // Resumen
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:15px;font-weight:700;color:#1E40AF;margin:0 0 10px">📌 Puntos tratados</p>
@@ -181,8 +174,7 @@ const seguimiento = makeDesign([
       { padding: "16px 36px" }
     ),
   ]),
-  makeDivider(),
-  // Próximos pasos
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:15px;font-weight:700;color:#1E40AF;margin:0 0 10px">🚀 Próximos pasos</p>
@@ -192,11 +184,8 @@ const seguimiento = makeDesign([
       { padding: "16px 36px" }
     ),
   ]),
-  // CTA
-  makeRow([
-    makeButton("Agendar siguiente llamada", "#1E40AF"),
-  ]),
-  makeDivider(),
+  makeRow([makeButton("Agendar siguiente llamada", "#1E40AF")]),
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:12px;color:#999;text-align:center;margin:0">Cualquier duda estoy a tu disposición. Solo responde este correo.</p>`,
@@ -207,7 +196,6 @@ const seguimiento = makeDesign([
 
 // ─── Template 3: Oferta especial ─────────────────────────────────────────────
 const oferta = makeDesign([
-  // Header llamativo
   makeRow([
     makeText(
       `<p style="font-size:13px;color:#ffffff;text-align:center;letter-spacing:3px;margin:0">OFERTA EXCLUSIVA</p>
@@ -215,7 +203,6 @@ const oferta = makeDesign([
       { padding: "36px 32px 32px", align: "center" }
     ),
   ], "#DC2626"),
-  // Oferta principal
   makeRow([
     makeText(
       `<p style="font-size:18px;font-weight:700;color:#222;text-align:center;margin:0">Hola <strong>{{nombre}}</strong>, tenemos algo especial para ti</p>`,
@@ -226,7 +213,6 @@ const oferta = makeDesign([
       { padding: "8px 44px 16px", align: "center" }
     ),
   ]),
-  // Precio / descuento destacado
   makeRow([
     makeText(
       `<p style="font-size:40px;font-weight:900;color:#DC2626;text-align:center;margin:0">30% OFF</p>
@@ -234,11 +220,8 @@ const oferta = makeDesign([
       { padding: "20px 32px", align: "center" }
     ),
   ], "#FEF2F2"),
-  // CTA
-  makeRow([
-    makeButton("Quiero aprovechar esta oferta", "#DC2626"),
-  ]),
-  makeDivider(),
+  makeRow([makeButton("Quiero aprovechar esta oferta", "#DC2626")]),
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:12px;color:#aaa;text-align:center;margin:0">⏰ &nbsp;Oferta válida hasta agotar cupos &nbsp;|&nbsp; Aplican términos y condiciones</p>`,
@@ -249,7 +232,6 @@ const oferta = makeDesign([
 
 // ─── Template 4: Newsletter mensual ──────────────────────────────────────────
 const newsletter = makeDesign([
-  // Header
   makeRow([
     makeText(
       `<p style="font-size:12px;color:#ffffff;text-align:center;letter-spacing:2px;margin:0">NEWSLETTER MENSUAL</p>
@@ -257,15 +239,13 @@ const newsletter = makeDesign([
       { padding: "32px 32px 28px", align: "center" }
     ),
   ], "#0F172A"),
-  // Intro
   makeRow([
     makeText(
       `<p style="color:#555;margin:0">Hola <strong>{{nombre}}</strong>, aquí tienes las novedades y recursos más relevantes de este mes. Esperamos que te sean de utilidad.</p>`,
       { padding: "24px 36px 8px" }
     ),
   ]),
-  makeDivider(),
-  // Artículo 1
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:11px;font-weight:700;color:#FF6B35;letter-spacing:2px;margin:0">DESTACADO</p>
@@ -275,8 +255,7 @@ const newsletter = makeDesign([
     ),
     makeButton("Leer más →", "#0F172A"),
   ]),
-  makeDivider(),
-  // Artículo 2
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:11px;font-weight:700;color:#6366F1;letter-spacing:2px;margin:0">CONSEJO DEL MES</p>
@@ -285,8 +264,7 @@ const newsletter = makeDesign([
       { padding: "16px 36px" }
     ),
   ]),
-  makeDivider(),
-  // CTA final
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:16px;font-weight:700;color:#111;text-align:center;margin:0">¿Listo para el siguiente paso?</p>
@@ -295,7 +273,7 @@ const newsletter = makeDesign([
     ),
     makeButton("Agendar sesión gratuita", "#FF6B35"),
   ]),
-  makeDivider(),
+  makeDividerRow(),
   makeRow([
     makeText(
       `<p style="font-size:12px;color:#999;text-align:center;margin:0">Recibiste este email porque eres parte de nuestra comunidad.<br>Si no deseas recibirlo más, <a href="#" style="color:#999">cancela tu suscripción aquí</a>.</p>`,
