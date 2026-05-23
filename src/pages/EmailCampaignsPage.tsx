@@ -281,23 +281,31 @@ export default function CampaignsPage() {
             </p>
           </DialogHeader>
 
-          {/* Stats summary */}
+          {/* Stats summary — computed from live detail rows (always accurate) */}
           <div className="px-6 py-3 border-b shrink-0 flex flex-wrap gap-2">
             {detailType === "email" ? (() => {
-              const c = detailCampaign as EmailCampaign;
+              const rows = detailRows as EmailSendRow[];
+              const sentN   = rows.length;
+              const openedN = rows.filter(r => r.opened_at).length;
+              const clickedN= rows.filter(r => r.clicked_at).length;
+              const failedN = rows.filter(r => r.status === "failed").length;
               return <>
-                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={c?.sent_count ?? 0} color="blue" />
-                <MiniStat icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${c?.opened_count ?? 0} · ${pct(c?.opened_count ?? 0, c?.sent_count ?? 1)}`} color="green" />
-                <MiniStat icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${c?.clicked_count ?? 0} · ${pct(c?.clicked_count ?? 0, c?.sent_count ?? 1)}`} color="purple" />
-                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={c?.failed_count ?? 0} color="red" />
+                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
+                <MiniStat icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${openedN} · ${pct(openedN, sentN)}`} color="green" />
+                <MiniStat icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${clickedN} · ${pct(clickedN, sentN)}`} color="purple" />
+                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
               </>;
             })() : (() => {
-              const c = detailCampaign as WaCampaign;
+              const rows = detailRows as WaSendRow[];
+              const sentN     = rows.length;
+              const deliveredN= rows.filter(r => r.delivered_at).length;
+              const readN     = rows.filter(r => r.read_at).length;
+              const failedN   = rows.filter(r => r.status === "failed").length;
               return <>
-                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={c?.sent_count ?? 0} color="blue" />
-                <MiniStat icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${c?.delivered_count ?? 0} · ${pct(c?.delivered_count ?? 0, c?.sent_count ?? 1)}`} color="teal" />
-                <MiniStat icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${c?.read_count ?? 0} · ${pct(c?.read_count ?? 0, c?.sent_count ?? 1)}`} color="green" />
-                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={c?.failed_count ?? 0} color="red" />
+                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
+                <MiniStat icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${deliveredN} · ${pct(deliveredN, sentN)}`} color="teal" />
+                <MiniStat icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${readN} · ${pct(readN, sentN)}`} color="green" />
+                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
               </>;
             })()}
           </div>
