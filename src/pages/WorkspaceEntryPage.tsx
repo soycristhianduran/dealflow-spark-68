@@ -30,8 +30,10 @@ import InstagramInboxPage from "./InstagramInboxPage";
 import InstagramAutomationsPage from "./InstagramAutomationsPage";
 import ConversationsPage from "./ConversationsPage";
 import EmailCampaignsPage from "./EmailCampaignsPage";
+import EmailBuilderPage from "./EmailBuilderPage";
 import AutomationsPage from "./AutomationsPage";
 import MorePage from "./MorePage";
+import BillingPage from "./BillingPage";
 import NotFound from "./NotFound";
 
 function P({ children }: { children: React.ReactNode }) {
@@ -107,7 +109,9 @@ export default function WorkspaceEntryPage() {
         <Route path="instagram/automations" element={<P><InstagramAutomationsPage /></P>} />
         <Route path="conversations" element={<P><ConversationsPage /></P>} />
         <Route path="email-campaigns" element={<P><EmailCampaignsPage /></P>} />
+        <Route path="email-builder" element={<P><EmailBuilderPage /></P>} />
         <Route path="automations" element={<P><AutomationsPage /></P>} />
+        <Route path="billing" element={<P><BillingPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
