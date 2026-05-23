@@ -30,6 +30,7 @@ import InstagramInboxPage from "./pages/InstagramInboxPage";
 import InstagramAutomationsPage from "./pages/InstagramAutomationsPage";
 import ConversationsPage from "./pages/ConversationsPage";
 import EmailCampaignsPage from "./pages/EmailCampaignsPage";
+import EmailBuilderPage from "./pages/EmailBuilderPage";
 import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import DataDeletionStatusPage from "./pages/DataDeletionStatusPage";
@@ -124,6 +125,7 @@ function WorkspaceRoutes() {
         <Route path="instagram/automations" element={<ProtectedRoute><InstagramAutomationsPage /></ProtectedRoute>} />
         <Route path="conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
         <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
+        <Route path="email-builder" element={<ProtectedRoute><EmailBuilderPage /></ProtectedRoute>} />
         <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
         <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
         <Route path="*" element={<NotFound />} />
