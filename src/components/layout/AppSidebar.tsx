@@ -73,7 +73,7 @@ export function AppSidebar() {
         )}
         {!collapsed && (
           <span className="text-base font-bold tracking-tight text-white">
-            Velocity <span className="text-primary">CRM</span>
+            Klosify <span className="text-primary">CRM</span>
           </span>
         )}
       </div>
