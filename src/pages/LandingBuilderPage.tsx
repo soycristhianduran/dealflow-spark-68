@@ -23,8 +23,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
-  Sparkles, MousePointer, RefreshCw, Edit2, BarChart2,
-  ClipboardList, ChevronUp, ChevronDown, Settings2, Send,
+  Sparkles, MousePointer, Edit2, BarChart2,
+  ClipboardList, Settings2, Send, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
@@ -99,7 +99,7 @@ interface ChatMessage {
 
 // ── CRM field mapping options ─────────────────────────────────────────────────
 const CRM_FIELD_OPTIONS = [
-  { value: "full_name",      label: "Nombre completo (separar en first/last)" },
+  { value: "full_name",      label: "Nombre completo" },
   { value: "first_name",     label: "Nombre" },
   { value: "last_name",      label: "Apellido" },
   { value: "primary_email",  label: "Email" },
@@ -111,16 +111,12 @@ const CRM_FIELD_OPTIONS = [
   { value: "utm_source",     label: "UTM Source" },
   { value: "utm_medium",     label: "UTM Medium" },
   { value: "utm_campaign",   label: "UTM Campaign" },
-  { value: "_note",          label: "Guardar como actividad / nota" },
+  { value: "_note",          label: "Guardar como actividad" },
   { value: "_ignore",        label: "No guardar" },
 ];
 
 const DEFAULT_FORM_CONFIG: FormConfig = {
-  fields: [
-    { id: "f1", label: "Nombre completo", name: "name",  type: "text",  required: true,  placeholder: "Tu nombre",          crm_field: "full_name"     },
-    { id: "f2", label: "Email",           name: "email", type: "email", required: true,  placeholder: "tu@email.com",        crm_field: "primary_email" },
-    { id: "f3", label: "Teléfono",        name: "phone", type: "tel",   required: false, placeholder: "+1 234 567 890",      crm_field: "primary_phone" },
-  ],
+  fields: [],   // Fields are auto-detected from AI-generated HTML, not manually built
   pipeline_id: "",
   stage_id: "",
   pipeline_name: "",
@@ -128,6 +124,82 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
   cta_text: "Enviar información",
   success_message: "¡Gracias! Te contactaremos pronto.",
 };
+
+// ── Auto-detect form fields from AI-generated HTML ────────────────────────────
+function detectFormFields(html: string): Omit<FormField, 'crm_field'>[] {
+  if (!html) return [];
+  const formMatch = html.match(/<form[^>]*id=["']lead-form["'][^>]*>([\s\S]*?)<\/form>/i);
+  if (!formMatch) return [];
+  const formHtml = formMatch[1];
+
+  const fields: Omit<FormField, 'crm_field'>[] = [];
+  const seen = new Set<string>();
+
+  // Try to pair <label> with the following <input>/<textarea>
+  const blockRe = /<div[^>]*>([\s\S]*?)<\/div>/gi;
+  let block;
+  while ((block = blockRe.exec(formHtml)) !== null) {
+    const seg = block[1];
+    const labelMatch = seg.match(/<label[^>]*>([\s\S]*?)<\/label>/i);
+    const inputMatch = seg.match(/<(?:input|textarea)[^>]*\sname=["']([^"']+)["'][^>]*/i);
+    if (inputMatch) {
+      const name = inputMatch[1];
+      if (!seen.has(name)) {
+        seen.add(name);
+        const rawLabel = labelMatch
+          ? labelMatch[1].replace(/<[^>]+>/g, '').replace(/[*]/g, '').trim()
+          : name;
+        const typeMatch  = inputMatch[0].match(/\stype=["']([^"']+)["']/i);
+        const phMatch    = inputMatch[0].match(/\splaceholder=["']([^"']+)["']/i);
+        fields.push({
+          id: name,
+          label: rawLabel,
+          name,
+          type: (typeMatch?.[1] as FormField['type']) || 'text',
+          required: /\srequired/.test(inputMatch[0]),
+          placeholder: phMatch?.[1] || '',
+        });
+      }
+    }
+  }
+
+  // Fallback: catch any inputs not inside a <div>
+  const inputRe = /<(?:input|textarea)[^>]*\sname=["']([^"']+)["'][^>]*/gi;
+  let m;
+  while ((m = inputRe.exec(formHtml)) !== null) {
+    const name = m[1];
+    if (!seen.has(name)) {
+      seen.add(name);
+      const typeMatch = m[0].match(/\stype=["']([^"']+)["']/i);
+      const phMatch   = m[0].match(/\splaceholder=["']([^"']+)["']/i);
+      fields.push({
+        id: name, label: name, name,
+        type: (typeMatch?.[1] as FormField['type']) || 'text',
+        required: false,
+        placeholder: phMatch?.[1] || '',
+      });
+    }
+  }
+  return fields;
+}
+
+// Smart auto-mapping: guesses CRM field from common field name patterns
+function autoMapCrmField(name: string, label: string): string {
+  const n = name.toLowerCase();
+  const l = label.toLowerCase();
+  if (n.includes('email') || l.includes('email') || l.includes('correo'))         return 'primary_email';
+  if (n.includes('phone') || n.includes('tel')   || l.includes('teléfono') ||
+      l.includes('telefono') || l.includes('celular') || l.includes('móvil'))      return 'primary_phone';
+  if (n === 'name' || n === 'full_name' || n === 'nombre' ||
+      l.includes('nombre completo') || l.includes('full name'))                    return 'full_name';
+  if (n === 'first_name' || n === 'firstname' || l === 'nombre')                   return 'first_name';
+  if (n === 'last_name'  || n === 'lastname'  || l.includes('apellido'))           return 'last_name';
+  if (n.includes('city')    || l.includes('ciudad'))                               return 'city';
+  if (n.includes('country') || l.includes('país') || l.includes('pais'))          return 'country';
+  if (n.includes('note') || n.includes('nota') || n.includes('mensaje') ||
+      l.includes('mensaje') || l.includes('comentario'))                           return '_note';
+  return '_ignore';
+}
 
 // ── Form HTML generator ───────────────────────────────────────────────────────
 const SUPABASE_SUBMIT_URL = `${(import.meta as any).env?.VITE_SUPABASE_URL || "https://oqwcgvemrvimrdrzjzil.supabase.co"}/functions/v1/landing-submit`;
@@ -296,6 +368,28 @@ export default function LandingBuilderPage() {
       .then(({ data }) => setPipelineStages(data || []));
   }, []);
 
+  // ── Auto-detect form fields when HTML changes ────────────────────────────────
+  // When the AI generates (or refines) a landing, we scan the #lead-form for
+  // input names and pre-populate form_config with smart CRM auto-mappings.
+  // Existing CRM mappings for matching field names are preserved.
+  useEffect(() => {
+    if (!generatedHtml) return;
+    const detected = detectFormFields(generatedHtml);
+    if (detected.length === 0) return;
+
+    setFormConfig(prev => {
+      const existingMap = new Map((prev.fields ?? []).map(f => [f.name, f.crm_field]));
+      const newFields: FormField[] = detected.map(d => ({
+        ...d,
+        crm_field: existingMap.get(d.name) ?? autoMapCrmField(d.name, d.label),
+      }));
+      // Only update if fields actually changed (avoids infinite loops)
+      const same = newFields.length === (prev.fields ?? []).length &&
+        newFields.every((f, i) => f.name === (prev.fields ?? [])[i]?.name);
+      return same ? prev : { ...prev, fields: newFields };
+    });
+  }, [generatedHtml]);
+
   // ── Select page ─────────────────────────────────────────────────────────────
   const selectPage = useCallback((page: LandingPage) => {
     setSelectedId(page.id);
@@ -438,11 +532,9 @@ export default function LandingBuilderPage() {
     const targetStatus = publishOverride !== undefined ? (publishOverride ? "published" : "draft") : status;
 
     try {
-      // Inject form HTML based on current form_config before saving
-      const formHtml = generateFormHtml(formConfig, selectedId);
-
       if (mode === "drag") {
-        // Export from Unlayer
+        // Drag mode: export from Unlayer and inject configured form
+        const formHtml = generateFormHtml(formConfig, selectedId);
         await new Promise<void>((resolve, reject) => {
           editorRef.current?.editor?.exportHtml(async (exportData: { design: object; html: string }) => {
             try {
@@ -465,14 +557,13 @@ export default function LandingBuilderPage() {
           });
         });
       } else {
-        // AI mode — inject form into generated HTML
-        const baseHtml = generatedHtml || "";
-        const htmlWithForm = baseHtml ? injectFormIntoHtml(baseHtml, formHtml) : baseHtml;
+        // AI mode — form is already in the AI-generated HTML; save as-is.
+        // form_config only stores CRM field mappings + pipeline assignment.
         const { error } = await supabase
           .from("landing_pages")
           .update({
             name, slug: slug || toSlug(name),
-            html: htmlWithForm,
+            html: generatedHtml || "",
             prompt,
             mode: "ai",
             status: targetStatus,
@@ -481,10 +572,6 @@ export default function LandingBuilderPage() {
           })
           .eq("id", selectedId);
         if (error) throw error;
-        if (htmlWithForm !== generatedHtml) {
-          setGeneratedHtml(htmlWithForm);
-          setPreviewHtml(htmlWithForm);
-        }
       }
 
       setStatus(targetStatus);
@@ -676,21 +763,21 @@ export default function LandingBuilderPage() {
                   </button>
                 </div>
 
-                {/* Form config button — always visible so you can configure fields at any time */}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-8 text-xs gap-1.5 relative"
-                  onClick={() => setFormConfigOpen(true)}
-                >
-                  <ClipboardList className="h-3.5 w-3.5" />
-                  Formulario
-                  {(formConfig.fields ?? []).length > 0 && (
+                {/* Form integration button — only meaningful once the AI generated an HTML with a form */}
+                {(formConfig.fields ?? []).length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs gap-1.5 relative"
+                    onClick={() => setFormConfigOpen(true)}
+                  >
+                    <ClipboardList className="h-3.5 w-3.5" />
+                    Integrar formulario
                     <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-green-500 text-white text-[9px] flex items-center justify-center font-bold">
                       {(formConfig.fields ?? []).length}
                     </span>
-                  )}
-                </Button>
+                  </Button>
+                )}
 
                 {/* Status toggle */}
                 <Button
@@ -796,45 +883,41 @@ export default function LandingBuilderPage() {
                   <div ref={chatEndRef} />
                 </div>
 
-                {/* Form status strip — configure fields + inject when ready */}
+                {/* Form status strip */}
                 <div className="shrink-0 border-t border-border px-3 py-2 bg-muted/30">
-                  <div className="flex items-center justify-between gap-2">
-                    <button
-                      onClick={() => setFormConfigOpen(true)}
-                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                    >
+                  {(formConfig.fields ?? []).length === 0 ? (
+                    /* No form detected yet */
+                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                       <ClipboardList className="h-3 w-3 shrink-0" />
-                      {(formConfig.fields ?? []).length > 0
-                        ? <span className="font-medium">{(formConfig.fields ?? []).length} campos configurados</span>
-                        : <span>Configurar formulario</span>
-                      }
-                    </button>
-
-                    {/* Inject button: only when there's HTML AND fields are configured */}
-                    {generatedHtml && (formConfig.fields ?? []).length > 0 && (
-                      <button
-                        onClick={handleInjectForm}
-                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors shrink-0"
-                      >
-                        <ClipboardList className="h-3 w-3" />
-                        Integrar formulario
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Field name chips preview */}
-                  {(formConfig.fields ?? []).length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1.5">
-                      {(formConfig.fields ?? []).slice(0, 5).map(f => (
-                        <span key={f.id} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground">
-                          {f.label}
+                      Menciona en tu prompt que quieres un formulario de captura
+                    </p>
+                  ) : (
+                    /* Form detected — show fields + integrate button */
+                    <div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-green-600 font-medium flex items-center gap-1">
+                          <ClipboardList className="h-3 w-3" />
+                          {(formConfig.fields ?? []).length} campos detectados
                         </span>
-                      ))}
-                      {(formConfig.fields ?? []).length > 5 && (
-                        <span className="text-[10px] text-muted-foreground self-center">
-                          +{(formConfig.fields ?? []).length - 5} más
-                        </span>
-                      )}
+                        <button
+                          onClick={() => setFormConfigOpen(true)}
+                          className="text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
+                        >
+                          Integrar con CRM →
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {(formConfig.fields ?? []).slice(0, 5).map(f => (
+                          <span key={f.id} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground">
+                            {f.label}
+                          </span>
+                        ))}
+                        {(formConfig.fields ?? []).length > 5 && (
+                          <span className="text-[10px] text-muted-foreground self-center">
+                            +{(formConfig.fields ?? []).length - 5} más
+                          </span>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -977,148 +1060,57 @@ export default function LandingBuilderPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Form Config Sheet ── */}
+      {/* ── Form Integration Sheet ── */}
       <Sheet open={formConfigOpen} onOpenChange={setFormConfigOpen}>
-        <SheetContent side="right" className="w-[480px] sm:w-[520px] overflow-y-auto flex flex-col gap-0 p-0">
+        <SheetContent side="right" className="w-[420px] sm:w-[460px] overflow-y-auto flex flex-col gap-0 p-0">
           <SheetHeader className="px-5 py-4 border-b shrink-0">
             <SheetTitle className="flex items-center gap-2 text-base">
               <ClipboardList className="h-4 w-4 text-primary" />
-              Configuración del Formulario
+              Integrar formulario con CRM
             </SheetTitle>
             <p className="text-xs text-muted-foreground">
-              Define los campos, mapéalos al CRM y elige dónde llegan los leads.
+              La IA detecta los campos automáticamente. Solo indica a qué columna del CRM va cada uno.
             </p>
           </SheetHeader>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
 
-            {/* ── Fields section ── */}
+            {/* ── Detected fields ── */}
             <div>
-              <div className="flex items-center justify-between mb-3">
-                <Label className="text-sm font-semibold">Campos del formulario</Label>
-                <Button
-                  size="sm" variant="outline"
-                  className="h-7 text-xs gap-1"
-                  onClick={() => {
-                    const newField: FormField = {
-                      id: Math.random().toString(36).slice(2),
-                      label: "Nuevo campo",
-                      name: `campo_${Date.now()}`,
-                      type: "text",
-                      required: false,
-                      placeholder: "",
-                      crm_field: "_ignore",
-                    };
-                    setFormConfig(prev => ({ ...prev, fields: [...prev.fields, newField] }));
-                  }}
-                >
-                  <Plus className="h-3 w-3" /> Agregar campo
-                </Button>
-              </div>
+              <Label className="text-sm font-semibold mb-3 block">
+                Campos detectados del formulario
+              </Label>
 
-              <div className="space-y-3">
-                {(formConfig.fields ?? []).map((field, idx) => (
-                  <div
-                    key={field.id}
-                    className="rounded-lg border border-border bg-card p-3 space-y-2.5"
-                  >
-                    {/* Row 1: Label + move + delete */}
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={field.label}
-                        onChange={e => {
-                          const newLabel = e.target.value;
-                          setFormConfig(prev => ({
-                            ...prev,
-                            fields: prev.fields.map(f => f.id === field.id
-                              ? { ...f, label: newLabel, name: labelToName(newLabel) }
-                              : f
-                            ),
-                          }));
-                        }}
-                        placeholder="Etiqueta del campo"
-                        className="h-7 text-xs flex-1"
-                      />
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          disabled={idx === 0}
-                          onClick={() => setFormConfig(prev => {
-                            const arr = [...prev.fields];
-                            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-                            return { ...prev, fields: arr };
-                          })}
-                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
-                        ><ChevronUp className="h-3.5 w-3.5" /></button>
-                        <button
-                          disabled={idx === (formConfig.fields ?? []).length - 1}
-                          onClick={() => setFormConfig(prev => {
-                            const arr = [...prev.fields];
-                            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
-                            return { ...prev, fields: arr };
-                          })}
-                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
-                        ><ChevronDown className="h-3.5 w-3.5" /></button>
-                        <button
-                          onClick={() => setFormConfig(prev => ({
-                            ...prev, fields: prev.fields.filter(f => f.id !== field.id),
-                          }))}
-                          className="p-0.5 rounded hover:bg-destructive/10 text-destructive ml-0.5"
-                        ><Trash2 className="h-3.5 w-3.5" /></button>
+              {(formConfig.fields ?? []).length === 0 ? (
+                /* No form in HTML yet */
+                <div className="rounded-lg border border-dashed border-muted-foreground/30 p-5 text-center space-y-2">
+                  <AlertCircle className="h-8 w-8 text-muted-foreground/40 mx-auto" />
+                  <p className="text-sm text-muted-foreground">
+                    No se detectó ningún formulario en la landing.
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Genera una landing con IA y menciona que quieres un formulario de captura de leads.
+                  </p>
+                </div>
+              ) : (
+                /* Field → CRM mapping table */
+                <div className="space-y-2">
+                  {(formConfig.fields ?? []).map(field => (
+                    <div key={field.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{field.label}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">{field.name}</p>
                       </div>
-                    </div>
-
-                    {/* Row 2: Type + Required */}
-                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground/60 text-sm shrink-0">→</span>
                       <Select
-                        value={field.type}
+                        value={field.crm_field || "_ignore"}
                         onValueChange={v => setFormConfig(prev => ({
-                          ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, type: v as FormField["type"] } : f),
+                          ...prev,
+                          fields: (prev.fields ?? []).map(f => f.id === field.id ? { ...f, crm_field: v } : f),
                         }))}
                       >
-                        <SelectTrigger className="h-7 text-xs flex-1">
+                        <SelectTrigger className="h-7 text-xs w-44 shrink-0">
                           <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="text">Texto</SelectItem>
-                          <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="tel">Teléfono</SelectItem>
-                          <SelectItem value="number">Número</SelectItem>
-                          <SelectItem value="textarea">Área de texto</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
-                        <Switch
-                          checked={field.required}
-                          onCheckedChange={v => setFormConfig(prev => ({
-                            ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, required: v } : f),
-                          }))}
-                          className="scale-75"
-                        />
-                        Requerido
-                      </div>
-                    </div>
-
-                    {/* Row 3: Placeholder */}
-                    <Input
-                      value={field.placeholder}
-                      onChange={e => setFormConfig(prev => ({
-                        ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, placeholder: e.target.value } : f),
-                      }))}
-                      placeholder="Placeholder (opcional)"
-                      className="h-7 text-xs"
-                    />
-
-                    {/* Row 4: CRM mapping */}
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground shrink-0">→ CRM:</span>
-                      <Select
-                        value={field.crm_field}
-                        onValueChange={v => setFormConfig(prev => ({
-                          ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, crm_field: v } : f),
-                        }))}
-                      >
-                        <SelectTrigger className="h-7 text-xs flex-1">
-                          <SelectValue placeholder="Seleccionar campo CRM..." />
                         </SelectTrigger>
                         <SelectContent>
                           {CRM_FIELD_OPTIONS.map(opt => (
@@ -1127,15 +1119,9 @@ export default function LandingBuilderPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                  </div>
-                ))}
-
-                {(formConfig.fields ?? []).length === 0 && (
-                  <div className="text-center text-xs text-muted-foreground py-4 border border-dashed rounded-lg">
-                    Sin campos. Haz clic en "Agregar campo".
-                  </div>
-                )}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* ── Pipeline assignment ── */}
@@ -1191,75 +1177,32 @@ export default function LandingBuilderPage() {
 
                 {formConfig.pipeline_id && formConfig.stage_id && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
-                    ✓ Los leads irán directo a <strong>{formConfig.pipeline_name} → {formConfig.stage_name}</strong>
+                    ✓ Los leads irán a <strong>{formConfig.pipeline_name} → {formConfig.stage_name}</strong>
                   </p>
                 )}
-              </div>
-            </div>
-
-            {/* ── CTA + success message ── */}
-            <div className="space-y-3">
-              <Label className="text-sm font-semibold">Apariencia del formulario</Label>
-              <div className="space-y-2">
-                <div>
-                  <Label className="text-xs text-muted-foreground">Texto del botón</Label>
-                  <Input
-                    value={formConfig.cta_text}
-                    onChange={e => setFormConfig(prev => ({ ...prev, cta_text: e.target.value }))}
-                    placeholder="Enviar información"
-                    className="h-8 text-sm mt-1"
-                  />
-                </div>
-                <div>
-                  <Label className="text-xs text-muted-foreground">Mensaje de éxito</Label>
-                  <Input
-                    value={formConfig.success_message}
-                    onChange={e => setFormConfig(prev => ({ ...prev, success_message: e.target.value }))}
-                    placeholder="¡Gracias! Te contactaremos pronto."
-                    className="h-8 text-sm mt-1"
-                  />
-                </div>
               </div>
             </div>
 
           </div>
 
           {/* ── Footer ── */}
-          <div className="border-t px-5 py-4 shrink-0 bg-background space-y-2">
-            {/* Always available: save form config without injecting */}
+          <div className="border-t px-5 py-4 shrink-0 bg-background">
             <Button
-              variant="outline"
               className="w-full gap-2"
               onClick={() => {
                 setFormConfigOpen(false);
-                toast.success("Configuración del formulario guardada");
+                if (selectedId) handleSave();
               }}
+              disabled={saving || !(formConfig.fields ?? []).length}
             >
-              <ClipboardList className="h-4 w-4" />
-              Guardar configuración
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+              Guardar integración
             </Button>
-
-            {/* Only when there's generated HTML: inject into the page */}
-            {generatedHtml && (
-              <Button
-                className="w-full gap-2"
-                onClick={() => {
-                  setFormConfigOpen(false);
-                  handleInjectForm();
-                  if (selectedId) handleSave();
-                }}
-                disabled={saving || !(formConfig.fields ?? []).length}
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-                Guardar e inyectar en la landing
-              </Button>
+            {!(formConfig.fields ?? []).length && (
+              <p className="text-[10px] text-muted-foreground text-center mt-2">
+                Genera una landing con formulario primero.
+              </p>
             )}
-
-            <p className="text-[10px] text-muted-foreground text-center">
-              {generatedHtml
-                ? "Inyectar reemplaza el formulario actual en el HTML con estos campos."
-                : "Genera una landing primero para poder inyectar el formulario."}
-            </p>
           </div>
         </SheetContent>
       </Sheet>
