@@ -53,6 +53,75 @@ Deno.serve(async (req) => {
     const bodyText = await req.text();
     const body = bodyText ? JSON.parse(bodyText) : {};
 
+    // ── Trigger event: fired by edge functions (landing-submit, track-email, etc.) ──
+    if (body.action === "trigger_event") {
+      const { trigger_type, contact_id, trigger_data } = body;
+      if (!trigger_type || !contact_id) {
+        return new Response(JSON.stringify({ error: "trigger_type y contact_id son obligatorios" }), { status: 400, headers: corsHeaders });
+      }
+
+      // Resolve contact's organization_id for org-scoped automation lookup
+      const { data: contactRow } = await supabase
+        .from("contacts")
+        .select("organization_id")
+        .eq("id", contact_id)
+        .maybeSingle();
+
+      const orgId = contactRow?.organization_id;
+      if (!orgId) {
+        return new Response(JSON.stringify({ error: "contact not found or has no organization" }), { status: 404, headers: corsHeaders });
+      }
+
+      // Find active automations with this trigger type IN THIS ORG ONLY
+      const { data: automations } = await supabase
+        .from("automations")
+        .select("id, trigger_type, trigger_config, name, user_id")
+        .eq("trigger_type", trigger_type)
+        .eq("is_active", true)
+        .eq("organization_id", orgId);
+
+      let enrolled = 0;
+      for (const automation of (automations || [])) {
+        // Check trigger_config conditions
+        const cfg = automation.trigger_config || {};
+        if (trigger_type === "landing_form_submitted" && cfg.page_id && cfg.page_id !== trigger_data?.landing_slug) continue;
+        if (trigger_type === "email_opened"  && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
+        if (trigger_type === "email_clicked" && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
+        if (trigger_type === "contact_stage_changed" && cfg.stage_id && cfg.stage_id !== trigger_data?.stage_id) continue;
+
+        // Skip if already active/waiting in this automation
+        const { data: existing } = await supabase
+          .from("automation_enrollments")
+          .select("id")
+          .eq("automation_id", automation.id)
+          .eq("contact_id", contact_id)
+          .in("status", ["active", "waiting"])
+          .maybeSingle();
+        if (existing) continue;
+
+        const { data: inserted } = await supabase
+          .from("automation_enrollments")
+          .insert({
+            automation_id: automation.id,
+            contact_id,
+            user_id: automation.user_id,   // required NOT NULL — comes from the automation owner
+            status: "active",
+            current_step_index: 0,
+            next_run_at: new Date().toISOString(),
+          })
+          .select("*, automations(*), contacts(*)")
+          .single();
+
+        if (inserted) {
+          try { await processEnrollment(inserted, supabase); } catch (_) {}
+          enrolled++;
+        }
+      }
+      return new Response(JSON.stringify({ success: true, enrolled }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Optional: manual enroll from UI (requires user JWT)
     if (body.action === "enroll") {
       const { automation_id, contact_ids } = body;
@@ -214,10 +283,11 @@ async function processEnrollment(enr: any, supabase: any) {
 
     else if (step.type === "send_whatsapp") {
       const cfg = step.config || {};
+      // Look up WhatsApp config by org — org-scoped since migration 20260522
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
-        .eq("user_id", enr.user_id)
+        .eq("organization_id", contact.organization_id)
         .eq("is_active", true)
         .maybeSingle();
 
@@ -234,7 +304,7 @@ async function processEnrollment(enr: any, supabase: any) {
         const { data: tplMeta } = await supabase
           .from("whatsapp_templates")
           .select("body_text, header_type, header_media_handle")
-          .eq("user_id", enr.user_id)
+          .eq("organization_id", contact.organization_id)
           .eq("name", cfg.template_name)
           .maybeSingle();
 
@@ -331,6 +401,94 @@ async function processEnrollment(enr: any, supabase: any) {
       if (owner_id) {
         await supabase.from("contacts").update({ owner_id }).eq("id", contact.id);
         logs = addLog(`Lead asignado a ${owner_name || owner_id}`);
+      }
+    }
+
+    else if (step.type === "remove_tag") {
+      const tag = renderVars(step.config?.tag || "", ctx);
+      if (tag) {
+        const { data: cont } = await supabase.from("contacts").select("tags").eq("id", contact.id).single();
+        const updated = (cont?.tags || []).filter((t: string) => t !== tag);
+        await supabase.from("contacts").update({ tags: updated }).eq("id", contact.id);
+        logs = addLog(`Tag "${tag}" eliminado`);
+      }
+    }
+
+    else if (step.type === "move_pipeline_stage") {
+      const { pipeline_id, stage_id, stage_name } = step.config || {};
+      if (pipeline_id && stage_id) {
+        // Pipeline is contact-based: update contacts.stage_id + pipeline_id directly
+        await supabase.from("contacts").update({
+          stage_id,
+          pipeline_id,
+          lead_status: "active",
+        }).eq("id", contact.id);
+        logs = addLog(`Lead movido a etapa "${stage_name}" en el pipeline`);
+      }
+    }
+
+    else if (step.type === "create_task") {
+      const { title, due_in_days, assign_to_owner } = step.config || {};
+      if (title) {
+        const taskTitle = renderVars(title, ctx);
+        const dueDate = new Date(Date.now() + (due_in_days || 1) * 86_400_000).toISOString();
+        await supabase.from("tasks").insert({
+          title: taskTitle,
+          contact_id: contact.id,
+          organization_id: contact.organization_id,
+          due_date: dueDate,
+          status: "pending",
+          assigned_to: assign_to_owner ? (contact.owner_id || enr.user_id) : enr.user_id,
+        });
+        logs = addLog(`Tarea creada: "${taskTitle}" vence en ${due_in_days} día(s)`);
+      }
+    }
+
+    else if (step.type === "send_webhook") {
+      const { url, method = "POST", include_contact } = step.config || {};
+      if (url) {
+        const payload = include_contact ? {
+          event: "automation_step",
+          automation_id: enr.automation_id,
+          contact: ctx.contact,
+          contact_id: contact.id,
+          timestamp: new Date().toISOString(),
+        } : { event: "automation_step", contact_id: contact.id, timestamp: new Date().toISOString() };
+
+        const res = await fetch(url, {
+          method,
+          headers: { "Content-Type": "application/json" },
+          body: method !== "GET" ? JSON.stringify(payload) : undefined,
+        });
+        logs = addLog(`Webhook enviado a ${url} — status ${res.status}`);
+      }
+    }
+
+    else if (step.type === "notify_owner") {
+      const message = renderVars(step.config?.message || "Nuevo evento en {{contact.name}}", ctx);
+      // Get owner's email from profiles
+      if (contact.owner_id) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("email")
+          .eq("user_id", contact.owner_id)
+          .maybeSingle();
+
+        const ownerEmail = profile?.email;
+        const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+        if (ownerEmail && RESEND_API_KEY) {
+          await fetch(`${RESEND_API}/emails`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "Klosify CRM <onboarding@resend.dev>",
+              to: [ownerEmail],
+              subject: `🔔 Automatización: ${message.slice(0, 60)}`,
+              html: `<p>${message}</p><p style="color:#888;font-size:12px">Contacto: <a href="#">${ctx.contact.name || ctx.contact.email}</a></p>`,
+            }),
+          });
+          logs = addLog(`Notificación enviada a ${ownerEmail}`);
+        }
       }
     }
 

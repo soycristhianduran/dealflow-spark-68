@@ -272,9 +272,20 @@ export default function PipelinePage() {
     if (!draggedContact) return;
     setDragOverStage(null);
     setContacts(prev => prev.map(c => c.id === draggedContact ? { ...c, stage_id: stageId } : c));
+    const contactId = draggedContact;
     setDraggedContact(null);
-    await supabase.from("contacts").update({ stage_id: stageId }).eq("id", draggedContact);
-    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: draggedContact } }).catch(() => {});
+    await supabase.from("contacts").update({ stage_id: stageId }).eq("id", contactId);
+    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
+    // Fire automation trigger: contact_stage_changed
+    const stage = stages.find(s => s.id === stageId);
+    supabase.functions.invoke("automation-runner", {
+      body: {
+        action: "trigger_event",
+        trigger_type: "contact_stage_changed",
+        contact_id: contactId,
+        trigger_data: { stage_id: stageId, stage_name: stage?.name ?? "", pipeline_id: selectedPipelineId },
+      },
+    }).catch(() => {});
   };
 
   const getStageValue = (stageId: string) =>

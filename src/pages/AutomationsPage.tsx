@@ -115,7 +115,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   manual:                  "Manual",
   contact_created:         "Contacto creado",
   tag_added:               "Tag añadido",
-  deal_stage_changed:      "Etapa de deal cambiada",
+  contact_stage_changed:   "Etapa de lead cambiada",
   whatsapp_incoming:       "WhatsApp entrante",
   scheduled:               "Programado",
   meta_lead_form:          "Formulario de Meta Lead Ads",
@@ -254,7 +254,7 @@ function TriggerNode(_: NodeProps) {
   const subtitle = triggerType === "meta_lead_form"
     ? (triggerConfig?.form_name ? `📋 ${triggerConfig.form_name}` : "Sin formulario seleccionado")
     : triggerType === "tag_added" ? (triggerConfig?.tag ? `Tag: "${triggerConfig.tag}"` : "")
-    : triggerType === "deal_stage_changed" ? (triggerConfig?.stage ? `Etapa: "${triggerConfig.stage}"` : "")
+    : triggerType === "contact_stage_changed" ? (triggerConfig?.stage_name ? `Etapa: "${triggerConfig.stage_name}"` : "")
     : null;
 
   return (
@@ -661,15 +661,18 @@ function TriggerConfigEditor({
           />
         </div>
       )}
-      {triggerType === "deal_stage_changed" && (
-        <div>
-          <Label>Etapa disparadora</Label>
+      {triggerType === "contact_stage_changed" && (
+        <div className="space-y-2">
+          <Label>Etapa disparadora (opcional)</Label>
           <Input
             className="mt-1"
-            value={triggerConfig?.stage ?? ""}
-            onChange={e => onChange(triggerType, { ...triggerConfig, stage: e.target.value })}
-            placeholder="Propuesta enviada"
+            value={triggerConfig?.stage_name ?? ""}
+            onChange={e => onChange(triggerType, { ...triggerConfig, stage_name: e.target.value })}
+            placeholder="Deja vacío para cualquier etapa"
           />
+          <p className="text-xs text-muted-foreground">
+            Se activa cuando un lead es movido a esta etapa en el pipeline. Deja vacío para disparar en cualquier cambio de etapa.
+          </p>
         </div>
       )}
       {triggerType === "scheduled" && (
