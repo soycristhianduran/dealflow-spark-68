@@ -1,0 +1,10 @@
+name = "klosify-pages"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Custom domain: pages.klosify.com
+# Add this in the Cloudflare dashboard after deploying:
+# Workers → klosify-pages → Settings → Domains & Routes → Add Custom Domain → pages.klosify.com
+
+[vars]
+ENVIRONMENT = "production"

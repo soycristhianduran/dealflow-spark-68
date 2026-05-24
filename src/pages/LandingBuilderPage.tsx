@@ -52,10 +52,23 @@ function toSlug(str: string): string {
 }
 
 // ── Public URL builder ────────────────────────────────────────────────────────
+// pages.klosify.com/<slug> — served by the Cloudflare Worker
+// Fallback to Supabase function URL during development / before DNS is set up
+const PAGES_DOMAIN = (import.meta as any).env?.VITE_PAGES_DOMAIN || "pages.klosify.com";
 const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL
   || "https://oqwcgvemrvimrdrzjzil.supabase.co";
 
 function getPublicUrl(slug: string) {
+  // Use the pretty domain once the Worker is live; fallback to Supabase URL
+  if (PAGES_DOMAIN && PAGES_DOMAIN !== "pages.klosify.com") {
+    return `https://${PAGES_DOMAIN}/${slug}`;
+  }
+  // Default: pages.klosify.com (Cloudflare Worker)
+  return `https://pages.klosify.com/${slug}`;
+}
+
+function getPreviewUrl(slug: string) {
+  // Always use Supabase directly for preview (Worker might not be deployed yet)
   return `${SUPABASE_URL}/functions/v1/serve-landing?slug=${slug}`;
 }
 
@@ -240,9 +253,16 @@ export default function LandingBuilderPage() {
 
   // ── Copy URL ────────────────────────────────────────────────────────────────
   const copyUrl = () => {
-    if (!slug) { toast.error("La página necesita un slug para tener URL pública"); return; }
-    navigator.clipboard.writeText(getPublicUrl(slug));
-    toast.success("URL copiada al portapapeles");
+    const effectiveSlug = slug || toSlug(name);
+    if (!effectiveSlug) { toast.error("La página necesita un slug para tener URL pública"); return; }
+    navigator.clipboard.writeText(getPublicUrl(effectiveSlug));
+    toast.success("URL copiada: pages.klosify.com/" + effectiveSlug);
+  };
+
+  const openPublicUrl = () => {
+    const effectiveSlug = slug || toSlug(name);
+    if (status !== "published") { toast.error("Publica la página primero"); return; }
+    window.open(getPublicUrl(effectiveSlug), "_blank");
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -335,21 +355,23 @@ export default function LandingBuilderPage() {
                   placeholder="Nombre de la página"
                 />
 
-                {/* Slug */}
+                {/* Slug / public URL */}
                 <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Globe className="h-3 w-3" />
+                  <Globe className="h-3 w-3 shrink-0" />
+                  <span className="text-muted-foreground/60 shrink-0">pages.klosify.com/</span>
                   {slugEditing ? (
                     <Input
                       value={slug}
                       onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, "-").toLowerCase())}
                       onBlur={() => setSlugEditing(false)}
-                      className="h-6 text-xs w-36"
+                      className="h-6 text-xs w-28"
                       autoFocus
                     />
                   ) : (
                     <button
-                      className="hover:text-foreground underline"
+                      className="hover:text-foreground underline font-mono"
                       onClick={() => setSlugEditing(true)}
+                      title="Editar slug"
                     >
                       {slug || toSlug(name)}
                     </button>
@@ -357,13 +379,25 @@ export default function LandingBuilderPage() {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button onClick={copyUrl}>
+                        <button onClick={copyUrl} className="ml-0.5">
                           <Link2 className="h-3 w-3 hover:text-foreground" />
                         </button>
                       </TooltipTrigger>
                       <TooltipContent>Copiar URL pública</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
+                  {status === "published" && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <button onClick={openPublicUrl}>
+                            <Eye className="h-3 w-3 hover:text-foreground" />
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent>Ver página publicada</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
                 </div>
 
                 {/* Stats */}
