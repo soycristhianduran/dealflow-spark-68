@@ -1,0 +1,2 @@
+[functions.serve-landing]
+verify_jwt = false

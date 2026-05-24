@@ -32,3 +32,9 @@ verify_jwt = false
 
 [functions.track-email]
 verify_jwt = false
+
+[functions.serve-landing]
+verify_jwt = false
+
+[functions.landing-submit]
+verify_jwt = false

@@ -1,0 +1,2 @@
+[functions.landing-submit]
+verify_jwt = false

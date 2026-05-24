@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Building2,
-  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3, MessageSquare, Mail, Sparkles
+  KanbanSquare, CalendarDays, CheckSquare, Settings, ChevronLeft, Zap, Plug, BarChart3, MessageSquare, Mail, Sparkles, Globe
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -29,6 +29,7 @@ const powerNavItems = [
   { title: "Campañas", url: "/email-campaigns", icon: BarChart3 },
   { title: "Email Builder", url: "/email-builder", icon: Mail },
   { title: "Automatizaciones", url: "/automations", icon: Zap },
+  { title: "Landings", url: "/landing-builder", icon: Globe },
 ];
 
 const bottomItems = [
