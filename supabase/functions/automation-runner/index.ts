@@ -304,7 +304,7 @@ async function processEnrollment(enr: any, supabase: any) {
         const { data: tplMeta } = await supabase
           .from("whatsapp_templates")
           .select("body_text, header_type, header_media_handle")
-          .eq("organization_id", contact.organization_id)
+          .eq("user_id", enr.user_id)
           .eq("name", cfg.template_name)
           .maybeSingle();
 
@@ -431,14 +431,14 @@ async function processEnrollment(enr: any, supabase: any) {
       const { title, due_in_days, assign_to_owner } = step.config || {};
       if (title) {
         const taskTitle = renderVars(title, ctx);
-        const dueDate = new Date(Date.now() + (due_in_days || 1) * 86_400_000).toISOString();
+        const dueDate = new Date(Date.now() + (due_in_days || 1) * 86_400_000).toISOString().split("T")[0];
         await supabase.from("tasks").insert({
           title: taskTitle,
           contact_id: contact.id,
           organization_id: contact.organization_id,
           due_date: dueDate,
           status: "pending",
-          assigned_to: assign_to_owner ? (contact.owner_id || enr.user_id) : enr.user_id,
+          owner_id: assign_to_owner ? (contact.owner_id || enr.user_id) : enr.user_id,
         });
         logs = addLog(`Tarea creada: "${taskTitle}" vence en ${due_in_days} día(s)`);
       }
@@ -466,15 +466,11 @@ async function processEnrollment(enr: any, supabase: any) {
 
     else if (step.type === "notify_owner") {
       const message = renderVars(step.config?.message || "Nuevo evento en {{contact.name}}", ctx);
-      // Get owner's email from profiles
-      if (contact.owner_id) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("email")
-          .eq("user_id", contact.owner_id)
-          .maybeSingle();
-
-        const ownerEmail = profile?.email;
+      // Get owner's email from auth.users (service role can access this)
+      const ownerId = contact.owner_id || enr.user_id;
+      if (ownerId) {
+        const { data: { user: ownerUser } } = await supabase.auth.admin.getUserById(ownerId);
+        const ownerEmail = ownerUser?.email;
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
         if (ownerEmail && RESEND_API_KEY) {
           await fetch(`${RESEND_API}/emails`, {
@@ -484,10 +480,12 @@ async function processEnrollment(enr: any, supabase: any) {
               from: "Klosify CRM <onboarding@resend.dev>",
               to: [ownerEmail],
               subject: `🔔 Automatización: ${message.slice(0, 60)}`,
-              html: `<p>${message}</p><p style="color:#888;font-size:12px">Contacto: <a href="#">${ctx.contact.name || ctx.contact.email}</a></p>`,
+              html: `<p>${message}</p><p style="color:#888;font-size:12px">Contacto: ${ctx.contact.name || ctx.contact.email}</p>`,
             }),
           });
           logs = addLog(`Notificación enviada a ${ownerEmail}`);
+        } else {
+          logs = addLog("Vendedor sin email configurado — notificación omitida");
         }
       }
     }
