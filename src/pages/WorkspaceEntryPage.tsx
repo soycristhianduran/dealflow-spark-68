@@ -31,6 +31,7 @@ import InstagramAutomationsPage from "./InstagramAutomationsPage";
 import ConversationsPage from "./ConversationsPage";
 import EmailCampaignsPage from "./EmailCampaignsPage";
 import EmailBuilderPage from "./EmailBuilderPage";
+import LandingBuilderPage from "./LandingBuilderPage";
 import AutomationsPage from "./AutomationsPage";
 import MorePage from "./MorePage";
 import BillingPage from "./BillingPage";
@@ -110,6 +111,7 @@ export default function WorkspaceEntryPage() {
         <Route path="conversations" element={<P><ConversationsPage /></P>} />
         <Route path="email-campaigns" element={<P><EmailCampaignsPage /></P>} />
         <Route path="email-builder" element={<P><EmailBuilderPage /></P>} />
+        <Route path="landing-builder" element={<P><LandingBuilderPage /></P>} />
         <Route path="automations" element={<P><AutomationsPage /></P>} />
         <Route path="billing" element={<P><BillingPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />
