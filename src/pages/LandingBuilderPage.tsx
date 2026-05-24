@@ -24,11 +24,29 @@ import { toast } from "sonner";
 import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
   Sparkles, MousePointer, RefreshCw, Edit2, BarChart2,
-  ClipboardList, ChevronUp, ChevronDown, Settings2,
+  ClipboardList, ChevronUp, ChevronDown, Settings2, Send,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
+
+// ── Edit mode script ──────────────────────────────────────────────────────────
+const EDIT_MODE_SCRIPT = `<script id="__em__">
+(function(){
+var s=document.createElement('style');
+s.textContent='[data-ee]:hover{outline:2px dashed rgba(99,102,241,.55)!important;outline-offset:2px;cursor:text;border-radius:3px}[data-ee]:focus{outline:2px solid #6366f1!important;outline-offset:2px}';
+document.head.appendChild(s);
+['h1','h2','h3','h4','h5','h6','p','span','a','li','button','label','td','th'].forEach(function(t){
+  document.querySelectorAll(t).forEach(function(el){
+    if(el.closest('#lead-form'))return;
+    el.setAttribute('data-ee','1');
+    el.addEventListener('click',function(e){e.stopPropagation();if(el.contentEditable==='true')return;el.contentEditable='true';el.focus();try{var r=document.createRange();r.selectNodeContents(el);window.getSelection().removeAllRanges();window.getSelection().addRange(r);}catch(x){}});
+    el.addEventListener('blur',function(){el.contentEditable='false';window.parent.postMessage({type:'landing_html_edit',html:'<!DOCTYPE html>'+document.documentElement.outerHTML},'*');});
+    el.addEventListener('keydown',function(e){if(e.key==='Escape'||(e.key==='Enter'&&!e.shiftKey&&el.tagName!=='DIV')){e.preventDefault();el.contentEditable='false';el.blur();}});
+  });
+});
+})();
+<\/script>`;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface FormField {
@@ -216,6 +234,20 @@ export default function LandingBuilderPage() {
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
 
+  // Chat interface
+  interface ChatMessage {
+    id: string;
+    role: "user" | "assistant";
+    content: string;
+    status: "loading" | "done" | "error";
+  }
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const chatEndRef = useRef<HTMLDivElement>(null);
+
+  // Inline edit mode
+  const [editMode, setEditMode] = useState(false);
+
   // Form config
   const [formConfig, setFormConfig] = useState<FormConfig>(DEFAULT_FORM_CONFIG);
   const [formConfigOpen, setFormConfigOpen] = useState(false);
@@ -240,6 +272,18 @@ export default function LandingBuilderPage() {
 
   useEffect(() => { fetchPages(); }, [fetchPages]);
 
+  // Listen for inline text edits from the iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'landing_html_edit' && e.data?.html) {
+        setGeneratedHtml(e.data.html);
+        setPreviewHtml(e.data.html);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   // ── Load pipelines + stages (for form config) ────────────────────────────────
   useEffect(() => {
     supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
@@ -261,6 +305,8 @@ export default function LandingBuilderPage() {
     setPreviewHtml(page.html || "");
     setPrompt(page.prompt || "");
     setFormConfig(page.form_config ?? DEFAULT_FORM_CONFIG);
+    setChatMessages([]);
+    setEditMode(false);
 
     if (page.mode === "drag" && editorReady && page.design) {
       editorRef.current?.editor?.loadDesign(page.design);
@@ -309,24 +355,48 @@ export default function LandingBuilderPage() {
     toast.success("Página eliminada");
   };
 
-  // ── AI Generation ───────────────────────────────────────────────────────────
+  // ── AI Generation (chat-driven) ─────────────────────────────────────────────
   const handleGenerate = async () => {
-    if (!prompt.trim()) { toast.error("Escribe qué quieres en tu landing page"); return; }
+    const currentInput = chatInput.trim();
+    if (!currentInput) { toast.error("Escribe qué quieres en tu landing page"); return; }
+
+    const userMsgId = Math.random().toString(36).slice(2);
+    const assistantMsgId = Math.random().toString(36).slice(2);
+
+    // Append user bubble + loading assistant bubble
+    setChatMessages(prev => [
+      ...prev,
+      { id: userMsgId, role: "user", content: currentInput, status: "done" },
+      { id: assistantMsgId, role: "assistant", content: "", status: "loading" },
+    ]);
+    setChatInput("");
     setGenerating(true);
+
+    // Scroll to bottom
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("generate-landing", {
-        body: { prompt: prompt.trim(), page_id: selectedId || "PENDING" },
+        body: {
+          prompt: currentInput,
+          page_id: selectedId || "PENDING",
+          current_html: generatedHtml || undefined,
+        },
       });
       if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
       const html = res.data.html as string;
       setGeneratedHtml(html);
       setPreviewHtml(html);
-      toast.success("¡Landing generada!");
+      setChatMessages(prev => prev.map(m =>
+        m.id === assistantMsgId ? { ...m, content: "✓ Aplicado", status: "done" } : m
+      ));
     } catch (e: any) {
-      toast.error(e.message || "Error generando la landing");
+      setChatMessages(prev => prev.map(m =>
+        m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
+      ));
     } finally {
       setGenerating(false);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     }
   };
 
@@ -630,81 +700,151 @@ export default function LandingBuilderPage() {
           ) : mode === "ai" ? (
             /* ── AI Mode ── */
             <div className="flex-1 flex min-h-0">
-              {/* Prompt panel */}
-              <div className="w-80 shrink-0 border-r border-border flex flex-col p-4 gap-4">
-                <div>
-                  <Label className="text-xs text-muted-foreground mb-2 block">
-                    Describe tu landing page
-                  </Label>
-                  <Textarea
-                    value={prompt}
-                    onChange={(e) => setPrompt(e.target.value)}
-                    placeholder="Ej: Landing para un curso de fotografía profesional. Quiero capturar emails de personas interesadas. El CTA es 'Reservar mi lugar'. Incluye testimonios y sección de beneficios."
-                    className="min-h-[200px] text-sm resize-none"
-                  />
-                </div>
-                <Button
-                  onClick={handleGenerate}
-                  disabled={generating || !prompt.trim()}
-                  className="w-full gap-2"
-                >
-                  {generating ? (
-                    <><Loader2 className="h-4 w-4 animate-spin" /> Generando…</>
-                  ) : (
-                    <><Sparkles className="h-4 w-4" /> {generatedHtml ? "Regenerar" : "Generar landing"}</>
-                  )}
-                </Button>
-
-                {generatedHtml && (
+              {/* Chat panel */}
+              <div className="w-80 shrink-0 border-r border-border flex flex-col">
+                {/* Header */}
+                <div className="shrink-0 border-b border-border px-4 py-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold">Editar con IA</span>
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="w-full gap-2"
-                    onClick={() => setMode("drag")}
+                    className="h-7 text-xs"
+                    onClick={() => {
+                      setChatMessages([]);
+                      setGeneratedHtml("");
+                      setPreviewHtml("");
+                      setEditMode(false);
+                    }}
                   >
-                    <MousePointer className="h-3.5 w-3.5" />
-                    Editar con drag & drop
+                    Nueva
                   </Button>
-                )}
+                </div>
 
-                <div className="text-xs text-muted-foreground mt-2 space-y-1">
-                  <p className="font-medium">Consejos:</p>
-                  <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                    <li>Menciona tu producto/servicio</li>
-                    <li>Indica el público objetivo</li>
-                    <li>Especifica el CTA principal</li>
-                    <li>Describe el estilo deseado</li>
-                  </ul>
+                {/* Messages area */}
+                <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  {chatMessages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
+                      <Sparkles className="h-8 w-8 opacity-20" />
+                      <p className="text-sm text-muted-foreground text-center">
+                        Describe tu landing para comenzar
+                      </p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg) => (
+                      <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                        {msg.role === "user" ? (
+                          <div className="bg-primary text-primary-foreground text-xs rounded-xl rounded-tr-sm px-3 py-2 max-w-[85%] whitespace-pre-wrap">
+                            {msg.content}
+                          </div>
+                        ) : (
+                          <div className={cn(
+                            "bg-muted text-xs rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]",
+                            msg.status === "error" && "text-destructive"
+                          )}>
+                            {msg.status === "loading" ? (
+                              <span className="flex items-center gap-2">
+                                <Loader2 className="animate-spin h-3 w-3" />
+                                Aplicando cambios...
+                              </span>
+                            ) : (
+                              <span className={cn(
+                                msg.status === "done" && msg.content.startsWith("✓") && "text-green-600"
+                              )}>
+                                {msg.content}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input area */}
+                <div className="shrink-0 border-t border-border p-3 space-y-2">
+                  <Textarea
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    placeholder={generatedHtml ? "Describe qué cambiar..." : "Describe tu landing desde cero..."}
+                    className="text-sm resize-none min-h-[80px]"
+                    onKeyDown={(e) => {
+                      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+                        e.preventDefault();
+                        handleGenerate();
+                      }
+                    }}
+                  />
+                  <div className="flex gap-2 items-center">
+                    {generatedHtml && (
+                      <span className="text-[10px] text-muted-foreground flex-1">
+                        Modo refinado — mantiene el diseño
+                      </span>
+                    )}
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={generating || !chatInput.trim()}
+                      onClick={handleGenerate}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      {generating ? "Enviando..." : generatedHtml ? "Refinar" : "Generar"}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
               {/* Preview */}
               <div className="flex-1 flex flex-col min-w-0">
-                {!previewHtml ? (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
-                    <Sparkles className="h-10 w-10 opacity-20" />
-                    <p className="text-sm">Describe tu landing page y haz clic en "Generar"</p>
-                  </div>
-                ) : (
+                {previewHtml ? (
                   <>
-                    <div className="px-3 py-2 border-b border-border text-xs text-muted-foreground flex items-center gap-2">
-                      <Eye className="h-3 w-3" /> Vista previa
+                    {/* Mode toggle bar */}
+                    <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 shrink-0">
                       <button
-                        className="ml-auto flex items-center gap-1 hover:text-foreground"
-                        onClick={handleGenerate}
-                        disabled={generating}
+                        onClick={() => setEditMode(false)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                          !editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                        )}
                       >
-                        <RefreshCw className={cn("h-3 w-3", generating && "animate-spin")} />
-                        Regenerar
+                        <Eye className="h-3 w-3" /> Vista previa
+                      </button>
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                          editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Edit2 className="h-3 w-3" /> Editar texto
                       </button>
                     </div>
+
+                    {/* Edit mode banner */}
+                    {editMode && (
+                      <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-700 flex items-center gap-2 shrink-0">
+                        <Edit2 className="h-3 w-3 shrink-0" />
+                        Haz clic en cualquier texto para editarlo ·{" "}
+                        <kbd className="px-1 bg-white rounded border text-[10px]">Esc</kbd>
+                        {" "}o{" "}
+                        <kbd className="px-1 bg-white rounded border text-[10px]">Enter</kbd>
+                        {" "}para confirmar
+                      </div>
+                    )}
+
                     <iframe
-                      srcDoc={previewHtml}
+                      key={editMode ? "edit" : "preview"}
+                      srcDoc={editMode ? previewHtml.replace(/<\/body>/i, EDIT_MODE_SCRIPT + '</body>') : previewHtml}
                       className="flex-1 w-full border-0"
                       sandbox="allow-scripts allow-forms allow-same-origin"
                       title="Vista previa landing"
                     />
                   </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
+                    <Sparkles className="h-10 w-10 opacity-20" />
+                    <p className="text-sm">Describe tu landing page en el chat de la izquierda</p>
+                  </div>
                 )}
               </div>
             </div>

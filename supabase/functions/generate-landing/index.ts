@@ -71,17 +71,28 @@ Deno.serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY no configurado. Ve a Supabase → Settings → Edge Functions → Secrets.");
 
-    const { prompt, page_id } = await req.json();
+    const { prompt, page_id, current_html } = await req.json();
     if (!prompt) throw new Error("prompt es obligatorio");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const submitUrl = `${supabaseUrl}/functions/v1/landing-submit`;
     const pageIdPlaceholder = page_id || "PENDING";
 
-    // Replace placeholders in system prompt
-    const systemPrompt = SYSTEM_PROMPT
-      .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
-      .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder);
+    // Choose system prompt: refine existing HTML or generate fresh
+    let systemPrompt: string;
+    let userContent: string;
+
+    if (current_html) {
+      // REFINE mode: edit the existing landing page
+      systemPrompt = `Estás editando esta landing page:\n\n${current_html}\n\nRULES: Apply ONLY what is requested. Preserve all design, colors, fonts, sections. Keep all IDs/data-attributes especially id='lead-form' and data-page-id. Return ONLY the complete updated HTML.`;
+      userContent = prompt;
+    } else {
+      // FRESH mode: generate a new landing page
+      systemPrompt = SYSTEM_PROMPT
+        .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
+        .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder);
+      userContent = `Crea una landing page para: ${prompt}`;
+    }
 
     const response = await fetch(ANTHROPIC_API, {
       method: "POST",
@@ -97,7 +108,7 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `Crea una landing page para: ${prompt}`,
+            content: userContent,
           },
         ],
       }),
