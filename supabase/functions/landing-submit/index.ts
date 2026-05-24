@@ -19,15 +19,14 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const { page_id, name, email, phone, source } = body;
+    const { page_id } = body;
 
     if (!page_id) throw new Error("page_id is required");
-    if (!email && !name) throw new Error("At least name or email is required");
 
-    // Look up the landing page to get the organization_id
+    // Look up the landing page (including form_config)
     const { data: page, error: pageErr } = await supabase
       .from("landing_pages")
-      .select("id, organization_id, name, status")
+      .select("id, organization_id, name, status, form_config")
       .eq("id", page_id)
       .maybeSingle();
 
@@ -36,68 +35,161 @@ Deno.serve(async (req) => {
     }
 
     const orgId = page.organization_id;
+    const formConfig: Record<string, any> = (page.form_config as any) || {};
+    const configFields: any[] = formConfig.fields || [];
 
-    // Split name into first/last
-    const nameParts = (name || "").trim().split(/\s+/);
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
+    // ── Build contact data from form_config mappings ────────────────────────
+    const contactData: Record<string, any> = {
+      organization_id: orgId,
+      source: `Landing: ${page.name}`,
+      status: "new",
+    };
+    const activityNotes: { label: string; value: string }[] = [];
+    const tagsToAdd: string[] = [];
 
-    // Check for existing contact with same email in this org
+    // Helper to set a CRM field from a value
+    function applyMapping(crmField: string, value: string) {
+      if (!crmField || crmField === "_ignore" || !value) return;
+      switch (crmField) {
+        case "full_name": {
+          const parts = value.trim().split(/\s+/);
+          contactData.first_name = parts[0] || "";
+          contactData.last_name = parts.slice(1).join(" ") || "";
+          contactData.full_name = value.trim();
+          break;
+        }
+        case "first_name":
+          contactData.first_name = value.trim();
+          contactData.full_name = [value.trim(), contactData.last_name || ""].join(" ").trim();
+          break;
+        case "last_name":
+          contactData.last_name = value.trim();
+          contactData.full_name = [contactData.first_name || "", value.trim()].join(" ").trim();
+          break;
+        case "primary_email":
+          contactData.primary_email = value.toLowerCase().trim();
+          break;
+        case "primary_phone":
+          contactData.primary_phone = value;
+          break;
+        case "_note":
+          activityNotes.push({ label: crmField, value });
+          break;
+        case "_tag":
+          tagsToAdd.push(value);
+          break;
+        default:
+          // Direct field mapping (city, country, notes, source, utm_*, etc.)
+          contactData[crmField] = value;
+      }
+    }
+
+    if (configFields.length > 0) {
+      // Use configured field mappings
+      for (const field of configFields) {
+        const rawValue = body[field.name];
+        if (rawValue == null || rawValue === "") continue;
+        applyMapping(field.crm_field, String(rawValue));
+      }
+    } else {
+      // Fallback: legacy name/email/phone fields
+      const { name, email, phone } = body;
+      if (!email && !name) throw new Error("At least name or email is required");
+      if (name) applyMapping("full_name", name);
+      if (email) applyMapping("primary_email", email);
+      if (phone) applyMapping("primary_phone", phone);
+    }
+
+    // Ensure full_name is set (required NOT NULL)
+    if (!contactData.full_name) {
+      contactData.full_name = [contactData.first_name, contactData.last_name].filter(Boolean).join(" ")
+        || contactData.primary_email
+        || "Lead";
+    }
+
+    // ── Dedup by email ──────────────────────────────────────────────────────
     let contactId: string | null = null;
-    if (email) {
+    if (contactData.primary_email) {
       const { data: existing } = await supabase
         .from("contacts")
-        .select("id")
+        .select("id, tags")
         .eq("organization_id", orgId)
-        .eq("primary_email", email.toLowerCase().trim())
+        .eq("primary_email", contactData.primary_email)
         .maybeSingle();
 
       if (existing) {
         contactId = existing.id;
-
-        // Update phone if provided and missing
-        if (phone) {
-          await supabase
-            .from("contacts")
-            .update({ primary_phone: phone })
-            .eq("id", contactId)
-            .is("primary_phone", null);
+        // Patch missing fields on existing contact
+        const patch: Record<string, any> = {};
+        if (contactData.primary_phone) patch.primary_phone = contactData.primary_phone;
+        if (contactData.first_name)    patch.first_name    = contactData.first_name;
+        if (contactData.last_name)     patch.last_name     = contactData.last_name;
+        if (contactData.city)          patch.city          = contactData.city;
+        if (contactData.country)       patch.country       = contactData.country;
+        if (contactData.notes)         patch.notes         = contactData.notes;
+        if (tagsToAdd.length) {
+          const merged = [...new Set([...(existing.tags || []), ...tagsToAdd])];
+          patch.tags = merged;
+        }
+        if (Object.keys(patch).length) {
+          await supabase.from("contacts").update(patch).eq("id", contactId);
         }
       }
     }
 
-    // Create new contact if not found
+    // ── Create contact if not found ─────────────────────────────────────────
     if (!contactId) {
-      const newContact: Record<string, any> = {
-        organization_id: orgId,
-        first_name: firstName,
-        last_name: lastName,
-        source: `Landing: ${page.name}`,
-        lead_status: "new",
-      };
-      if (email) newContact.primary_email = email.toLowerCase().trim();
-      if (phone) newContact.primary_phone = phone;
+      if (tagsToAdd.length) contactData.tags = tagsToAdd;
 
       const { data: created, error: createErr } = await supabase
         .from("contacts")
-        .insert(newContact)
+        .insert(contactData)
         .select("id")
         .single();
 
       if (createErr) throw createErr;
       contactId = created.id;
 
-      // Increment lead counter on the landing page
+      // Increment leads counter on the landing page
       await supabase.rpc("inc_landing_page_leads", { p_page_id: page_id });
     }
 
-    // Log activity
+    // ── Auto-assign to pipeline/stage if configured ──────────────────────────
+    if (formConfig.pipeline_id && formConfig.stage_id) {
+      await supabase.from("contacts").update({
+        pipeline_id: formConfig.pipeline_id,
+        stage_id: formConfig.stage_id,
+        lead_status: "active",
+      }).eq("id", contactId);
+    }
+
+    // ── Log activity ────────────────────────────────────────────────────────
+    const extraNotes = activityNotes.map(n => `${n.label}: ${n.value}`).join(", ");
+    const pipelineNote = formConfig.stage_name
+      ? ` → Pipeline: ${formConfig.pipeline_name || ""} / ${formConfig.stage_name}`
+      : "";
     await supabase.from("activities").insert({
       organization_id: orgId,
       contact_id: contactId,
       type: "note",
       title: `Lead desde landing: ${page.name}`,
-      description: `Formulario enviado desde ${source || "landing page"}. Email: ${email || "—"}, Teléfono: ${phone || "—"}`,
+      description: `Formulario enviado desde ${body.source || "landing page"}${pipelineNote}${extraNotes ? ". " + extraNotes : ""}`,
+    }).catch(() => null);
+
+    // ── Fire automation trigger ─────────────────────────────────────────────
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        action: "trigger_event",
+        trigger_type: "landing_form_submitted",
+        contact_id: contactId,
+        trigger_data: { landing_slug: page.id, landing_name: page.name, source: body.source },
+      }),
     }).catch(() => null);
 
     return new Response(

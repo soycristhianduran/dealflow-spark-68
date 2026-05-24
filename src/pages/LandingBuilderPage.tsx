@@ -5,24 +5,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  Sheet, SheetContent, SheetHeader, SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
   Sparkles, MousePointer, RefreshCw, Edit2, BarChart2,
+  ClipboardList, ChevronUp, ChevronDown, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+export interface FormField {
+  id: string;
+  label: string;
+  name: string;        // POST body key (auto-generated from label)
+  type: "text" | "email" | "tel" | "number" | "textarea" | "select";
+  required: boolean;
+  placeholder: string;
+  crm_field: string;   // target CRM column or special key
+  options?: string[];  // for select type
+}
+
+export interface FormConfig {
+  fields: FormField[];
+  pipeline_id: string;
+  stage_id: string;
+  pipeline_name: string;
+  stage_name: string;
+  cta_text: string;
+  success_message: string;
+}
+
 interface LandingPage {
   id: string;
   name: string;
@@ -35,9 +64,99 @@ interface LandingPage {
   views: number;
   leads_count: number;
   updated_at: string;
+  form_config: FormConfig | null;
 }
 
 type EditorMode = "ai" | "drag";
+
+// ── CRM field mapping options ─────────────────────────────────────────────────
+const CRM_FIELD_OPTIONS = [
+  { value: "full_name",      label: "Nombre completo (separar en first/last)" },
+  { value: "first_name",     label: "Nombre" },
+  { value: "last_name",      label: "Apellido" },
+  { value: "primary_email",  label: "Email" },
+  { value: "primary_phone",  label: "Teléfono" },
+  { value: "city",           label: "Ciudad" },
+  { value: "country",        label: "País" },
+  { value: "notes",          label: "Notas del contacto" },
+  { value: "source",         label: "Fuente" },
+  { value: "utm_source",     label: "UTM Source" },
+  { value: "utm_medium",     label: "UTM Medium" },
+  { value: "utm_campaign",   label: "UTM Campaign" },
+  { value: "_note",          label: "Guardar como actividad / nota" },
+  { value: "_ignore",        label: "No guardar" },
+];
+
+const DEFAULT_FORM_CONFIG: FormConfig = {
+  fields: [
+    { id: "f1", label: "Nombre completo", name: "name",  type: "text",  required: true,  placeholder: "Tu nombre",          crm_field: "full_name"     },
+    { id: "f2", label: "Email",           name: "email", type: "email", required: true,  placeholder: "tu@email.com",        crm_field: "primary_email" },
+    { id: "f3", label: "Teléfono",        name: "phone", type: "tel",   required: false, placeholder: "+1 234 567 890",      crm_field: "primary_phone" },
+  ],
+  pipeline_id: "",
+  stage_id: "",
+  pipeline_name: "",
+  stage_name: "",
+  cta_text: "Enviar información",
+  success_message: "¡Gracias! Te contactaremos pronto.",
+};
+
+// ── Form HTML generator ───────────────────────────────────────────────────────
+const SUPABASE_SUBMIT_URL = `${(import.meta as any).env?.VITE_SUPABASE_URL || "https://oqwcgvemrvimrdrzjzil.supabase.co"}/functions/v1/landing-submit`;
+
+function labelToName(label: string): string {
+  return label.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "campo";
+}
+
+function generateFormHtml(cfg: FormConfig, pageId: string): string {
+  const fieldsHtml = cfg.fields.map(f => {
+    const req = f.required ? ' required' : '';
+    const ph  = f.placeholder ? ` placeholder="${f.placeholder}"` : "";
+    const inp = f.type === "textarea"
+      ? `<textarea name="${f.name}"${ph}${req} rows="3" style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;resize:vertical;"></textarea>`
+      : `<input type="${f.type}" name="${f.name}"${ph}${req} style="width:100%;padding:10px 14px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;font-family:inherit;box-sizing:border-box;" />`;
+    return `<div style="margin-bottom:16px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#374151;margin-bottom:6px;">${f.label}${f.required ? ' <span style="color:#ef4444">*</span>' : ''}</label>
+      ${inp}
+    </div>`;
+  }).join("\n");
+
+  const cta = cfg.cta_text || "Enviar";
+  const success = cfg.success_message || "¡Gracias! Te contactaremos pronto.";
+
+  return `<form id="lead-form" data-page-id="${pageId}" action="${SUPABASE_SUBMIT_URL}" style="background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.12);padding:32px;max-width:480px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+${fieldsHtml}
+  <button type="submit" style="width:100%;background:#2563eb;color:#fff;font-weight:700;font-size:15px;padding:14px;border:none;border-radius:10px;cursor:pointer;transition:background .2s;">${cta}</button>
+  <script>
+  (function(){
+    var form=document.getElementById('lead-form');
+    if(!form)return;
+    var btn=form.querySelector('button[type="submit"]');
+    form.addEventListener('submit',async function(e){
+      e.preventDefault();
+      btn.disabled=true;btn.textContent='Enviando...';
+      var data={page_id:form.dataset.pageId,source:window.location.href};
+      new FormData(form).forEach(function(v,k){if(k!=='')data[k]=v;});
+      try{
+        var res=await fetch(form.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+        if(res.ok){form.innerHTML='<div style="text-align:center;padding:32px 0;"><p style="font-size:22px;font-weight:700;color:#16a34a;">${success}</p></div>';}
+        else{throw new Error('error');}
+      }catch(err){btn.disabled=false;btn.textContent='${cta}';}
+    });
+  })();
+  </script>
+</form>`;
+}
+
+function injectFormIntoHtml(html: string, formHtml: string): string {
+  // Replace existing lead-form
+  const formRe = /<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i;
+  if (formRe.test(html)) return html.replace(formRe, formHtml);
+  // Inject before </body>
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `\n${formHtml}\n</body>`);
+  return html + "\n" + formHtml;
+}
 
 // ── Slug generator ────────────────────────────────────────────────────────────
 function toSlug(str: string): string {
@@ -97,6 +216,12 @@ export default function LandingBuilderPage() {
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
 
+  // Form config
+  const [formConfig, setFormConfig] = useState<FormConfig>(DEFAULT_FORM_CONFIG);
+  const [formConfigOpen, setFormConfigOpen] = useState(false);
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [pipelineStages, setPipelineStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
+
   // UI state
   const [saving, setSaving] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
@@ -107,13 +232,21 @@ export default function LandingBuilderPage() {
   const fetchPages = useCallback(async () => {
     const { data } = await supabase
       .from("landing_pages")
-      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at")
+      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config")
       .order("updated_at", { ascending: false });
     setPages((data || []) as LandingPage[]);
     setLoadingPages(false);
   }, []);
 
   useEffect(() => { fetchPages(); }, [fetchPages]);
+
+  // ── Load pipelines + stages (for form config) ────────────────────────────────
+  useEffect(() => {
+    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
+      .then(({ data }) => setPipelines(data || []));
+    supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order", { ascending: true })
+      .then(({ data }) => setPipelineStages(data || []));
+  }, []);
 
   // ── Select page ─────────────────────────────────────────────────────────────
   const selectPage = useCallback((page: LandingPage) => {
@@ -127,6 +260,7 @@ export default function LandingBuilderPage() {
     setGeneratedHtml(page.html || "");
     setPreviewHtml(page.html || "");
     setPrompt(page.prompt || "");
+    setFormConfig(page.form_config ?? DEFAULT_FORM_CONFIG);
 
     if (page.mode === "drag" && editorReady && page.design) {
       editorRef.current?.editor?.loadDesign(page.design);
@@ -204,19 +338,24 @@ export default function LandingBuilderPage() {
     const targetStatus = publishOverride !== undefined ? (publishOverride ? "published" : "draft") : status;
 
     try {
+      // Inject form HTML based on current form_config before saving
+      const formHtml = generateFormHtml(formConfig, selectedId);
+
       if (mode === "drag") {
         // Export from Unlayer
         await new Promise<void>((resolve, reject) => {
           editorRef.current?.editor?.exportHtml(async (exportData: { design: object; html: string }) => {
             try {
+              const htmlWithForm = injectFormIntoHtml(exportData.html, formHtml);
               const { error } = await supabase
                 .from("landing_pages")
                 .update({
                   name, slug: slug || toSlug(name),
-                  html: exportData.html,
+                  html: htmlWithForm,
                   design: exportData.design,
                   mode: "drag",
                   status: targetStatus,
+                  form_config: formConfig,
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", selectedId);
@@ -226,19 +365,26 @@ export default function LandingBuilderPage() {
           });
         });
       } else {
-        // AI mode — save generatedHtml
+        // AI mode — inject form into generated HTML
+        const baseHtml = generatedHtml || "";
+        const htmlWithForm = baseHtml ? injectFormIntoHtml(baseHtml, formHtml) : baseHtml;
         const { error } = await supabase
           .from("landing_pages")
           .update({
             name, slug: slug || toSlug(name),
-            html: generatedHtml,
+            html: htmlWithForm,
             prompt,
             mode: "ai",
             status: targetStatus,
+            form_config: formConfig,
             updated_at: new Date().toISOString(),
           })
           .eq("id", selectedId);
         if (error) throw error;
+        if (htmlWithForm !== generatedHtml) {
+          setGeneratedHtml(htmlWithForm);
+          setPreviewHtml(htmlWithForm);
+        }
       }
 
       setStatus(targetStatus);
@@ -430,6 +576,17 @@ export default function LandingBuilderPage() {
                   </button>
                 </div>
 
+                {/* Form config button */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setFormConfigOpen(true)}
+                >
+                  <ClipboardList className="h-3.5 w-3.5" />
+                  Formulario
+                </Button>
+
                 {/* Status toggle */}
                 <Button
                   size="sm"
@@ -601,6 +758,273 @@ export default function LandingBuilderPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Form Config Sheet ── */}
+      <Sheet open={formConfigOpen} onOpenChange={setFormConfigOpen}>
+        <SheetContent side="right" className="w-[480px] sm:w-[520px] overflow-y-auto flex flex-col gap-0 p-0">
+          <SheetHeader className="px-5 py-4 border-b shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <ClipboardList className="h-4 w-4 text-primary" />
+              Configuración del Formulario
+            </SheetTitle>
+            <p className="text-xs text-muted-foreground">
+              Define los campos, mapéalos al CRM y elige dónde llegan los leads.
+            </p>
+          </SheetHeader>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-6">
+
+            {/* ── Fields section ── */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <Label className="text-sm font-semibold">Campos del formulario</Label>
+                <Button
+                  size="sm" variant="outline"
+                  className="h-7 text-xs gap-1"
+                  onClick={() => {
+                    const newField: FormField = {
+                      id: Math.random().toString(36).slice(2),
+                      label: "Nuevo campo",
+                      name: `campo_${Date.now()}`,
+                      type: "text",
+                      required: false,
+                      placeholder: "",
+                      crm_field: "_ignore",
+                    };
+                    setFormConfig(prev => ({ ...prev, fields: [...prev.fields, newField] }));
+                  }}
+                >
+                  <Plus className="h-3 w-3" /> Agregar campo
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {formConfig.fields.map((field, idx) => (
+                  <div
+                    key={field.id}
+                    className="rounded-lg border border-border bg-card p-3 space-y-2.5"
+                  >
+                    {/* Row 1: Label + move + delete */}
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={field.label}
+                        onChange={e => {
+                          const newLabel = e.target.value;
+                          setFormConfig(prev => ({
+                            ...prev,
+                            fields: prev.fields.map(f => f.id === field.id
+                              ? { ...f, label: newLabel, name: labelToName(newLabel) }
+                              : f
+                            ),
+                          }));
+                        }}
+                        placeholder="Etiqueta del campo"
+                        className="h-7 text-xs flex-1"
+                      />
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          disabled={idx === 0}
+                          onClick={() => setFormConfig(prev => {
+                            const arr = [...prev.fields];
+                            [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+                            return { ...prev, fields: arr };
+                          })}
+                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
+                        ><ChevronUp className="h-3.5 w-3.5" /></button>
+                        <button
+                          disabled={idx === formConfig.fields.length - 1}
+                          onClick={() => setFormConfig(prev => {
+                            const arr = [...prev.fields];
+                            [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+                            return { ...prev, fields: arr };
+                          })}
+                          className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
+                        ><ChevronDown className="h-3.5 w-3.5" /></button>
+                        <button
+                          onClick={() => setFormConfig(prev => ({
+                            ...prev, fields: prev.fields.filter(f => f.id !== field.id),
+                          }))}
+                          className="p-0.5 rounded hover:bg-destructive/10 text-destructive ml-0.5"
+                        ><Trash2 className="h-3.5 w-3.5" /></button>
+                      </div>
+                    </div>
+
+                    {/* Row 2: Type + Required */}
+                    <div className="flex items-center gap-2">
+                      <Select
+                        value={field.type}
+                        onValueChange={v => setFormConfig(prev => ({
+                          ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, type: v as FormField["type"] } : f),
+                        }))}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Texto</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="tel">Teléfono</SelectItem>
+                          <SelectItem value="number">Número</SelectItem>
+                          <SelectItem value="textarea">Área de texto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <div className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground">
+                        <Switch
+                          checked={field.required}
+                          onCheckedChange={v => setFormConfig(prev => ({
+                            ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, required: v } : f),
+                          }))}
+                          className="scale-75"
+                        />
+                        Requerido
+                      </div>
+                    </div>
+
+                    {/* Row 3: Placeholder */}
+                    <Input
+                      value={field.placeholder}
+                      onChange={e => setFormConfig(prev => ({
+                        ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, placeholder: e.target.value } : f),
+                      }))}
+                      placeholder="Placeholder (opcional)"
+                      className="h-7 text-xs"
+                    />
+
+                    {/* Row 4: CRM mapping */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground shrink-0">→ CRM:</span>
+                      <Select
+                        value={field.crm_field}
+                        onValueChange={v => setFormConfig(prev => ({
+                          ...prev, fields: prev.fields.map(f => f.id === field.id ? { ...f, crm_field: v } : f),
+                        }))}
+                      >
+                        <SelectTrigger className="h-7 text-xs flex-1">
+                          <SelectValue placeholder="Seleccionar campo CRM..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {CRM_FIELD_OPTIONS.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))}
+
+                {formConfig.fields.length === 0 && (
+                  <div className="text-center text-xs text-muted-foreground py-4 border border-dashed rounded-lg">
+                    Sin campos. Haz clic en "Agregar campo".
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── Pipeline assignment ── */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold flex items-center gap-1.5">
+                <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
+                Asignación automática al pipeline
+              </Label>
+              <div className="space-y-2">
+                <Select
+                  value={formConfig.pipeline_id || "none"}
+                  onValueChange={v => {
+                    if (v === "none") {
+                      setFormConfig(prev => ({ ...prev, pipeline_id: "", pipeline_name: "", stage_id: "", stage_name: "" }));
+                    } else {
+                      const p = pipelines.find(p => p.id === v);
+                      setFormConfig(prev => ({ ...prev, pipeline_id: v, pipeline_name: p?.name ?? "", stage_id: "", stage_name: "" }));
+                    }
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Sin asignación de pipeline" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin asignación</SelectItem>
+                    {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+
+                {formConfig.pipeline_id && (
+                  <Select
+                    value={formConfig.stage_id || "none"}
+                    onValueChange={v => {
+                      if (v === "none") {
+                        setFormConfig(prev => ({ ...prev, stage_id: "", stage_name: "" }));
+                      } else {
+                        const s = pipelineStages.find(s => s.id === v);
+                        setFormConfig(prev => ({ ...prev, stage_id: v, stage_name: s?.name ?? "" }));
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Seleccionar etapa..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin etapa específica</SelectItem>
+                      {pipelineStages.filter(s => s.pipeline_id === formConfig.pipeline_id).map(s => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {formConfig.pipeline_id && formConfig.stage_id && (
+                  <p className="text-xs text-green-600 flex items-center gap-1">
+                    ✓ Los leads irán directo a <strong>{formConfig.pipeline_name} → {formConfig.stage_name}</strong>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* ── CTA + success message ── */}
+            <div className="space-y-3">
+              <Label className="text-sm font-semibold">Apariencia del formulario</Label>
+              <div className="space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">Texto del botón</Label>
+                  <Input
+                    value={formConfig.cta_text}
+                    onChange={e => setFormConfig(prev => ({ ...prev, cta_text: e.target.value }))}
+                    placeholder="Enviar información"
+                    className="h-8 text-sm mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Mensaje de éxito</Label>
+                  <Input
+                    value={formConfig.success_message}
+                    onChange={e => setFormConfig(prev => ({ ...prev, success_message: e.target.value }))}
+                    placeholder="¡Gracias! Te contactaremos pronto."
+                    className="h-8 text-sm mt-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          {/* ── Footer: Apply ── */}
+          <div className="border-t px-5 py-4 shrink-0 bg-background space-y-2">
+            <Button
+              className="w-full gap-2"
+              onClick={() => {
+                setFormConfigOpen(false);
+                if (selectedId) handleSave();
+              }}
+              disabled={saving}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+              Guardar configuración e inyectar en la página
+            </Button>
+            <p className="text-[10px] text-muted-foreground text-center">
+              Reemplaza el formulario en el HTML de la landing con estos campos.
+            </p>
+          </div>
+        </SheetContent>
+      </Sheet>
     </AppLayout>
   );
 }
