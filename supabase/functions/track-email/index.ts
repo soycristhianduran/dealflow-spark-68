@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
       // Only record first open
       const { data: send } = await supabase
         .from("email_sends")
-        .select("campaign_id, opened_at")
+        .select("campaign_id, contact_id, opened_at")
         .eq("id", sendId)
         .maybeSingle();
 
@@ -68,13 +68,31 @@ Deno.serve(async (req) => {
         if (send.campaign_id) {
           await supabase.rpc("inc_email_campaign_opened", { p_campaign_id: send.campaign_id });
         }
+
+        // Fire automation trigger: email_opened
+        if (send.contact_id) {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              action: "trigger_event",
+              trigger_type: "email_opened",
+              contact_id: send.contact_id,
+              trigger_data: { send_id: sendId, campaign_id: send.campaign_id },
+            }),
+          }).catch(() => null);
+        }
       }
     }
 
     if (sendId && type === "c" && destUrl && sigValid) {
       const { data: send } = await supabase
         .from("email_sends")
-        .select("campaign_id, clicked_at")
+        .select("campaign_id, contact_id, clicked_at")
         .eq("id", sendId)
         .maybeSingle();
 
@@ -90,6 +108,24 @@ Deno.serve(async (req) => {
             .update({ clicked_count: supabase.raw?.("clicked_count + 1") })
             .eq("id", send.campaign_id)
             .catch(() => null);
+        }
+
+        // Fire automation trigger: email_clicked
+        if (send.contact_id) {
+          const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+          fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              action: "trigger_event",
+              trigger_type: "email_clicked",
+              contact_id: send.contact_id,
+              trigger_data: { send_id: sendId, campaign_id: send.campaign_id, url: destUrl },
+            }),
+          }).catch(() => null);
         }
       }
       // Redirect to original URL

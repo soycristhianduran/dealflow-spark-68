@@ -75,7 +75,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "update_contact" | "condition" | "assign_owner";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner";
   config: Record<string, any>;
 }
 
@@ -100,20 +100,28 @@ const STEP_META: Record<string, {
   wait:           { label: "Esperar",           icon: Clock,         color: "#b45309", bg: "#fef9c3", border: "#fde047", ring: "#fef08a" },
   send_email:     { label: "Enviar Email",      icon: Mail,          color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", ring: "#bfdbfe" },
   send_whatsapp:  { label: "Enviar WhatsApp",   icon: MessageSquare, color: "#15803d", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
-  add_tag:        { label: "Añadir Tag",        icon: Tag,           color: "#6d28d9", bg: "#f5f3ff", border: "#c4b5fd", ring: "#ddd6fe" },
-  update_contact: { label: "Actualizar CRM",    icon: User,          color: "#0e7490", bg: "#ecfeff", border: "#67e8f9", ring: "#a5f3fc" },
-  condition:      { label: "Condición",         icon: GitBranch,     color: "#c2410c", bg: "#fff7ed", border: "#fdba74", ring: "#fed7aa" },
-  assign_owner:   { label: "Asignar vendedor",  icon: Users,         color: "#0369a1", bg: "#f0f9ff", border: "#7dd3fc", ring: "#bae6fd" },
+  add_tag:             { label: "Añadir Tag",          icon: Tag,           color: "#6d28d9", bg: "#f5f3ff", border: "#c4b5fd", ring: "#ddd6fe" },
+  remove_tag:          { label: "Eliminar Tag",         icon: Tag,           color: "#9f1239", bg: "#fff1f2", border: "#fda4af", ring: "#fecdd3" },
+  update_contact:      { label: "Actualizar CRM",       icon: User,          color: "#0e7490", bg: "#ecfeff", border: "#67e8f9", ring: "#a5f3fc" },
+  condition:           { label: "Condición If/Else",    icon: GitBranch,     color: "#c2410c", bg: "#fff7ed", border: "#fdba74", ring: "#fed7aa" },
+  assign_owner:        { label: "Asignar vendedor",     icon: Users,         color: "#0369a1", bg: "#f0f9ff", border: "#7dd3fc", ring: "#bae6fd" },
+  move_pipeline_stage: { label: "Mover en Pipeline",    icon: ChevronUp,     color: "#166534", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
+  create_task:         { label: "Crear Tarea",          icon: CheckCircle2,  color: "#7c3aed", bg: "#faf5ff", border: "#d8b4fe", ring: "#e9d5ff" },
+  send_webhook:        { label: "Webhook / HTTP",       icon: Settings2,     color: "#374151", bg: "#f9fafb", border: "#d1d5db", ring: "#e5e7eb" },
+  notify_owner:        { label: "Notificar vendedor",   icon: Info,          color: "#b45309", bg: "#fffbeb", border: "#fcd34d", ring: "#fde68a" },
 };
 
 const TRIGGER_LABELS: Record<string, string> = {
-  manual:             "Manual",
-  contact_created:    "Contacto creado",
-  tag_added:          "Tag añadido",
-  deal_stage_changed: "Etapa de deal cambiada",
-  whatsapp_incoming:  "WhatsApp entrante",
-  scheduled:          "Programado",
-  meta_lead_form:     "Formulario de Meta Lead Ads",
+  manual:                  "Manual",
+  contact_created:         "Contacto creado",
+  tag_added:               "Tag añadido",
+  deal_stage_changed:      "Etapa de deal cambiada",
+  whatsapp_incoming:       "WhatsApp entrante",
+  scheduled:               "Programado",
+  meta_lead_form:          "Formulario de Meta Lead Ads",
+  landing_form_submitted:  "Formulario de Landing Page",
+  email_opened:            "Email abierto",
+  email_clicked:           "Email — link cliqueado",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -128,11 +136,16 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "wait":           return { delay_value: 1, delay_unit: "days" };
     case "send_email":     return { subject: "", html_content: "", from_name: "", from_email: "" };
     case "send_whatsapp":  return { template_name: "", language: "es", variables: [] };
-    case "add_tag":        return { tag: "" };
-    case "update_contact": return { field: "", value: "" };
-    case "condition":      return { field: "tags", operator: "contains", value: "" };
-    case "assign_owner":   return { owner_id: "", owner_name: "" };
-    default:               return {};
+    case "add_tag":             return { tag: "" };
+    case "remove_tag":          return { tag: "" };
+    case "update_contact":      return { field: "", value: "" };
+    case "condition":           return { field: "tags", operator: "contains", value: "" };
+    case "assign_owner":        return { owner_id: "", owner_name: "" };
+    case "move_pipeline_stage": return { pipeline_id: "", stage_id: "", stage_name: "" };
+    case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
+    case "send_webhook":        return { url: "", method: "POST", include_contact: true };
+    case "notify_owner":        return { message: "Nuevo evento en contacto {{contact.name}}" };
+    default:                    return {};
   }
 }
 
@@ -142,11 +155,16 @@ function stepSummary(step: AutomationStep): string {
     case "wait":           return `${c.delay_value} ${c.delay_unit}`;
     case "send_email":     return c.subject ? `"${c.subject}"` : "(sin asunto)";
     case "send_whatsapp":  return c.template_name || "(sin plantilla)";
-    case "add_tag":        return c.tag ? `"${c.tag}"` : "(sin tag)";
-    case "update_contact": return c.field ? `${c.field} = ${c.value}` : "(sin campo)";
-    case "condition":      return `${c.field} ${c.operator} ${c.value || "?"}`;
-    case "assign_owner":   return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
-    default:               return "";
+    case "add_tag":             return c.tag ? `"${c.tag}"` : "(sin tag)";
+    case "remove_tag":          return c.tag ? `"${c.tag}"` : "(sin tag)";
+    case "update_contact":      return c.field ? `${c.field} = ${c.value}` : "(sin campo)";
+    case "condition":           return `${c.field} ${c.operator} ${c.value || "?"}`;
+    case "assign_owner":        return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
+    case "move_pipeline_stage": return c.stage_name ? `→ ${c.stage_name}` : "(sin etapa)";
+    case "create_task":         return c.title ? `"${c.title}"` : "(sin título)";
+    case "send_webhook":        return c.url ? c.url.replace(/^https?:\/\//, "") : "(sin URL)";
+    case "notify_owner":        return "Email al vendedor asignado";
+    default:                    return "";
   }
 }
 
@@ -396,6 +414,10 @@ function TriggerConfigEditor({
 }) {
   const [metaForms, setMetaForms] = useState<{ form_id: string; form_name: string; page_id: string }[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
+  const [landingPages, setLandingPages] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [loadingLandings, setLoadingLandings] = useState(false);
+  const [emailCampaigns, setEmailCampaigns] = useState<{ id: string; name: string }[]>([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(false);
 
   // Load Meta forms from DB when trigger type is meta_lead_form
   useEffect(() => {
@@ -408,6 +430,35 @@ function TriggerConfigEditor({
       .then(({ data }) => {
         setMetaForms(data || []);
         setLoadingForms(false);
+      });
+  }, [triggerType]);
+
+  // Load landing pages when trigger type is landing_form_submitted
+  useEffect(() => {
+    if (triggerType !== "landing_form_submitted") return;
+    setLoadingLandings(true);
+    supabase
+      .from("landing_pages")
+      .select("id, name, slug")
+      .eq("status", "published")
+      .order("name", { ascending: true })
+      .then(({ data }) => {
+        setLandingPages(data || []);
+        setLoadingLandings(false);
+      });
+  }, [triggerType]);
+
+  // Load email campaigns when trigger is email_opened / email_clicked
+  useEffect(() => {
+    if (triggerType !== "email_opened" && triggerType !== "email_clicked") return;
+    setLoadingCampaigns(true);
+    supabase
+      .from("email_campaigns")
+      .select("id, name")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => {
+        setEmailCampaigns(data || []);
+        setLoadingCampaigns(false);
       });
   }, [triggerType]);
 
@@ -477,6 +528,124 @@ function TriggerConfigEditor({
               <p>Cuando llegue un nuevo lead del formulario <strong>"{triggerConfig.form_name}"</strong>, el contacto será enrolado automáticamente en esta automatización.</p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Landing Page trigger ── */}
+      {triggerType === "landing_form_submitted" && (
+        <div className="space-y-3">
+          <div>
+            <Label className="flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-indigo-500" />
+              Landing Page
+            </Label>
+            {loadingLandings ? (
+              <p className="text-xs text-muted-foreground mt-2">Cargando landings...</p>
+            ) : landingPages.length === 0 ? (
+              <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
+                <p className="font-medium">No hay landings publicadas</p>
+                <p>Ve a <strong>Marketing → Landings</strong> y publica una landing page primero.</p>
+              </div>
+            ) : (
+              <>
+                <Select
+                  value={triggerConfig?.page_id ?? "all"}
+                  onValueChange={v => {
+                    if (v === "all") {
+                      onChange(triggerType, { ...triggerConfig, page_id: "", page_name: "" });
+                    } else {
+                      const page = landingPages.find(p => p.id === v);
+                      onChange(triggerType, { ...triggerConfig, page_id: v, page_name: page?.name ?? "" });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Cualquier landing..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Cualquier landing page</SelectItem>
+                    {landingPages.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        <span className="font-medium">{p.name}</span>
+                        <span className="text-muted-foreground ml-2 text-xs">/{p.slug}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Deja "Cualquier landing page" para disparar desde cualquier formulario.
+                </p>
+              </>
+            )}
+          </div>
+          {(triggerConfig?.page_id || landingPages.length > 0) && (
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700 space-y-0.5">
+              <p className="font-medium flex items-center gap-1">
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Listo
+              </p>
+              <p>
+                {triggerConfig?.page_id
+                  ? <>Cuando alguien envíe el formulario en <strong>"{triggerConfig.page_name}"</strong>, el contacto será enrolado.</>
+                  : <>Cuando alguien envíe un formulario en <strong>cualquier</strong> landing page, el contacto será enrolado.</>
+                }
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Email opened / clicked trigger ── */}
+      {(triggerType === "email_opened" || triggerType === "email_clicked") && (
+        <div className="space-y-3">
+          <div>
+            <Label className="flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5 text-blue-500" />
+              Campaña de email
+            </Label>
+            {loadingCampaigns ? (
+              <p className="text-xs text-muted-foreground mt-2">Cargando campañas...</p>
+            ) : (
+              <>
+                <Select
+                  value={triggerConfig?.campaign_id ?? "all"}
+                  onValueChange={v => {
+                    if (v === "all") {
+                      onChange(triggerType, { ...triggerConfig, campaign_id: "", campaign_name: "" });
+                    } else {
+                      const camp = emailCampaigns.find(c => c.id === v);
+                      onChange(triggerType, { ...triggerConfig, campaign_id: v, campaign_name: camp?.name ?? "" });
+                    }
+                  }}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Cualquier campaña..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Cualquier campaña</SelectItem>
+                    {emailCampaigns.map(c => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Filtra opcionalmente por campaña específica.
+                </p>
+              </>
+            )}
+          </div>
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 space-y-0.5">
+            <p className="font-medium flex items-center gap-1">
+              <Info className="h-3.5 w-3.5" />
+              Solo se dispara una vez por contacto
+            </p>
+            <p>
+              {triggerType === "email_opened"
+                ? "Se activa la primera vez que el contacto abre el email."
+                : "Se activa la primera vez que el contacto hace click en un enlace del email."
+              }
+            </p>
+          </div>
         </div>
       )}
 
@@ -795,6 +964,50 @@ function AssignOwnerStepEditor({ step, onChange }: {
   );
 }
 
+// ── Move Pipeline Stage editor ────────────────────────────────────────────────
+function MovePipelineStepEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
+  const c = step.config;
+
+  useEffect(() => {
+    supabase.from("pipelines").select("id, name").order("name").then(({ data }) => setPipelines(data || []));
+  }, []);
+
+  useEffect(() => {
+    if (!c.pipeline_id) return;
+    supabase.from("pipeline_stages").select("id, name").eq("pipeline_id", c.pipeline_id).order("position").then(({ data }) => setStages(data || []));
+  }, [c.pipeline_id]);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Pipeline</Label>
+        <Select value={c.pipeline_id ?? ""} onValueChange={v => onChange({ ...step, config: { ...c, pipeline_id: v, stage_id: "", stage_name: "" } })}>
+          <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar pipeline..." /></SelectTrigger>
+          <SelectContent>{pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      {c.pipeline_id && (
+        <div>
+          <Label className="text-xs">Etapa destino</Label>
+          <Select value={c.stage_id ?? ""} onValueChange={v => {
+            const stage = stages.find(s => s.id === v);
+            onChange({ ...step, config: { ...c, stage_id: v, stage_name: stage?.name ?? "" } });
+          }}>
+            <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar etapa..." /></SelectTrigger>
+            <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+          </Select>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">Mueve el deal activo del contacto a esta etapa. Si no tiene deal, se crea uno.</p>
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -878,6 +1091,68 @@ function StepConfigEditor({ step, onChange }: {
 
   if (step.type === "assign_owner") return (
     <AssignOwnerStepEditor step={step} onChange={onChange} />
+  );
+
+  if (step.type === "remove_tag") return (
+    <div>
+      <Label>Tag a eliminar</Label>
+      <Input className="mt-1" value={c.tag ?? ""} onChange={e => set("tag", e.target.value)} placeholder="ej: prospecto-frio" />
+    </div>
+  );
+
+  if (step.type === "move_pipeline_stage") return (
+    <MovePipelineStepEditor step={step} onChange={onChange} />
+  );
+
+  if (step.type === "create_task") return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Título de la tarea</Label>
+        <Input className="mt-1" value={c.title ?? ""} onChange={e => set("title", e.target.value)} placeholder="Llamar a {{contact.name}}" />
+      </div>
+      <div>
+        <Label className="text-xs">Vence en (días)</Label>
+        <Input type="number" min={0} className="mt-1" value={c.due_in_days ?? 1} onChange={e => set("due_in_days", parseInt(e.target.value) || 1)} />
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="assign_owner_task" checked={c.assign_to_owner ?? true} onChange={e => set("assign_to_owner", e.target.checked)} />
+        <Label htmlFor="assign_owner_task" className="text-xs cursor-pointer">Asignar al vendedor del contacto</Label>
+      </div>
+    </div>
+  );
+
+  if (step.type === "send_webhook") return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">URL del webhook</Label>
+        <Input className="mt-1 font-mono text-xs" value={c.url ?? ""} onChange={e => set("url", e.target.value)} placeholder="https://n8n.tudominio.com/webhook/xyz" />
+        <p className="text-[11px] text-muted-foreground mt-1">Compatible con n8n, Zapier, Make, o cualquier endpoint HTTP.</p>
+      </div>
+      <div>
+        <Label className="text-xs">Método HTTP</Label>
+        <Select value={c.method ?? "POST"} onValueChange={v => set("method", v)}>
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="POST">POST</SelectItem>
+            <SelectItem value="GET">GET</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex items-center gap-2">
+        <input type="checkbox" id="include_contact" checked={c.include_contact ?? true} onChange={e => set("include_contact", e.target.checked)} />
+        <Label htmlFor="include_contact" className="text-xs cursor-pointer">Incluir datos del contacto en el payload</Label>
+      </div>
+    </div>
+  );
+
+  if (step.type === "notify_owner") return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Mensaje de notificación</Label>
+        <Textarea className="mt-1" rows={3} value={c.message ?? ""} onChange={e => set("message", e.target.value)} placeholder="Nuevo evento: {{contact.name}} completó una acción." />
+        <p className="text-[11px] text-muted-foreground mt-1">Se envía por email al vendedor asignado al contacto.</p>
+      </div>
+    </div>
   );
 
   if (step.type === "condition") return (
