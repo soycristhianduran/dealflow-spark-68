@@ -87,6 +87,16 @@ interface LandingPage {
 
 type EditorMode = "ai" | "drag";
 
+// Moved outside component — TypeScript interfaces inside function bodies are
+// valid TS but some transpiler setups can cause subtle issues; keeping it here
+// is safer and is the conventional style.
+interface ChatMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  status: "loading" | "done" | "error";
+}
+
 // ── CRM field mapping options ─────────────────────────────────────────────────
 const CRM_FIELD_OPTIONS = [
   { value: "full_name",      label: "Nombre completo (separar en first/last)" },
@@ -128,7 +138,7 @@ function labelToName(label: string): string {
 }
 
 function generateFormHtml(cfg: FormConfig, pageId: string): string {
-  const fieldsHtml = cfg.fields.map(f => {
+  const fieldsHtml = (cfg.fields ?? []).map(f => {
     const req = f.required ? ' required' : '';
     const ph  = f.placeholder ? ` placeholder="${f.placeholder}"` : "";
     const inp = f.type === "textarea"
@@ -235,12 +245,6 @@ export default function LandingBuilderPage() {
   const [previewHtml, setPreviewHtml] = useState<string>("");
 
   // Chat interface
-  interface ChatMessage {
-    id: string;
-    role: "user" | "assistant";
-    content: string;
-    status: "loading" | "done" | "error";
-  }
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -304,7 +308,16 @@ export default function LandingBuilderPage() {
     setGeneratedHtml(page.html || "");
     setPreviewHtml(page.html || "");
     setPrompt(page.prompt || "");
-    setFormConfig(page.form_config ?? DEFAULT_FORM_CONFIG);
+    // Merge DB config over defaults so that a bare `{}` (the DB column default)
+    // never leaves formConfig.fields undefined, which would crash the Sheet render.
+    const rawCfg = page.form_config || {};
+    setFormConfig({
+      ...DEFAULT_FORM_CONFIG,
+      ...rawCfg,
+      fields: Array.isArray(rawCfg.fields) && rawCfg.fields.length > 0
+        ? rawCfg.fields
+        : DEFAULT_FORM_CONFIG.fields,
+    });
     setChatMessages([]);
     setEditMode(false);
 
@@ -465,7 +478,7 @@ export default function LandingBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [selectedId, mode, name, slug, status, generatedHtml, prompt, fetchPages]);
+  }, [selectedId, mode, name, slug, status, generatedHtml, prompt, formConfig, fetchPages]);
 
   // ── Copy URL ────────────────────────────────────────────────────────────────
   const copyUrl = () => {
@@ -939,7 +952,7 @@ export default function LandingBuilderPage() {
               </div>
 
               <div className="space-y-3">
-                {formConfig.fields.map((field, idx) => (
+                {(formConfig.fields ?? []).map((field, idx) => (
                   <div
                     key={field.id}
                     className="rounded-lg border border-border bg-card p-3 space-y-2.5"
@@ -972,7 +985,7 @@ export default function LandingBuilderPage() {
                           className="p-0.5 rounded hover:bg-accent disabled:opacity-30"
                         ><ChevronUp className="h-3.5 w-3.5" /></button>
                         <button
-                          disabled={idx === formConfig.fields.length - 1}
+                          disabled={idx === (formConfig.fields ?? []).length - 1}
                           onClick={() => setFormConfig(prev => {
                             const arr = [...prev.fields];
                             [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
@@ -1052,7 +1065,7 @@ export default function LandingBuilderPage() {
                   </div>
                 ))}
 
-                {formConfig.fields.length === 0 && (
+                {(formConfig.fields ?? []).length === 0 && (
                   <div className="text-center text-xs text-muted-foreground py-4 border border-dashed rounded-lg">
                     Sin campos. Haz clic en "Agregar campo".
                   </div>
