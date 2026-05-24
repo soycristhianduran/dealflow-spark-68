@@ -368,6 +368,16 @@ export default function LandingBuilderPage() {
     toast.success("Página eliminada");
   };
 
+  // ── Inject configured form into current HTML ────────────────────────────────
+  const handleInjectForm = useCallback(() => {
+    if (!generatedHtml || !(formConfig.fields ?? []).length) return;
+    const formHtml = generateFormHtml(formConfig, selectedId || "PENDING");
+    const injected = injectFormIntoHtml(generatedHtml, formHtml);
+    setGeneratedHtml(injected);
+    setPreviewHtml(injected);
+    toast.success("Formulario inyectado en la landing");
+  }, [generatedHtml, formConfig, selectedId]);
+
   // ── AI Generation (chat-driven) ─────────────────────────────────────────────
   const handleGenerate = async () => {
     const currentInput = chatInput.trim();
@@ -375,6 +385,13 @@ export default function LandingBuilderPage() {
 
     const userMsgId = Math.random().toString(36).slice(2);
     const assistantMsgId = Math.random().toString(36).slice(2);
+
+    // When generating fresh (no existing HTML) and form fields are configured,
+    // tell the AI which fields to include so the generated form matches.
+    const configuredFields = formConfig.fields ?? [];
+    const formContext = !generatedHtml && configuredFields.length > 0
+      ? `\n\nFormulario requerido con estos campos: ${configuredFields.map(f => f.label).join(", ")}.`
+      : "";
 
     // Append user bubble + loading assistant bubble
     setChatMessages(prev => [
@@ -391,7 +408,7 @@ export default function LandingBuilderPage() {
     try {
       const res = await supabase.functions.invoke("generate-landing", {
         body: {
-          prompt: currentInput,
+          prompt: currentInput + formContext,
           page_id: selectedId || "PENDING",
           current_html: generatedHtml || undefined,
         },
@@ -659,15 +676,20 @@ export default function LandingBuilderPage() {
                   </button>
                 </div>
 
-                {/* Form config button */}
+                {/* Form config button — always visible so you can configure fields at any time */}
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-8 text-xs gap-1.5"
+                  className="h-8 text-xs gap-1.5 relative"
                   onClick={() => setFormConfigOpen(true)}
                 >
                   <ClipboardList className="h-3.5 w-3.5" />
                   Formulario
+                  {(formConfig.fields ?? []).length > 0 && (
+                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-green-500 text-white text-[9px] flex items-center justify-center font-bold">
+                      {(formConfig.fields ?? []).length}
+                    </span>
+                  )}
                 </Button>
 
                 {/* Status toggle */}
@@ -772,6 +794,49 @@ export default function LandingBuilderPage() {
                     ))
                   )}
                   <div ref={chatEndRef} />
+                </div>
+
+                {/* Form status strip — configure fields + inject when ready */}
+                <div className="shrink-0 border-t border-border px-3 py-2 bg-muted/30">
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      onClick={() => setFormConfigOpen(true)}
+                      className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      <ClipboardList className="h-3 w-3 shrink-0" />
+                      {(formConfig.fields ?? []).length > 0
+                        ? <span className="font-medium">{(formConfig.fields ?? []).length} campos configurados</span>
+                        : <span>Configurar formulario</span>
+                      }
+                    </button>
+
+                    {/* Inject button: only when there's HTML AND fields are configured */}
+                    {generatedHtml && (formConfig.fields ?? []).length > 0 && (
+                      <button
+                        onClick={handleInjectForm}
+                        className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors shrink-0"
+                      >
+                        <ClipboardList className="h-3 w-3" />
+                        Integrar formulario
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Field name chips preview */}
+                  {(formConfig.fields ?? []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {(formConfig.fields ?? []).slice(0, 5).map(f => (
+                        <span key={f.id} className="text-[10px] bg-background border border-border rounded px-1.5 py-0.5 text-muted-foreground">
+                          {f.label}
+                        </span>
+                      ))}
+                      {(formConfig.fields ?? []).length > 5 && (
+                        <span className="text-[10px] text-muted-foreground self-center">
+                          +{(formConfig.fields ?? []).length - 5} más
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Input area */}
@@ -1159,21 +1224,41 @@ export default function LandingBuilderPage() {
 
           </div>
 
-          {/* ── Footer: Apply ── */}
+          {/* ── Footer ── */}
           <div className="border-t px-5 py-4 shrink-0 bg-background space-y-2">
+            {/* Always available: save form config without injecting */}
             <Button
+              variant="outline"
               className="w-full gap-2"
               onClick={() => {
                 setFormConfigOpen(false);
-                if (selectedId) handleSave();
+                toast.success("Configuración del formulario guardada");
               }}
-              disabled={saving}
             >
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Guardar configuración e inyectar en la página
+              <ClipboardList className="h-4 w-4" />
+              Guardar configuración
             </Button>
+
+            {/* Only when there's generated HTML: inject into the page */}
+            {generatedHtml && (
+              <Button
+                className="w-full gap-2"
+                onClick={() => {
+                  setFormConfigOpen(false);
+                  handleInjectForm();
+                  if (selectedId) handleSave();
+                }}
+                disabled={saving || !(formConfig.fields ?? []).length}
+              >
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
+                Guardar e inyectar en la landing
+              </Button>
+            )}
+
             <p className="text-[10px] text-muted-foreground text-center">
-              Reemplaza el formulario en el HTML de la landing con estos campos.
+              {generatedHtml
+                ? "Inyectar reemplaza el formulario actual en el HTML con estos campos."
+                : "Genera una landing primero para poder inyectar el formulario."}
             </p>
           </div>
         </SheetContent>
