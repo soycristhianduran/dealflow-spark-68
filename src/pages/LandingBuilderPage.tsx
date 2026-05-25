@@ -29,6 +29,7 @@ import {
   Sparkles, MousePointer, Edit2, BarChart2,
   ClipboardList, Settings2, Send, AlertCircle,
   Monitor, Tablet, Smartphone, ImageIcon, X, ChevronDown, Check,
+  ChevronLeft, FolderOpen, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
@@ -77,6 +78,12 @@ export interface FormConfig {
   success_message: string;
 }
 
+interface LandingFunnel {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 interface LandingPage {
   id: string;
   name: string;
@@ -91,6 +98,9 @@ interface LandingPage {
   updated_at: string;
   form_config: FormConfig | null;
   chat_history: ChatMessage[] | null;
+  funnel_id: string | null;
+  page_role: string;
+  page_order: number;
 }
 
 type EditorMode = "ai" | "drag";
@@ -379,17 +389,72 @@ export default function LandingBuilderPage() {
   const [slugEditing, setSlugEditing] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
 
+  // Funnel state
+  const [funnels, setFunnels] = useState<LandingFunnel[]>([]);
+  const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
+  const [pickerLevel, setPickerLevel] = useState<"funnels" | "pages">("funnels");
+  const [newFunnelOpen, setNewFunnelOpen] = useState(false);
+  const [newFunnelName, setNewFunnelName] = useState("");
+
+  // Pages in the currently selected funnel
+  const funnelPages = pages.filter(p => p.funnel_id === selectedFunnelId);
+
+  // ── Fetch funnels ────────────────────────────────────────────────────────────
+  const fetchFunnels = useCallback(async () => {
+    const { data } = await supabase
+      .from("landing_funnels")
+      .select("id,name,created_at")
+      .order("created_at", { ascending: true });
+    setFunnels((data || []) as LandingFunnel[]);
+    // Auto-select first funnel if none selected
+    if (data && data.length > 0) {
+      setSelectedFunnelId(prev => prev ?? data[0].id);
+      setPickerLevel("pages");
+    }
+  }, []);
+
   // ── Fetch pages ─────────────────────────────────────────────────────────────
   const fetchPages = useCallback(async () => {
     const { data } = await supabase
       .from("landing_pages")
-      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config,chat_history")
-      .order("updated_at", { ascending: false });
+      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config,chat_history,funnel_id,page_role,page_order")
+      .order("page_order", { ascending: true });
     setPages((data || []) as LandingPage[]);
     setLoadingPages(false);
   }, []);
 
-  useEffect(() => { fetchPages(); }, [fetchPages]);
+  useEffect(() => { fetchPages(); fetchFunnels(); }, [fetchPages, fetchFunnels]);
+
+  // ── Create funnel ────────────────────────────────────────────────────────────
+  const handleCreateFunnel = async () => {
+    if (!newFunnelName.trim()) return;
+    const { data, error } = await supabase
+      .from("landing_funnels")
+      .insert({ name: newFunnelName.trim() })
+      .select()
+      .single();
+    if (error) { toast.error("Error al crear el funnel"); return; }
+    const nf = data as LandingFunnel;
+    setFunnels(prev => [...prev, nf]);
+    setSelectedFunnelId(nf.id);
+    setPickerLevel("pages");
+    setNewFunnelOpen(false);
+    setNewFunnelName("");
+    toast.success("Funnel creado");
+  };
+
+  // ── Delete funnel ────────────────────────────────────────────────────────────
+  const handleDeleteFunnel = async (id: string) => {
+    const { error } = await supabase.from("landing_funnels").delete().eq("id", id);
+    if (error) { toast.error("Error al eliminar el funnel"); return; }
+    setFunnels(prev => prev.filter(f => f.id !== id));
+    if (selectedFunnelId === id) {
+      const remaining = funnels.filter(f => f.id !== id);
+      setSelectedFunnelId(remaining[0]?.id ?? null);
+      if (remaining.length === 0) setPickerLevel("funnels");
+    }
+    toast.success("Funnel eliminado");
+  };
 
   // ── Edit mode: drive designMode from React parent (CSP-safe) ────────────────
   // Called directly from the iframe's onLoad prop — no useEffect race condition.
@@ -553,14 +618,21 @@ export default function LandingBuilderPage() {
   const handleCreatePage = async () => {
     if (!newPageName.trim()) return;
     const generatedSlug = toSlug(newPageName);
+    const nextOrder = funnelPages.length; // append at end
     const { data, error } = await supabase
       .from("landing_pages")
-      .insert({ name: newPageName.trim(), slug: generatedSlug, mode: "ai" })
+      .insert({
+        name: newPageName.trim(),
+        slug: generatedSlug,
+        mode: "ai",
+        funnel_id: selectedFunnelId,
+        page_order: nextOrder,
+      })
       .select()
       .single();
     if (error) { toast.error("Error al crear la página"); return; }
     const newPage = data as LandingPage;
-    setPages(prev => [newPage, ...prev]);
+    setPages(prev => [...prev, newPage]);
     selectPage(newPage);
     setNewPageOpen(false);
     setNewPageName("");
@@ -797,104 +869,126 @@ export default function LandingBuilderPage() {
         {/* ── Full-width Toolbar ── */}
         <div className="border-b border-border px-3 py-2 flex items-center gap-2 shrink-0">
 
-          {/* ── Page picker dropdown ── */}
-          <Popover open={pagePickerOpen} onOpenChange={setPagePickerOpen}>
+          {/* ── Two-level picker: Funnels → Pages (Lovable-style) ── */}
+          <Popover open={pagePickerOpen} onOpenChange={(open) => {
+            setPagePickerOpen(open);
+            // When reopening, go straight to pages if a funnel is already selected
+            if (open && selectedFunnelId) setPickerLevel("pages");
+          }}>
             <PopoverTrigger asChild>
               <button className={cn(
                 "flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium",
-                "hover:bg-accent transition-colors min-w-[160px] max-w-[220px]",
+                "hover:bg-accent transition-colors min-w-[160px] max-w-[260px]",
                 loadingPages && "opacity-60 pointer-events-none"
               )}>
                 {loadingPages ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
-                ) : selectedId ? (
-                  <span className={cn(
-                    "h-1.5 w-1.5 rounded-full shrink-0",
-                    status === "published" ? "bg-green-500" : "bg-muted-foreground/50"
-                  )} />
                 ) : (
-                  <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
-                <span className="truncate flex-1 text-left">
-                  {selectedId ? name : "Seleccionar landing…"}
+                <span className="truncate flex-1 text-left text-xs">
+                  {selectedFunnelId && funnels.find(f => f.id === selectedFunnelId)
+                    ? <>
+                        <span className="text-muted-foreground">{funnels.find(f => f.id === selectedFunnelId)!.name}</span>
+                        {selectedId && <span className="text-foreground"> / {name}</span>}
+                      </>
+                    : "Seleccionar funnel…"}
                 </span>
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </button>
             </PopoverTrigger>
+
             <PopoverContent className="w-80 p-0" align="start">
-              <div className="p-2 border-b border-border">
-                <p className="text-xs font-semibold text-muted-foreground px-1">Landing pages</p>
-              </div>
-              <div className="max-h-72 overflow-y-auto py-1">
-                {pages.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-4">Sin landing pages aún</p>
-                ) : (() => {
-                  // Group pages by pipeline name
-                  const grouped: Record<string, LandingPage[]> = {};
-                  for (const page of pages) {
-                    const key = (page.form_config as any)?.pipeline_name || "Sin pipeline";
-                    if (!grouped[key]) grouped[key] = [];
-                    grouped[key].push(page);
-                  }
-                  // Pipelines first, "Sin pipeline" last
-                  const keys = Object.keys(grouped).sort((a, b) => {
-                    if (a === "Sin pipeline") return 1;
-                    if (b === "Sin pipeline") return -1;
-                    return a.localeCompare(b);
-                  });
 
-                  const PageRow = ({ page }: { page: LandingPage }) => (
-                    <button
-                      key={page.id}
-                      className={cn(
-                        "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors group",
-                        selectedId === page.id && "bg-accent"
-                      )}
-                      onClick={() => { selectPage(page); setPagePickerOpen(false); }}
-                    >
-                      <span className={cn(
-                        "h-1.5 w-1.5 rounded-full shrink-0",
-                        page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30"
-                      )} />
-                      <span className="flex-1 text-left truncate">{page.name}</span>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-[10px] text-muted-foreground">
-                          {page.views}v · {page.leads_count}L
-                        </span>
-                        {selectedId === page.id && <Check className="h-3 w-3 text-primary" />}
-                        <button
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
-                          onClick={(e) => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </button>
-                      </div>
+              {/* ── LEVEL 1: Funnels ── */}
+              {pickerLevel === "funnels" && (
+                <>
+                  <div className="p-2 border-b border-border flex items-center justify-between">
+                    <p className="text-xs font-semibold text-muted-foreground px-1">Mis funnels</p>
+                    <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2"
+                      onClick={() => { setNewFunnelOpen(true); setPagePickerOpen(false); }}>
+                      <Plus className="h-3 w-3" /> Nuevo
+                    </Button>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto py-1">
+                    {funnels.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">Sin funnels todavía</p>
+                    ) : funnels.map(funnel => (
+                      <button key={funnel.id}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-accent transition-colors group",
+                          selectedFunnelId === funnel.id && "bg-accent"
+                        )}
+                        onClick={() => { setSelectedFunnelId(funnel.id); setPickerLevel("pages"); }}
+                      >
+                        <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="flex-1 text-left truncate font-medium">{funnel.name}</span>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-muted-foreground">
+                            {pages.filter(p => p.funnel_id === funnel.id).length}p
+                          </span>
+                          <ChevronDown className="h-3 w-3 text-muted-foreground -rotate-90" />
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
+                            onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}>
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* ── LEVEL 2: Pages within funnel ── */}
+              {pickerLevel === "pages" && selectedFunnelId && (
+                <>
+                  <div className="p-2 border-b border-border flex items-center gap-2">
+                    <button onClick={() => setPickerLevel("funnels")}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <span className="font-semibold truncate max-w-[140px]">
+                        {funnels.find(f => f.id === selectedFunnelId)?.name}
+                      </span>
                     </button>
-                  );
+                    <span className="text-muted-foreground/40 text-xs ml-auto">páginas</span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto py-1">
+                    {funnelPages.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-6">Sin páginas en este funnel</p>
+                    ) : funnelPages.map((page, idx) => (
+                      <button key={page.id}
+                        className={cn(
+                          "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors group",
+                          selectedId === page.id && "bg-accent"
+                        )}
+                        onClick={() => { selectPage(page); setPagePickerOpen(false); }}
+                      >
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] text-muted-foreground/50 w-3 text-right">{idx + 1}</span>
+                          <span className={cn("h-1.5 w-1.5 rounded-full",
+                            page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30")} />
+                        </div>
+                        <span className="flex-1 text-left truncate">{page.name}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-[10px] text-muted-foreground">{page.views}v · {page.leads_count}L</span>
+                          {selectedId === page.id && <Check className="h-3 w-3 text-primary" />}
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
+                            onClick={e => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}>
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-border">
+                    <Button size="sm" variant="ghost" className="w-full h-8 text-xs gap-1.5 justify-start"
+                      onClick={() => { setNewPageOpen(true); setPagePickerOpen(false); }}>
+                      <Plus className="h-3.5 w-3.5" /> Nueva página en este funnel
+                    </Button>
+                  </div>
+                </>
+              )}
 
-                  return keys.map(pipelineName => (
-                    <div key={pipelineName}>
-                      {/* Pipeline group header — only shown when there are multiple groups */}
-                      {keys.length > 1 && (
-                        <p className="text-[10px] font-semibold text-muted-foreground/70 px-3 pt-2 pb-0.5 uppercase tracking-wider">
-                          {pipelineName}
-                        </p>
-                      )}
-                      {grouped[pipelineName].map(page => <PageRow key={page.id} page={page} />)}
-                    </div>
-                  ));
-                })()}
-              </div>
-              <div className="p-2 border-t border-border">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="w-full h-8 text-xs gap-1.5 justify-start"
-                  onClick={() => { setNewPageOpen(true); setPagePickerOpen(false); }}
-                >
-                  <Plus className="h-3.5 w-3.5" /> Nueva landing page
-                </Button>
-              </div>
             </PopoverContent>
           </Popover>
 
@@ -1434,11 +1528,48 @@ export default function LandingBuilderPage() {
         </div>
       </div>
 
+      {/* ── New funnel dialog ── */}
+      <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FolderOpen className="h-4 w-4 text-primary" /> Nuevo funnel
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div>
+              <Label>Nombre del funnel</Label>
+              <Input
+                value={newFunnelName}
+                onChange={(e) => setNewFunnelName(e.target.value)}
+                placeholder="Ej: Webinar Mayo, Lanzamiento producto..."
+                autoFocus
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFunnel()}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Agrupa varias páginas dentro de un mismo embudo (principal, gracias, upsell…)
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>Cancelar</Button>
+            <Button onClick={handleCreateFunnel} disabled={!newFunnelName.trim()}>Crear funnel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ── New page dialog ── */}
       <Dialog open={newPageOpen} onOpenChange={setNewPageOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva landing page</DialogTitle>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-4 w-4 text-primary" /> Nueva página
+              {selectedFunnelId && funnels.find(f => f.id === selectedFunnelId) && (
+                <span className="text-muted-foreground font-normal text-sm">
+                  en {funnels.find(f => f.id === selectedFunnelId)!.name}
+                </span>
+              )}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
@@ -1446,18 +1577,18 @@ export default function LandingBuilderPage() {
               <Input
                 value={newPageName}
                 onChange={(e) => setNewPageName(e.target.value)}
-                placeholder="Ej: Webinar marketing digital"
+                placeholder="Ej: Página de gracias, Upsell..."
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleCreatePage()}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              URL pública: <span className="font-mono">{toSlug(newPageName) || "mi-landing"}</span>
+              URL pública: <span className="font-mono">{toSlug(newPageName) || "mi-pagina"}</span>
             </p>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewPageOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePage} disabled={!newPageName.trim()}>Crear</Button>
+            <Button onClick={handleCreatePage} disabled={!newPageName.trim()}>Crear página</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
