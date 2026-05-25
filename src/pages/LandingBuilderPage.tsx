@@ -400,6 +400,14 @@ export default function LandingBuilderPage() {
   // Pages in the currently selected funnel
   const funnelPages = pages.filter(p => p.funnel_id === selectedFunnelId);
 
+  // ── Page role auto-detection ─────────────────────────────────────────────────
+  const detectPageRole = (text: string): string => {
+    const t = text.toLowerCase();
+    if (/\b(gracias|agradecimiento|thank[\s-]?you|confirmaci[oó]n|confirmado|bienvenida|registro\s+completo|suscrit[oa])\b/.test(t)) return "thankyou";
+    if (/\bupsell\b|\boferta\s+(especial|exclusiva)\b|\bactualiz[a-z]+\s+tu\b|\bupgrade\b/.test(t)) return "upsell";
+    return "main";
+  };
+
   // ── Page role metadata ───────────────────────────────────────────────────────
   const PAGE_ROLES = ["main", "thankyou", "upsell"] as const;
   const ROLE_META: Record<string, { label: string; cls: string }> = {
@@ -641,6 +649,7 @@ export default function LandingBuilderPage() {
         mode: "ai",
         funnel_id: selectedFunnelId,
         page_order: nextOrder,
+        page_role: detectPageRole(newPageName),
       })
       .select()
       .single();
@@ -732,6 +741,7 @@ export default function LandingBuilderPage() {
     const capitalized = pageName.charAt(0).toUpperCase() + pageName.slice(1);
 
     // 1. Create new landing_pages entry in the same funnel
+    const detectedRole = detectPageRole(originalPrompt + " " + capitalized);
     const { data, error } = await supabase
       .from("landing_pages")
       .insert({
@@ -740,6 +750,7 @@ export default function LandingBuilderPage() {
         mode: "ai",
         funnel_id: selectedFunnelId,
         page_order: funnelPages.length,
+        page_role: detectedRole,
       })
       .select()
       .single();
