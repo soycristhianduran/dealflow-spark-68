@@ -1400,20 +1400,35 @@ export default function LandingBuilderPage() {
                 </div>
 
                 {/* Form integration button — only meaningful once the AI generated an HTML with a form */}
-                {(formConfig.fields ?? []).length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-xs gap-1.5 relative"
-                    onClick={() => setFormConfigOpen(true)}
-                  >
-                    <ClipboardList className="h-3.5 w-3.5" />
-                    Integrar formulario
-                    <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-green-500 text-white text-[9px] flex items-center justify-center font-bold">
-                      {(formConfig.fields ?? []).length}
-                    </span>
-                  </Button>
-                )}
+                {(formConfig.fields ?? []).length > 0 && (() => {
+                  const isIntegrated = (formConfig.fields ?? []).some(
+                    f => f.crm_field && f.crm_field !== "_ignore"
+                  );
+                  return isIntegrated ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1.5 border-green-500/50 text-green-600 hover:text-green-700 hover:bg-green-500/10"
+                      onClick={() => setFormConfigOpen(true)}
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Integrado
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 text-xs gap-1.5 relative border-orange-400/60 text-orange-500 hover:text-orange-600 hover:bg-orange-500/10 animate-pulse"
+                      onClick={() => setFormConfigOpen(true)}
+                    >
+                      <ClipboardList className="h-3.5 w-3.5" />
+                      Integrar formulario
+                      <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-orange-500 text-white text-[9px] flex items-center justify-center font-bold">
+                        {(formConfig.fields ?? []).length}
+                      </span>
+                    </Button>
+                  );
+                })()}
 
                 {/* Status toggle */}
                 <Button
