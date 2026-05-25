@@ -1401,9 +1401,10 @@ export default function LandingBuilderPage() {
 
                 {/* Form integration button — only meaningful once the AI generated an HTML with a form */}
                 {(formConfig.fields ?? []).length > 0 && (() => {
-                  const isIntegrated = (formConfig.fields ?? []).some(
-                    f => f.crm_field && f.crm_field !== "_ignore"
-                  );
+                  // Integrated = at least one field mapped to a real CRM field, OR pipeline set
+                  const isIntegrated =
+                    (formConfig.fields ?? []).some(f => f.crm_field && f.crm_field !== "_ignore") ||
+                    !!formConfig.pipeline_id;
                   return isIntegrated ? (
                     <Button
                       size="sm"
