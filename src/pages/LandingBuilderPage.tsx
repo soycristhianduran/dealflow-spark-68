@@ -34,36 +34,25 @@ import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
-// ── PREVIEW script: links open in new tab, nothing navigates the iframe ──────
-// In preview mode the page should feel fully live:
-// - <a> clicks open in a new browser tab (allow-popups sandbox flag required)
-// - Forms can be submitted for real testing
-// The key fix: do NOT set target before checking — just force target="_blank"
-const PREVIEW_NAV_SCRIPT = `<script id="__pv__">
-(function(){
-  document.addEventListener('click',function(e){
-    var t=e.target;
-    while(t&&t!==document){
-      if(t.tagName==='A'){
-        /* Open in new tab so the iframe never navigates away */
-        t.setAttribute('target','_blank');
-        t.setAttribute('rel','noopener noreferrer');
-        return; /* let the click continue — browser opens new tab */
-      }
-      t=t.parentElement;
-    }
-  },true);
-})();
-<\/script>`;
+// ── Link preprocessing (no script required — CSP-safe) ───────────────────────
+// Instead of injecting a click-intercept script (blocked by CSP),
+// we rewrite <a href="..."> in the HTML string before setting srcDoc.
+// Anchor links (#) and javascript: are left alone — they don't navigate away.
+function addTargetBlank(html: string): string {
+  return html.replace(/<a\b([^>]*)>/gi, (match, attrs: string) => {
+    const href = (/\bhref=["']([^"']*)["']/i.exec(attrs) || [])[1] || '';
+    if (!href || href.startsWith('#') || /^javascript:/i.test(href)) return match;
+    // Replace or add target="_blank"
+    const withTarget = /\btarget\s*=/i.test(attrs)
+      ? attrs.replace(/\btarget\s*=\s*["'][^"']*["']/i, 'target="_blank"')
+      : `${attrs} target="_blank" rel="noopener noreferrer"`;
+    return `<a${withTarget}>`;
+  });
+}
 
-// ── Helper: inject nav script into preview HTML ───────────────────────────────
-// Edit mode NO LONGER injects scripts — the React parent manipulates
-// iframe.contentDocument directly (bypasses CSP on inline scripts).
+// buildPreviewSrcDoc: apply link rewriting only (no injected scripts)
 function buildPreviewSrcDoc(html: string): string {
-  if (/<\/body>/i.test(html)) {
-    return html.replace(/<\/body>/i, PREVIEW_NAV_SCRIPT + '\n</body>');
-  }
-  return html + '\n' + PREVIEW_NAV_SCRIPT;
+  return addTargetBlank(html);
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -355,9 +344,10 @@ export default function LandingBuilderPage() {
 
   // Inline edit mode
   const [editMode, setEditMode] = useState(false);
-  // Ref to the edit-mode iframe so we can manipulate contentDocument from React
-  // (avoids injecting inline scripts which CSP may block)
+  // Ref to the edit-mode iframe + cleanup handles
   const editIframeRef = useRef<HTMLIFrameElement>(null);
+  const editMoRef    = useRef<MutationObserver | null>(null);
+  const editTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Chat panel visibility (collapsible)
   const [chatOpen, setChatOpen] = useState(true);
@@ -396,86 +386,75 @@ export default function LandingBuilderPage() {
 
   useEffect(() => { fetchPages(); }, [fetchPages]);
 
-  // ── Edit mode: drive designMode from the React parent ────────────────────────
-  // We manipulate iframe.contentDocument directly instead of injecting scripts.
-  // This approach:
-  //   • Bypasses CSP restrictions on inline scripts (parent scripts already run)
-  //   • Avoids designMode showing <script> text as visible content
-  //   • Syncs changes directly to React state (no postMessage needed)
-  useEffect(() => {
-    if (!editMode) return;
-
+  // ── Edit mode: drive designMode from React parent (CSP-safe) ────────────────
+  // Called directly from the iframe's onLoad prop — no useEffect race condition.
+  // We manipulate contentDocument from the parent frame, so CSP inline-script
+  // restrictions on the srcdoc content don't apply.
+  const setupEditMode = useCallback(() => {
     const iframe = editIframeRef.current;
-    if (!iframe) return;
+    const doc = iframe?.contentDocument;
+    if (!doc?.body) return;
 
-    let mo: MutationObserver | null = null;
-    let syncTimer: ReturnType<typeof setTimeout>;
+    // Disconnect any previous observer
+    editMoRef.current?.disconnect();
+    if (editTimerRef.current) clearTimeout(editTimerRef.current);
 
-    const setupEditMode = () => {
-      const doc = iframe.contentDocument;
-      if (!doc?.body) return;
+    // 1. CSS overrides (no inline script — we're manipulating the DOM directly)
+    const style = doc.createElement('style');
+    style.id = '__edit_style__';
+    style.textContent =
+      'script,noscript{display:none!important;}' +           // hide script text in designMode
+      '*{-webkit-user-select:text!important;user-select:text!important;}' +
+      'body *{cursor:text!important;}';
+    (doc.head ?? doc.documentElement).appendChild(style);
 
-      // 1. CSS overrides injected via DOM (not inline script)
-      const style = doc.createElement('style');
-      style.id = '__edit_style__';
-      style.textContent =
-        // Hide script/noscript elements — designMode makes their text visible
-        'script,noscript{display:none!important;}' +
-        // Override Tailwind's select-none so all text is selectable/editable
-        '*{-webkit-user-select:text!important;user-select:text!important;}' +
-        'body *{cursor:text!important;}';
-      (doc.head ?? doc.documentElement).appendChild(style);
+    // 2. Indicator bar
+    const bar = doc.createElement('div');
+    bar.id = '__edit_bar__';
+    bar.style.cssText =
+      'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
+      'background:#6366f1;color:#fff;text-align:center;padding:9px 12px;' +
+      'font-size:13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;' +
+      'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    bar.textContent = '✏️  Modo edición activo — haz clic en cualquier texto para editar';
+    doc.body.insertBefore(bar, doc.body.firstChild);
+    doc.body.style.paddingTop = '42px';
 
-      // 2. Edit indicator bar
-      const bar = doc.createElement('div');
-      bar.id = '__edit_bar__';
-      bar.style.cssText =
-        'position:fixed;top:0;left:0;right:0;z-index:2147483647;' +
-        'background:#6366f1;color:#fff;text-align:center;padding:9px 12px;' +
-        'font-size:13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;' +
-        'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
-      bar.textContent = '✏️  Modo edición activo — haz clic en cualquier texto para editar';
-      doc.body.insertBefore(bar, doc.body.firstChild);
-      doc.body.style.paddingTop = '42px';
+    // 3. Enable editing
+    doc.designMode = 'on';
 
-      // 3. Activate design mode
-      doc.designMode = 'on';
-
-      // 4. Sync edits back to React state via MutationObserver
-      const sync = () => {
-        clearTimeout(syncTimer);
-        syncTimer = setTimeout(() => {
-          const liveDoc = iframe.contentDocument;
-          if (!liveDoc) return;
-          // DOMParser clone — never toggles designMode, no cursor reset
-          const raw = '<!DOCTYPE html>' + liveDoc.documentElement.outerHTML;
-          const clean = new DOMParser().parseFromString(raw, 'text/html');
-          clean.querySelector('#__edit_style__')?.remove();
-          clean.querySelector('#__edit_bar__')?.remove();
-          const body = clean.querySelector('body');
-          if (body) body.style.paddingTop = '';
-          setGeneratedHtml('<!DOCTYPE html>' + clean.documentElement.outerHTML);
-        }, 700);
-      };
-
-      mo = new MutationObserver(sync);
-      mo.observe(doc.body, { childList: true, subtree: true, characterData: true });
+    // 4. Sync changes → React state (DOMParser clone, no designMode toggle)
+    const sync = () => {
+      if (editTimerRef.current) clearTimeout(editTimerRef.current);
+      editTimerRef.current = setTimeout(() => {
+        const liveDoc = editIframeRef.current?.contentDocument;
+        if (!liveDoc) return;
+        const raw = '<!DOCTYPE html>' + liveDoc.documentElement.outerHTML;
+        const clean = new DOMParser().parseFromString(raw, 'text/html');
+        clean.querySelector('#__edit_style__')?.remove();
+        clean.querySelector('#__edit_bar__')?.remove();
+        const body = clean.querySelector('body');
+        if (body) body.style.paddingTop = '';
+        setGeneratedHtml('<!DOCTYPE html>' + clean.documentElement.outerHTML);
+      }, 700);
     };
 
-    // Wait for iframe to finish loading
-    const ready = iframe.contentDocument?.readyState;
-    if (ready === 'complete' || ready === 'interactive') {
-      setupEditMode();
-    } else {
-      iframe.addEventListener('load', setupEditMode, { once: true });
+    const mo = new MutationObserver(sync);
+    mo.observe(doc.body, { childList: true, subtree: true, characterData: true });
+    editMoRef.current = mo;
+  }, []); // stable — reads only refs and stable setters
+
+  // Disconnect observer when exiting edit mode or unmounting
+  useEffect(() => {
+    if (!editMode) {
+      editMoRef.current?.disconnect();
+      editMoRef.current = null;
     }
-
     return () => {
-      mo?.disconnect();
-      clearTimeout(syncTimer);
+      editMoRef.current?.disconnect();
+      if (editTimerRef.current) clearTimeout(editTimerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editMode]); // Only re-run when editMode toggles, not on every HTML change
+  }, [editMode]);
 
   // ── Load pipelines + stages (for form config) ────────────────────────────────
   useEffect(() => {
@@ -1096,18 +1075,20 @@ export default function LandingBuilderPage() {
                         }}
                       >
                         {editMode ? (
-                          /* Edit mode: no sandbox, no injected scripts.
-                             React's useEffect manipulates contentDocument directly —
-                             bypasses CSP restrictions on inline scripts. */
+                          /* Edit mode: no sandbox, onLoad calls setupEditMode from
+                             the React parent frame (bypasses CSP on inline scripts).
+                             Links preprocessed with target=_blank via addTargetBlank. */
                           <iframe
                             ref={editIframeRef}
                             key={`edit-${deviceSize}`}
-                            srcDoc={previewHtml}
+                            srcDoc={addTargetBlank(previewHtml)}
+                            onLoad={setupEditMode}
                             className="w-full h-full border-0"
                             title="Editar landing"
                           />
                         ) : (
-                          /* Preview mode: sandbox + nav script so links open in new tab */
+                          /* Preview mode: links already have target=_blank from
+                             buildPreviewSrcDoc (no script injection needed). */
                           <iframe
                             key={`preview-${deviceSize}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
