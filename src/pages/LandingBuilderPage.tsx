@@ -31,6 +31,34 @@ import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
+// ── Preview nav blocker ───────────────────────────────────────────────────────
+// Prevents <a> clicks from navigating the iframe (which would load the CRM app
+// inside the preview since the landing CTAs often link to the same origin).
+// postMessage works fine without allow-same-origin — removing it is the real fix,
+// but this belt-and-suspenders script blocks navigation at the JS level too.
+const NAV_BLOCKER_SCRIPT = `<script id="__nb__">
+(function(){
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    while(t){if(t.tagName==='A'){e.preventDefault();e.stopPropagation();return;}t=t.parentElement;}
+  },true);
+  /* also block any programmatic navigation */
+  window.addEventListener('beforeunload',function(e){e.preventDefault();},true);
+})();
+<\/script>`;
+
+// ── Helper: inject scripts before </body> (fallback: append) ─────────────────
+function buildSrcDoc(html: string, isEditMode: boolean): string {
+  const scripts = isEditMode
+    ? NAV_BLOCKER_SCRIPT + EDIT_MODE_SCRIPT
+    : NAV_BLOCKER_SCRIPT;
+  // Try to inject before </body> (case-insensitive); fall back to appending
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, scripts + '\n</body>');
+  }
+  return html + '\n' + scripts;
+}
+
 // ── Edit mode script ──────────────────────────────────────────────────────────
 // Strategy: directly assign contenteditable="true" to every text-bearing element
 // on page load. No click-to-activate needed — the user just clicks and types.
@@ -1278,9 +1306,9 @@ export default function LandingBuilderPage() {
                       >
                         <iframe
                           key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
-                          srcDoc={editMode ? previewHtml.replace(/<\/body>/i, EDIT_MODE_SCRIPT + '</body>') : previewHtml}
+                          srcDoc={buildSrcDoc(previewHtml, editMode)}
                           className="w-full h-full border-0"
-                          sandbox="allow-scripts allow-forms allow-same-origin"
+                          sandbox="allow-scripts allow-forms"
                           title="Vista previa landing"
                         />
                       </div>
