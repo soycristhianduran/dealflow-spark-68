@@ -367,6 +367,11 @@ export default function LandingBuilderPage() {
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [pipelineStages, setPipelineStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
 
+  // Version counter — incremented whenever we want the preview iframe to fully
+  // remount with fresh content. Changing srcDoc on an existing iframe does NOT
+  // reliably reload in all browsers; including this in the key forces a remount.
+  const [htmlVersion, setHtmlVersion] = useState(0);
+
   // UI state
   const [saving, setSaving] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
@@ -497,6 +502,7 @@ export default function LandingBuilderPage() {
     setLeadsCount(page.leads_count || 0);
     setGeneratedHtml(page.html || "");
     setPreviewHtml(page.html || "");
+    setHtmlVersion(v => v + 1);
     setPrompt(page.prompt || "");
     // Merge DB config over defaults so that a bare `{}` (the DB column default)
     // never leaves formConfig.fields undefined, which would crash the Sheet render.
@@ -649,24 +655,33 @@ export default function LandingBuilderPage() {
       });
       if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
       const html = res.data.html as string;
+      if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
       const summary: string = res.data.summary || "✓ Aplicado";
+
+      // Update HTML and force iframe remount (updating srcDoc on existing iframe
+      // is not always reliable — version counter in key forces a fresh mount).
       setGeneratedHtml(html);
       setPreviewHtml(html);
+      setHtmlVersion(v => v + 1);
 
-      // Build updated history including the new confirmed messages
-      const updatedMessages: ChatMessage[] = [
-        ...chatMessages.filter(m => m.status !== "loading"),
-        { id: assistantMsgId, role: "assistant" as const, content: summary, summary, status: "done" as const },
-      ];
-      setChatMessages(updatedMessages);
-
-      // Auto-save chat history so it's available on next visit without manual save
-      if (selectedId) {
-        supabase.from("landing_pages")
-          .update({ chat_history: updatedMessages })
-          .eq("id", selectedId)
-          .then(() => {});
-      }
+      // Fix: use functional update to avoid stale chatMessages closure.
+      // The closure captured chatMessages BEFORE setChatMessages added userMsg,
+      // so using it directly would drop the user's message from history.
+      setChatMessages(prev => {
+        const withoutLoading = prev.filter(m => m.status !== "loading");
+        const updated: ChatMessage[] = [
+          ...withoutLoading,
+          { id: assistantMsgId, role: "assistant" as const, content: summary, summary, status: "done" as const },
+        ];
+        // Auto-save chat history (fire-and-forget)
+        if (selectedId) {
+          supabase.from("landing_pages")
+            .update({ chat_history: updated })
+            .eq("id", selectedId)
+            .then(() => {});
+        }
+        return updated;
+      });
     } catch (e: any) {
       setChatMessages(prev => prev.map(m =>
         m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
@@ -985,6 +1000,7 @@ export default function LandingBuilderPage() {
                         onClick={() => {
                           setPreviewHtml(generatedHtml);
                           setEditMode(false);
+                          setHtmlVersion(v => v + 1); // force iframe remount with latest HTML
                         }}
                         className={cn(
                           "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
@@ -1075,22 +1091,21 @@ export default function LandingBuilderPage() {
                         }}
                       >
                         {editMode ? (
-                          /* Edit mode: no sandbox, onLoad calls setupEditMode from
-                             the React parent frame (bypasses CSP on inline scripts).
-                             Links preprocessed with target=_blank via addTargetBlank. */
+                          /* Edit mode: no sandbox, onLoad calls setupEditMode.
+                             htmlVersion in key forces remount when AI updates HTML. */
                           <iframe
                             ref={editIframeRef}
-                            key={`edit-${deviceSize}`}
+                            key={`edit-${deviceSize}-${htmlVersion}`}
                             srcDoc={addTargetBlank(previewHtml)}
                             onLoad={setupEditMode}
                             className="w-full h-full border-0"
                             title="Editar landing"
                           />
                         ) : (
-                          /* Preview mode: links already have target=_blank from
-                             buildPreviewSrcDoc (no script injection needed). */
+                          /* Preview mode: htmlVersion in key forces remount on
+                             every AI generation so new content is always visible. */
                           <iframe
-                            key={`preview-${deviceSize}`}
+                            key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
                             className="w-full h-full border-0"
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
