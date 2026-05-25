@@ -75,6 +75,20 @@ Deno.serve(async (req) => {
     // Also fix any submit URLs that still have the placeholder
     html = html.replace(/\{\{PAGE_ID\}\}/g, page.id);
 
+    // Always normalize the lead-form action to the correct Supabase submit URL.
+    // The AI sometimes generates a made-up URL (e.g. pages.klosify.com/api/leads).
+    // This guarantees every published form submits to the right endpoint.
+    const submitUrl = `${supabaseUrl}/functions/v1/landing-submit`;
+    html = html.replace(
+      /(<form[^>]*id=["']lead-form["'][^>]*)\s+action=["'][^"']*["']/gi,
+      `$1 action="${submitUrl}"`,
+    );
+    // Also add action if the form has no action attribute yet
+    html = html.replace(
+      /(<form[^>]*id=["']lead-form["'](?![^>]*\baction\s*=)[^>]*)>/gi,
+      `$1 action="${submitUrl}">`,
+    );
+
     return new Response(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",

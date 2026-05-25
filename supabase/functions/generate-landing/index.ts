@@ -178,6 +178,19 @@ Deno.serve(async (req) => {
       if (docIdx !== -1) html = html.slice(docIdx);
     }
 
+    // Always normalize the lead-form action to the correct Supabase submit URL.
+    // The AI sometimes generates a made-up URL or forgets the action attribute.
+    if (html) {
+      html = html.replace(
+        /(<form[^>]*id=["']lead-form["'][^>]*)\s+action=["'][^"']*["']/gi,
+        `$1 action="${submitUrl}"`,
+      );
+      html = html.replace(
+        /(<form[^>]*id=["']lead-form["'](?![^>]*\baction\s*=)[^>]*)>/gi,
+        `$1 action="${submitUrl}">`,
+      );
+    }
+
     return new Response(JSON.stringify({ success: true, html, summary }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
