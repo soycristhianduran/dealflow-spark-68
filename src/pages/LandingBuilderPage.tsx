@@ -67,10 +67,14 @@ const PREVIEW_NAV_SCRIPT = `<script id="__pv__">
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
   try{
-    /* ── Force all text to be selectable (Tailwind select-none override) ── */
+    /* ── CSS overrides for edit mode ── */
     var st=document.createElement('style');
     st.id='__edit_style__';
-    st.textContent='*{-webkit-user-select:text!important;user-select:text!important;}'+
+    st.textContent=
+      /* CRITICAL: document.designMode makes <script> text nodes visible — hide them */
+      'script,noscript{display:none!important;}'+
+      /* Force all text to be selectable — Tailwind applies select-none widely */
+      '*{-webkit-user-select:text!important;user-select:text!important;}'+
       'body *{cursor:text!important;}'+
       '[class*="pointer-events-none"]{pointer-events:auto!important;}';
     (document.head||document.documentElement).appendChild(st);
@@ -82,7 +86,7 @@ const EDIT_MODE_SCRIPT = `<script id="__em__">
       'background:#6366f1;color:#fff;text-align:center;padding:8px 12px;'+
       'font-size:13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
       'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
-    bar.innerHTML='<b>✏️ Modo edición activo</b> — haz clic en cualquier texto para editar';
+    bar.textContent='✏️  Modo edición activo — haz clic en cualquier texto para editar';
     document.body.insertBefore(bar,document.body.firstChild);
     document.body.style.paddingTop='42px';
 
