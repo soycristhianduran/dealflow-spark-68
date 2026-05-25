@@ -25,6 +25,7 @@ import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
   Sparkles, MousePointer, Edit2, BarChart2,
   ClipboardList, Settings2, Send, AlertCircle,
+  Monitor, Tablet, Smartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
@@ -324,6 +325,15 @@ export default function LandingBuilderPage() {
   // Inline edit mode
   const [editMode, setEditMode] = useState(false);
 
+  // Responsive preview device
+  type DeviceSize = "desktop" | "tablet" | "mobile";
+  const [deviceSize, setDeviceSize] = useState<DeviceSize>("desktop");
+  const DEVICE_WIDTHS: Record<DeviceSize, string | null> = {
+    desktop: null,        // full width
+    tablet:  "768px",
+    mobile:  "390px",
+  };
+
   // Form config
   const [formConfig, setFormConfig] = useState<FormConfig>(DEFAULT_FORM_CONFIG);
   const [formConfigOpen, setFormConfigOpen] = useState(false);
@@ -414,6 +424,7 @@ export default function LandingBuilderPage() {
     });
     setChatMessages([]);
     setEditMode(false);
+    setDeviceSize("desktop");
 
     if (page.mode === "drag" && editorReady && page.design) {
       editorRef.current?.editor?.loadDesign(page.design);
@@ -959,8 +970,9 @@ export default function LandingBuilderPage() {
               <div className="flex-1 flex flex-col min-w-0">
                 {previewHtml ? (
                   <>
-                    {/* Mode toggle bar */}
+                    {/* Preview toolbar: mode + device size */}
                     <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 shrink-0">
+                      {/* View / Edit toggle */}
                       <button
                         onClick={() => setEditMode(false)}
                         className={cn(
@@ -979,6 +991,38 @@ export default function LandingBuilderPage() {
                       >
                         <Edit2 className="h-3 w-3" /> Editar texto
                       </button>
+
+                      <div className="flex-1" />
+
+                      {/* Device size switcher */}
+                      <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+                        {(
+                          [
+                            { id: "desktop", icon: Monitor,    label: "Escritorio",  w: "–"     },
+                            { id: "tablet",  icon: Tablet,     label: "Tablet 768px", w: "768px" },
+                            { id: "mobile",  icon: Smartphone, label: "Móvil 390px",  w: "390px" },
+                          ] as const
+                        ).map(({ id, icon: Icon, label }) => (
+                          <button
+                            key={id}
+                            onClick={() => setDeviceSize(id)}
+                            title={label}
+                            className={cn(
+                              "p-1.5 rounded transition-colors",
+                              deviceSize === id
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Width label */}
+                      <span className="text-[10px] text-muted-foreground w-12 text-right font-mono">
+                        {deviceSize === "desktop" ? "100%" : DEVICE_WIDTHS[deviceSize]}
+                      </span>
                     </div>
 
                     {/* Edit mode banner */}
@@ -993,13 +1037,30 @@ export default function LandingBuilderPage() {
                       </div>
                     )}
 
-                    <iframe
-                      key={editMode ? "edit" : "preview"}
-                      srcDoc={editMode ? previewHtml.replace(/<\/body>/i, EDIT_MODE_SCRIPT + '</body>') : previewHtml}
-                      className="flex-1 w-full border-0"
-                      sandbox="allow-scripts allow-forms allow-same-origin"
-                      title="Vista previa landing"
-                    />
+                    {/* iframe wrapper — centers the viewport at the chosen device width */}
+                    <div className={cn(
+                      "flex-1 overflow-auto",
+                      deviceSize !== "desktop" ? "bg-muted/40 flex justify-center pt-4" : ""
+                    )}>
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-300",
+                          deviceSize !== "desktop" && "rounded-t-xl overflow-hidden shadow-xl border border-border"
+                        )}
+                        style={{
+                          width: DEVICE_WIDTHS[deviceSize] ?? "100%",
+                          height: deviceSize !== "desktop" ? "calc(100% - 16px)" : "100%",
+                        }}
+                      >
+                        <iframe
+                          key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
+                          srcDoc={editMode ? previewHtml.replace(/<\/body>/i, EDIT_MODE_SCRIPT + '</body>') : previewHtml}
+                          className="w-full h-full border-0"
+                          sandbox="allow-scripts allow-forms allow-same-origin"
+                          title="Vista previa landing"
+                        />
+                      </div>
+                    </div>
                   </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
