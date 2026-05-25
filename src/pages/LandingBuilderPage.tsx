@@ -51,9 +51,47 @@ function addTargetBlank(html: string): string {
   });
 }
 
-// buildPreviewSrcDoc: apply link rewriting only (no injected scripts)
+// buildPreviewSrcDoc: rewrite links + inject CTA click-intercept (postMessage to parent)
+// The preview iframe sandbox allows scripts + postMessage, so we tag every href="#"
+// link outside the form with data-klosify-cta="N" and listen for clicks.
 function buildPreviewSrcDoc(html: string): string {
-  return addTargetBlank(html);
+  let result = addTargetBlank(html);
+
+  // Strip form temporarily so we only number CTAs outside it
+  const formMatch = result.match(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i);
+  const FP = "___KLOSIFY_FORM___";
+  let work = formMatch ? result.replace(formMatch[0], FP) : result;
+
+  // Tag each href="#" link with an index
+  let ctaN = 0;
+  work = work.replace(
+    /<a([^>]*)\bhref=["']#["']([^>]*)>/gi,
+    (_m, before, after) => `<a${before} href="#" data-klosify-cta="${ctaN++}"${after}>`,
+  );
+  if (formMatch) work = work.replace(FP, formMatch[0]);
+
+  // Click-intercept script — runs inside the iframe, posts message to parent
+  const interceptScript = `<script>
+(function(){
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('[data-klosify-cta]');
+    if(!el)return;
+    e.preventDefault();e.stopPropagation();
+    var r=el.getBoundingClientRect();
+    window.parent.postMessage({
+      type:'klosify_cta',
+      idx:parseInt(el.dataset.klosifyCta),
+      text:el.textContent.replace(/\\s+/g,' ').trim().slice(0,80),
+      rect:{top:r.top,left:r.left,width:r.width,height:r.height,bottom:r.bottom}
+    },'*');
+  });
+})();
+<\/script>`;
+
+  work = work.includes("</body>")
+    ? work.replace("</body>", interceptScript + "\n</body>")
+    : work + interceptScript;
+  return work;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -391,6 +429,20 @@ export default function LandingBuilderPage() {
   // Chat panel visibility (collapsible)
   const [chatOpen, setChatOpen] = useState(true);
 
+  // ── CTA inline link editor (click in preview → floating popover) ─────────────
+  const previewIframeRef = useRef<HTMLIFrameElement>(null);
+  interface CtaPopoverState {
+    open: boolean;
+    ctaIdx: number;
+    text: string;
+    screenX: number;
+    screenY: number;
+  }
+  const [ctaPopover, setCtaPopover] = useState<CtaPopoverState>({
+    open: false, ctaIdx: -1, text: "", screenX: 0, screenY: 0,
+  });
+  const [ctaPopoverUrl, setCtaPopoverUrl] = useState("");
+
   // Responsive preview device
   type DeviceSize = "desktop" | "tablet" | "mobile";
   const [deviceSize, setDeviceSize] = useState<DeviceSize>("desktop");
@@ -632,6 +684,48 @@ export default function LandingBuilderPage() {
       return same ? prev : { ...prev, cta_links: merged };
     });
   }, [generatedHtml]);
+
+  // ── CTA inline link editor — listen for postMessage from preview iframe ───────
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type !== "klosify_cta") return;
+      const iframe = previewIframeRef.current;
+      if (!iframe) return;
+      const iframeRect = iframe.getBoundingClientRect();
+      // Position popover below the clicked element, clamped to viewport
+      const rawX = iframeRect.left + e.data.rect.left;
+      const rawY = iframeRect.top + e.data.rect.bottom + 10;
+      const screenX = Math.min(rawX, window.innerWidth - 300);
+      const screenY = Math.min(rawY, window.innerHeight - 220);
+      setCtaPopover({ open: true, ctaIdx: e.data.idx, text: e.data.text, screenX, screenY });
+      setCtaPopoverUrl(""); // reset input on each click
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, []);
+
+  // Apply the configured URL to the CTA at ctaPopover.ctaIdx
+  const applyCtaLink = (url: string) => {
+    if (!url) { setCtaPopover(p => ({ ...p, open: false })); return; }
+    const formMatch = generatedHtml.match(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i);
+    const FP = "___KLOSIFY_FORM___";
+    let work = formMatch ? generatedHtml.replace(formMatch[0], FP) : generatedHtml;
+    let idx = 0;
+    work = work.replace(/<a([^>]*)\bhref=["']#["']([^>]*)>/gi, (match, before, after) => {
+      if (idx === ctaPopover.ctaIdx) { idx++; return `<a${before} href="${url}"${after}>`; }
+      idx++;
+      return match;
+    });
+    if (formMatch) work = work.replace(FP, formMatch[0]);
+    setGeneratedHtml(work);
+    setPreviewHtml(work);
+    setHtmlVersion(v => v + 1);
+    setCtaPopover(p => ({ ...p, open: false }));
+    if (selectedId) {
+      supabase.from("landing_pages").update({ html: work }).eq("id", selectedId)
+        .then(({ error }) => { if (!error) toast.success("Botón actualizado"); });
+    }
+  };
 
   // ── Select page ─────────────────────────────────────────────────────────────
   const selectPage = useCallback((page: LandingPage) => {
@@ -1483,6 +1577,7 @@ export default function LandingBuilderPage() {
                           /* Preview mode: htmlVersion in key forces remount on
                              every AI generation so new content is always visible. */
                           <iframe
+                            ref={previewIframeRef}
                             key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
                             className="w-full h-full border-0"
@@ -2144,6 +2239,103 @@ export default function LandingBuilderPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      {/* ── CTA inline link editor popover ── */}
+      {ctaPopover.open && (() => {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        const serveUrl = (slug: string | null) =>
+          slug ? `${supabaseUrl}/functions/v1/serve-landing?slug=${slug}` : "";
+        const targetPages = funnelPages.filter(p => p.id !== selectedId && p.slug);
+        const matchPage = targetPages.find(p => serveUrl(p.slug) === ctaPopoverUrl);
+        const mode = !ctaPopoverUrl ? "none" : matchPage ? matchPage.id : "custom";
+
+        return (
+          <div
+            style={{ position: "fixed", top: ctaPopover.screenY, left: ctaPopover.screenX, zIndex: 9999 }}
+            className="bg-background border border-border rounded-xl shadow-2xl p-3 w-72 animate-in fade-in-0 zoom-in-95"
+          >
+            {/* Header */}
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold flex items-center gap-1.5">
+                  <Link2 className="h-3 w-3 text-primary shrink-0" />
+                  Configurar botón
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate mt-0.5" title={ctaPopover.text}>
+                  "{ctaPopover.text}"
+                </p>
+              </div>
+              <button
+                className="text-muted-foreground hover:text-foreground shrink-0 mt-0.5"
+                onClick={() => setCtaPopover(p => ({ ...p, open: false }))}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            {/* Destination selector */}
+            <div className="space-y-2">
+              <p className="text-[10px] text-muted-foreground font-medium">¿A dónde lleva este botón?</p>
+              <Select
+                value={mode}
+                onValueChange={v => {
+                  if (v === "none") setCtaPopoverUrl("");
+                  else if (v === "custom") setCtaPopoverUrl("https://");
+                  else {
+                    const pg = targetPages.find(p => p.id === v);
+                    setCtaPopoverUrl(serveUrl(pg?.slug ?? null));
+                  }
+                }}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Seleccionar destino…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Sin destino (href="#")</SelectItem>
+                  {targetPages.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                      {p.page_role === "thankyou" && <span className="text-green-600 ml-1">· Gracias</span>}
+                      {p.page_role === "upsell" && <span className="text-orange-500 ml-1">· Upsell</span>}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="custom">URL externa…</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {mode === "custom" && (
+                <Input
+                  className="h-8 text-sm"
+                  placeholder="https://tudominio.com/pagina"
+                  value={ctaPopoverUrl}
+                  onChange={e => setCtaPopoverUrl(e.target.value)}
+                  autoFocus
+                  onKeyDown={e => e.key === "Enter" && applyCtaLink(ctaPopoverUrl)}
+                />
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <Button
+                  size="sm"
+                  className="flex-1 h-7 text-xs gap-1"
+                  onClick={() => applyCtaLink(ctaPopoverUrl)}
+                  disabled={mode === "none"}
+                >
+                  <Check className="h-3 w-3" /> Aplicar
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs"
+                  onClick={() => setCtaPopover(p => ({ ...p, open: false }))}
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </AppLayout>
   );
 }
