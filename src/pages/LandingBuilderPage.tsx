@@ -420,6 +420,9 @@ export default function LandingBuilderPage() {
   // Inline edit mode
   const [editMode, setEditMode] = useState(false);
 
+  // Chat panel visibility (collapsible)
+  const [chatOpen, setChatOpen] = useState(true);
+
   // Responsive preview device
   type DeviceSize = "desktop" | "tablet" | "mobile";
   const [deviceSize, setDeviceSize] = useState<DeviceSize>("desktop");
@@ -991,24 +994,171 @@ export default function LandingBuilderPage() {
           ) : mode === "ai" ? (
             /* ── AI Mode ── */
             <div className="flex-1 flex min-h-0">
-              {/* Chat panel */}
-              <div className="w-80 shrink-0 border-r border-border flex flex-col">
+
+              {/* ── Preview panel (dominant) ── */}
+              <div className="flex-1 flex flex-col min-w-0">
+                {previewHtml ? (
+                  <>
+                    {/* Preview toolbar */}
+                    <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 shrink-0">
+                      {/* View / Edit toggle */}
+                      <button
+                        onClick={() => {
+                          setPreviewHtml(generatedHtml);
+                          setEditMode(false);
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                          !editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Eye className="h-3 w-3" /> Vista previa
+                      </button>
+                      <button
+                        onClick={() => setEditMode(true)}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                          editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        <Edit2 className="h-3 w-3" /> Editar texto
+                      </button>
+
+                      <div className="flex-1" />
+
+                      {/* Device size switcher */}
+                      <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
+                        {(
+                          [
+                            { id: "desktop", icon: Monitor,    label: "Escritorio",   w: "–"     },
+                            { id: "tablet",  icon: Tablet,     label: "Tablet 768px", w: "768px" },
+                            { id: "mobile",  icon: Smartphone, label: "Móvil 390px",  w: "390px" },
+                          ] as const
+                        ).map(({ id, icon: Icon, label }) => (
+                          <button
+                            key={id}
+                            onClick={() => setDeviceSize(id)}
+                            title={label}
+                            className={cn(
+                              "p-1.5 rounded transition-colors",
+                              deviceSize === id
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Width label */}
+                      <span className="text-[10px] text-muted-foreground w-12 text-right font-mono">
+                        {deviceSize === "desktop" ? "100%" : DEVICE_WIDTHS[deviceSize]}
+                      </span>
+
+                      {/* Chat toggle */}
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setChatOpen(prev => !prev)}
+                              className={cn(
+                                "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors border ml-1",
+                                chatOpen
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                              )}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              IA
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="bottom">
+                            {chatOpen ? "Cerrar panel IA" : "Abrir panel IA"}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+
+                    {/* iframe wrapper */}
+                    <div className={cn(
+                      "flex-1 overflow-auto",
+                      deviceSize !== "desktop" ? "bg-muted/40 flex justify-center pt-4" : ""
+                    )}>
+                      <div
+                        className={cn(
+                          "h-full transition-all duration-300",
+                          deviceSize !== "desktop" && "rounded-t-xl overflow-hidden shadow-xl border border-border"
+                        )}
+                        style={{
+                          width: DEVICE_WIDTHS[deviceSize] ?? "100%",
+                          height: deviceSize !== "desktop" ? "calc(100% - 16px)" : "100%",
+                        }}
+                      >
+                        <iframe
+                          key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
+                          srcDoc={buildSrcDoc(previewHtml, editMode)}
+                          className="w-full h-full border-0"
+                          sandbox={
+                            editMode
+                              ? "allow-scripts allow-forms allow-same-origin"
+                              : "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+                          }
+                          title="Vista previa landing"
+                        />
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
+                    <Sparkles className="h-10 w-10 opacity-20" />
+                    <p className="text-sm">Describe tu landing page en el panel IA</p>
+                    {!chatOpen && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setChatOpen(true)}
+                        className="gap-1.5"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" /> Abrir panel IA
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Chat panel (collapsible, RIGHT side) ── */}
+              {chatOpen && (
+              <div className="w-80 shrink-0 border-l border-border flex flex-col">
                 {/* Header */}
                 <div className="shrink-0 border-b border-border px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold">Editar con IA</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={() => {
-                      setChatMessages([]);
-                      setGeneratedHtml("");
-                      setPreviewHtml("");
-                      setEditMode(false);
-                    }}
-                  >
-                    Nueva
-                  </Button>
+                  <span className="text-sm font-semibold flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    Editar con IA
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        setChatMessages([]);
+                        setGeneratedHtml("");
+                        setPreviewHtml("");
+                        setEditMode(false);
+                      }}
+                    >
+                      Nueva
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setChatOpen(false)}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Messages area */}
@@ -1200,115 +1350,7 @@ export default function LandingBuilderPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Preview */}
-              <div className="flex-1 flex flex-col min-w-0">
-                {previewHtml ? (
-                  <>
-                    {/* Preview toolbar: mode + device size */}
-                    <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 shrink-0">
-                      {/* View / Edit toggle */}
-                      <button
-                        onClick={() => {
-                          // Sync the latest inline edits back to previewHtml when
-                          // leaving edit mode (so preview reflects all changes made)
-                          setPreviewHtml(generatedHtml);
-                          setEditMode(false);
-                        }}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                          !editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Eye className="h-3 w-3" /> Vista previa
-                      </button>
-                      <button
-                        onClick={() => {
-                          // Enter edit mode — iframe remounts with the edit script injected
-                          setEditMode(true);
-                        }}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                          editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        <Edit2 className="h-3 w-3" /> Editar texto
-                      </button>
-
-                      <div className="flex-1" />
-
-                      {/* Device size switcher */}
-                      <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
-                        {(
-                          [
-                            { id: "desktop", icon: Monitor,    label: "Escritorio",  w: "–"     },
-                            { id: "tablet",  icon: Tablet,     label: "Tablet 768px", w: "768px" },
-                            { id: "mobile",  icon: Smartphone, label: "Móvil 390px",  w: "390px" },
-                          ] as const
-                        ).map(({ id, icon: Icon, label }) => (
-                          <button
-                            key={id}
-                            onClick={() => setDeviceSize(id)}
-                            title={label}
-                            className={cn(
-                              "p-1.5 rounded transition-colors",
-                              deviceSize === id
-                                ? "bg-accent text-accent-foreground"
-                                : "text-muted-foreground hover:text-foreground"
-                            )}
-                          >
-                            <Icon className="h-3.5 w-3.5" />
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Width label */}
-                      <span className="text-[10px] text-muted-foreground w-12 text-right font-mono">
-                        {deviceSize === "desktop" ? "100%" : DEVICE_WIDTHS[deviceSize]}
-                      </span>
-                    </div>
-
-                    {/* Edit mode banner */}
-                    {/* Edit mode pill is shown inside the iframe itself (via injected CSS) */}
-
-                    {/* iframe wrapper — centers the viewport at the chosen device width */}
-                    <div className={cn(
-                      "flex-1 overflow-auto",
-                      deviceSize !== "desktop" ? "bg-muted/40 flex justify-center pt-4" : ""
-                    )}>
-                      <div
-                        className={cn(
-                          "h-full transition-all duration-300",
-                          deviceSize !== "desktop" && "rounded-t-xl overflow-hidden shadow-xl border border-border"
-                        )}
-                        style={{
-                          width: DEVICE_WIDTHS[deviceSize] ?? "100%",
-                          height: deviceSize !== "desktop" ? "calc(100% - 16px)" : "100%",
-                        }}
-                      >
-                        <iframe
-                          key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
-                          srcDoc={buildSrcDoc(previewHtml, editMode)}
-                          className="w-full h-full border-0"
-                          sandbox={
-                            editMode
-                              // Edit mode: scripts only — no popups needed, links are blocked
-                              ? "allow-scripts allow-forms"
-                              // Preview mode: full live experience — links open in new tab
-                              : "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-                          }
-                          title="Vista previa landing"
-                        />
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
-                    <Sparkles className="h-10 w-10 opacity-20" />
-                    <p className="text-sm">Describe tu landing page en el chat de la izquierda</p>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           ) : (
             /* ── Drag & Drop Mode (Unlayer web) ── */
