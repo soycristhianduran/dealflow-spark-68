@@ -25,27 +25,107 @@ import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
   Sparkles, MousePointer, Edit2, BarChart2,
   ClipboardList, Settings2, Send, AlertCircle,
-  Monitor, Tablet, Smartphone,
+  Monitor, Tablet, Smartphone, ImageIcon, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
 // ── Edit mode script ──────────────────────────────────────────────────────────
+// Uses event delegation + capture phase so it works on any element (including
+// divs with direct text, which Tailwind pages use heavily).
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
-var s=document.createElement('style');
-s.textContent='[data-ee]:hover{outline:2px dashed rgba(99,102,241,.55)!important;outline-offset:2px;cursor:text;border-radius:3px}[data-ee]:focus{outline:2px solid #6366f1!important;outline-offset:2px}';
-document.head.appendChild(s);
-['h1','h2','h3','h4','h5','h6','p','span','a','li','button','label','td','th'].forEach(function(t){
-  document.querySelectorAll(t).forEach(function(el){
-    if(el.closest('#lead-form'))return;
-    el.setAttribute('data-ee','1');
-    el.addEventListener('click',function(e){e.stopPropagation();if(el.contentEditable==='true')return;el.contentEditable='true';el.focus();try{var r=document.createRange();r.selectNodeContents(el);window.getSelection().removeAllRanges();window.getSelection().addRange(r);}catch(x){}});
-    el.addEventListener('blur',function(){el.contentEditable='false';window.parent.postMessage({type:'landing_html_edit',html:'<!DOCTYPE html>'+document.documentElement.outerHTML},'*');});
-    el.addEventListener('keydown',function(e){if(e.key==='Escape'||(e.key==='Enter'&&!e.shiftKey&&el.tagName!=='DIV')){e.preventDefault();el.contentEditable='false';el.blur();}});
-  });
-});
+  /* ── styles ── */
+  var st=document.createElement('style');
+  st.textContent=
+    '[data-ee-h]{outline:2px dashed rgba(99,102,241,.55)!important;outline-offset:3px;cursor:text!important;border-radius:4px!important}'+
+    '[data-ee-a]{outline:2px solid #6366f1!important;outline-offset:3px;border-radius:4px!important;background:rgba(99,102,241,.04)!important}';
+  document.head.appendChild(st);
+
+  var BLOCK_TAGS=new Set(['h1','h2','h3','h4','h5','h6','p','span','a','li','button','label','td','th','div','section','header','footer','article','strong','em','b','i']);
+  var active=null;
+
+  /* Walk up DOM to find the best editable element */
+  function findTarget(el){
+    var cur=el;
+    for(var i=0;i<6&&cur&&cur!==document.body;i++){
+      /* Never enter the lead form */
+      if(cur.id==='lead-form'||cur.closest&&cur.closest('#lead-form'))return null;
+      /* Skip non-element nodes */
+      if(cur.nodeType!==1)return null;
+      var tag=cur.tagName.toLowerCase();
+      if(BLOCK_TAGS.has(tag)){
+        /* Must have real text content */
+        var txt=(cur.textContent||'').trim();
+        if(txt.length>0)return cur;
+      }
+      cur=cur.parentElement;
+    }
+    return null;
+  }
+
+  function save(){
+    if(!active)return;
+    active.contentEditable='false';
+    active.removeAttribute('data-ee-a');
+    active=null;
+    try{
+      window.parent.postMessage({type:'landing_html_edit',html:'<!DOCTYPE html>'+document.documentElement.outerHTML},'*');
+    }catch(e){}
+  }
+
+  /* Hover — capture phase so Tailwind pointer-events don't block it */
+  document.addEventListener('mouseover',function(e){
+    var t=findTarget(e.target);
+    if(t&&t!==active){t.setAttribute('data-ee-h','1');}
+  },true);
+  document.addEventListener('mouseout',function(e){
+    var t=findTarget(e.target);
+    if(t&&t!==active){t.removeAttribute('data-ee-h');}
+  },true);
+
+  /* Click — use capture so we intercept before any onclick handlers */
+  document.addEventListener('click',function(e){
+    var t=findTarget(e.target);
+    if(!t){save();return;}
+    if(t===active)return;
+    save();
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    t.removeAttribute('data-ee-h');
+    t.setAttribute('data-ee-a','1');
+    t.contentEditable='true';
+    t.focus();
+    try{
+      var r=document.createRange();
+      r.selectNodeContents(t);
+      var s=window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }catch(_){}
+    active=t;
+  },true);
+
+  /* Focusout — save after a small delay (so a click on another editable
+     element doesn't save before the new click is processed) */
+  document.addEventListener('focusout',function(e){
+    if(active&&e.target===active){
+      setTimeout(function(){
+        if(active&&document.activeElement!==active)save();
+      },120);
+    }
+  },true);
+
+  /* Keyboard shortcuts */
+  document.addEventListener('keydown',function(e){
+    if(!active)return;
+    if(e.key==='Escape'){e.preventDefault();save();}
+    if(e.key==='Enter'&&!e.shiftKey){
+      var tag=active.tagName.toLowerCase();
+      if(tag!=='div'&&tag!=='section'&&tag!=='article'){e.preventDefault();save();}
+    }
+  },true);
 })();
 <\/script>`;
 
@@ -96,8 +176,15 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
-  summary?: string;   // brief description of what changed (AI-generated for assistant msgs)
+  summary?: string;        // brief description of what changed (AI-generated for assistant msgs)
+  attachments?: string[];  // public image URLs attached to this message
   status: "loading" | "done" | "error";
+}
+
+interface ImageAttachment {
+  url: string;       // Supabase Storage public URL
+  preview: string;   // local blob URL for thumbnail
+  name: string;
 }
 
 // ── CRM field mapping options ─────────────────────────────────────────────────
@@ -324,6 +411,11 @@ export default function LandingBuilderPage() {
   const [chatInput, setChatInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Image attachments for AI prompts
+  const [attachedImages, setAttachedImages] = useState<ImageAttachment[]>([]);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
   // Inline edit mode
   const [editMode, setEditMode] = useState(false);
 
@@ -490,6 +582,30 @@ export default function LandingBuilderPage() {
     toast.success("Formulario inyectado en la landing");
   }, [generatedHtml, formConfig, selectedId]);
 
+  // ── Image upload ────────────────────────────────────────────────────────────
+  const handleImageAttach = async (file: File) => {
+    if (!file.type.startsWith("image/")) { toast.error("Solo se permiten imágenes"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("La imagen debe ser menor a 5 MB"); return; }
+    setUploadingImage(true);
+    try {
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${selectedId || "temp"}/${Date.now()}.${ext}`;
+      const { data: uploaded, error: upErr } = await supabase.storage
+        .from("landing-assets")
+        .upload(path, file, { cacheControl: "3600", upsert: false });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage
+        .from("landing-assets")
+        .getPublicUrl(uploaded.path);
+      const preview = URL.createObjectURL(file);
+      setAttachedImages(prev => [...prev, { url: publicUrl, preview, name: file.name }]);
+    } catch (e: any) {
+      toast.error("Error al subir imagen: " + (e.message || "Intenta de nuevo"));
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   // ── AI Generation (chat-driven) ─────────────────────────────────────────────
   const handleGenerate = async () => {
     const currentInput = chatInput.trim();
@@ -505,13 +621,21 @@ export default function LandingBuilderPage() {
       ? `\n\nFormulario requerido con estos campos: ${configuredFields.map(f => f.label).join(", ")}.`
       : "";
 
+    // Append image URLs to the prompt so the AI uses them in the HTML
+    const imageContext = attachedImages.length > 0
+      ? `\n\nImágenes adjuntas — úsalas en el diseño según la instrucción:\n${attachedImages.map(img => `- ${img.url}`).join("\n")}`
+      : "";
+
+    const imageUrlsSnapshot = attachedImages.map(img => img.url);
+
     // Append user bubble + loading assistant bubble
     setChatMessages(prev => [
       ...prev,
-      { id: userMsgId, role: "user", content: currentInput, status: "done" },
+      { id: userMsgId, role: "user", content: currentInput, attachments: imageUrlsSnapshot, status: "done" },
       { id: assistantMsgId, role: "assistant", content: "", status: "loading" },
     ]);
     setChatInput("");
+    setAttachedImages([]); // clear after sending
     setGenerating(true);
 
     // Scroll to bottom
@@ -525,7 +649,7 @@ export default function LandingBuilderPage() {
 
       const res = await supabase.functions.invoke("generate-landing", {
         body: {
-          prompt: currentInput + formContext,
+          prompt: currentInput + formContext + imageContext,
           page_id: selectedId || "PENDING",
           current_html: generatedHtml || undefined,
           chat_history: historyForApi,
@@ -896,8 +1020,21 @@ export default function LandingBuilderPage() {
                       <div key={msg.id} className={cn("flex flex-col gap-0.5", msg.role === "user" ? "items-end" : "items-start")}>
                         {msg.role === "user" ? (
                           /* User bubble */
-                          <div className="bg-primary text-primary-foreground text-xs rounded-2xl rounded-tr-sm px-3 py-2 max-w-[90%] whitespace-pre-wrap leading-relaxed">
-                            {msg.content}
+                          <div className="bg-primary text-primary-foreground text-xs rounded-2xl rounded-tr-sm px-3 py-2 max-w-[90%] space-y-1.5">
+                            {/* Image thumbnails */}
+                            {msg.attachments && msg.attachments.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5">
+                                {msg.attachments.map((url, i) => (
+                                  <img
+                                    key={i}
+                                    src={url}
+                                    alt="adjunto"
+                                    className="h-16 w-16 object-cover rounded-lg opacity-90"
+                                  />
+                                ))}
+                              </div>
+                            )}
+                            <span className="whitespace-pre-wrap leading-relaxed">{msg.content}</span>
                           </div>
                         ) : (
                           /* Assistant bubble */
@@ -969,11 +1106,33 @@ export default function LandingBuilderPage() {
 
                 {/* Input area */}
                 <div className="shrink-0 border-t border-border p-3 space-y-2">
+
+                  {/* Attached image previews */}
+                  {attachedImages.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {attachedImages.map((img, idx) => (
+                        <div key={idx} className="relative group">
+                          <img
+                            src={img.preview}
+                            alt={img.name}
+                            className="h-14 w-14 object-cover rounded-lg border border-border"
+                          />
+                          <button
+                            onClick={() => setAttachedImages(prev => prev.filter((_, i) => i !== idx))}
+                            className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <Textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     placeholder={generatedHtml ? "Describe qué cambiar..." : "Describe tu landing desde cero..."}
-                    className="text-sm resize-none min-h-[80px]"
+                    className="text-sm resize-none min-h-[72px]"
                     onKeyDown={(e) => {
                       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
                         e.preventDefault();
@@ -981,16 +1140,53 @@ export default function LandingBuilderPage() {
                       }
                     }}
                   />
+
+                  {/* Hidden file input */}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      files.forEach(handleImageAttach);
+                      e.target.value = "";
+                    }}
+                  />
+
                   <div className="flex gap-2 items-center">
+                    {/* Image attach button */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 w-8 p-0 shrink-0"
+                            disabled={uploadingImage}
+                            onClick={() => imageInputRef.current?.click()}
+                          >
+                            {uploadingImage
+                              ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              : <ImageIcon className="h-3.5 w-3.5" />
+                            }
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">Adjuntar imagen</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
                     {generatedHtml && (
                       <span className="text-[10px] text-muted-foreground flex-1">
                         Modo refinado — mantiene el diseño
                       </span>
                     )}
+
                     <Button
                       size="sm"
-                      className="gap-1.5"
-                      disabled={generating || !chatInput.trim()}
+                      className="gap-1.5 ml-auto"
+                      disabled={generating || (!chatInput.trim() && attachedImages.length === 0)}
                       onClick={handleGenerate}
                     >
                       <Send className="h-3.5 w-3.5" />
