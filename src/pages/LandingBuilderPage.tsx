@@ -658,6 +658,16 @@ export default function LandingBuilderPage() {
       if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
       const summary: string = res.data.summary || "✓ Aplicado";
 
+      // Debug: log HTML change for diagnosis
+      const prevLen = generatedHtml.length;
+      const newLen = html.length;
+      const htmlChanged = html !== generatedHtml;
+      console.log(`[LandingBuilder] AI response — prev: ${prevLen} chars, new: ${newLen} chars, changed: ${htmlChanged}`);
+      if (!htmlChanged) {
+        console.warn('[LandingBuilder] WARNING: AI returned identical HTML — no visual changes will be seen');
+        toast.warning("La IA no modificó el HTML. Intenta ser más específico en tu pedido.");
+      }
+
       // Update HTML and force iframe remount (updating srcDoc on existing iframe
       // is not always reliable — version counter in key forces a fresh mount).
       setGeneratedHtml(html);
@@ -1050,6 +1060,13 @@ export default function LandingBuilderPage() {
                       <span className="text-[10px] text-muted-foreground w-12 text-right font-mono">
                         {deviceSize === "desktop" ? "100%" : DEVICE_WIDTHS[deviceSize]}
                       </span>
+
+                      {/* HTML version/size indicator — helps diagnose if state is updating */}
+                      {generatedHtml && (
+                        <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
+                          v{htmlVersion} · {(generatedHtml.length / 1024).toFixed(1)}kb
+                        </span>
+                      )}
 
                       {/* Chat toggle */}
                       <TooltipProvider>
