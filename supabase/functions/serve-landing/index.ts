@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
     const { data: page, error } = await supabase
       .from("landing_pages")
-      .select("id, html, status, name")
+      .select("id, html, status, name, funnel_id")
       .eq("slug", slug)
       .maybeSingle();
 
@@ -63,8 +63,23 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Track view (fire-and-forget) — await converts PostgrestBuilder to Promise
+    // Track view (fire-and-forget)
     (async () => { try { await supabase.rpc("inc_landing_page_views", { p_page_id: page.id }); } catch (_) {} })();
+
+    // Look up thank-you page in the same funnel (for post-submit redirect)
+    let thankyouUrl = "";
+    if (page.funnel_id) {
+      const { data: thankyouPage } = await supabase
+        .from("landing_pages")
+        .select("slug")
+        .eq("funnel_id", page.funnel_id)
+        .eq("page_role", "thankyou")
+        .eq("status", "published")
+        .maybeSingle();
+      if (thankyouPage?.slug) {
+        thankyouUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankyouPage.slug}`;
+      }
+    }
 
     // Inject page_id into the HTML so the form knows which page it belongs to
     let html = page.html.replace(
@@ -75,10 +90,9 @@ Deno.serve(async (req) => {
     // Also fix any submit URLs that still have the placeholder
     html = html.replace(/\{\{PAGE_ID\}\}/g, page.id);
 
-    // Always normalize the lead-form action to the correct Supabase submit URL.
-    // The AI sometimes generates a made-up URL (e.g. pages.klosify.com/api/leads).
-    // This guarantees every published form submits to the right endpoint.
     const submitUrl = `${supabaseUrl}/functions/v1/landing-submit`;
+
+    // Always normalize the lead-form action to the correct Supabase submit URL.
     html = html.replace(
       /(<form[^>]*id=["']lead-form["'][^>]*)\s+action=["'][^"']*["']/gi,
       `$1 action="${submitUrl}"`,
@@ -88,6 +102,59 @@ Deno.serve(async (req) => {
       /(<form[^>]*id=["']lead-form["'](?![^>]*\baction\s*=)[^>]*)>/gi,
       `$1 action="${submitUrl}">`,
     );
+
+    // ── Inject authoritative form-submit override ─────────────────────────────
+    // This runs AFTER the page's own scripts (injected before </body>) and uses
+    // capture-phase + stopImmediatePropagation to take priority over any AI-generated
+    // listener. It guarantees: correct page_id, JSON body, and thank-you redirect.
+    const pageId = page.id;
+    const overrideScript = `<script>
+(function(){
+  function init(){
+    var f=document.getElementById('lead-form');
+    if(!f)return;
+    // Ensure hidden page_id input is present (fallback for native POST)
+    if(!f.querySelector('input[name="page_id"]')){
+      var hi=document.createElement('input');
+      hi.type='hidden';hi.name='page_id';hi.value='${pageId}';
+      f.appendChild(hi);
+    }
+    // Override submit: capture phase + stopImmediatePropagation takes priority
+    f.addEventListener('submit',function(e){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var btn=f.querySelector('button[type="submit"]');
+      if(btn){btn.disabled=true;btn.textContent='Enviando...';}
+      var d={page_id:'${pageId}',source:window.location.href};
+      new FormData(f).forEach(function(v,k){if(k&&k!=='page_id')d[k]=v;});
+      fetch('${submitUrl}',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(d)
+      }).then(function(r){
+        if(r.ok){
+          var next='${thankyouUrl}';
+          if(next){window.location.href=next;}
+          else{f.innerHTML='<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem;font-weight:700;color:#16a34a">¡Gracias! Te contactaremos pronto.</p></div>';}
+        }else{
+          if(btn){btn.disabled=false;btn.textContent='Intentar de nuevo';}
+        }
+      }).catch(function(){
+        if(btn){btn.disabled=false;btn.textContent='Intentar de nuevo';}
+      });
+    },true);
+  }
+  if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}
+  else{init();}
+})();
+</script>`;
+
+    // Inject before </body>; fallback: append to end
+    if (html.includes("</body>")) {
+      html = html.replace("</body>", overrideScript + "\n</body>");
+    } else {
+      html += overrideScript;
+    }
 
     return new Response(html, {
       headers: {
