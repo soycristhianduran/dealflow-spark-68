@@ -114,7 +114,8 @@ interface ChatMessage {
   content: string;
   summary?: string;        // brief description of what changed (AI-generated for assistant msgs)
   attachments?: string[];  // public image URLs attached to this message
-  status: "loading" | "done" | "error";
+  status: "loading" | "done" | "error" | "confirm_new_page";
+  newPagePrompt?: string;  // original prompt when status === "confirm_new_page"
 }
 
 interface ImageAttachment {
@@ -686,10 +687,141 @@ export default function LandingBuilderPage() {
     }
   };
 
+  // ── Detect new-page intent from chat prompt ──────────────────────────────────
+  const NEW_PAGE_PATTERNS = [
+    /\bcrea?\s+(una?\s+)?(nueva?\s+)?p[aá]gina\b/i,
+    /\bnueva\s+p[aá]gina\b/i,
+    /\bp[aá]gina\s+de\s+(gracias|agradecimiento|upsell|registro|venta|contacto|checkout|confirmaci[oó]n|inicio|bienvenida)\b/i,
+    /\bthank[\s-]?you\s+page\b/i,
+    /\bañad[ei][r]?\s+(una?\s+)?p[aá]gina\b/i,
+    /\bagreg[aá][r]?\s+(una?\s+)?p[aá]gina\b/i,
+  ];
+  const isNewPageIntent = (prompt: string) =>
+    !!generatedHtml && !!selectedFunnelId &&
+    NEW_PAGE_PATTERNS.some(re => re.test(prompt));
+
+  // ── Create a new page from chat (with funnel style context) ──────────────────
+  const handleCreatePageFromChat = async (originalPrompt: string, confirmMsgId: string) => {
+    // Derive a page name from the prompt (grab key words)
+    const nameMatch = originalPrompt.match(/p[aá]gina\s+de\s+([a-záéíóúñü\s]+)/i);
+    const pageName = nameMatch
+      ? nameMatch[1].trim().slice(0, 40).replace(/\s+/g, ' ')
+      : originalPrompt.slice(0, 40);
+    const capitalized = pageName.charAt(0).toUpperCase() + pageName.slice(1);
+
+    // 1. Create new landing_pages entry in the same funnel
+    const { data, error } = await supabase
+      .from("landing_pages")
+      .insert({
+        name: capitalized,
+        slug: toSlug(capitalized),
+        mode: "ai",
+        funnel_id: selectedFunnelId,
+        page_order: funnelPages.length,
+      })
+      .select()
+      .single();
+    if (error) { toast.error("Error al crear la página"); return; }
+
+    const newPage = data as LandingPage;
+    setPages(prev => [...prev, newPage]);
+
+    // 2. Build initial chat history for the new page (inherits funnel context)
+    const funnelName = funnels.find(f => f.id === selectedFunnelId)?.name || "funnel";
+    const initHistory: ChatMessage[] = [{
+      id: Math.random().toString(36).slice(2),
+      role: "assistant",
+      content: `Página creada dentro del funnel "${funnelName}". Generando con el estilo del funnel...`,
+      status: "done",
+    }];
+
+    // 3. Switch to the new page and pre-populate history
+    setSelectedId(newPage.id);
+    setName(newPage.name);
+    setSlug(newPage.slug || "");
+    setStatus("draft");
+    setMode("ai");
+    setGeneratedHtml("");
+    setPreviewHtml("");
+    setHtmlVersion(v => v + 1);
+    setFormConfig(DEFAULT_FORM_CONFIG);
+    setChatMessages(initHistory);
+    setEditMode(false);
+
+    // 4. Replace confirm bubble with "generating" bubble in current chat
+    // (we've already switched pages so this is just cleanup)
+
+    // 5. Immediately generate the new page using funnel style reference
+    setGenerating(true);
+    const assistantMsgId = Math.random().toString(36).slice(2);
+    setChatMessages([
+      ...initHistory,
+      { id: assistantMsgId, role: "assistant", content: "", status: "loading" },
+    ]);
+
+    try {
+      const res = await supabase.functions.invoke("generate-landing", {
+        body: {
+          prompt: originalPrompt,
+          page_id: newPage.id,
+          funnel_reference_html: generatedHtml.slice(0, 3000), // style context from current page
+          chat_history: [],
+        },
+      });
+      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
+      const html = res.data.html as string;
+      if (!html) throw new Error("La IA no devolvió HTML");
+      const summary: string = res.data.summary || "Página creada con estilo del funnel";
+
+      setGeneratedHtml(html);
+      setPreviewHtml(html);
+      setHtmlVersion(v => v + 1);
+
+      const updatedHistory: ChatMessage[] = [
+        ...initHistory,
+        { id: assistantMsgId, role: "assistant", content: summary, summary, status: "done" },
+      ];
+      setChatMessages(updatedHistory);
+
+      // Auto-save to DB
+      await supabase.from("landing_pages")
+        .update({ html, chat_history: updatedHistory })
+        .eq("id", newPage.id);
+
+      await fetchPages();
+      toast.success(`Página "${capitalized}" creada en el funnel`);
+    } catch (e: any) {
+      setChatMessages(prev => prev.map(m =>
+        m.id === assistantMsgId ? { ...m, content: e.message || "Error", status: "error" } : m
+      ));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   // ── AI Generation (chat-driven) ─────────────────────────────────────────────
   const handleGenerate = async () => {
     const currentInput = chatInput.trim();
     if (!currentInput) { toast.error("Escribe qué quieres en tu landing page"); return; }
+
+    // Detect "create new page" intent — show inline confirmation instead of modifying current page
+    if (isNewPageIntent(currentInput)) {
+      const confirmId = Math.random().toString(36).slice(2);
+      setChatMessages(prev => [
+        ...prev,
+        { id: Math.random().toString(36).slice(2), role: "user", content: currentInput, status: "done" },
+        {
+          id: confirmId,
+          role: "assistant",
+          content: currentInput,
+          status: "confirm_new_page",
+          newPagePrompt: currentInput,
+        },
+      ]);
+      setChatInput("");
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      return;
+    }
 
     const userMsgId = Math.random().toString(36).slice(2);
     const assistantMsgId = Math.random().toString(36).slice(2);
@@ -1329,20 +1461,45 @@ export default function LandingBuilderPage() {
                         {msg.role === "user" ? (
                           /* User bubble */
                           <div className="bg-primary text-primary-foreground text-xs rounded-2xl rounded-tr-sm px-3 py-2 max-w-[90%] space-y-1.5">
-                            {/* Image thumbnails */}
                             {msg.attachments && msg.attachments.length > 0 && (
                               <div className="flex flex-wrap gap-1.5">
                                 {msg.attachments.map((url, i) => (
-                                  <img
-                                    key={i}
-                                    src={url}
-                                    alt="adjunto"
-                                    className="h-16 w-16 object-cover rounded-lg opacity-90"
-                                  />
+                                  <img key={i} src={url} alt="adjunto"
+                                    className="h-16 w-16 object-cover rounded-lg opacity-90" />
                                 ))}
                               </div>
                             )}
                             <span className="whitespace-pre-wrap leading-relaxed">{msg.content}</span>
+                          </div>
+                        ) : msg.status === "confirm_new_page" ? (
+                          /* ── New-page confirmation card ── */
+                          <div className="bg-muted border border-border rounded-xl rounded-tl-sm px-3 py-3 max-w-[95%] space-y-2.5">
+                            <div className="flex items-start gap-2">
+                              <FileText className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-semibold text-foreground">¿Crear nueva página en el funnel?</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                  Se creará con el estilo visual de esta página para que quede consistente.
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button size="sm" className="h-7 text-xs flex-1 gap-1"
+                                disabled={generating}
+                                onClick={() => handleCreatePageFromChat(msg.newPagePrompt!, msg.id)}>
+                                <Plus className="h-3 w-3" />
+                                Sí, crear nueva página
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs"
+                                disabled={generating}
+                                onClick={() => {
+                                  // Dismiss confirm and modify current page instead
+                                  setChatMessages(prev => prev.filter(m => m.id !== msg.id));
+                                  setChatInput(msg.newPagePrompt || "");
+                                }}>
+                                No, modificar esta
+                              </Button>
+                            </div>
                           </div>
                         ) : (
                           /* Assistant bubble */
@@ -1355,7 +1512,7 @@ export default function LandingBuilderPage() {
                             {msg.status === "loading" ? (
                               <span className="flex items-center gap-2 text-muted-foreground">
                                 <Loader2 className="animate-spin h-3 w-3 shrink-0" />
-                                Aplicando cambios...
+                                Generando página...
                               </span>
                             ) : msg.status === "error" ? (
                               <span>{msg.content}</span>

@@ -9,6 +9,31 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
 // ── System prompts ────────────────────────────────────────────────────────────
 
+// System prompt for a NEW page within a funnel — reuses style from reference page
+const FUNNEL_PAGE_SYSTEM = `Eres un experto en diseño web y marketing digital especializado en funnels de conversión.
+Tu tarea es crear una nueva página HTML que sea VISUALMENTE CONSISTENTE con la página de referencia del funnel.
+
+INSTRUCCIONES DE ESTILO:
+- Usa los MISMOS colores, fuentes y estilo visual de la página de referencia
+- Mantén el mismo branding (logo, nombre de marca, paleta de colores)
+- El diseño debe verse como parte del mismo funnel/proyecto
+- NO copies el contenido, solo el estilo
+
+REGLAS OBLIGATORIAS (igual que siempre):
+1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). Sin explicaciones, sin markdown.
+2. Usa Tailwind CSS vía CDN: <script src="https://cdn.tailwindcss.com"></script>
+3. Incluye SIEMPRE un formulario de captura de leads con id="lead-form" y data-page-id="{{PAGE_ID}}" SI la página lo requiere.
+4. El formulario envía por fetch POST a: {{SUBMIT_URL}}
+5. Al enviar exitosamente: muestra mensaje de gracias, oculta el form.
+6. Mobile-first y responsive.
+7. Solo HTML + JS vanilla + Tailwind CDN.
+8. Meta tags SEO básicos incluidos.
+
+PÁGINA DE REFERENCIA DEL FUNNEL (usa su estilo visual):
+\`\`\`html
+{{REFERENCE_HTML}}
+\`\`\``;
+
 const FRESH_SYSTEM = `Eres un experto en diseño web y marketing digital.
 Tu tarea es generar una landing page completa y profesional en HTML.
 
@@ -76,7 +101,7 @@ Deno.serve(async (req) => {
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
     if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY no configurado. Ve a Supabase → Settings → Edge Functions → Secrets.");
 
-    const { prompt, page_id, current_html, chat_history } = await req.json();
+    const { prompt, page_id, current_html, chat_history, funnel_reference_html } = await req.json();
     if (!prompt) throw new Error("prompt es obligatorio");
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -113,6 +138,16 @@ Deno.serve(async (req) => {
       });
 
       messages = turns;
+    } else if (funnel_reference_html) {
+      // ── FUNNEL NEW PAGE mode ────────────────────────────────────────────────
+      // New page within an existing funnel — reuse style from reference page
+      const refHtml = String(funnel_reference_html).slice(0, 3000); // limit context size
+      systemPrompt = FUNNEL_PAGE_SYSTEM
+        .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
+        .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder)
+        .replace(/\{\{REFERENCE_HTML\}\}/g, refHtml);
+
+      messages = [{ role: "user", content: `Crea la siguiente página para este funnel: ${prompt}` }];
     } else {
       // ── FRESH mode ─────────────────────────────────────────────────────────
       systemPrompt = FRESH_SYSTEM
