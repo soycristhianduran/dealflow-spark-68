@@ -96,6 +96,7 @@ interface ChatMessage {
   id: string;
   role: "user" | "assistant";
   content: string;
+  summary?: string;   // brief description of what changed (AI-generated for assistant msgs)
   status: "loading" | "done" | "error";
 }
 
@@ -517,23 +518,32 @@ export default function LandingBuilderPage() {
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
     try {
+      // Pass conversation history so the AI has full context when refining
+      const historyForApi = chatMessages
+        .filter(m => m.status === "done")
+        .map(m => ({ role: m.role, content: m.content, status: m.status, summary: m.summary }));
+
       const res = await supabase.functions.invoke("generate-landing", {
         body: {
           prompt: currentInput + formContext,
           page_id: selectedId || "PENDING",
           current_html: generatedHtml || undefined,
+          chat_history: historyForApi,
         },
       });
       if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
       const html = res.data.html as string;
+      const summary: string = res.data.summary || "✓ Aplicado";
       setGeneratedHtml(html);
       setPreviewHtml(html);
-      const updatedMessages = chatMessages
-        .filter(m => m.status !== "loading")
-        .concat({ id: assistantMsgId, role: "assistant" as const, content: "✓ Aplicado", status: "done" as const });
-      setChatMessages(prev => prev.map(m =>
-        m.id === assistantMsgId ? { ...m, content: "✓ Aplicado", status: "done" } : m
-      ));
+
+      // Build updated history including the new confirmed messages
+      const updatedMessages: ChatMessage[] = [
+        ...chatMessages.filter(m => m.status !== "loading"),
+        { id: assistantMsgId, role: "assistant" as const, content: summary, summary, status: "done" as const },
+      ];
+      setChatMessages(updatedMessages);
+
       // Auto-save chat history so it's available on next visit without manual save
       if (selectedId) {
         supabase.from("landing_pages")
@@ -883,26 +893,31 @@ export default function LandingBuilderPage() {
                     </div>
                   ) : (
                     chatMessages.map((msg) => (
-                      <div key={msg.id} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
+                      <div key={msg.id} className={cn("flex flex-col gap-0.5", msg.role === "user" ? "items-end" : "items-start")}>
                         {msg.role === "user" ? (
-                          <div className="bg-primary text-primary-foreground text-xs rounded-xl rounded-tr-sm px-3 py-2 max-w-[85%] whitespace-pre-wrap">
+                          /* User bubble */
+                          <div className="bg-primary text-primary-foreground text-xs rounded-2xl rounded-tr-sm px-3 py-2 max-w-[90%] whitespace-pre-wrap leading-relaxed">
                             {msg.content}
                           </div>
                         ) : (
+                          /* Assistant bubble */
                           <div className={cn(
-                            "bg-muted text-xs rounded-xl rounded-tl-sm px-3 py-2 max-w-[85%]",
-                            msg.status === "error" && "text-destructive"
+                            "text-xs rounded-2xl rounded-tl-sm px-3 py-2 max-w-[90%] leading-relaxed",
+                            msg.status === "error"
+                              ? "bg-destructive/10 text-destructive border border-destructive/20"
+                              : "bg-muted text-foreground"
                           )}>
                             {msg.status === "loading" ? (
-                              <span className="flex items-center gap-2">
-                                <Loader2 className="animate-spin h-3 w-3" />
+                              <span className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="animate-spin h-3 w-3 shrink-0" />
                                 Aplicando cambios...
                               </span>
+                            ) : msg.status === "error" ? (
+                              <span>{msg.content}</span>
                             ) : (
-                              <span className={cn(
-                                msg.status === "done" && msg.content.startsWith("✓") && "text-green-600"
-                              )}>
-                                {msg.content}
+                              <span className="flex items-start gap-1.5">
+                                <span className="text-green-500 shrink-0 mt-px">✓</span>
+                                <span>{msg.content}</span>
                               </span>
                             )}
                           </div>
