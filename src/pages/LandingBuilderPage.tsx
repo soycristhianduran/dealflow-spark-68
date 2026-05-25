@@ -84,6 +84,7 @@ interface LandingPage {
   leads_count: number;
   updated_at: string;
   form_config: FormConfig | null;
+  chat_history: ChatMessage[] | null;
 }
 
 type EditorMode = "ai" | "drag";
@@ -350,7 +351,7 @@ export default function LandingBuilderPage() {
   const fetchPages = useCallback(async () => {
     const { data } = await supabase
       .from("landing_pages")
-      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config")
+      .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config,chat_history")
       .order("updated_at", { ascending: false });
     setPages((data || []) as LandingPage[]);
     setLoadingPages(false);
@@ -422,7 +423,12 @@ export default function LandingBuilderPage() {
         ? rawCfg.fields
         : DEFAULT_FORM_CONFIG.fields,
     });
-    setChatMessages([]);
+    // Restore saved chat history (or start fresh if none)
+    setChatMessages(
+      Array.isArray(page.chat_history) && page.chat_history.length > 0
+        ? page.chat_history
+        : []
+    );
     setEditMode(false);
     setDeviceSize("desktop");
 
@@ -522,9 +528,19 @@ export default function LandingBuilderPage() {
       const html = res.data.html as string;
       setGeneratedHtml(html);
       setPreviewHtml(html);
+      const updatedMessages = chatMessages
+        .filter(m => m.status !== "loading")
+        .concat({ id: assistantMsgId, role: "assistant" as const, content: "✓ Aplicado", status: "done" as const });
       setChatMessages(prev => prev.map(m =>
         m.id === assistantMsgId ? { ...m, content: "✓ Aplicado", status: "done" } : m
       ));
+      // Auto-save chat history so it's available on next visit without manual save
+      if (selectedId) {
+        supabase.from("landing_pages")
+          .update({ chat_history: updatedMessages })
+          .eq("id", selectedId)
+          .then(() => {});
+      }
     } catch (e: any) {
       setChatMessages(prev => prev.map(m =>
         m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
@@ -559,6 +575,7 @@ export default function LandingBuilderPage() {
                   mode: "drag",
                   status: targetStatus,
                   form_config: formConfig,
+                  chat_history: chatMessages.filter(m => m.status !== "loading"),
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", selectedId);
@@ -579,6 +596,8 @@ export default function LandingBuilderPage() {
             mode: "ai",
             status: targetStatus,
             form_config: formConfig,
+            // Persist only done/error messages so history survives page reload
+            chat_history: chatMessages.filter(m => m.status !== "loading"),
             updated_at: new Date().toISOString(),
           })
           .eq("id", selectedId);
