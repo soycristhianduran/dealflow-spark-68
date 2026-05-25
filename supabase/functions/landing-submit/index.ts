@@ -18,7 +18,25 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const body = await req.json();
+    // Accept both JSON (fetch) and URL-encoded (native HTML form POST)
+    const contentType = req.headers.get("content-type") || "";
+    let body: Record<string, any>;
+    if (contentType.includes("application/json")) {
+      body = await req.json();
+    } else if (
+      contentType.includes("application/x-www-form-urlencoded") ||
+      contentType.includes("multipart/form-data")
+    ) {
+      const fd = await req.formData();
+      body = {};
+      fd.forEach((v, k) => { body[k] = v; });
+    } else {
+      // Fallback: try JSON, then URL-encoded plain text
+      const text = await req.text();
+      try { body = JSON.parse(text); }
+      catch { body = Object.fromEntries(new URLSearchParams(text)); }
+    }
+
     const { page_id } = body;
 
     if (!page_id) throw new Error("page_id is required");
