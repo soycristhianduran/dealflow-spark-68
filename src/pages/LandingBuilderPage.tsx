@@ -32,98 +32,89 @@ import { cn } from "@/lib/utils";
 import EmailEditor from "react-email-editor";
 
 // ── Edit mode script ──────────────────────────────────────────────────────────
-// Uses event delegation + capture phase so it works on any element (including
-// divs with direct text, which Tailwind pages use heavily).
+// Strategy: directly assign contenteditable="true" to every text-bearing element
+// on page load. No click-to-activate needed — the user just clicks and types.
+// Changes are debounced and sent to the parent via postMessage.
+// The parent must NOT update previewHtml (iframe srcDoc) while edit mode is
+// active, otherwise React will reload the iframe and lose the user's edits.
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
-  /* ── styles ── */
+  /* ── inject styles ── */
   var st=document.createElement('style');
   st.textContent=
-    '[data-ee-h]{outline:2px dashed rgba(99,102,241,.55)!important;outline-offset:3px;cursor:text!important;border-radius:4px!important}'+
-    '[data-ee-a]{outline:2px solid #6366f1!important;outline-offset:3px;border-radius:4px!important;background:rgba(99,102,241,.04)!important}';
+    /* pill indicator so user knows edit mode is on */
+    'body::after{content:"✏  Modo edición — haz clic en cualquier texto";'+
+    'position:fixed;top:8px;left:50%;transform:translateX(-50%);'+
+    'background:#6366f1;color:#fff;font-size:11px;font-family:sans-serif;'+
+    'padding:5px 14px;border-radius:20px;z-index:99999;pointer-events:none;'+
+    'box-shadow:0 2px 10px rgba(0,0,0,.25)}'+
+    /* hover outline */
+    '[contenteditable=true]:hover{outline:2px dashed rgba(99,102,241,.6)!important;'+
+    'outline-offset:2px!important;cursor:text!important;border-radius:3px!important}'+
+    /* focus outline */
+    '[contenteditable=true]:focus{outline:2px solid #6366f1!important;'+
+    'outline-offset:2px!important;background:rgba(99,102,241,.04)!important}'+
+    /* override any pointer-events:none Tailwind might apply */
+    '[contenteditable=true]{pointer-events:auto!important;user-select:text!important}';
   document.head.appendChild(st);
 
-  var BLOCK_TAGS=new Set(['h1','h2','h3','h4','h5','h6','p','span','a','li','button','label','td','th','div','section','header','footer','article','strong','em','b','i']);
-  var active=null;
+  /* ── mark text-bearing elements as editable immediately ── */
+  /* Only elements that have a direct text node (not just container divs) */
+  var SKIP=new Set(['SCRIPT','STYLE','IFRAME','IMG','INPUT','TEXTAREA',
+                    'SELECT','META','LINK','NOSCRIPT','SVG','PATH','CIRCLE',
+                    'RECT','LINE','POLYGON','POLYLINE','ELLIPSE','USE','DEFS']);
 
-  /* Walk up DOM to find the best editable element */
-  function findTarget(el){
-    var cur=el;
-    for(var i=0;i<6&&cur&&cur!==document.body;i++){
-      /* Never enter the lead form */
-      if(cur.id==='lead-form'||cur.closest&&cur.closest('#lead-form'))return null;
-      /* Skip non-element nodes */
-      if(cur.nodeType!==1)return null;
-      var tag=cur.tagName.toLowerCase();
-      if(BLOCK_TAGS.has(tag)){
-        /* Must have real text content */
-        var txt=(cur.textContent||'').trim();
-        if(txt.length>0)return cur;
-      }
-      cur=cur.parentElement;
+  function hasDirectText(el){
+    for(var i=0;i<el.childNodes.length;i++){
+      var n=el.childNodes[i];
+      if(n.nodeType===3&&n.nodeValue.trim().length>0)return true;
     }
-    return null;
+    return false;
   }
 
-  function save(){
-    if(!active)return;
-    active.contentEditable='false';
-    active.removeAttribute('data-ee-a');
-    active=null;
-    try{
-      window.parent.postMessage({type:'landing_html_edit',html:'<!DOCTYPE html>'+document.documentElement.outerHTML},'*');
-    }catch(e){}
+  document.querySelectorAll('*').forEach(function(el){
+    if(SKIP.has(el.tagName))return;
+    if(el.id==='__em__')return;
+    /* Skip anything inside the lead form */
+    try{if(el.closest('#lead-form'))return;}catch(_){}
+    if(hasDirectText(el)){
+      el.contentEditable='true';
+      el.spellcheck=false;
+    }
+  });
+
+  /* ── debounced sync to parent ── */
+  /* Uses input event (fires on every keystroke) with 600ms debounce.
+     Clones the DOM, strips edit-mode artifacts, sends clean HTML. */
+  var syncTimer=null;
+  function scheduleSync(){
+    clearTimeout(syncTimer);
+    syncTimer=setTimeout(function(){
+      try{
+        var clone=document.documentElement.cloneNode(true);
+        /* strip contenteditable + spellcheck */
+        clone.querySelectorAll('[contenteditable]').forEach(function(n){
+          n.removeAttribute('contenteditable');
+          n.removeAttribute('spellcheck');
+        });
+        /* remove the injected script */
+        var em=clone.querySelector('#__em__');if(em)em.remove();
+        /* remove the injected style (contains "Modo edición") */
+        clone.querySelectorAll('style').forEach(function(s){
+          if(s.textContent.indexOf('Modo edición')!==-1)s.remove();
+        });
+        window.parent.postMessage(
+          {type:'landing_html_edit',html:'<!DOCTYPE html>'+clone.outerHTML},'*');
+      }catch(_){}
+    },600);
   }
 
-  /* Hover — capture phase so Tailwind pointer-events don't block it */
-  document.addEventListener('mouseover',function(e){
-    var t=findTarget(e.target);
-    if(t&&t!==active){t.setAttribute('data-ee-h','1');}
-  },true);
-  document.addEventListener('mouseout',function(e){
-    var t=findTarget(e.target);
-    if(t&&t!==active){t.removeAttribute('data-ee-h');}
-  },true);
+  document.addEventListener('input',scheduleSync,true);
 
-  /* Click — use capture so we intercept before any onclick handlers */
-  document.addEventListener('click',function(e){
-    var t=findTarget(e.target);
-    if(!t){save();return;}
-    if(t===active)return;
-    save();
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    t.removeAttribute('data-ee-h');
-    t.setAttribute('data-ee-a','1');
-    t.contentEditable='true';
-    t.focus();
-    try{
-      var r=document.createRange();
-      r.selectNodeContents(t);
-      var s=window.getSelection();
-      s.removeAllRanges();
-      s.addRange(r);
-    }catch(_){}
-    active=t;
-  },true);
-
-  /* Focusout — save after a small delay (so a click on another editable
-     element doesn't save before the new click is processed) */
-  document.addEventListener('focusout',function(e){
-    if(active&&e.target===active){
-      setTimeout(function(){
-        if(active&&document.activeElement!==active)save();
-      },120);
-    }
-  },true);
-
-  /* Keyboard shortcuts */
+  /* ── Escape key to unfocus ── */
   document.addEventListener('keydown',function(e){
-    if(!active)return;
-    if(e.key==='Escape'){e.preventDefault();save();}
-    if(e.key==='Enter'&&!e.shiftKey){
-      var tag=active.tagName.toLowerCase();
-      if(tag!=='div'&&tag!=='section'&&tag!=='article'){e.preventDefault();save();}
+    if(e.key==='Escape'&&document.activeElement){
+      document.activeElement.blur();
     }
   },true);
 })();
@@ -452,12 +443,16 @@ export default function LandingBuilderPage() {
 
   useEffect(() => { fetchPages(); }, [fetchPages]);
 
-  // Listen for inline text edits from the iframe
+  // Listen for inline text edits from the iframe.
+  // IMPORTANT: only update generatedHtml, NOT previewHtml.
+  // Updating previewHtml would change the iframe's srcDoc → React reloads
+  // the iframe mid-edit, losing the user's cursor position and current edit.
+  // previewHtml is synced from generatedHtml when the user exits edit mode.
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.data?.type === 'landing_html_edit' && e.data?.html) {
         setGeneratedHtml(e.data.html);
-        setPreviewHtml(e.data.html);
+        // ← intentionally NOT calling setPreviewHtml here
       }
     };
     window.addEventListener('message', handler);
@@ -1204,7 +1199,12 @@ export default function LandingBuilderPage() {
                     <div className="px-3 py-1.5 border-b border-border flex items-center gap-2 shrink-0">
                       {/* View / Edit toggle */}
                       <button
-                        onClick={() => setEditMode(false)}
+                        onClick={() => {
+                          // Sync the latest inline edits back to previewHtml when
+                          // leaving edit mode (so preview reflects all changes made)
+                          setPreviewHtml(generatedHtml);
+                          setEditMode(false);
+                        }}
                         className={cn(
                           "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                           !editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
@@ -1213,7 +1213,10 @@ export default function LandingBuilderPage() {
                         <Eye className="h-3 w-3" /> Vista previa
                       </button>
                       <button
-                        onClick={() => setEditMode(true)}
+                        onClick={() => {
+                          // Enter edit mode — iframe remounts with the edit script injected
+                          setEditMode(true);
+                        }}
                         className={cn(
                           "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
                           editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
@@ -1256,16 +1259,7 @@ export default function LandingBuilderPage() {
                     </div>
 
                     {/* Edit mode banner */}
-                    {editMode && (
-                      <div className="px-3 py-1.5 bg-indigo-50 border-b border-indigo-100 text-xs text-indigo-700 flex items-center gap-2 shrink-0">
-                        <Edit2 className="h-3 w-3 shrink-0" />
-                        Haz clic en cualquier texto para editarlo ·{" "}
-                        <kbd className="px-1 bg-white rounded border text-[10px]">Esc</kbd>
-                        {" "}o{" "}
-                        <kbd className="px-1 bg-white rounded border text-[10px]">Enter</kbd>
-                        {" "}para confirmar
-                      </div>
-                    )}
+                    {/* Edit mode pill is shown inside the iframe itself (via injected CSS) */}
 
                     {/* iframe wrapper — centers the viewport at the chosen device width */}
                     <div className={cn(
