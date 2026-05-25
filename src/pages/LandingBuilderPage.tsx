@@ -19,13 +19,16 @@ import {
 import {
   Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover, PopoverContent, PopoverTrigger,
+} from "@/components/ui/popover";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   Plus, Trash2, Loader2, Globe, Eye, EyeOff, Link2,
   Sparkles, MousePointer, Edit2, BarChart2,
   ClipboardList, Settings2, Send, AlertCircle,
-  Monitor, Tablet, Smartphone, ImageIcon, X,
+  Monitor, Tablet, Smartphone, ImageIcon, X, ChevronDown, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
@@ -450,6 +453,7 @@ export default function LandingBuilderPage() {
   const [newPageOpen, setNewPageOpen] = useState(false);
   const [newPageName, setNewPageName] = useState("");
   const [slugEditing, setSlugEditing] = useState(false);
+  const [pagePickerOpen, setPagePickerOpen] = useState(false);
 
   // ── Fetch pages ─────────────────────────────────────────────────────────────
   const fetchPages = useCallback(async () => {
@@ -780,145 +784,145 @@ export default function LandingBuilderPage() {
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <AppLayout>
-      <div className="flex h-full">
+      <div className="flex h-full flex-col">
 
-        {/* ── Left sidebar: page list ── */}
-        <aside className="w-64 shrink-0 border-r border-border flex flex-col bg-background">
-          <div className="p-3 border-b border-border flex items-center justify-between">
-            <span className="font-semibold text-sm">Landings</span>
-            <Button size="sm" variant="ghost" onClick={() => setNewPageOpen(true)}>
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
+        {/* ── Full-width Toolbar ── */}
+        <div className="border-b border-border px-3 py-2 flex items-center gap-2 shrink-0">
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {loadingPages && (
-              <div className="flex justify-center py-8">
-                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              </div>
-            )}
-            {!loadingPages && pages.length === 0 && (
-              <div className="text-center text-muted-foreground text-xs py-8">
-                Sin landing pages aún.
-                <br />
-                <button
-                  className="text-primary underline mt-1"
-                  onClick={() => setNewPageOpen(true)}
-                >
-                  Crear la primera
-                </button>
-              </div>
-            )}
-            {pages.map((page) => (
-              <button
-                key={page.id}
-                onClick={() => selectPage(page)}
-                className={cn(
-                  "w-full text-left rounded-md px-3 py-2 text-sm transition-colors hover:bg-accent group",
-                  selectedId === page.id && "bg-accent"
+          {/* ── Page picker dropdown ── */}
+          <Popover open={pagePickerOpen} onOpenChange={setPagePickerOpen}>
+            <PopoverTrigger asChild>
+              <button className={cn(
+                "flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium",
+                "hover:bg-accent transition-colors min-w-[160px] max-w-[220px]",
+                loadingPages && "opacity-60 pointer-events-none"
+              )}>
+                {loadingPages ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
+                ) : selectedId ? (
+                  <span className={cn(
+                    "h-1.5 w-1.5 rounded-full shrink-0",
+                    status === "published" ? "bg-green-500" : "bg-muted-foreground/50"
+                  )} />
+                ) : (
+                  <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                 )}
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <span className="truncate font-medium">{page.name}</span>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-[10px] px-1.5 py-0",
-                        page.status === "published"
-                          ? "border-green-500 text-green-600"
-                          : "border-muted-foreground/30 text-muted-foreground"
-                      )}
-                    >
-                      {page.status === "published" ? "Publicada" : "Borrador"}
-                    </Badge>
-                    <button
-                      className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(page.id); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex gap-3 mt-0.5 text-[10px] text-muted-foreground">
-                  <span className="flex items-center gap-0.5">
-                    <Eye className="h-2.5 w-2.5" /> {page.views}
-                  </span>
-                  <span className="flex items-center gap-0.5">
-                    <BarChart2 className="h-2.5 w-2.5" /> {page.leads_count} leads
-                  </span>
-                </div>
+                <span className="truncate flex-1 text-left">
+                  {selectedId ? name : "Seleccionar landing…"}
+                </span>
+                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </button>
-            ))}
-          </div>
-        </aside>
-
-        {/* ── Main editor area ── */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Toolbar */}
-          <div className="border-b border-border px-4 py-2 flex items-center gap-3 shrink-0">
-            {selectedId ? (
-              <>
-                {/* Page name */}
-                <Input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="h-8 text-sm font-medium w-52 border-0 shadow-none focus-visible:ring-1"
-                  placeholder="Nombre de la página"
-                />
-
-                {/* Slug / public URL */}
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <Globe className="h-3 w-3 shrink-0" />
-                  <span className="text-muted-foreground/60 shrink-0">pages.klosify.com/</span>
-                  {slugEditing ? (
-                    <Input
-                      value={slug}
-                      onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, "-").toLowerCase())}
-                      onBlur={() => setSlugEditing(false)}
-                      className="h-6 text-xs w-28"
-                      autoFocus
-                    />
-                  ) : (
+            </PopoverTrigger>
+            <PopoverContent className="w-72 p-0" align="start">
+              <div className="p-2 border-b border-border">
+                <p className="text-xs font-semibold text-muted-foreground px-1">Landing pages</p>
+              </div>
+              <div className="max-h-64 overflow-y-auto py-1">
+                {pages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">Sin landing pages aún</p>
+                ) : (
+                  pages.map(page => (
                     <button
-                      className="hover:text-foreground underline font-mono"
-                      onClick={() => setSlugEditing(true)}
-                      title="Editar slug"
+                      key={page.id}
+                      className={cn(
+                        "w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors group",
+                        selectedId === page.id && "bg-accent"
+                      )}
+                      onClick={() => { selectPage(page); setPagePickerOpen(false); }}
                     >
-                      {slug || toSlug(name)}
+                      <span className={cn(
+                        "h-1.5 w-1.5 rounded-full shrink-0",
+                        page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30"
+                      )} />
+                      <span className="flex-1 text-left truncate">{page.name}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-[10px] text-muted-foreground">
+                          {page.views}v · {page.leads_count}L
+                        </span>
+                        {selectedId === page.id && <Check className="h-3 w-3 text-primary" />}
+                        <button
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
+                          onClick={(e) => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
                     </button>
-                  )}
+                  ))
+                )}
+              </div>
+              <div className="p-2 border-t border-border">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full h-8 text-xs gap-1.5 justify-start"
+                  onClick={() => { setNewPageOpen(true); setPagePickerOpen(false); }}
+                >
+                  <Plus className="h-3.5 w-3.5" /> Nueva landing page
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {selectedId && (
+            <>
+              {/* Slug / public URL */}
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Globe className="h-3 w-3 shrink-0" />
+                <span className="text-muted-foreground/60 shrink-0 hidden sm:inline">pages.klosify.com/</span>
+                {slugEditing ? (
+                  <Input
+                    value={slug}
+                    onChange={(e) => setSlug(e.target.value.replace(/[^a-z0-9-]/g, "-").toLowerCase())}
+                    onBlur={() => setSlugEditing(false)}
+                    className="h-6 text-xs w-28"
+                    autoFocus
+                  />
+                ) : (
+                  <button
+                    className="hover:text-foreground underline font-mono max-w-[120px] truncate"
+                    onClick={() => setSlugEditing(true)}
+                    title="Editar slug"
+                  >
+                    {slug || toSlug(name)}
+                  </button>
+                )}
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button onClick={copyUrl} className="ml-0.5">
+                        <Link2 className="h-3 w-3 hover:text-foreground" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>Copiar URL pública</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {status === "published" && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <button onClick={copyUrl} className="ml-0.5">
-                          <Link2 className="h-3 w-3 hover:text-foreground" />
+                        <button onClick={openPublicUrl}>
+                          <Eye className="h-3 w-3 hover:text-foreground" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>Copiar URL pública</TooltipContent>
+                      <TooltipContent>Ver página publicada</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
-                  {status === "published" && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button onClick={openPublicUrl}>
-                            <Eye className="h-3 w-3 hover:text-foreground" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent>Ver página publicada</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
+                )}
+              </div>
 
-                {/* Stats */}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground ml-2">
-                  <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {views} vistas</span>
-                  <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3" /> {leadsCount} leads</span>
-                </div>
+              {/* Stats */}
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {views}</span>
+                <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3" /> {leadsCount}L</span>
+              </div>
+            </>
+          )}
 
-                <div className="flex-1" />
+          <div className="flex-1" />
+
+          {selectedId ? (
+            <>
 
                 {/* Mode switcher */}
                 <div className="flex rounded-md border border-border overflow-hidden text-xs">
@@ -979,21 +983,16 @@ export default function LandingBuilderPage() {
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Guardar"}
                 </Button>
               </>
-            ) : (
-              <div className="text-sm text-muted-foreground">
-                Selecciona una landing page o{" "}
-                <button className="text-primary underline" onClick={() => setNewPageOpen(true)}>
-                  crea una nueva
-                </button>
-              </div>
-            )}
-          </div>
+            ) : null}
+        </div>
 
-          {/* Editor body */}
+        {/* ── Editor body ── */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-4">
               <Globe className="h-12 w-12 opacity-20" />
-              <p className="text-sm">Ninguna landing seleccionada</p>
+              <p className="text-sm">Selecciona una landing page o crea una nueva</p>
               <Button onClick={() => setNewPageOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" /> Nueva landing page
               </Button>
