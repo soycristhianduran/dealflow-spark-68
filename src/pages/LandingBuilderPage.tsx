@@ -821,15 +821,29 @@ export default function LandingBuilderPage() {
                 <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-72 p-0" align="start">
+            <PopoverContent className="w-80 p-0" align="start">
               <div className="p-2 border-b border-border">
                 <p className="text-xs font-semibold text-muted-foreground px-1">Landing pages</p>
               </div>
-              <div className="max-h-64 overflow-y-auto py-1">
+              <div className="max-h-72 overflow-y-auto py-1">
                 {pages.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center py-4">Sin landing pages aún</p>
-                ) : (
-                  pages.map(page => (
+                ) : (() => {
+                  // Group pages by pipeline name
+                  const grouped: Record<string, LandingPage[]> = {};
+                  for (const page of pages) {
+                    const key = (page.form_config as any)?.pipeline_name || "Sin pipeline";
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(page);
+                  }
+                  // Pipelines first, "Sin pipeline" last
+                  const keys = Object.keys(grouped).sort((a, b) => {
+                    if (a === "Sin pipeline") return 1;
+                    if (b === "Sin pipeline") return -1;
+                    return a.localeCompare(b);
+                  });
+
+                  const PageRow = ({ page }: { page: LandingPage }) => (
                     <button
                       key={page.id}
                       className={cn(
@@ -856,8 +870,20 @@ export default function LandingBuilderPage() {
                         </button>
                       </div>
                     </button>
-                  ))
-                )}
+                  );
+
+                  return keys.map(pipelineName => (
+                    <div key={pipelineName}>
+                      {/* Pipeline group header — only shown when there are multiple groups */}
+                      {keys.length > 1 && (
+                        <p className="text-[10px] font-semibold text-muted-foreground/70 px-3 pt-2 pb-0.5 uppercase tracking-wider">
+                          {pipelineName}
+                        </p>
+                      )}
+                      {grouped[pipelineName].map(page => <PageRow key={page.id} page={page} />)}
+                    </div>
+                  ));
+                })()}
               </div>
               <div className="p-2 border-t border-border">
                 <Button
