@@ -33,7 +33,7 @@ Deno.serve(async (req) => {
 
     const { data: page, error } = await supabase
       .from("landing_pages")
-      .select("id, html, status, name, funnel_id")
+      .select("id, html, status, name, funnel_id, form_config")
       .eq("slug", slug)
       .maybeSingle();
 
@@ -66,9 +66,12 @@ Deno.serve(async (req) => {
     // Track view (fire-and-forget)
     (async () => { try { await supabase.rpc("inc_landing_page_views", { p_page_id: page.id }); } catch (_) {} })();
 
-    // Look up thank-you page in the same funnel (for post-submit redirect)
-    let thankyouUrl = "";
-    if (page.funnel_id) {
+    // Resolve redirect URL after form submit:
+    // Priority: 1) form_config.redirect_url (user-configured), 2) funnel thank-you page (auto-detect)
+    const formConfig: Record<string, any> = (page.form_config as any) || {};
+    let thankyouUrl = formConfig.redirect_url || "";
+
+    if (!thankyouUrl && page.funnel_id) {
       const { data: thankyouPage } = await supabase
         .from("landing_pages")
         .select("slug")
@@ -80,6 +83,9 @@ Deno.serve(async (req) => {
         thankyouUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankyouPage.slug}`;
       }
     }
+
+    // CTA URL: patches href="#" buttons outside the form (user-configured)
+    const ctaUrl: string = formConfig.cta_url || "";
 
     // Inject page_id into the HTML so the form knows which page it belongs to
     let html = page.html.replace(
@@ -108,6 +114,14 @@ Deno.serve(async (req) => {
     // capture-phase + stopImmediatePropagation to take priority over any AI-generated
     // listener. It guarantees: correct page_id, JSON body, and thank-you redirect.
     const pageId = page.id;
+    // Patch CTA buttons (href="#") with configured URL, excluding form submit buttons
+    if (ctaUrl) {
+      html = html.replace(
+        /<a([^>]*)\shref=["']#["']([^>]*)>/gi,
+        `<a$1 href="${ctaUrl}"$2>`,
+      );
+    }
+
     const overrideScript = `<script>
 (function(){
   function init(){

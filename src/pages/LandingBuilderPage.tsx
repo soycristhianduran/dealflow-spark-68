@@ -76,6 +76,9 @@ export interface FormConfig {
   stage_name: string;
   cta_text: string;
   success_message: string;
+  // Connections
+  redirect_url?: string;   // after form submit: full URL or empty (shows inline message)
+  cta_url?: string;        // CTA buttons target URL (patches href="#" links in the page)
 }
 
 interface LandingFunnel {
@@ -150,6 +153,8 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
   stage_name: "",
   cta_text: "Enviar información",
   success_message: "¡Gracias! Te contactaremos pronto.",
+  redirect_url: "",
+  cta_url: "",
 };
 
 // ── Auto-detect form fields from AI-generated HTML ────────────────────────────
@@ -1867,6 +1872,131 @@ export default function LandingBuilderPage() {
                 </div>
               )}
             </div>
+
+            {/* ── Connections (redirect + CTA) ── */}
+            {(() => {
+              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+              const serveUrl = (slug: string | null) =>
+                slug ? `${supabaseUrl}/functions/v1/serve-landing?slug=${slug}` : "";
+
+              // Funnel pages available as targets (exclude current page)
+              const targetPages = funnelPages.filter(p => p.id !== selectedId && p.slug);
+
+              const redirectVal = formConfig.redirect_url ?? "";
+              const ctaVal = formConfig.cta_url ?? "";
+
+              // Determine select value: "message" | "custom" | one of the page slugs
+              const resolveMode = (val: string) => {
+                if (!val) return "message";
+                const match = targetPages.find(p => serveUrl(p.slug) === val);
+                return match ? match.id : "custom";
+              };
+
+              const redirectMode = resolveMode(redirectVal);
+              const ctaMode = ctaVal ? (targetPages.find(p => serveUrl(p.slug) === ctaVal) ? targetPages.find(p => serveUrl(p.slug) === ctaVal)!.id : "custom") : "none";
+
+              return (
+                <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
+                  <Label className="text-sm font-semibold flex items-center gap-1.5">
+                    <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
+                    Conexiones y navegación
+                  </Label>
+
+                  {/* Form submit destination */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Al enviar el formulario</p>
+                    <Select
+                      value={redirectMode}
+                      onValueChange={v => {
+                        if (v === "message") {
+                          setFormConfig(prev => ({ ...prev, redirect_url: "" }));
+                        } else if (v === "custom") {
+                          setFormConfig(prev => ({ ...prev, redirect_url: "https://" }));
+                        } else {
+                          const page = targetPages.find(p => p.id === v);
+                          setFormConfig(prev => ({ ...prev, redirect_url: serveUrl(page?.slug ?? null) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="message">Mostrar mensaje de éxito</SelectItem>
+                        {targetPages.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            → {p.name}
+                            {p.page_role === "thankyou" && <span className="text-green-600 ml-1">(Gracias)</span>}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">URL externa personalizada…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {redirectMode === "custom" && (
+                      <Input
+                        className="h-8 text-sm"
+                        placeholder="https://tudominio.com/gracias"
+                        value={redirectVal}
+                        onChange={e => setFormConfig(prev => ({ ...prev, redirect_url: e.target.value }))}
+                      />
+                    )}
+                    {redirectMode !== "message" && redirectMode !== "custom" && (
+                      <p className="text-[10px] text-green-600 flex items-center gap-1">
+                        ✓ Redirigirá a {targetPages.find(p => p.id === redirectMode)?.name}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* CTA buttons destination */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">Al hacer clic en los botones CTA</p>
+                    <Select
+                      value={ctaMode}
+                      onValueChange={v => {
+                        if (v === "none") {
+                          setFormConfig(prev => ({ ...prev, cta_url: "" }));
+                        } else if (v === "custom") {
+                          setFormConfig(prev => ({ ...prev, cta_url: "https://" }));
+                        } else {
+                          const page = targetPages.find(p => p.id === v);
+                          setFormConfig(prev => ({ ...prev, cta_url: serveUrl(page?.slug ?? null) }));
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-sm">
+                        <SelectValue placeholder="Sin configurar (usa href del diseño)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin configurar (usa href del diseño)</SelectItem>
+                        {targetPages.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            → {p.name}
+                            {p.page_role === "thankyou" && <span className="text-green-600 ml-1">(Gracias)</span>}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">URL externa personalizada…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {ctaMode === "custom" && (
+                      <Input
+                        className="h-8 text-sm"
+                        placeholder="https://tudominio.com/oferta"
+                        value={ctaVal}
+                        onChange={e => setFormConfig(prev => ({ ...prev, cta_url: e.target.value }))}
+                      />
+                    )}
+                    {ctaVal && ctaMode !== "custom" && (
+                      <p className="text-[10px] text-green-600 flex items-center gap-1">
+                        ✓ CTAs irán a {targetPages.find(p => p.id === ctaMode)?.name}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground/60">
+                      Aplica a botones con href="#" en la página. Los links externos no se modifican.
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Pipeline assignment ── */}
             <div className="space-y-3">
