@@ -54,115 +54,62 @@ const PREVIEW_NAV_SCRIPT = `<script id="__pv__">
 <\/script>`;
 
 // ── EDIT MODE script ──────────────────────────────────────────────────────────
-// - Makes every text-bearing element directly contenteditable (no click-to-
-//   activate; user clicks any text and can type immediately)
-// - Injects a visible top bar (DOM div, not ::after — Tailwind can override
-//   CSS pseudo-elements but not injected DOM nodes)
-// - Syncs clean HTML to parent via postMessage on input + focusout
-// - Parent MUST NOT update previewHtml while edit mode is active (would reload
-//   iframe and lose edits). previewHtml is synced on "Vista previa" click.
+// Uses document.designMode = 'on' — the simplest and most reliable approach.
+// One line makes the entire page editable natively in the browser.
+// No querySelectorAll, no contentEditable enumeration, no Tailwind conflicts.
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
   try{
+    /* ── indicator bar ── */
+    var bar=document.createElement('div');
+    bar.id='__edit_bar__';
+    bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;'+
+      'background:#6366f1;color:#fff;text-align:center;padding:8px 12px;'+
+      'font-size:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
+      'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
+    bar.textContent=
+      '✏️  Modo edición — haz clic en cualquier texto y escribe';
+    document.body.insertBefore(bar,document.body.firstChild);
+    document.body.style.paddingTop='38px';
 
-  /* ── visible indicator bar (DOM, not CSS ::after) ── */
-  var bar=document.createElement('div');
-  bar.id='__edit_bar__';
-  bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;'+
-    'background:#6366f1;color:#fff;text-align:center;padding:7px 12px;'+
-    'font-size:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
-    'pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.3);letter-spacing:.2px';
-  bar.textContent='\\u270F\\uFE0F  Modo edici\\u00F3n — haz clic en cualquier texto para editar  \\u00B7  Esc para deseleccionar';
-  document.body.insertBefore(bar,document.body.firstChild);
-  /* push content down so bar doesn't cover the hero */
-  document.body.style.setProperty('margin-top','38px','important');
+    /* ── ONE LINE makes the whole page editable ── */
+    document.designMode='on';
 
-  /* ── editable element styles ── */
-  var st=document.createElement('style');
-  st.id='__edit_st__';
-  st.textContent=
-    '[contenteditable=true]{pointer-events:auto!important;user-select:text!important;'+
-    '-webkit-user-select:text!important;cursor:text!important}'+
-    '[contenteditable=true]:hover{outline:2px dashed rgba(99,102,241,.65)!important;'+
-    'outline-offset:2px!important;border-radius:3px!important}'+
-    '[contenteditable=true]:focus{outline:2px solid #6366f1!important;'+
-    'outline-offset:2px!important;background:rgba(99,102,241,.05)!important}';
-  document.head.appendChild(st);
-
-  /* ── mark every text-bearing element as editable ── */
-  var SKIP=new Set(['SCRIPT','STYLE','IFRAME','IMG','INPUT','TEXTAREA','SELECT',
-                    'META','LINK','NOSCRIPT','SVG','PATH','CIRCLE','RECT','LINE',
-                    'POLYGON','POLYLINE','ELLIPSE','USE','DEFS','SYMBOL','G',
-                    'ANIMATE','ANIMATETRANSFORM']);
-
-  function hasDirectText(el){
-    for(var i=0;i<el.childNodes.length;i++){
-      var n=el.childNodes[i];
-      if(n.nodeType===3&&n.nodeValue.trim().length>0)return true;
+    /* ── sync changes to parent ── */
+    var paused=false, syncT=null;
+    function sync(){
+      clearTimeout(syncT);
+      syncT=setTimeout(function(){
+        if(paused)return;
+        paused=true;
+        /* briefly turn off designMode to get a clean snapshot */
+        document.designMode='off';
+        var clone=document.documentElement.cloneNode(true);
+        document.designMode='on';
+        paused=false;
+        /* strip injected UI elements from clone */
+        ['#__em__','#__edit_bar__','#__pv__'].forEach(function(id){
+          var el=clone.querySelector(id);if(el)el.remove();
+        });
+        var body=clone.querySelector('body');
+        if(body){body.style.paddingTop='';}
+        try{
+          window.parent.postMessage(
+            {type:'landing_html_edit',html:'<!DOCTYPE html>'+clone.outerHTML},'*');
+        }catch(x){}
+      },600);
     }
-    return false;
-  }
 
-  document.querySelectorAll('*').forEach(function(el){
-    if(SKIP.has(el.tagName))return;
-    if(el.id==='__em__'||el.id==='__edit_bar__'||el.id==='__edit_st__'||el.id==='__pv__')return;
-    try{if(el.closest('#lead-form'))return;}catch(x){}
-    if(hasDirectText(el)){
-      el.contentEditable='true';
-      el.spellcheck=false;
-    }
-  });
-
-  /* ── prevent link navigation in edit mode ── */
-  document.addEventListener('click',function(e){
-    var t=e.target;
-    while(t&&t!==document){
-      if(t.tagName==='A'){e.preventDefault();e.stopPropagation();return;}
-      t=t.parentElement;
-    }
-  },true);
-
-  /* ── sync clean HTML to parent ── */
-  function getClean(){
-    var c=document.documentElement.cloneNode(true);
-    c.querySelectorAll('[contenteditable]').forEach(function(n){
-      n.removeAttribute('contenteditable');n.removeAttribute('spellcheck');
-    });
-    ['#__em__','#__edit_bar__','#__edit_st__','#__pv__','#__nb__'].forEach(function(id){
-      var el=c.querySelector(id);if(el)el.remove();
-    });
-    var b=c.querySelector('body');
-    if(b){b.style.removeProperty('margin-top');}
-    return '<!DOCTYPE html>'+c.outerHTML;
-  }
-
-  var syncT=null;
-  function sync(){
-    clearTimeout(syncT);
-    syncT=setTimeout(function(){
-      try{window.parent.postMessage({type:'landing_html_edit',html:getClean()},'*');}catch(x){}
-    },500);
-  }
-
-  document.addEventListener('input',sync,true);
-  document.addEventListener('focusout',function(e){
-    if(e.target&&e.target.contentEditable==='true')sync();
-  },true);
-
-  document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'&&document.activeElement&&
-       document.activeElement.contentEditable==='true'){
-      document.activeElement.blur();
-    }
-  },true);
+    /* MutationObserver catches every text change */
+    var mo=new MutationObserver(function(){if(!paused)sync();});
+    mo.observe(document.body,{childList:true,subtree:true,characterData:true});
 
   }catch(err){
-    /* Debug: show error on page so we can see what went wrong */
     try{
       var dbg=document.createElement('div');
-      dbg.style.cssText='position:fixed;bottom:0;left:0;right:0;background:red;color:white;'+
-        'padding:8px;font-size:11px;z-index:9999999;font-family:monospace';
-      dbg.textContent='EditMode error: '+err.message;
+      dbg.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999999;'+
+        'background:red;color:#fff;padding:8px;font-size:11px;font-family:monospace';
+      dbg.textContent='EditMode ERR: '+err.message;
       document.body.appendChild(dbg);
     }catch(x){}
   }
