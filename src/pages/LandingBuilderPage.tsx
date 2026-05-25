@@ -400,6 +400,19 @@ export default function LandingBuilderPage() {
   // Pages in the currently selected funnel
   const funnelPages = pages.filter(p => p.funnel_id === selectedFunnelId);
 
+  // ── Page role metadata ───────────────────────────────────────────────────────
+  const PAGE_ROLES = ["main", "thankyou", "upsell"] as const;
+  const ROLE_META: Record<string, { label: string; cls: string }> = {
+    main:     { label: "Principal", cls: "bg-blue-500/15 text-blue-600 hover:bg-blue-500/25" },
+    thankyou: { label: "Gracias",   cls: "bg-green-500/15 text-green-600 hover:bg-green-500/25" },
+    upsell:   { label: "Upsell",    cls: "bg-orange-500/15 text-orange-600 hover:bg-orange-500/25" },
+    other:    { label: "Otra",      cls: "bg-muted text-muted-foreground hover:bg-muted/80" },
+  };
+  const cycleRoleOf = (current: string) => {
+    const idx = PAGE_ROLES.indexOf(current as typeof PAGE_ROLES[number]);
+    return PAGE_ROLES[(idx === -1 ? 1 : (idx + 1)) % PAGE_ROLES.length];
+  };
+
   // ── Fetch funnels ────────────────────────────────────────────────────────────
   const fetchFunnels = useCallback(async () => {
     const { data } = await supabase
@@ -638,6 +651,15 @@ export default function LandingBuilderPage() {
     setNewPageOpen(false);
     setNewPageName("");
     toast.success("Página creada");
+  };
+
+  // ── Set page role (Principal / Gracias / Upsell) ────────────────────────────
+  const handleSetPageRole = async (pageId: string, role: string) => {
+    setPages(prev => prev.map(p => p.id === pageId ? { ...p, page_role: role } : p));
+    const { error } = await supabase.from("landing_pages").update({ page_role: role }).eq("id", pageId);
+    if (error) { toast.error("Error al actualizar rol"); return; }
+    const label = ROLE_META[role]?.label ?? role;
+    toast.success(`Página marcada como "${label}"`);
   };
 
   // ── Delete page ─────────────────────────────────────────────────────────────
@@ -1100,9 +1122,30 @@ export default function LandingBuilderPage() {
                           <span className={cn("h-1.5 w-1.5 rounded-full",
                             page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30")} />
                         </div>
-                        <span className="flex-1 text-left truncate">{page.name}</span>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <span className="text-[10px] text-muted-foreground">{page.views}v · {page.leads_count}L</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-left truncate block">{page.name}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {/* Role badge — click to cycle through roles */}
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button
+                                  className={cn(
+                                    "text-[9px] px-1.5 py-0.5 rounded font-medium transition-colors",
+                                    ROLE_META[page.page_role]?.cls ?? ROLE_META.other.cls
+                                  )}
+                                  onClick={e => { e.stopPropagation(); handleSetPageRole(page.id, cycleRoleOf(page.page_role)); }}
+                                >
+                                  {ROLE_META[page.page_role]?.label ?? "Otra"}
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent side="left" className="text-xs">
+                                Clic para cambiar rol · actual: {ROLE_META[page.page_role]?.label ?? page.page_role}
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                          <span className="text-[10px] text-muted-foreground hidden group-hover:hidden">{page.views}v</span>
                           {selectedId === page.id && <Check className="h-3 w-3 text-primary" />}
                           <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
                             onClick={e => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}>
