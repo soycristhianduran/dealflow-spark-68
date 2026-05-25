@@ -63,8 +63,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Track view (fire-and-forget)
-    supabase.rpc("inc_landing_page_views", { p_page_id: page.id }).catch(() => null);
+    // Track view (fire-and-forget) — await converts PostgrestBuilder to Promise
+    (async () => { try { await supabase.rpc("inc_landing_page_views", { p_page_id: page.id }); } catch (_) {} })();
 
     // Inject page_id into the HTML so the form knows which page it belongs to
     let html = page.html.replace(
