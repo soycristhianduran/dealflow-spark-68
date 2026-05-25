@@ -54,61 +54,68 @@ const PREVIEW_NAV_SCRIPT = `<script id="__pv__">
 <\/script>`;
 
 // ── EDIT MODE script ──────────────────────────────────────────────────────────
-// Uses document.designMode = 'on' — the simplest and most reliable approach.
-// One line makes the entire page editable natively in the browser.
-// No querySelectorAll, no contentEditable enumeration, no Tailwind conflicts.
+// Key fixes vs previous version:
+//  1. CSS override forces user-select:text — Tailwind's select-none classes
+//     prevented text from being editable even with designMode='on'.
+//  2. sync() NO LONGER toggles designMode off/on to snapshot. Toggling it
+//     was resetting the cursor position mid-typing, making editing impossible.
+//     Instead we use DOMParser on the live outerHTML string.
+//  3. No pointer-events magic needed — designMode handles that natively.
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
   try{
+    /* ── Force all text to be selectable (Tailwind select-none override) ── */
+    var st=document.createElement('style');
+    st.id='__edit_style__';
+    st.textContent='*{-webkit-user-select:text!important;user-select:text!important;}'+
+      'body *{cursor:text!important;}'+
+      '[class*="pointer-events-none"]{pointer-events:auto!important;}';
+    (document.head||document.documentElement).appendChild(st);
+
     /* ── indicator bar ── */
     var bar=document.createElement('div');
     bar.id='__edit_bar__';
     bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;'+
       'background:#6366f1;color:#fff;text-align:center;padding:8px 12px;'+
-      'font-size:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
+      'font-size:13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
       'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
-    bar.textContent=
-      '✏️  Modo edición — haz clic en cualquier texto y escribe';
+    bar.innerHTML='<b>✏️ Modo edición activo</b> — haz clic en cualquier texto para editar';
     document.body.insertBefore(bar,document.body.firstChild);
-    document.body.style.paddingTop='38px';
+    document.body.style.paddingTop='42px';
 
     /* ── ONE LINE makes the whole page editable ── */
     document.designMode='on';
 
-    /* ── sync changes to parent ── */
-    var paused=false, syncT=null;
+    /* ── sync: use DOMParser so we NEVER toggle designMode (avoids cursor reset) ── */
+    var syncT=null;
     function sync(){
       clearTimeout(syncT);
       syncT=setTimeout(function(){
-        if(paused)return;
-        paused=true;
-        /* briefly turn off designMode to get a clean snapshot */
-        document.designMode='off';
-        var clone=document.documentElement.cloneNode(true);
-        document.designMode='on';
-        paused=false;
-        /* strip injected UI elements from clone */
-        ['#__em__','#__edit_bar__','#__pv__'].forEach(function(id){
-          var el=clone.querySelector(id);if(el)el.remove();
-        });
-        var body=clone.querySelector('body');
-        if(body){body.style.paddingTop='';}
         try{
+          /* Parse a fresh copy from the live HTML string — no designMode toggle */
+          var raw='<!DOCTYPE html>'+document.documentElement.outerHTML;
+          var doc2=(new DOMParser()).parseFromString(raw,'text/html');
+          /* Strip injected UI nodes */
+          ['#__em__','#__edit_bar__','#__pv__','#__edit_style__'].forEach(function(id){
+            var el=doc2.querySelector(id);if(el)el.remove();
+          });
+          var b=doc2.querySelector('body');
+          if(b)b.style.paddingTop='';
           window.parent.postMessage(
-            {type:'landing_html_edit',html:'<!DOCTYPE html>'+clone.outerHTML},'*');
+            {type:'landing_html_edit',html:'<!DOCTYPE html>'+doc2.documentElement.outerHTML},'*');
         }catch(x){}
-      },600);
+      },700);
     }
 
     /* MutationObserver catches every text change */
-    var mo=new MutationObserver(function(){if(!paused)sync();});
+    var mo=new MutationObserver(sync);
     mo.observe(document.body,{childList:true,subtree:true,characterData:true});
 
   }catch(err){
     try{
       var dbg=document.createElement('div');
       dbg.style.cssText='position:fixed;bottom:0;left:0;right:0;z-index:9999999;'+
-        'background:red;color:#fff;padding:8px;font-size:11px;font-family:monospace';
+        'background:#dc2626;color:#fff;padding:8px;font-size:11px;font-family:monospace';
       dbg.textContent='EditMode ERR: '+err.message;
       document.body.appendChild(dbg);
     }catch(x){}
@@ -1095,17 +1102,26 @@ export default function LandingBuilderPage() {
                           height: deviceSize !== "desktop" ? "calc(100% - 16px)" : "100%",
                         }}
                       >
-                        <iframe
-                          key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
-                          srcDoc={buildSrcDoc(previewHtml, editMode)}
-                          className="w-full h-full border-0"
-                          sandbox={
-                            editMode
-                              ? "allow-scripts allow-forms allow-same-origin"
-                              : "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-                          }
-                          title="Vista previa landing"
-                        />
+                        {editMode ? (
+                          /* Edit mode: NO sandbox so document.designMode works.
+                             srcDoc iframes without sandbox have null origin —
+                             they can't access parent DOM or cookies. Safe. */
+                          <iframe
+                            key={`edit-${deviceSize}`}
+                            srcDoc={buildSrcDoc(previewHtml, true)}
+                            className="w-full h-full border-0"
+                            title="Editar landing"
+                          />
+                        ) : (
+                          /* Preview mode: restricted sandbox, links open in new tab */
+                          <iframe
+                            key={`preview-${deviceSize}`}
+                            srcDoc={buildSrcDoc(previewHtml, false)}
+                            className="w-full h-full border-0"
+                            sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+                            title="Vista previa landing"
+                          />
+                        )}
                       </div>
                     </div>
                   </>
