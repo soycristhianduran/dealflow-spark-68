@@ -31,66 +31,69 @@ import { cn } from "@/lib/utils";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
-// ── Preview nav blocker ───────────────────────────────────────────────────────
-// Prevents <a> clicks from navigating the iframe (which would load the CRM app
-// inside the preview since the landing CTAs often link to the same origin).
-// postMessage works fine without allow-same-origin — removing it is the real fix,
-// but this belt-and-suspenders script blocks navigation at the JS level too.
-const NAV_BLOCKER_SCRIPT = `<script id="__nb__">
+// ── PREVIEW script: links open in new tab, nothing navigates the iframe ──────
+// In preview mode the page should feel fully live:
+// - <a> clicks open in a new browser tab (allow-popups sandbox flag required)
+// - Forms can be submitted for real testing
+// The key fix: do NOT set target before checking — just force target="_blank"
+const PREVIEW_NAV_SCRIPT = `<script id="__pv__">
 (function(){
   document.addEventListener('click',function(e){
     var t=e.target;
-    while(t){if(t.tagName==='A'){e.preventDefault();e.stopPropagation();return;}t=t.parentElement;}
+    while(t&&t!==document){
+      if(t.tagName==='A'){
+        /* Open in new tab so the iframe never navigates away */
+        t.setAttribute('target','_blank');
+        t.setAttribute('rel','noopener noreferrer');
+        return; /* let the click continue — browser opens new tab */
+      }
+      t=t.parentElement;
+    }
   },true);
-  /* also block any programmatic navigation */
-  window.addEventListener('beforeunload',function(e){e.preventDefault();},true);
 })();
 <\/script>`;
 
-// ── Helper: inject scripts before </body> (fallback: append) ─────────────────
-function buildSrcDoc(html: string, isEditMode: boolean): string {
-  const scripts = isEditMode
-    ? NAV_BLOCKER_SCRIPT + EDIT_MODE_SCRIPT
-    : NAV_BLOCKER_SCRIPT;
-  // Try to inject before </body> (case-insensitive); fall back to appending
-  if (/<\/body>/i.test(html)) {
-    return html.replace(/<\/body>/i, scripts + '\n</body>');
-  }
-  return html + '\n' + scripts;
-}
-
-// ── Edit mode script ──────────────────────────────────────────────────────────
-// Strategy: directly assign contenteditable="true" to every text-bearing element
-// on page load. No click-to-activate needed — the user just clicks and types.
-// Changes are debounced and sent to the parent via postMessage.
-// The parent must NOT update previewHtml (iframe srcDoc) while edit mode is
-// active, otherwise React will reload the iframe and lose the user's edits.
+// ── EDIT MODE script ──────────────────────────────────────────────────────────
+// - Makes every text-bearing element directly contenteditable (no click-to-
+//   activate; user clicks any text and can type immediately)
+// - Injects a visible top bar (DOM div, not ::after — Tailwind can override
+//   CSS pseudo-elements but not injected DOM nodes)
+// - Syncs clean HTML to parent via postMessage on input + focusout
+// - Parent MUST NOT update previewHtml while edit mode is active (would reload
+//   iframe and lose edits). previewHtml is synced on "Vista previa" click.
 const EDIT_MODE_SCRIPT = `<script id="__em__">
 (function(){
-  /* ── inject styles ── */
+  try{
+
+  /* ── visible indicator bar (DOM, not CSS ::after) ── */
+  var bar=document.createElement('div');
+  bar.id='__edit_bar__';
+  bar.style.cssText='position:fixed;top:0;left:0;right:0;z-index:2147483647;'+
+    'background:#6366f1;color:#fff;text-align:center;padding:7px 12px;'+
+    'font-size:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;'+
+    'pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,.3);letter-spacing:.2px';
+  bar.textContent='\\u270F\\uFE0F  Modo edici\\u00F3n — haz clic en cualquier texto para editar  \\u00B7  Esc para deseleccionar';
+  document.body.insertBefore(bar,document.body.firstChild);
+  /* push content down so bar doesn't cover the hero */
+  document.body.style.setProperty('margin-top','38px','important');
+
+  /* ── editable element styles ── */
   var st=document.createElement('style');
+  st.id='__edit_st__';
   st.textContent=
-    /* pill indicator so user knows edit mode is on */
-    'body::after{content:"✏  Modo edición — haz clic en cualquier texto";'+
-    'position:fixed;top:8px;left:50%;transform:translateX(-50%);'+
-    'background:#6366f1;color:#fff;font-size:11px;font-family:sans-serif;'+
-    'padding:5px 14px;border-radius:20px;z-index:99999;pointer-events:none;'+
-    'box-shadow:0 2px 10px rgba(0,0,0,.25)}'+
-    /* hover outline */
-    '[contenteditable=true]:hover{outline:2px dashed rgba(99,102,241,.6)!important;'+
-    'outline-offset:2px!important;cursor:text!important;border-radius:3px!important}'+
-    /* focus outline */
+    '[contenteditable=true]{pointer-events:auto!important;user-select:text!important;'+
+    '-webkit-user-select:text!important;cursor:text!important}'+
+    '[contenteditable=true]:hover{outline:2px dashed rgba(99,102,241,.65)!important;'+
+    'outline-offset:2px!important;border-radius:3px!important}'+
     '[contenteditable=true]:focus{outline:2px solid #6366f1!important;'+
-    'outline-offset:2px!important;background:rgba(99,102,241,.04)!important}'+
-    /* override any pointer-events:none Tailwind might apply */
-    '[contenteditable=true]{pointer-events:auto!important;user-select:text!important}';
+    'outline-offset:2px!important;background:rgba(99,102,241,.05)!important}';
   document.head.appendChild(st);
 
-  /* ── mark text-bearing elements as editable immediately ── */
-  /* Only elements that have a direct text node (not just container divs) */
-  var SKIP=new Set(['SCRIPT','STYLE','IFRAME','IMG','INPUT','TEXTAREA',
-                    'SELECT','META','LINK','NOSCRIPT','SVG','PATH','CIRCLE',
-                    'RECT','LINE','POLYGON','POLYLINE','ELLIPSE','USE','DEFS']);
+  /* ── mark every text-bearing element as editable ── */
+  var SKIP=new Set(['SCRIPT','STYLE','IFRAME','IMG','INPUT','TEXTAREA','SELECT',
+                    'META','LINK','NOSCRIPT','SVG','PATH','CIRCLE','RECT','LINE',
+                    'POLYGON','POLYLINE','ELLIPSE','USE','DEFS','SYMBOL','G',
+                    'ANIMATE','ANIMATETRANSFORM']);
 
   function hasDirectText(el){
     for(var i=0;i<el.childNodes.length;i++){
@@ -102,51 +105,83 @@ const EDIT_MODE_SCRIPT = `<script id="__em__">
 
   document.querySelectorAll('*').forEach(function(el){
     if(SKIP.has(el.tagName))return;
-    if(el.id==='__em__')return;
-    /* Skip anything inside the lead form */
-    try{if(el.closest('#lead-form'))return;}catch(_){}
+    if(el.id==='__em__'||el.id==='__edit_bar__'||el.id==='__edit_st__'||el.id==='__pv__')return;
+    try{if(el.closest('#lead-form'))return;}catch(x){}
     if(hasDirectText(el)){
       el.contentEditable='true';
       el.spellcheck=false;
     }
   });
 
-  /* ── debounced sync to parent ── */
-  /* Uses input event (fires on every keystroke) with 600ms debounce.
-     Clones the DOM, strips edit-mode artifacts, sends clean HTML. */
-  var syncTimer=null;
-  function scheduleSync(){
-    clearTimeout(syncTimer);
-    syncTimer=setTimeout(function(){
-      try{
-        var clone=document.documentElement.cloneNode(true);
-        /* strip contenteditable + spellcheck */
-        clone.querySelectorAll('[contenteditable]').forEach(function(n){
-          n.removeAttribute('contenteditable');
-          n.removeAttribute('spellcheck');
-        });
-        /* remove the injected script */
-        var em=clone.querySelector('#__em__');if(em)em.remove();
-        /* remove the injected style (contains "Modo edición") */
-        clone.querySelectorAll('style').forEach(function(s){
-          if(s.textContent.indexOf('Modo edición')!==-1)s.remove();
-        });
-        window.parent.postMessage(
-          {type:'landing_html_edit',html:'<!DOCTYPE html>'+clone.outerHTML},'*');
-      }catch(_){}
-    },600);
+  /* ── prevent link navigation in edit mode ── */
+  document.addEventListener('click',function(e){
+    var t=e.target;
+    while(t&&t!==document){
+      if(t.tagName==='A'){e.preventDefault();e.stopPropagation();return;}
+      t=t.parentElement;
+    }
+  },true);
+
+  /* ── sync clean HTML to parent ── */
+  function getClean(){
+    var c=document.documentElement.cloneNode(true);
+    c.querySelectorAll('[contenteditable]').forEach(function(n){
+      n.removeAttribute('contenteditable');n.removeAttribute('spellcheck');
+    });
+    ['#__em__','#__edit_bar__','#__edit_st__','#__pv__','#__nb__'].forEach(function(id){
+      var el=c.querySelector(id);if(el)el.remove();
+    });
+    var b=c.querySelector('body');
+    if(b){b.style.removeProperty('margin-top');}
+    return '<!DOCTYPE html>'+c.outerHTML;
   }
 
-  document.addEventListener('input',scheduleSync,true);
+  var syncT=null;
+  function sync(){
+    clearTimeout(syncT);
+    syncT=setTimeout(function(){
+      try{window.parent.postMessage({type:'landing_html_edit',html:getClean()},'*');}catch(x){}
+    },500);
+  }
 
-  /* ── Escape key to unfocus ── */
+  document.addEventListener('input',sync,true);
+  document.addEventListener('focusout',function(e){
+    if(e.target&&e.target.contentEditable==='true')sync();
+  },true);
+
   document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'&&document.activeElement){
+    if(e.key==='Escape'&&document.activeElement&&
+       document.activeElement.contentEditable==='true'){
       document.activeElement.blur();
     }
   },true);
+
+  }catch(err){
+    /* Debug: show error on page so we can see what went wrong */
+    try{
+      var dbg=document.createElement('div');
+      dbg.style.cssText='position:fixed;bottom:0;left:0;right:0;background:red;color:white;'+
+        'padding:8px;font-size:11px;z-index:9999999;font-family:monospace';
+      dbg.textContent='EditMode error: '+err.message;
+      document.body.appendChild(dbg);
+    }catch(x){}
+  }
 })();
 <\/script>`;
+
+// ── Helper: build iframe srcDoc with appropriate scripts injected ─────────────
+function buildSrcDoc(html: string, isEditMode: boolean): string {
+  // In preview: only the nav script (links → new tab)
+  // In edit:    nav blocker for links + full edit mode script
+  const toInject = isEditMode
+    ? EDIT_MODE_SCRIPT            // EDIT_MODE_SCRIPT already blocks <a> internally
+    : PREVIEW_NAV_SCRIPT;
+  // Inject before </body>; fall back to appending if tag not found
+  if (/<\/body>/i.test(html)) {
+    return html.replace(/<\/body>/i, toInject + '\n</body>');
+  }
+  return html + '\n' + toInject;
+}
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface FormField {
@@ -1308,7 +1343,13 @@ export default function LandingBuilderPage() {
                           key={`${editMode ? "edit" : "preview"}-${deviceSize}`}
                           srcDoc={buildSrcDoc(previewHtml, editMode)}
                           className="w-full h-full border-0"
-                          sandbox="allow-scripts allow-forms"
+                          sandbox={
+                            editMode
+                              // Edit mode: scripts only — no popups needed, links are blocked
+                              ? "allow-scripts allow-forms"
+                              // Preview mode: full live experience — links open in new tab
+                              : "allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+                          }
                           title="Vista previa landing"
                         />
                       </div>
