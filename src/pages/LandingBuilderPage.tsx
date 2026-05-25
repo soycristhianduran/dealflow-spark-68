@@ -476,7 +476,17 @@ export default function LandingBuilderPage() {
   useEffect(() => {
     if (!generatedHtml) return;
     const detected = detectFormFields(generatedHtml);
-    if (detected.length === 0) return;
+
+    if (detected.length === 0) {
+      // Form was removed from HTML — clear detected fields so the
+      // "Integrar formulario" button and badge disappear immediately.
+      // Preserve pipeline/stage assignment in case the user re-adds a form.
+      setFormConfig(prev => {
+        if ((prev.fields ?? []).length === 0) return prev; // already empty, no-op
+        return { ...prev, fields: [] };
+      });
+      return;
+    }
 
     setFormConfig(prev => {
       const existingMap = new Map((prev.fields ?? []).map(f => [f.name, f.crm_field]));
