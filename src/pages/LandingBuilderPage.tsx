@@ -68,6 +68,11 @@ export interface FormField {
   options?: string[];  // for select type
 }
 
+export interface CtaLink {
+  text: string;   // visible button label (used as display key)
+  url: string;    // destination URL (empty = keep original)
+}
+
 export interface FormConfig {
   fields: FormField[];
   pipeline_id: string;
@@ -77,8 +82,9 @@ export interface FormConfig {
   cta_text: string;
   success_message: string;
   // Connections
-  redirect_url?: string;   // after form submit: full URL or empty (shows inline message)
-  cta_url?: string;        // CTA buttons target URL (patches href="#" links in the page)
+  redirect_url?: string;    // after form submit: full URL or empty (shows inline message)
+  cta_url?: string;         // legacy single-CTA override (kept for backward compat)
+  cta_links?: CtaLink[];    // per-CTA configuration (indexed, matches detection order)
 }
 
 interface LandingFunnel {
@@ -155,6 +161,7 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
   success_message: "¡Gracias! Te contactaremos pronto.",
   redirect_url: "",
   cta_url: "",
+  cta_links: [],
 };
 
 // ── Auto-detect form fields from AI-generated HTML ────────────────────────────
@@ -213,6 +220,22 @@ function detectFormFields(html: string): Omit<FormField, 'crm_field'>[] {
     }
   }
   return fields;
+}
+
+// ── Auto-detect CTA links (href="#") outside the lead form ───────────────────
+function detectCtaLinks(html: string): CtaLink[] {
+  if (!html) return [];
+  // Strip the lead form so we don't pick up submit-button links inside it
+  const noForm = html.replace(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i, "");
+  const results: CtaLink[] = [];
+  // Match <a href="#"> ... </a>  (href is exactly "#")
+  const re = /<a[^>]*\bhref=["']#["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m;
+  while ((m = re.exec(noForm)) !== null) {
+    const text = m[1].replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim().slice(0, 80);
+    if (text) results.push({ text, url: "" });
+  }
+  return results;
 }
 
 // Smart auto-mapping: guesses CRM field from common field name patterns
@@ -590,6 +613,23 @@ export default function LandingBuilderPage() {
       const same = newFields.length === (prev.fields ?? []).length &&
         newFields.every((f, i) => f.name === (prev.fields ?? [])[i]?.name);
       return same ? prev : { ...prev, fields: newFields };
+    });
+  }, [generatedHtml]);
+
+  // ── Auto-detect CTA links when HTML changes ──────────────────────────────────
+  useEffect(() => {
+    if (!generatedHtml) return;
+    const detected = detectCtaLinks(generatedHtml);
+    setFormConfig(prev => {
+      const existing = prev.cta_links ?? [];
+      // Merge: preserve URLs already set by the user (match by position)
+      const merged: CtaLink[] = detected.map((d, i) => ({
+        text: d.text,
+        url: existing[i]?.url ?? "",
+      }));
+      const same = merged.length === existing.length &&
+        merged.every((c, i) => c.text === existing[i]?.text && c.url === existing[i]?.url);
+      return same ? prev : { ...prev, cta_links: merged };
     });
   }, [generatedHtml]);
 
@@ -1947,51 +1987,75 @@ export default function LandingBuilderPage() {
                     )}
                   </div>
 
-                  {/* CTA buttons destination */}
+                  {/* CTA buttons — per-button configuration */}
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Al hacer clic en los botones CTA</p>
-                    <Select
-                      value={ctaMode}
-                      onValueChange={v => {
-                        if (v === "none") {
-                          setFormConfig(prev => ({ ...prev, cta_url: "" }));
-                        } else if (v === "custom") {
-                          setFormConfig(prev => ({ ...prev, cta_url: "https://" }));
-                        } else {
-                          const page = targetPages.find(p => p.id === v);
-                          setFormConfig(prev => ({ ...prev, cta_url: serveUrl(page?.slug ?? null) }));
-                        }
-                      }}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue placeholder="Sin configurar (usa href del diseño)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sin configurar (usa href del diseño)</SelectItem>
-                        {targetPages.map(p => (
-                          <SelectItem key={p.id} value={p.id}>
-                            → {p.name}
-                            {p.page_role === "thankyou" && <span className="text-green-600 ml-1">(Gracias)</span>}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="custom">URL externa personalizada…</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {ctaMode === "custom" && (
-                      <Input
-                        className="h-8 text-sm"
-                        placeholder="https://tudominio.com/oferta"
-                        value={ctaVal}
-                        onChange={e => setFormConfig(prev => ({ ...prev, cta_url: e.target.value }))}
-                      />
-                    )}
-                    {ctaVal && ctaMode !== "custom" && (
-                      <p className="text-[10px] text-green-600 flex items-center gap-1">
-                        ✓ CTAs irán a {targetPages.find(p => p.id === ctaMode)?.name}
+                    <p className="text-xs font-medium text-muted-foreground">Botones CTA detectados</p>
+                    {(formConfig.cta_links ?? []).length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground/60 italic">
+                        No se detectaron botones CTA con href="#" en la página.
                       </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {(formConfig.cta_links ?? []).map((cta, idx) => {
+                          const val = cta.url;
+                          const matchPage = targetPages.find(p => serveUrl(p.slug) === val);
+                          const mode = !val ? "none" : matchPage ? matchPage.id : "custom";
+                          return (
+                            <div key={idx} className="rounded-md border border-border p-2.5 space-y-1.5 bg-background">
+                              <p className="text-[11px] font-medium truncate text-foreground" title={cta.text}>
+                                🔗 "{cta.text}"
+                              </p>
+                              <Select
+                                value={mode}
+                                onValueChange={v => {
+                                  let url = "";
+                                  if (v === "custom") url = "https://";
+                                  else if (v !== "none") {
+                                    const pg = targetPages.find(p => p.id === v);
+                                    url = serveUrl(pg?.slug ?? null);
+                                  }
+                                  setFormConfig(prev => ({
+                                    ...prev,
+                                    cta_links: (prev.cta_links ?? []).map((c, i) =>
+                                      i === idx ? { ...c, url } : c
+                                    ),
+                                  }));
+                                }}
+                              >
+                                <SelectTrigger className="h-7 text-xs">
+                                  <SelectValue placeholder="Sin configurar" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">Sin configurar (href del diseño)</SelectItem>
+                                  {targetPages.map(p => (
+                                    <SelectItem key={p.id} value={p.id}>
+                                      → {p.name}
+                                      {p.page_role === "thankyou" && " ✓"}
+                                    </SelectItem>
+                                  ))}
+                                  <SelectItem value="custom">URL externa…</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              {mode === "custom" && (
+                                <Input
+                                  className="h-7 text-xs"
+                                  placeholder="https://tudominio.com/pagina"
+                                  value={val}
+                                  onChange={e => setFormConfig(prev => ({
+                                    ...prev,
+                                    cta_links: (prev.cta_links ?? []).map((c, i) =>
+                                      i === idx ? { ...c, url: e.target.value } : c
+                                    ),
+                                  }))}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                     <p className="text-[10px] text-muted-foreground/60">
-                      Aplica a botones con href="#" en la página. Los links externos no se modifican.
+                      Solo aplica a botones con href="#". Links externos no se modifican.
                     </p>
                   </div>
                 </div>

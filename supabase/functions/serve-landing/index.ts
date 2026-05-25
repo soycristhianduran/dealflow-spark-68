@@ -114,8 +114,23 @@ Deno.serve(async (req) => {
     // capture-phase + stopImmediatePropagation to take priority over any AI-generated
     // listener. It guarantees: correct page_id, JSON body, and thank-you redirect.
     const pageId = page.id;
-    // Patch CTA buttons (href="#") with configured URL, excluding form submit buttons
-    if (ctaUrl) {
+    // Patch CTA buttons (href="#") — per-button config takes priority over single cta_url
+    const ctaLinks: { text: string; url: string }[] = formConfig.cta_links || [];
+    const hasPerCtaConfig = ctaLinks.some(c => c.url);
+
+    if (hasPerCtaConfig) {
+      // Replace href="#" links outside the form by index (same order as detection)
+      const formTagMatch = html.match(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i);
+      const formPlaceholder = "___LEADFORM___";
+      let workHtml = formTagMatch ? html.replace(formTagMatch[0], formPlaceholder) : html;
+      let ctaIdx = 0;
+      workHtml = workHtml.replace(/<a([^>]*)\bhref=["']#["']([^>]*)>/gi, (_match, before, after) => {
+        const cfg = ctaLinks[ctaIdx++];
+        return cfg?.url ? `<a${before} href="${cfg.url}"${after}>` : _match;
+      });
+      html = formTagMatch ? workHtml.replace(formPlaceholder, formTagMatch[0]) : workHtml;
+    } else if (ctaUrl) {
+      // Fallback: legacy single-CTA override
       html = html.replace(
         /<a([^>]*)\shref=["']#["']([^>]*)>/gi,
         `<a$1 href="${ctaUrl}"$2>`,
