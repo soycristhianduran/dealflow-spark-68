@@ -36,7 +36,13 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // Only fetch FB token for actions that need it
-    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status", "get_ads_structure", "update_entity_status", "create_campaign"];
+    const actionsNeedingToken = [
+      "get_pages", "get_ad_accounts", "get_campaigns",
+      "update_campaign_status", "get_ads_structure", "update_entity_status",
+      "create_campaign", "create_adset", "create_ad",
+      "get_lead_forms", "save_lead_forms", "fetch_leads", "subscribe_leadgen",
+      "get_conversations",
+    ];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
       fbToken = await getFbToken(supabase, user.id);
@@ -47,7 +53,14 @@ Deno.serve(async (req) => {
       case "get_pages": {
         const res = await fetch(`${GRAPH_API}/me/accounts?fields=id,name,access_token,category&access_token=${fbToken}`);
         const data = await res.json();
-        if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
+        console.log("get_pages response:", JSON.stringify(data));
+        if (!res.ok || data.error) {
+          const metaMsg = data.error?.error_user_msg || data.error?.message || JSON.stringify(data);
+          return new Response(
+            JSON.stringify({ pages: [], error: metaMsg }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
         return new Response(JSON.stringify({ pages: data.data || [] }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

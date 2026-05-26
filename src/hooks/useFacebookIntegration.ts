@@ -192,6 +192,7 @@ export function useFacebookIntegration() {
       body: { action: "get_pages" },
     });
     if (error) { toast.error("Error al obtener páginas"); return []; }
+    if (data?.error) { toast.error(`Error páginas: ${data.error}`); return []; }
     return data.pages || [];
   }, []);
 
