@@ -268,6 +268,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   // Connected view (step 6 when already connected)
   if (step === 6 && wa.isConnected && wa.config) {
     return (
+      <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-lg p-0 overflow-hidden">
           {/* Header */}
@@ -378,7 +379,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
         </DialogContent>
       </Dialog>
 
-      {/* Register Phone (Cloud API activation) Dialog */}
+      {/* Register Phone (Cloud API activation) Dialog — nested inside same Fragment so state is shared */}
       <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
@@ -416,6 +417,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
           </div>
         </DialogContent>
       </Dialog>
+      </>
     );
   }
 
