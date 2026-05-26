@@ -104,6 +104,13 @@ export default function PipelinePage() {
   const [wonBudgetAmount, setWonBudgetAmount] = useState("");
   const [wonBudgetCurrency, setWonBudgetCurrency] = useState("USD");
   const [wonBudgetSaving, setWonBudgetSaving] = useState(false);
+
+  // Lost reason dialog (shown when dragging to a "lost" stage)
+  const [lostReasonDialogOpen, setLostReasonDialogOpen] = useState(false);
+  const [pendingLostDrop, setPendingLostDrop] = useState<{ contactId: string; stageId: string; stageName: string } | null>(null);
+  const [lostReasonSelected, setLostReasonSelected] = useState("");
+  const [lostReasonCustom, setLostReasonCustom] = useState("");
+  const [lostReasonSaving, setLostReasonSaving] = useState(false);
   const [leadCloseDate, setLeadCloseDate] = useState("");
   const [savingLead, setSavingLead] = useState(false);
 
@@ -273,6 +280,16 @@ export default function PipelinePage() {
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
+  const LOST_REASONS = [
+    "Precio muy alto",
+    "Eligió a la competencia",
+    "Sin presupuesto disponible",
+    "No era el momento indicado",
+    "Sin respuesta (ghosting)",
+    "No era el cliente ideal",
+    "Otra razón…",
+  ];
+
   // Derive lead_status from stage name (supports common Spanish/English naming patterns)
   const inferLeadStatus = (stageName: string): "won" | "lost" | "active" => {
     const n = stageName.toLowerCase();
@@ -320,7 +337,37 @@ export default function PipelinePage() {
       }
     }
 
+    // If moving to a lost stage, require a reason
+    if (newLeadStatus === "lost") {
+      setPendingLostDrop({ contactId, stageId, stageName: stage?.name ?? "" });
+      setLostReasonSelected("");
+      setLostReasonCustom("");
+      setLostReasonDialogOpen(true);
+      return; // pause — will complete after user selects reason
+    }
+
     await completeDrop(contactId, stageId, newLeadStatus);
+  };
+
+  // Confirm lost drop with reason
+  const confirmLostDrop = async () => {
+    if (!pendingLostDrop) return;
+    const reason = lostReasonSelected === "Otra razón…" ? lostReasonCustom.trim() : lostReasonSelected;
+    if (!reason) { toast.error("Selecciona o escribe una razón"); return; }
+    setLostReasonSaving(true);
+    const stage = stages.find(s => s.id === pendingLostDrop.stageId);
+    const update: Record<string, any> = { stage_id: pendingLostDrop.stageId, lead_status: "lost", lost_reason: reason };
+    setContacts(prev => prev.map(c => c.id === pendingLostDrop.contactId ? { ...c, stage_id: pendingLostDrop.stageId, lead_status: "lost" } : c));
+    await supabase.from("contacts").update(update).eq("id", pendingLostDrop.contactId);
+    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: pendingLostDrop.contactId } }).catch(() => {});
+    supabase.functions.invoke("automation-runner", {
+      body: { action: "trigger_event", trigger_type: "contact_stage_changed", contact_id: pendingLostDrop.contactId,
+        trigger_data: { stage_id: pendingLostDrop.stageId, stage_name: stage?.name ?? "", pipeline_id: selectedPipelineId } },
+    }).catch(() => {});
+    toast.success("Lead marcado como perdido");
+    setLostReasonSaving(false);
+    setLostReasonDialogOpen(false);
+    setPendingLostDrop(null);
   };
 
   // Confirm won drop with budget
@@ -809,6 +856,55 @@ export default function PipelinePage() {
             <Button onClick={handleCreateLead} disabled={savingLead || !leadFullName.trim()}>
               {savingLead && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
               Crear lead
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Lost reason dialog ── */}
+      <Dialog open={lostReasonDialogOpen} onOpenChange={open => { if (!open && !lostReasonSaving) { setLostReasonDialogOpen(false); setPendingLostDrop(null); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <XCircle className="h-5 w-5 text-destructive" /> ¿Por qué se perdió este deal?
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Registrar la razón ayuda a identificar patrones y mejorar el proceso de ventas.
+          </p>
+          <div className="space-y-2">
+            {LOST_REASONS.map(reason => (
+              <button
+                key={reason}
+                type="button"
+                onClick={() => { setLostReasonSelected(reason); if (reason !== "Otra razón…") setLostReasonCustom(""); }}
+                className={`w-full text-left px-3 py-2 rounded-md border text-sm transition-colors ${
+                  lostReasonSelected === reason
+                    ? "border-destructive bg-destructive/10 text-destructive font-medium"
+                    : "border-border hover:border-muted-foreground hover:bg-muted/50"
+                }`}
+              >
+                {reason}
+              </button>
+            ))}
+            {lostReasonSelected === "Otra razón…" && (
+              <Input
+                autoFocus
+                placeholder="Describe la razón…"
+                value={lostReasonCustom}
+                onChange={e => setLostReasonCustom(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && confirmLostDrop()}
+                className="mt-1"
+              />
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setLostReasonDialogOpen(false); setPendingLostDrop(null); }} disabled={lostReasonSaving}>
+              Cancelar
+            </Button>
+            <Button onClick={confirmLostDrop} disabled={lostReasonSaving || !lostReasonSelected || (lostReasonSelected === "Otra razón…" && !lostReasonCustom.trim())} variant="destructive" className="gap-1.5">
+              {lostReasonSaving && <Loader2 className="h-4 w-4 animate-spin" />}
+              Confirmar
             </Button>
           </DialogFooter>
         </DialogContent>
