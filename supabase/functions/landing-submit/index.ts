@@ -118,6 +118,14 @@ Deno.serve(async (req) => {
       if (phone) applyMapping("primary_phone", phone);
     }
 
+    // ── Capture UTM parameters (always, independent of field mappings) ────────
+    // These are passed automatically by the page script from window.location.search.
+    const UTM_FIELDS = ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const;
+    for (const utm of UTM_FIELDS) {
+      const v = body[utm];
+      if (v && String(v).trim()) contactData[utm] = String(v).trim();
+    }
+
     // Ensure full_name is set (required NOT NULL)
     if (!contactData.full_name) {
       contactData.full_name = [contactData.first_name, contactData.last_name].filter(Boolean).join(" ")
@@ -145,6 +153,10 @@ Deno.serve(async (req) => {
         if (contactData.city)          patch.city          = contactData.city;
         if (contactData.country)       patch.country       = contactData.country;
         if (contactData.notes)         patch.notes         = contactData.notes;
+        // Always overwrite UTMs with the latest visit's attribution
+        for (const utm of UTM_FIELDS) {
+          if (contactData[utm]) patch[utm] = contactData[utm];
+        }
         if (tagsToAdd.length) {
           const merged = [...new Set([...(existing.tags || []), ...tagsToAdd])];
           patch.tags = merged;

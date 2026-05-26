@@ -156,6 +156,17 @@ Deno.serve(async (req) => {
       hi.type='hidden';hi.name='page_id';hi.value='${pageId}';
       f.appendChild(hi);
     }
+    // ── UTM capture: persist from URL to sessionStorage, survive navigations ──
+    var utmKeys=['utm_source','utm_medium','utm_campaign','utm_term','utm_content'];
+    var urlP=new URLSearchParams(window.location.search);
+    var hasUtm=utmKeys.some(function(k){return!!urlP.get(k);});
+    if(hasUtm){
+      utmKeys.forEach(function(k){
+        var v=urlP.get(k);
+        if(v)sessionStorage.setItem('_klosify_'+k,v);
+        else sessionStorage.removeItem('_klosify_'+k);
+      });
+    }
     // Single authoritative submit handler — no other listeners exist after clone
     f.addEventListener('submit',function(e){
       e.preventDefault();
@@ -164,6 +175,12 @@ Deno.serve(async (req) => {
       if(btn){btn.disabled=true;btn.textContent='Enviando...';}
       var d={page_id:'${pageId}',source:window.location.href};
       new FormData(f).forEach(function(v,k){if(k&&k!=='page_id')d[k]=v;});
+      // Append UTMs from URL (or sessionStorage fallback)
+      var urlPsub=new URLSearchParams(window.location.search);
+      utmKeys.forEach(function(k){
+        var v=urlPsub.get(k)||sessionStorage.getItem('_klosify_'+k);
+        if(v)d[k]=v;
+      });
       fetch('${submitUrl}',{
         method:'POST',
         headers:{'Content-Type':'application/json'},

@@ -956,19 +956,20 @@ export default function ContactDetailPage() {
                   </Card>
                 )}
 
-                {(contact.utm_source || contact.utm_medium || contact.utm_campaign) && (
+                {(contact.utm_source || contact.utm_medium || contact.utm_campaign || contact.utm_term || contact.utm_content) && (
                   <Card className="border-none shadow-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <BarChart3 className="h-3.5 w-3.5" /> UTM
+                        <BarChart3 className="h-3.5 w-3.5" /> Origen del tráfico
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
-                        <InfoItem label="utm_source" value={contact.utm_source} />
-                        <InfoItem label="utm_medium" value={contact.utm_medium} />
-                        <InfoItem label="utm_campaign" value={contact.utm_campaign} />
-                        <InfoItem label="utm_content" value={contact.utm_content} />
+                        {contact.utm_source   && <InfoItem label="Fuente (utm_source)"   value={contact.utm_source} />}
+                        {contact.utm_medium   && <InfoItem label="Medio (utm_medium)"    value={contact.utm_medium} />}
+                        {contact.utm_campaign && <InfoItem label="Campaña (utm_campaign)" value={contact.utm_campaign} />}
+                        {contact.utm_content  && <InfoItem label="Contenido (utm_content)" value={contact.utm_content} />}
+                        {contact.utm_term     && <InfoItem label="Término (utm_term)"    value={contact.utm_term} />}
                       </div>
                     </CardContent>
                   </Card>
