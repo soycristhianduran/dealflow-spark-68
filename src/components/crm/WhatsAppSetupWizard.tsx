@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -10,8 +10,8 @@ import {
   ChevronRight, KeyRound, Shield, Wifi, WifiOff,
   ExternalLink, Settings, Trash2, RefreshCw, Smartphone, AlertTriangle
 } from "lucide-react";
-import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { toast } from "sonner";
+import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 
 interface WhatsAppSetupWizardProps {
   open: boolean;
@@ -62,6 +62,42 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   const [manualToken, setManualToken] = useState("");
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+
+  // Advanced actions (shown inside the Gestionar / connected view)
+  const [resubscribing, setResubscribing] = useState(false);
+  const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
+  const [registerPin, setRegisterPin] = useState("");
+  const [registering, setRegistering] = useState(false);
+
+  const handleResubscribeWebhook = async () => {
+    setResubscribing(true);
+    try {
+      await wa.resubscribeWebhook?.();
+      toast.success("Webhook reactivado — los mensajes entrantes deberían llegar ahora");
+    } catch (e: any) {
+      toast.error("Error al reactivar: " + e.message);
+    } finally {
+      setResubscribing(false);
+    }
+  };
+
+  const handleRegisterPhone = async () => {
+    if (!/^\d{6}$/.test(registerPin)) {
+      toast.error("El PIN debe ser de 6 dígitos numéricos");
+      return;
+    }
+    setRegistering(true);
+    try {
+      await wa.registerPhone?.(registerPin);
+      toast.success("Número activado en WhatsApp Cloud API.");
+      setRegisterDialogOpen(false);
+      setRegisterPin("");
+    } catch (e: any) {
+      toast.error("Error al activar: " + e.message);
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   // Keep a ref to cancel the reset timer if the wizard reopens quickly.
   // Without this, the timer started on the very first render (open=false) would
@@ -267,29 +303,53 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               </div>
             </div>
 
-            {/* Webhook config */}
-            <div className="rounded-xl border p-4 space-y-3">
-              <h4 className="text-sm font-semibold flex items-center gap-2">
-                <Settings className="h-4 w-4 text-muted-foreground" />
-                Webhook para mensajes entrantes
-              </h4>
-              <div className="flex items-center gap-2 bg-muted rounded-lg p-2.5">
-                <code className="text-[11px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
+            {/* Advanced actions — collapsed by default to keep the view clean */}
+            <details className="group">
+              <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none flex items-center gap-1.5">
+                <Settings className="h-3.5 w-3.5" />
+                Opciones avanzadas
+              </summary>
+              <div className="mt-3 rounded-xl border p-4 space-y-3">
+                {/* Webhook URL — for developers who need to verify it */}
+                <div className="space-y-1.5">
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">URL Webhook</p>
+                  <div className="flex items-center gap-2 bg-muted rounded-lg p-2">
+                    <code className="text-[10px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="shrink-0 h-6 w-6"
+                      onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada"); }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                {/* Resubscribe webhook */}
                 <Button
                   size="sm"
-                  variant="ghost"
-                  className="shrink-0 h-7 w-7"
-                  onClick={() => {
-                    navigator.clipboard.writeText(webhookUrl);
-                    toast.success("URL copiada");
-                  }}
+                  variant="outline"
+                  className="w-full gap-1.5 text-xs"
+                  disabled={resubscribing}
+                  onClick={handleResubscribeWebhook}
                 >
-                  <Copy className="h-3.5 w-3.5" />
+                  {resubscribing
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivando...</>
+                    : <><RefreshCw className="h-3 w-3" /> Reactivar webhook (mensajes entrantes)</>}
+                </Button>
+                {/* Register phone number (PIN) */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5 text-xs"
+                  onClick={() => setRegisterDialogOpen(true)}
+                >
+                  <Shield className="h-3 w-3" /> Activar número (registrar PIN)
                 </Button>
               </div>
-            </div>
+            </details>
 
-            {/* Actions */}
+            {/* Primary actions */}
             <div className="flex gap-2">
               <Button
                 variant="outline"
@@ -314,6 +374,45 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 Reconectar
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Register Phone (Cloud API activation) Dialog */}
+      <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Activar número en WhatsApp Cloud API</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3">
+              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                <span className="font-semibold">¿Cuándo usar esto?</span> Cuando agregas un número nuevo en WhatsApp Manager y al intentar configurar la verificación en dos pasos te sale "La cuenta no existe en la API de la nube".
+                <br /><br />
+                Este paso registra el número en el Cloud API y configura el PIN de verificación en dos pasos. <span className="font-semibold">Guarda este PIN</span> — lo necesitarás si re-registras el número en el futuro.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wizard-register-pin" className="text-sm font-medium">PIN de verificación en dos pasos</Label>
+              <Input
+                id="wizard-register-pin"
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6 dígitos"
+                value={registerPin}
+                onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="font-mono tracking-widest text-center text-lg"
+              />
+              <p className="text-xs text-muted-foreground">Elige 6 dígitos que recuerdes. Este PIN protege tu número.</p>
+            </div>
+            <Button
+              className="w-full"
+              onClick={handleRegisterPhone}
+              disabled={registering || registerPin.length !== 6}
+            >
+              {registering ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Activando...</> : "Activar número"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

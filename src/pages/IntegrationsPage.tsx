@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, RefreshCw, Copy, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, AlertTriangle } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,17 +141,11 @@ export default function IntegrationsPage() {
   const [waWizardOpen, setWaWizardOpen] = useState(false);
   const [igWizardOpen, setIgWizardOpen] = useState(false);
   const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
-  const [resubscribing, setResubscribing] = useState(false);
   const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
-  const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
-  const [registerPin, setRegisterPin] = useState("");
-  const [registering, setRegistering] = useState(false);
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
   const ig = useInstagramIntegration();
-
-  const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
 
   // Check whether the stored WhatsApp token belongs to THIS CRM's Meta app.
   // If not, incoming messages won't arrive (WABA is subscribed to the wrong app).
@@ -168,39 +162,6 @@ export default function IntegrationsPage() {
       })
       .catch(() => {}); // non-fatal
   }, [wa.isConnected]);
-
-  const handleResubscribeWebhook = async () => {
-    setResubscribing(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "subscribe_waba" },
-      });
-      if (error || data?.error) throw new Error(data?.error || error?.message);
-      toast.success("Webhook reactivado — los mensajes entrantes deberían llegar ahora");
-    } catch (e: any) {
-      toast.error("Error al reactivar: " + e.message);
-    } finally {
-      setResubscribing(false);
-    }
-  };
-
-  const handleRegisterPhone = async () => {
-    if (!/^\d{6}$/.test(registerPin)) {
-      toast.error("El PIN debe ser de 6 dígitos numéricos");
-      return;
-    }
-    setRegistering(true);
-    try {
-      await wa.registerPhone?.(registerPin);
-      toast.success("Número activado en WhatsApp Cloud API. Ya puedes enviar y recibir mensajes.");
-      setRegisterDialogOpen(false);
-      setRegisterPin("");
-    } catch (e: any) {
-      toast.error("Error al activar: " + e.message);
-    } finally {
-      setRegistering(false);
-    }
-  };
 
   // Detect OAuth callback URL params here (NOT in the hook) so that only one
   // component instance processes them — the wizard's hook instance was consuming
@@ -415,37 +376,6 @@ export default function IntegrationsPage() {
                           </Button>
                         </div>
                       )}
-                      {/* Webhook URL for Meta Developer Console */}
-                      <div className="rounded-md border bg-muted/40 p-2 space-y-1">
-                        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">URL Webhook (Meta Developer Console)</p>
-                        <div className="flex items-center gap-1">
-                          <code className="text-[10px] flex-1 break-all font-mono text-foreground leading-relaxed">{webhookUrl}</code>
-                          <Button size="icon" variant="ghost" className="h-6 w-6 shrink-0" onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada"); }}>
-                            <Copy className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                      {/* Reactivate webhook button */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs gap-1.5"
-                        disabled={resubscribing}
-                        onClick={(e) => { e.stopPropagation(); handleResubscribeWebhook(); }}
-                      >
-                        {resubscribing
-                          ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivando...</>
-                          : <><RefreshCw className="h-3 w-3" /> Reactivar webhook (mensajes entrantes)</>}
-                      </Button>
-                      {/* Activate phone (register in Cloud API) — needed for newly added numbers */}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs gap-1.5"
-                        onClick={(e) => { e.stopPropagation(); setRegisterDialogOpen(true); }}
-                      >
-                        <Shield className="h-3 w-3" /> Activar número (registrar PIN)
-                      </Button>
                     </div>
                   )}
 
@@ -483,47 +413,6 @@ export default function IntegrationsPage() {
 
       {/* Instagram Setup Wizard */}
       <InstagramSetupWizard open={igWizardOpen} onOpenChange={(v) => { setIgWizardOpen(v); if (!v) ig.refresh(); }} />
-
-      {/* Register Phone (Cloud API activation) Dialog */}
-      <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Activar número en WhatsApp Cloud API</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3">
-              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                <span className="font-semibold">¿Cuándo usar esto?</span> Cuando agregas un número nuevo en WhatsApp Manager y al intentar configurar la verificación en dos pasos te sale "La cuenta no existe en la API de la nube".
-                <br /><br />
-                Este paso registra el número en el Cloud API y configura el PIN de verificación en dos pasos. <span className="font-semibold">Guarda este PIN</span> — lo necesitarás si re-registras el número en el futuro.
-              </p>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium">PIN de 6 dígitos</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="123456"
-                value={registerPin}
-                onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                className="w-full font-mono text-lg tracking-widest text-center px-3 py-2 rounded-md border bg-background"
-              />
-            </div>
-            <Button
-              className="w-full"
-              disabled={registering || registerPin.length !== 6}
-              onClick={handleRegisterPhone}
-            >
-              {registering ? (
-                <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Activando...</>
-              ) : (
-                <>Activar número</>
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Detail dialog (non-Facebook, non-WhatsApp) */}
       <Dialog open={!!selectedIntegration} onOpenChange={() => setSelectedIntegration(null)}>
