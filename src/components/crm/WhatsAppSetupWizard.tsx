@@ -495,7 +495,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3.5">
                 <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                  <span className="font-semibold">¿Ya usas otra plataforma?</span> Si tu número está conectado a Funnelchat, WATI, WAP MTC u otra app, <span className="font-semibold">desconéctalo primero</span> desde esa plataforma. De lo contrario, los mensajes entrantes seguirán llegando allá y no al CRM.
+                  <span className="font-semibold">¿Ya usas otra plataforma?</span> Si tu número está conectado a otra herramienta de mensajería, <span className="font-semibold">desconéctalo primero</span> desde esa plataforma. De lo contrario, los mensajes entrantes seguirán llegando allá y no al CRM.
                 </p>
               </div>
 
