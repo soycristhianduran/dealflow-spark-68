@@ -88,6 +88,9 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Success message shown inline when no redirect is configured
+    const successMessage = (formConfig.success_message || "¡Gracias! Te contactaremos pronto.").replace(/'/g, "\\'").replace(/\n/g, " ");
+
     // CTA URL: patches href="#" buttons outside the form (user-configured)
     const ctaUrl: string = formConfig.cta_url || "";
 
@@ -200,7 +203,7 @@ Deno.serve(async (req) => {
           var thankyouSlug='${thankyouSlug}';
           var next=res.data.redirect_url||'${thankyouUrl}'||(thankyouSlug?window.location.origin+'/'+thankyouSlug:'');
           if(next){window.location.href=next;}
-          else{f.innerHTML='<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem;font-weight:700;color:#16a34a">¡Gracias! Te contactaremos pronto.</p></div>';}
+          else{f.innerHTML='<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem;font-weight:700;color:#16a34a">${successMessage}</p></div>';}
         }else{
           if(btn){btn.disabled=false;btn.textContent='Intentar de nuevo';}
         }

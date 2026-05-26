@@ -2390,6 +2390,15 @@ export default function LandingBuilderPage() {
                         onChange={e => setFormConfig(prev => ({ ...prev, redirect_url: e.target.value }))}
                       />
                     )}
+                    {redirectMode === "message" && (
+                      <Textarea
+                        className="text-sm resize-none"
+                        rows={2}
+                        placeholder="¡Gracias! Te contactaremos pronto."
+                        value={formConfig.success_message || ""}
+                        onChange={e => setFormConfig(prev => ({ ...prev, success_message: e.target.value }))}
+                      />
+                    )}
                     {redirectMode !== "message" && redirectMode !== "custom" && (
                       <p className="text-[10px] text-green-600 flex items-center gap-1">
                         ✓ Redirigirá a {targetPages.find(p => p.id === redirectMode)?.name}
