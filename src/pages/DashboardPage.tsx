@@ -2,336 +2,379 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Sparkline, dailyCounts, trendPct } from "@/components/ui/sparkline";
-import { HeroCard } from "@/components/dashboard/HeroCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
 import {
-  Users, Handshake, Trophy, XCircle, DollarSign,
-  CalendarDays, CalendarCheck, CheckSquare,
-  TrendingUp, ArrowUpRight, ArrowDownRight, UserPlus, Star, Loader2,
-  AlertTriangle
+  DollarSign, Trophy, XCircle, ArrowUpRight, ArrowDownRight,
+  CalendarDays, CheckSquare, Activity, Target, BarChart3, Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
 
-interface DashboardStats {
-  contactsTotal: number;
-  contactsNew: number;
-  contactsQualified: number;
-  dealsOpen: number;
-  dealsWon: number;
-  dealsLost: number;
-  pipelineValue: number;
-  pipelineCurrency: string;
-  wonValue: number;
-  wonCurrency: string;
-  meetingsScheduled: number;
-  meetingsCompleted: number;
-  tasksPending: number;
-}
+/* ─── Types ──────────────────────────────────────────────────────────────── */
+type Period = "week" | "month" | "quarter" | "year";
 
+const PERIOD_OPTIONS: { value: Period; label: string; days: number }[] = [
+  { value: "week",    label: "7 días",    days: 7   },
+  { value: "month",   label: "30 días",   days: 30  },
+  { value: "quarter", label: "Trimestre", days: 90  },
+  { value: "year",    label: "Este año",  days: 365 },
+];
+
+interface StageRow {
+  id: string; name: string; position: number; color: string | null;
+  count: number; value: number;
+}
 interface MeetingRow {
-  id: string;
-  title: string;
-  start_at: string;
-  meeting_type: string | null;
-  contact_name: string | null;
+  id: string; title: string; start_at: string;
+  meeting_type: string | null; contact_name: string | null;
 }
-
 interface TaskRow {
-  id: string;
-  title: string;
-  priority: string;
-  task_type: string;
-  due_date: string | null;
-  due_time: string | null;
+  id: string; title: string; priority: string;
+  task_type: string; due_date: string | null; due_time: string | null;
 }
+interface ActivityRow { id: string; event_type: string; summary: string; created_at: string; }
+interface RatioRow    { label: string; count: number; }
 
-interface ActivityRow {
-  id: string;
-  event_type: string;
-  summary: string;
-  created_at: string;
-}
-
-interface DealRow {
-  id: string;
-  title: string;
-  value: number;
-  currency: string;
-  status: string;
-  expected_close_date: string | null;
-  contact_name: string | null;
-  stage_name: string | null;
-  stage_color: string | null;
-}
-
-interface ObjectionRow {
-  label: string;
-  count: number;
-}
-
-/**
- * Normalize an objection string so semantically equivalent items collapse
- * into a single bucket: trim, lowercase, strip punctuation/extra whitespace.
- */
-function normalizeObjection(raw: string): string {
-  return raw
-    .toLowerCase()
-    .replace(/[.,;:!?¿¡"'`]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-/**
- * Title-case the first letter for display, leave the rest as the user wrote it
- * (e.g. "precio muy alto" -> "Precio muy alto").
- */
-function prettyObjection(normalized: string): string {
-  if (!normalized) return normalized;
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
-}
-
-const eventTypeIcons: Record<string, string> = {
-  call: '📞', whatsapp: '💬', email: '✉️', meeting: '📅',
-  stage_change: '🔄', note: '📝', deal_created: '🤝', system: '⚙️', task_created: '✅'
+/* ─── Helpers ────────────────────────────────────────────────────────────── */
+const eventIcons: Record<string, string> = {
+  call: "📞", whatsapp: "💬", email: "✉️", meeting: "📅",
+  stage_change: "🔄", note: "📝", deal_created: "🤝", system: "⚙️", task_created: "✅",
 };
 
+function normObj(raw: string) {
+  return raw.toLowerCase().replace(/[.,;:!?¿¡"'`]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function fmt(value: number) {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000)     return `${(value / 1_000).toFixed(0)}K`;
+  return value.toLocaleString();
+}
+
+function trendPct(curr: number, prev: number): number | null {
+  if (prev === 0) return null;
+  return Math.round(((curr - prev) / prev) * 100);
+}
+
+/* ─── Sub-components ─────────────────────────────────────────────────────── */
+function PeriodSelector({
+  value, onChange,
+}: { value: Period; onChange: (p: Period) => void }) {
+  return (
+    <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+      {PERIOD_OPTIONS.map((opt) => (
+        <button
+          key={opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+            value === opt.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function KpiCard({
+  label, value, subValue, trend, trendIsPoints = false, invertTrend = false, icon, accent,
+}: {
+  label: string; value: string | number; subValue?: string;
+  trend?: number | null; trendIsPoints?: boolean; invertTrend?: boolean;
+  icon: React.ReactNode;
+  accent: "emerald" | "blue" | "orange" | "red" | "violet";
+}) {
+  const accentMap: Record<string, string> = {
+    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-400",
+    blue:    "bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400",
+    orange:  "bg-orange-50 text-orange-600 dark:bg-orange-900/25 dark:text-orange-400",
+    red:     "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400",
+    violet:  "bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400",
+  };
+
+  const trendUp   = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend < 0 : trend > 0);
+  const trendDown = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend > 0 : trend < 0);
+
+  return (
+    <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between mb-3">
+          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentMap[accent]}`}>
+            {icon}
+          </div>
+          {trend !== null && trend !== undefined && trend !== 0 && (
+            <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              trendUp
+                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                : trendDown
+                  ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+                  : ""
+            }`}>
+              {trendUp   && <ArrowUpRight   className="h-3 w-3" />}
+              {trendDown && <ArrowDownRight className="h-3 w-3" />}
+              {Math.abs(trend)}{trendIsPoints ? " pp" : "%"}
+            </span>
+          )}
+        </div>
+        <p className="text-2xl font-bold text-foreground tabular-nums leading-none">
+          {value}
+        </p>
+        {subValue && (
+          <p className="text-xs text-muted-foreground mt-1">{subValue}</p>
+        )}
+        <p className="text-xs font-medium text-muted-foreground mt-3">{label}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EmptyState({ icon, text, sub }: { icon: React.ReactNode; text: string; sub?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-6 text-center">
+      <div className="text-muted-foreground/25 mb-2">{icon}</div>
+      <p className="text-sm text-muted-foreground">{text}</p>
+      {sub && <p className="text-xs text-muted-foreground/60 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+/* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { isVendor, myUserId } = usePermissions();
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats>({
-    contactsTotal: 0, contactsNew: 0, contactsQualified: 0,
-    dealsOpen: 0, dealsWon: 0, dealsLost: 0,
-    pipelineValue: 0, pipelineCurrency: 'USD',
-    wonValue: 0, wonCurrency: 'USD',
-    meetingsScheduled: 0, meetingsCompleted: 0, tasksPending: 0,
-  });
+  const [period, setPeriod] = useState<Period>("month");
+
+  // KPIs — current period
+  const [wonValue,     setWonValue]     = useState(0);
+  const [wonCurrency,  setWonCurrency]  = useState("USD");
+  const [wonCount,     setWonCount]     = useState(0);
+  const [lostCount,    setLostCount]    = useState(0);
+  const [pipelineVal,  setPipelineVal]  = useState(0);
+  const [pipelineCur,  setPipelineCur]  = useState("USD");
+  const [pipelineN,    setPipelineN]    = useState(0);
+  const [avgDeal,      setAvgDeal]      = useState(0);
+
+  // KPIs — previous period (for trends)
+  const [prevWonVal,  setPrevWonVal]  = useState(0);
+  const [prevWonN,    setPrevWonN]    = useState(0);
+  const [prevLostN,   setPrevLostN]   = useState(0);
+
+  // Pipeline funnel
+  const [stageData, setStageData] = useState<StageRow[]>([]);
+
+  // Ratio widgets
+  const [lostReasons,   setLostReasons]   = useState<RatioRow[]>([]);
+  const [topObjections, setTopObjections] = useState<RatioRow[]>([]);
+
+  // Activity widgets
   const [upcomingMeetings, setUpcomingMeetings] = useState<MeetingRow[]>([]);
-  const [pendingTasks, setPendingTasks] = useState<TaskRow[]>([]);
-  const [recentActivity, setRecentActivity] = useState<ActivityRow[]>([]);
-  const [activeDeals, setActiveDeals] = useState<DealRow[]>([]);
-  const [topObjections, setTopObjections] = useState<ObjectionRow[]>([]);
-  const [objectionsAnalyzed, setObjectionsAnalyzed] = useState(0);
-  const [lostReasons, setLostReasons] = useState<{ label: string; count: number }[]>([]);
-  // 7-day time series for the sparklines on KPI cards.
-  // Keys come from fetched created_at timestamps so the sparkline reflects
-  // real activity, not random data.
-  const [sparkData, setSparkData] = useState<{
-    contacts: number[];
-    deals: number[];
-    meetings: number[];
-    tasks: number[];
-  }>({ contacts: [], deals: [], meetings: [], tasks: [] });
+  const [pendingTasks,     setPendingTasks]     = useState<TaskRow[]>([]);
+  const [recentActivity,   setRecentActivity]   = useState<ActivityRow[]>([]);
 
   const fetchDashboard = useCallback(async () => {
     setLoading(true);
+    const vf = isVendor && myUserId ? myUserId : null;
 
-    // For vendor role: scope all queries to their own records only
-    const vendorFilter = isVendor && myUserId ? myUserId : null;
+    const days      = PERIOD_OPTIONS.find((x) => x.value === period)!.days;
+    const now       = new Date();
+    const startDate = new Date(now.getTime() - days * 86_400_000);
+    const prevStart = new Date(startDate.getTime() - days * 86_400_000);
+    const startIso  = startDate.toISOString();
+    const prevIso   = prevStart.toISOString();
 
-    const [
-      contactsRes,
-      dealsRes,
-      meetingsRes,
-      tasksRes,
-      activitiesRes,
-      upcomingRes,
-      pendingTasksRes,
-      activeDealsRes,
-    ] = await Promise.all([
-      (() => {
-        let q = supabase.from("contacts").select("id, status, created_at");
-        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("contacts").select("id, lead_status, budget, budget_currency, created_at").not("pipeline_id", "is", null);
-        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("meetings").select("id, status, created_at");
-        if (vendorFilter) q = q.eq("advisor_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("tasks").select("id, status, created_at");
-        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("activities").select("id, event_type, summary, created_at").order("created_at", { ascending: false }).limit(6);
-        if (vendorFilter) q = q.eq("created_by", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("meetings").select("id, title, start_at, meeting_type, contacts(full_name)")
-          .eq("status", "scheduled").gte("start_at", new Date().toISOString()).order("start_at").limit(3);
-        if (vendorFilter) q = q.eq("advisor_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("tasks").select("id, title, priority, task_type, due_date, due_time")
-          .eq("status", "pending").order("due_date").limit(4);
-        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-        return q;
-      })(),
-      (() => {
-        let q = supabase.from("contacts").select("id, full_name, budget, budget_currency, lead_status, expected_close_date, pipeline_stages(name, color)")
-          .not("pipeline_id", "is", null).eq("lead_status", "active").order("created_at", { ascending: false }).limit(10);
-        if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-        return q;
-      })(),
-    ]);
+    /* ---------- build queries ---------- */
+    // Current-period deal contacts (won + lost within period)
+    let curQ = supabase
+      .from("contacts")
+      .select("id, lead_status, budget, budget_currency, stage_id")
+      .not("pipeline_id", "is", null)
+      .gte("created_at", startIso);
+    if (vf) curQ = curQ.eq("owner_id", vf);
 
-    // Lost reasons: aggregate client-side from contacts with lost_reason set
-    const lostRes = await (() => {
-      let q = supabase.from("contacts").select("lost_reason").eq("lead_status", "lost").not("lost_reason", "is", null);
-      if (vendorFilter) q = q.eq("owner_id", vendorFilter);
-      return q;
-    })();
-    const reasonCounts = new Map<string, number>();
-    for (const row of (lostRes.data || []) as any[]) {
-      if (row.lost_reason) reasonCounts.set(row.lost_reason, (reasonCounts.get(row.lost_reason) || 0) + 1);
-    }
-    setLostReasons(
-      [...reasonCounts.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([label, count]) => ({ label, count }))
-    );
+    // Previous-period deal contacts
+    let prevQ = supabase
+      .from("contacts")
+      .select("id, lead_status, budget, budget_currency")
+      .not("pipeline_id", "is", null)
+      .gte("created_at", prevIso)
+      .lt("created_at", startIso);
+    if (vf) prevQ = prevQ.eq("owner_id", vf);
 
-    // Top objections: fetch all AI analyses with non-empty objections.
-    // RLS already filters by user_id. We aggregate client-side because the
-    // dataset per workspace is small (one row per contact) and we avoid a
-    // dedicated SQL function / migration.
-    const objectionsRes = await supabase
+    // All active pipeline contacts (current state — not period-filtered)
+    let activeQ = supabase
+      .from("contacts")
+      .select("id, budget, budget_currency, stage_id")
+      .not("pipeline_id", "is", null)
+      .eq("lead_status", "active");
+    if (vf) activeQ = activeQ.eq("owner_id", vf);
+
+    // Pipeline stages
+    const stagesQ = supabase
+      .from("pipeline_stages")
+      .select("id, name, position, color")
+      .order("position");
+
+    // Lost reasons (all time)
+    let lostQ = supabase
+      .from("contacts")
+      .select("lost_reason")
+      .eq("lead_status", "lost")
+      .not("lost_reason", "is", null);
+    if (vf) lostQ = lostQ.eq("owner_id", vf);
+
+    // Upcoming meetings
+    let meetQ = supabase
+      .from("meetings")
+      .select("id, title, start_at, meeting_type, contacts(full_name)")
+      .eq("status", "scheduled")
+      .gte("start_at", now.toISOString())
+      .order("start_at")
+      .limit(4);
+    if (vf) meetQ = meetQ.eq("advisor_id", vf);
+
+    // Pending tasks
+    let taskQ = supabase
+      .from("tasks")
+      .select("id, title, priority, task_type, due_date, due_time")
+      .eq("status", "pending")
+      .order("due_date")
+      .limit(5);
+    if (vf) taskQ = taskQ.eq("owner_id", vf);
+
+    // Recent activity
+    let actQ = supabase
+      .from("activities")
+      .select("id, event_type, summary, created_at")
+      .order("created_at", { ascending: false })
+      .limit(8);
+    if (vf) actQ = actQ.eq("created_by", vf);
+
+    // AI objections
+    const objQ = supabase
       .from("contact_ai_analyses")
       .select("objections")
       .not("objections", "is", null);
 
-    const counts = new Map<string, number>();
-    let analyzedCount = 0;
-    (objectionsRes.data || []).forEach((row: any) => {
+    const [
+      curRes, prevRes, activeRes, stagesRes,
+      lostRes, meetRes, taskRes, actRes, objRes,
+    ] = await Promise.all([
+      curQ, prevQ, activeQ, stagesQ,
+      lostQ, meetQ, taskQ, actQ, objQ,
+    ]);
+
+    /* ---------- KPI calculations ---------- */
+    const cur    = (curRes.data  || []) as any[];
+    const prev   = (prevRes.data || []) as any[];
+    const active = (activeRes.data || []) as any[];
+
+    const wonCur  = cur.filter((d) => d.lead_status === "won");
+    const lostCur = cur.filter((d) => d.lead_status === "lost");
+    const wv  = wonCur.reduce((s: number, d: any) => s + Number(d.budget || 0), 0);
+    const wc  = wonCur[0]?.budget_currency || "USD";
+    setWonValue(wv);
+    setWonCurrency(wc);
+    setWonCount(wonCur.length);
+    setLostCount(lostCur.length);
+    setAvgDeal(wonCur.length > 0 ? Math.round(wv / wonCur.length) : 0);
+
+    const wonPrev  = prev.filter((d: any) => d.lead_status === "won");
+    const lostPrev = prev.filter((d: any) => d.lead_status === "lost");
+    setPrevWonVal(wonPrev.reduce((s: number, d: any) => s + Number(d.budget || 0), 0));
+    setPrevWonN(wonPrev.length);
+    setPrevLostN(lostPrev.length);
+
+    const pv = active.reduce((s: number, d: any) => s + Number(d.budget || 0), 0);
+    const pc = active[0]?.budget_currency || "USD";
+    setPipelineVal(pv);
+    setPipelineCur(pc);
+    setPipelineN(active.length);
+
+    /* ---------- Funnel ---------- */
+    const stages = (stagesRes.data || []) as any[];
+    const sMap = new Map<string, { count: number; value: number }>();
+    for (const c of active) {
+      if (!c.stage_id) continue;
+      const p = sMap.get(c.stage_id) || { count: 0, value: 0 };
+      sMap.set(c.stage_id, { count: p.count + 1, value: p.value + Number(c.budget || 0) });
+    }
+    setStageData(
+      stages.map((s: any) => ({
+        id: s.id, name: s.name, position: s.position, color: s.color,
+        ...(sMap.get(s.id) || { count: 0, value: 0 }),
+      }))
+    );
+
+    /* ---------- Lost reasons ---------- */
+    const rMap = new Map<string, number>();
+    for (const row of (lostRes.data || []) as any[])
+      if (row.lost_reason) rMap.set(row.lost_reason, (rMap.get(row.lost_reason) || 0) + 1);
+    setLostReasons([...rMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count })));
+
+    /* ---------- Objections ---------- */
+    const oMap = new Map<string, number>();
+    (objRes.data || []).forEach((row: any) => {
       const arr = Array.isArray(row.objections) ? row.objections : [];
-      if (arr.length === 0) return;
-      analyzedCount += 1;
       arr.forEach((item: unknown) => {
         if (typeof item !== "string") return;
-        const norm = normalizeObjection(item);
-        if (!norm) return;
-        counts.set(norm, (counts.get(norm) || 0) + 1);
+        const n = normObj(item);
+        if (!n) return;
+        oMap.set(n, (oMap.get(n) || 0) + 1);
       });
     });
-    const top = Array.from(counts.entries())
-      .map(([label, count]) => ({ label: prettyObjection(label), count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 6);
-    setTopObjections(top);
-    setObjectionsAnalyzed(analyzedCount);
+    setTopObjections(
+      [...oMap.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([label, count]) => ({
+          label: label.charAt(0).toUpperCase() + label.slice(1),
+          count,
+        }))
+    );
 
-    const contacts = contactsRes.data || [];
-    const pipelineContacts = dealsRes.data || [];
-    const meetings = meetingsRes.data || [];
-    const tasks = tasksRes.data || [];
-
-    const activeLeads = pipelineContacts.filter((d: any) => d.lead_status === "active");
-    const wonLeads = pipelineContacts.filter((d: any) => d.lead_status === "won");
-    const pipelineValue = activeLeads.reduce((sum: number, d: any) => sum + Number(d.budget || 0), 0);
-    const mainCurrency = activeLeads.length > 0 ? activeLeads[0].budget_currency : (pipelineContacts.length > 0 ? pipelineContacts[0].budget_currency : "USD");
-    const wonValue = wonLeads.reduce((sum: number, d: any) => sum + Number(d.budget || 0), 0);
-    const wonCurrency = wonLeads.length > 0 ? wonLeads[0].budget_currency : mainCurrency;
-
-    // Build 7-day sparkline series from real created_at timestamps
-    setSparkData({
-      contacts: dailyCounts(contacts.map((c: any) => c.created_at).filter(Boolean), 7),
-      deals: dailyCounts(pipelineContacts.map((d: any) => d.created_at).filter(Boolean), 7),
-      meetings: dailyCounts(meetings.map((m: any) => m.created_at).filter(Boolean), 7),
-      tasks: dailyCounts(tasks.map((t: any) => t.created_at).filter(Boolean), 7),
-    });
-
-    setStats({
-      contactsTotal: contacts.length,
-      contactsNew: contacts.filter((c: any) => c.status === "new").length,
-      contactsQualified: contacts.filter((c: any) => c.status === "qualified").length,
-      dealsOpen: activeLeads.length,
-      dealsWon: wonLeads.length,
-      dealsLost: pipelineContacts.filter((d: any) => d.lead_status === "lost").length,
-      pipelineValue,
-      pipelineCurrency: mainCurrency || "USD",
-      wonValue,
-      wonCurrency: wonCurrency || "USD",
-      meetingsScheduled: meetings.filter((m: any) => m.status === "scheduled").length,
-      meetingsCompleted: meetings.filter((m: any) => m.status === "completed").length,
-      tasksPending: tasks.filter((t: any) => t.status === "pending").length,
-    });
-
-    setRecentActivity((activitiesRes.data || []) as ActivityRow[]);
-
-    setUpcomingMeetings((upcomingRes.data || []).map((m: any) => ({
-      id: m.id, title: m.title, start_at: m.start_at, meeting_type: m.meeting_type,
-      contact_name: m.contacts?.full_name || null,
-    })));
-
-    setPendingTasks((pendingTasksRes.data || []) as TaskRow[]);
-
-    setActiveDeals((activeDealsRes.data || []).map((d: any) => ({
-      id: d.id, title: d.full_name, value: d.budget, currency: d.budget_currency,
-      status: d.lead_status,
-      expected_close_date: d.expected_close_date,
-      contact_name: null,
-      stage_name: d.pipeline_stages?.name || null,
-      stage_color: d.pipeline_stages?.color || null,
-    })));
+    /* ---------- Activity widgets ---------- */
+    setUpcomingMeetings(
+      (meetRes.data || []).map((m: any) => ({
+        id: m.id, title: m.title, start_at: m.start_at,
+        meeting_type: m.meeting_type, contact_name: m.contacts?.full_name || null,
+      }))
+    );
+    setPendingTasks((taskRes.data || []) as TaskRow[]);
+    setRecentActivity((actRes.data || []) as ActivityRow[]);
 
     setLoading(false);
-  }, [isVendor, myUserId]);
+  }, [isVendor, myUserId, period]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
-  const formatValue = (value: number, currency: string) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M ${currency}`;
-    if (value >= 1000) return `${(value / 1000).toFixed(0)}K ${currency}`;
-    return `${value.toLocaleString()} ${currency}`;
-  };
+  /* ─── Derived metrics ──────────────────────────────────────────── */
+  const winRate = wonCount + lostCount > 0
+    ? Math.round((wonCount / (wonCount + lostCount)) * 100)
+    : null;
 
-  // KPI cards. `spark` (optional) is a 7-day series → drives a tiny chart
-  // and a trend pill on each card.
-  const statCards: Array<{
-    label: string;
-    value: string | number;
-    icon: any;
-    spark?: number[];
-  }> = [
-    { label: "Leads", value: stats.contactsTotal, icon: Users, spark: sparkData.contacts },
-    { label: "Nuevos", value: stats.contactsNew, icon: UserPlus },
-    { label: "Calificados", value: stats.contactsQualified, icon: Star },
-    { label: "Leads activos", value: stats.dealsOpen, icon: Handshake, spark: sparkData.deals },
-    { label: "Leads ganados", value: stats.dealsWon, icon: Trophy },
-    { label: "Leads perdidos", value: stats.dealsLost, icon: XCircle },
-    { label: "Valor pipeline", value: formatValue(stats.pipelineValue, stats.pipelineCurrency), icon: DollarSign, spark: sparkData.deals },
-    { label: "Valor ganado", value: formatValue(stats.wonValue, stats.wonCurrency), icon: Trophy },
-    { label: "Citas agendadas", value: stats.meetingsScheduled, icon: CalendarDays, spark: sparkData.meetings },
-    { label: "Citas realizadas", value: stats.meetingsCompleted, icon: CalendarCheck },
-    { label: "Tareas pendientes", value: stats.tasksPending, icon: CheckSquare, spark: sparkData.tasks },
-    {
-      label: "Objeciones detectadas",
-      value: topObjections.reduce((sum, o) => sum + o.count, 0),
-      icon: AlertTriangle,
-    },
-  ];
+  const prevWinRate = prevWonN + prevLostN > 0
+    ? Math.round((prevWonN / (prevWonN + prevLostN)) * 100)
+    : null;
 
-  // New leads created this week — drives the contextual HeroCard CTA
-  const newLeadsThisWeek = sparkData.contacts.reduce((a, b) => a + b, 0);
+  const winRateDelta =
+    winRate !== null && prevWinRate !== null ? winRate - prevWinRate : null;
 
-  const maxObjectionCount = topObjections[0]?.count || 0;
+  const maxStageCount = Math.max(...stageData.map((s) => s.count), 1);
 
+  /* ─── Render ────────────────────────────────────────────────────── */
   if (loading) {
     return (
       <AppLayout>
-        <AppHeader title="Dashboard" subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })} />
+        <AppHeader
+          title="Dashboard"
+          subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
+        />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </main>
@@ -341,69 +384,194 @@ export default function DashboardPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Dashboard" subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })} />
+      <AppHeader
+        title="Dashboard"
+        subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
+      />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
-        {/* Hero — personalized greeting + sunset gradient + contextual CTA */}
-        <HeroCard
-          pipelineValue={stats.pipelineValue}
-          pipelineCurrency={stats.pipelineCurrency}
-          dealsOpen={stats.dealsOpen}
-          tasksPending={stats.tasksPending}
-          newLeadsThisWeek={newLeadsThisWeek}
-        />
 
-        {/* KPI grid with sparklines + trends */}
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 stagger">
-          {statCards.map((stat) => {
-            const trend = stat.spark ? trendPct(stat.spark) : null;
-            const trendUp = trend !== null && trend > 0;
-            const trendDown = trend !== null && trend < 0;
-            return (
-              <Card
-                key={stat.label}
-                className="border-none shadow-sm hover:shadow-md transition-shadow group"
-              >
-                <CardContent className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-soft text-primary group-hover:scale-105 transition-transform">
-                        <stat.icon className="h-4 w-4" />
-                      </div>
-                      <p className="text-xs font-medium text-muted-foreground truncate">{stat.label}</p>
-                    </div>
-                    {trend !== null && trend !== 0 && (
-                      <span
-                        className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-                          trendUp
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                            : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                        }`}
-                      >
-                        {trendUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                        {Math.abs(trend)}%
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-end justify-between gap-2">
-                    <p className="text-2xl font-bold text-foreground tabular-nums leading-none">
-                      {stat.value}
-                    </p>
-                    {stat.spark && stat.spark.some((v) => v > 0) && (
-                      <Sparkline
-                        data={stat.spark}
-                        color={trendDown ? "hsl(0 84% 60%)" : "hsl(24 95% 53%)"}
-                        width={70}
-                        height={26}
-                      />
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+        {/* ── Header bar ─────────────────────────────────────────── */}
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground font-medium">Resumen de rendimiento</p>
+          <PeriodSelector value={period} onChange={setPeriod} />
         </div>
 
+        {/* ── 5 KPI cards ────────────────────────────────────────── */}
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+          <KpiCard
+            label="Revenue ganado"
+            value={wonValue > 0 ? `${fmt(wonValue)} ${wonCurrency}` : "—"}
+            subValue={`${wonCount} ${wonCount === 1 ? "deal cerrado" : "deals cerrados"}`}
+            trend={trendPct(wonValue, prevWonVal)}
+            icon={<DollarSign className="h-4 w-4" />}
+            accent="emerald"
+          />
+          <KpiCard
+            label="Pipeline activo"
+            value={pipelineVal > 0 ? `${fmt(pipelineVal)} ${pipelineCur}` : "—"}
+            subValue={`${pipelineN} ${pipelineN === 1 ? "deal en curso" : "deals en curso"}`}
+            icon={<BarChart3 className="h-4 w-4" />}
+            accent="blue"
+          />
+          <KpiCard
+            label="Win Rate"
+            value={winRate !== null ? `${winRate}%` : "—"}
+            subValue={
+              winRate !== null
+                ? `${wonCount} ganados · ${lostCount} perdidos`
+                : "Sin datos en el período"
+            }
+            trend={winRateDelta}
+            trendIsPoints
+            icon={<Trophy className="h-4 w-4" />}
+            accent="orange"
+          />
+          <KpiCard
+            label="Deals perdidos"
+            value={lostCount}
+            subValue="En el período"
+            trend={trendPct(lostCount, prevLostN)}
+            invertTrend
+            icon={<XCircle className="h-4 w-4" />}
+            accent="red"
+          />
+          <KpiCard
+            label="Deal promedio"
+            value={avgDeal > 0 ? `${fmt(avgDeal)} ${wonCurrency}` : "—"}
+            subValue="Por deal ganado"
+            icon={<Target className="h-4 w-4" />}
+            accent="violet"
+          />
+        </div>
+
+        {/* ── Pipeline funnel + Loss reasons ─────────────────────── */}
         <div className="grid gap-6 lg:grid-cols-3">
+
+          {/* Funnel — takes 2/3 */}
+          <Card className="border-none shadow-sm lg:col-span-2">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4 text-primary" />
+                  Pipeline por etapa
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {pipelineN} {pipelineN === 1 ? "deal activo" : "deals activos"}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {stageData.filter((s) => s.count > 0).length === 0 ? (
+                <EmptyState
+                  icon={<BarChart3 className="h-10 w-10" />}
+                  text="Sin deals activos en el pipeline"
+                  sub="Mueve leads al pipeline para ver el embudo"
+                />
+              ) : (
+                <div className="space-y-4">
+                  {stageData.map((stage, idx) => {
+                    const barPct = Math.round((stage.count / maxStageCount) * 100);
+                    const nextStage = stageData[idx + 1];
+                    const convRate =
+                      nextStage && stage.count > 0 && nextStage.count > 0
+                        ? Math.round((nextStage.count / stage.count) * 100)
+                        : null;
+
+                    return (
+                      <div key={stage.id}>
+                        <div className="flex items-center justify-between text-xs mb-1.5">
+                          <span className="font-medium text-foreground w-44 truncate">
+                            {stage.name}
+                          </span>
+                          <div className="flex items-center gap-4 text-muted-foreground">
+                            {stage.value > 0 && (
+                              <span className="tabular-nums hidden sm:block">
+                                {fmt(stage.value)} {pipelineCur}
+                              </span>
+                            )}
+                            <span
+                              className={`tabular-nums font-semibold w-16 text-right ${
+                                stage.count > 0 ? "text-foreground" : "text-muted-foreground/50"
+                              }`}
+                            >
+                              {stage.count} {stage.count === 1 ? "lead" : "leads"}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="h-7 w-full rounded-md bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-md transition-all duration-500"
+                            style={{
+                              width: `${Math.max(barPct, stage.count > 0 ? 3 : 0)}%`,
+                              backgroundColor: stage.color ?? "hsl(24 95% 53%)",
+                              opacity: stage.count === 0 ? 0.15 : 0.8,
+                            }}
+                          />
+                        </div>
+                        {convRate !== null && (
+                          <p className="text-[10px] text-muted-foreground mt-1 pl-1">
+                            → {convRate}% avanzan a <span className="font-medium">{nextStage.name}</span>
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Lost reasons — takes 1/3 */}
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <XCircle className="h-4 w-4 text-destructive" />
+                  Razones de pérdida
+                </CardTitle>
+                {lostReasons.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {lostReasons.reduce((s, r) => s + r.count, 0)} total
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {lostReasons.length === 0 ? (
+                <EmptyState
+                  icon={<XCircle className="h-10 w-10" />}
+                  text="Sin razones registradas"
+                  sub='Aparecen al mover deals a "Cerrado perdido"'
+                />
+              ) : (
+                <div className="space-y-3">
+                  {lostReasons.map((r) => {
+                    const pct = Math.round((r.count / lostReasons[0].count) * 100);
+                    return (
+                      <div key={r.label}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium text-foreground truncate pr-2">{r.label}</span>
+                          <span className="text-muted-foreground shrink-0 tabular-nums">{r.count}</span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-destructive/65 transition-all duration-500"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Activity row ───────────────────────────────────────── */}
+        <div className="grid gap-6 lg:grid-cols-3">
+
+          {/* Upcoming meetings */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -411,32 +579,41 @@ export default function DashboardPage() {
                 Próximas citas
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-2">
               {upcomingMeetings.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-4 text-center">
-                  <CalendarDays className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                  <p className="text-sm text-muted-foreground">Sin citas próximas</p>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">Agenda una desde un lead</p>
-                </div>
-              ) : upcomingMeetings.map((meeting) => (
-                <div key={meeting.id} className="flex items-start gap-3 rounded-lg border p-3">
-                  <div className="text-center">
-                    <p className="text-xs text-muted-foreground">{format(new Date(meeting.start_at), 'MMM', { locale: es })}</p>
-                    <p className="text-lg font-bold text-foreground">{format(new Date(meeting.start_at), 'd')}</p>
+                <EmptyState
+                  icon={<CalendarDays className="h-8 w-8" />}
+                  text="Sin citas próximas"
+                  sub="Agenda una desde un lead"
+                />
+              ) : (
+                upcomingMeetings.map((m) => (
+                  <div key={m.id} className="flex items-center gap-3 rounded-lg border p-3">
+                    <div className="text-center w-8 shrink-0">
+                      <p className="text-[10px] text-muted-foreground uppercase leading-none">
+                        {format(new Date(m.start_at), "MMM", { locale: es })}
+                      </p>
+                      <p className="text-base font-bold text-foreground leading-tight">
+                        {format(new Date(m.start_at), "d")}
+                      </p>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{m.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(m.start_at), "HH:mm")}
+                        {m.contact_name && ` · ${m.contact_name}`}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {m.meeting_type || "cita"}
+                    </Badge>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{meeting.title}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(meeting.start_at), 'HH:mm')}
-                      {meeting.contact_name && ` - ${meeting.contact_name}`}
-                    </p>
-                    <Badge variant="outline" className="mt-1 text-xs">{meeting.meeting_type || 'meeting'}</Badge>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
+          {/* Pending tasks */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -446,92 +623,100 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {pendingTasks.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-4 text-center">
-                  <CheckSquare className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                  <p className="text-sm text-muted-foreground">¡Todo al día!</p>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">Sin tareas pendientes</p>
-                </div>
-              ) : pendingTasks.map((task) => (
-                <div key={task.id} className="flex items-center gap-3 rounded-lg border p-3">
-                  <div className={`h-2 w-2 rounded-full shrink-0 ${
-                    task.priority === 'urgent' ? 'bg-destructive' :
-                    task.priority === 'high' ? 'bg-warning' :
-                    task.priority === 'medium' ? 'bg-primary' : 'bg-muted-foreground'
-                  }`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-foreground truncate">{task.title}</p>
-                    <p className="text-xs text-muted-foreground">{task.due_date || 'Sin fecha'} {task.due_time && `· ${task.due_time}`}</p>
+                <EmptyState
+                  icon={<CheckSquare className="h-8 w-8" />}
+                  text="¡Todo al día!"
+                  sub="Sin tareas pendientes"
+                />
+              ) : (
+                pendingTasks.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 rounded-lg border p-3">
+                    <div
+                      className={`h-2 w-2 rounded-full shrink-0 ${
+                        t.priority === "urgent"
+                          ? "bg-destructive"
+                          : t.priority === "high"
+                          ? "bg-orange-400"
+                          : t.priority === "medium"
+                          ? "bg-primary"
+                          : "bg-muted-foreground/40"
+                      }`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {t.due_date || "Sin fecha"}
+                        {t.due_time ? ` · ${t.due_time}` : ""}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {t.task_type}
+                    </Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs shrink-0">{task.task_type}</Badge>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
+          {/* Recent activity */}
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
+                <Activity className="h-4 w-4 text-primary" />
                 Actividad reciente
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="divide-y">
               {recentActivity.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-4 text-center">
-                  <TrendingUp className="h-8 w-8 text-muted-foreground/40 mb-2" />
-                  <p className="text-sm text-muted-foreground">Sin actividad reciente</p>
-                  <p className="text-xs text-muted-foreground/70 mt-0.5">Cuando llegue un lead aparece aquí</p>
-                </div>
-              ) : recentActivity.map((activity) => (
-                <div key={activity.id} className="flex items-start gap-2 py-2 border-b last:border-0">
-                  <span className="text-sm shrink-0">{eventTypeIcons[activity.event_type] || '📋'}</span>
-                  <div className="min-w-0">
-                    <p className="text-sm text-foreground">{activity.summary}</p>
-                    <p className="text-xs text-muted-foreground">{format(new Date(activity.created_at), "d MMM, HH:mm", { locale: es })}</p>
+                <EmptyState
+                  icon={<Activity className="h-8 w-8" />}
+                  text="Sin actividad reciente"
+                  sub="Cuando llegue un lead aparece aquí"
+                />
+              ) : (
+                recentActivity.map((a) => (
+                  <div key={a.id} className="flex items-start gap-2.5 py-2.5">
+                    <span className="text-sm shrink-0 mt-0.5">{eventIcons[a.event_type] || "📋"}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs text-foreground leading-snug">{a.summary}</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {format(new Date(a.created_at), "d MMM, HH:mm", { locale: es })}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4 text-warning" />
-              Objeciones principales
-              {objectionsAnalyzed > 0 && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">
-                  · {objectionsAnalyzed} {objectionsAnalyzed === 1 ? 'lead analizado' : 'leads analizados'}
+        {/* ── Objections (only if data exists) ───────────────────── */}
+        {topObjections.length > 0 && (
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-amber-500" />
+                  Objeciones principales
+                </CardTitle>
+                <span className="text-xs text-muted-foreground">
+                  {topObjections.reduce((s, o) => s + o.count, 0)} detectadas
                 </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {topObjections.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Aún no hay objeciones detectadas. Cuando la IA analice tus
-                conversaciones, las objeciones más frecuentes aparecerán aquí.
-              </p>
-            ) : (
-              <div className="space-y-3">
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {topObjections.map((obj) => {
-                  const pct = maxObjectionCount > 0
-                    ? Math.round((obj.count / maxObjectionCount) * 100)
-                    : 0;
+                  const pct = Math.round((obj.count / topObjections[0].count) * 100);
                   return (
-                    <div key={obj.label} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-foreground truncate pr-3">
-                          {obj.label}
-                        </span>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {obj.count} {obj.count === 1 ? 'lead' : 'leads'}
-                        </Badge>
+                    <div key={obj.label}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="font-medium truncate pr-2">{obj.label}</span>
+                        <span className="text-muted-foreground shrink-0 tabular-nums">{obj.count}</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                      <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                         <div
-                          className="h-full rounded-full bg-warning transition-all"
+                          className="h-full rounded-full bg-amber-400/70 transition-all duration-500"
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -539,101 +724,10 @@ export default function DashboardPage() {
                   );
                 })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-destructive" />
-              Razones de pérdida
-              {lostReasons.length > 0 && (
-                <span className="text-xs font-normal text-muted-foreground ml-1">
-                  · {lostReasons.reduce((s, r) => s + r.count, 0)} {lostReasons.reduce((s, r) => s + r.count, 0) === 1 ? 'deal' : 'deals'} perdidos
-                </span>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {lostReasons.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-6">
-                Aún no hay deals perdidos con razón registrada. Cuando muevas leads a "Cerrado perdido" verás el análisis aquí.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {lostReasons.map((r) => {
-                  const max = lostReasons[0].count;
-                  const pct = Math.round((r.count / max) * 100);
-                  return (
-                    <div key={r.label} className="space-y-1">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="font-medium text-foreground truncate pr-3">{r.label}</span>
-                        <Badge variant="outline" className="text-xs shrink-0 text-destructive border-destructive/30">
-                          {r.count} {r.count === 1 ? 'deal' : 'deals'}
-                        </Badge>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-destructive/60 transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="border-none shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <Handshake className="h-4 w-4 text-primary" />
-              Deals recientes
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {activeDeals.length === 0 ? (
-              <p className="text-sm text-muted-foreground text-center py-4">Sin deals</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium text-muted-foreground">Deal</th>
-                      <th className="pb-2 font-medium text-muted-foreground">Contacto</th>
-                      <th className="pb-2 font-medium text-muted-foreground">Etapa</th>
-                      <th className="pb-2 font-medium text-muted-foreground text-right">Valor</th>
-                      <th className="pb-2 font-medium text-muted-foreground">Estado</th>
-                      <th className="pb-2 font-medium text-muted-foreground">Cierre esperado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {activeDeals.map((deal) => (
-                      <tr key={deal.id} className="border-b last:border-0">
-                        <td className="py-3 font-medium text-foreground">{deal.title}</td>
-                        <td className="py-3 text-muted-foreground">{deal.contact_name || '-'}</td>
-                        <td className="py-3">
-                          {deal.stage_name ? (
-                            <Badge variant="outline" className="text-xs" style={{ borderColor: deal.stage_color || undefined, color: deal.stage_color || undefined }}>
-                              {deal.stage_name}
-                            </Badge>
-                          ) : '-'}
-                        </td>
-                        <td className="py-3 text-right font-medium text-foreground">${Number(deal.value).toLocaleString()} {deal.currency}</td>
-                        <td className="py-3">
-                          <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'outline'} className="text-xs">
-                            {deal.status === 'open' ? 'Abierto' : deal.status === 'won' ? 'Ganado' : 'Perdido'}
-                          </Badge>
-                        </td>
-                        <td className="py-3 text-muted-foreground">{deal.expected_close_date || '-'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </main>
     </AppLayout>
   );
