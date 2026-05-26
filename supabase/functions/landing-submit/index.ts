@@ -224,7 +224,7 @@ Deno.serve(async (req) => {
 
     // ── Resolve redirect URL (read fresh from DB at submit time) ───────────────
     // Priority: form_config.redirect_url → funnel thank-you page → ""
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    // supabaseUrl already declared above (automation trigger block)
     let redirectUrl: string = formConfig.redirect_url || "";
 
     if (!redirectUrl && page.funnel_id) {
