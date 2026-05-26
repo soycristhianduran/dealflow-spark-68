@@ -470,6 +470,9 @@ export default function LandingBuilderPage() {
   const [slugEditing, setSlugEditing] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
 
+  // ── 3-level navigation: projects → pages → editor ───────────────────────────
+  const [builderView, setBuilderView] = useState<"projects" | "pages" | "editor">("projects");
+
   // Funnel state
   const [funnels, setFunnels] = useState<LandingFunnel[]>([]);
   const [selectedFunnelId, setSelectedFunnelId] = useState<string | null>(null);
@@ -508,11 +511,7 @@ export default function LandingBuilderPage() {
       .select("id,name,created_at")
       .order("created_at", { ascending: true });
     setFunnels((data || []) as LandingFunnel[]);
-    // Auto-select first funnel if none selected
-    if (data && data.length > 0) {
-      setSelectedFunnelId(prev => prev ?? data[0].id);
-      setPickerLevel("pages");
-    }
+    // No auto-navigation — user starts at the projects view
   }, []);
 
   // ── Fetch pages ─────────────────────────────────────────────────────────────
@@ -542,7 +541,8 @@ export default function LandingBuilderPage() {
     setPickerLevel("pages");
     setNewFunnelOpen(false);
     setNewFunnelName("");
-    toast.success("Funnel creado");
+    setBuilderView("pages");
+    toast.success("Proyecto creado");
   };
 
   // ── Delete funnel ────────────────────────────────────────────────────────────
@@ -758,6 +758,7 @@ export default function LandingBuilderPage() {
     );
     setEditMode(false);
     setDeviceSize("desktop");
+    setBuilderView("editor");
 
     if (page.mode === "drag" && editorReady && page.design) {
       editorRef.current?.editor?.loadDesign(page.design);
@@ -798,6 +799,7 @@ export default function LandingBuilderPage() {
     selectPage(newPage);
     setNewPageOpen(false);
     setNewPageName("");
+    setBuilderView("editor");
     toast.success("Página creada");
   };
 
@@ -1170,36 +1172,36 @@ export default function LandingBuilderPage() {
     <AppLayout>
       <div className="flex h-full flex-col">
 
-        {/* ── Full-width Toolbar ── */}
-        <div className="border-b border-border px-3 py-2 flex items-center gap-2 shrink-0">
+        {/* ── Full-width Toolbar (editor only) ── */}
+        {builderView === "editor" && <div className="border-b border-border px-3 py-2 flex items-center gap-2 shrink-0">
 
-          {/* ── Two-level picker: Funnels → Pages (Lovable-style) ── */}
+          {/* ── Breadcrumb: Proyectos › Funnel › Página ── */}
+          <div className="flex items-center gap-1 text-sm min-w-0 shrink-0">
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs font-medium px-1.5 py-0.5 rounded hover:bg-accent"
+              onClick={() => setBuilderView("projects")}
+            >
+              Proyectos
+            </button>
+            <ChevronDown className="h-3 w-3 text-muted-foreground/40 rotate-[-90deg] shrink-0" />
+            <button
+              className="text-muted-foreground hover:text-foreground transition-colors text-xs font-medium px-1.5 py-0.5 rounded hover:bg-accent max-w-[120px] truncate"
+              onClick={() => setBuilderView("pages")}
+            >
+              {funnels.find(f => f.id === selectedFunnelId)?.name ?? "Proyecto"}
+            </button>
+            <ChevronDown className="h-3 w-3 text-muted-foreground/40 rotate-[-90deg] shrink-0" />
+            <span className="text-xs font-medium text-foreground max-w-[140px] truncate">{name}</span>
+          </div>
+
+          {/* Dummy popover kept for compatibility — hidden visually */}
           <Popover open={pagePickerOpen} onOpenChange={(open) => {
             setPagePickerOpen(open);
-            // When reopening, go straight to pages if a funnel is already selected
             if (open && selectedFunnelId) setPickerLevel("pages");
           }}>
+            {/* Hidden trigger — Popover kept for page role switcher inside editor */}
             <PopoverTrigger asChild>
-              <button className={cn(
-                "flex items-center gap-1.5 h-8 px-3 rounded-md border border-border text-sm font-medium",
-                "hover:bg-accent transition-colors min-w-[160px] max-w-[260px]",
-                loadingPages && "opacity-60 pointer-events-none"
-              )}>
-                {loadingPages ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground shrink-0" />
-                ) : (
-                  <FolderOpen className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                )}
-                <span className="truncate flex-1 text-left text-xs">
-                  {selectedFunnelId && funnels.find(f => f.id === selectedFunnelId)
-                    ? <>
-                        <span className="text-muted-foreground">{funnels.find(f => f.id === selectedFunnelId)!.name}</span>
-                        {selectedId && <span className="text-foreground"> / {name}</span>}
-                      </>
-                    : "Seleccionar funnel…"}
-                </span>
-                <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              </button>
+              <button className="hidden" aria-hidden />
             </PopoverTrigger>
 
             <PopoverContent className="w-80 p-0" align="start">
@@ -1453,10 +1455,213 @@ export default function LandingBuilderPage() {
                 </Button>
               </>
             ) : null}
-        </div>
+        </div>}  {/* end editor toolbar */}
 
-        {/* ── Editor body ── */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {/* ── PROJECTS VIEW ── */}
+        {builderView === "projects" && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold">Mis proyectos</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">Cada proyecto agrupa las páginas de un funnel</p>
+                </div>
+                <Button onClick={() => setNewFunnelOpen(true)} className="gap-2">
+                  <Plus className="h-4 w-4" /> Nuevo proyecto
+                </Button>
+              </div>
+
+              {loadingPages ? (
+                <div className="flex items-center justify-center h-48 text-muted-foreground">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : funnels.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+                  <FolderOpen className="h-14 w-14 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">Aún no tienes proyectos.<br/>Crea uno para empezar.</p>
+                  <Button onClick={() => setNewFunnelOpen(true)} variant="outline" className="gap-2">
+                    <Plus className="h-4 w-4" /> Crear primer proyecto
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {funnels.map(funnel => {
+                    const fp = pages.filter(p => p.funnel_id === funnel.id);
+                    const published = fp.filter(p => p.status === "published").length;
+                    const totalViews = fp.reduce((s, p) => s + (p.views || 0), 0);
+                    const totalLeads = fp.reduce((s, p) => s + (p.leads_count || 0), 0);
+                    return (
+                      <div
+                        key={funnel.id}
+                        className="group border border-border rounded-xl p-5 hover:border-primary/60 hover:shadow-md transition-all cursor-pointer bg-card"
+                        onClick={() => { setSelectedFunnelId(funnel.id); setBuilderView("pages"); }}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                              <FolderOpen className="h-4.5 w-4.5 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm truncate">{funnel.name}</p>
+                              <p className="text-[11px] text-muted-foreground">{fp.length} {fp.length === 1 ? "página" : "páginas"}</p>
+                            </div>
+                          </div>
+                          <button
+                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-1 rounded hover:bg-destructive/10"
+                            onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Page role pills */}
+                        <div className="flex flex-wrap gap-1 mb-4 min-h-[22px]">
+                          {fp.map(p => (
+                            <span key={p.id} className={cn(
+                              "text-[10px] px-2 py-0.5 rounded-full font-medium",
+                              ROLE_META[p.page_role]?.cls ?? ROLE_META.other.cls
+                            )}>
+                              {p.name.slice(0, 20)}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Stats */}
+                        <div className="flex items-center gap-4 text-[11px] text-muted-foreground border-t border-border pt-3">
+                          <span className="flex items-center gap-1">
+                            <Eye className="h-3 w-3" /> {totalViews.toLocaleString()}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <BarChart2 className="h-3 w-3" /> {totalLeads} leads
+                          </span>
+                          <span className="ml-auto flex items-center gap-1">
+                            {published > 0 ? (
+                              <><span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" /> {published} publicada{published > 1 ? "s" : ""}</>
+                            ) : (
+                              <><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30 inline-block" /> Borrador</>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* New project card */}
+                  <div
+                    className="border border-dashed border-border rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/60 hover:bg-accent/40 transition-all text-muted-foreground min-h-[160px]"
+                    onClick={() => setNewFunnelOpen(true)}
+                  >
+                    <div className="h-9 w-9 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-medium">Nuevo proyecto</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── PAGES VIEW ── */}
+        {builderView === "pages" && selectedFunnelId && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              {/* Header */}
+              <div className="flex items-center gap-3 mb-6">
+                <button
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => setBuilderView("projects")}
+                >
+                  <ChevronLeft className="h-4 w-4" /> Proyectos
+                </button>
+                <span className="text-muted-foreground/40">/</span>
+                <h2 className="text-xl font-bold">
+                  {funnels.find(f => f.id === selectedFunnelId)?.name}
+                </h2>
+                <Button size="sm" onClick={() => setNewPageOpen(true)} className="ml-auto gap-1.5">
+                  <Plus className="h-3.5 w-3.5" /> Nueva página
+                </Button>
+              </div>
+
+              {funnelPages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
+                  <FileText className="h-14 w-14 text-muted-foreground/30" />
+                  <p className="text-muted-foreground text-sm">Este proyecto no tiene páginas aún.</p>
+                  <Button onClick={() => setNewPageOpen(true)} variant="outline" className="gap-2">
+                    <Plus className="h-4 w-4" /> Crear primera página
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {funnelPages.map((page, idx) => {
+                    const roleMeta = ROLE_META[page.page_role] ?? ROLE_META.other;
+                    return (
+                      <div
+                        key={page.id}
+                        className="group border border-border rounded-xl overflow-hidden hover:border-primary/60 hover:shadow-md transition-all cursor-pointer bg-card"
+                        onClick={() => { selectPage(page); setSelectedFunnelId(page.funnel_id!); }}
+                      >
+                        {/* Page thumbnail / number */}
+                        <div className="h-28 bg-muted/40 flex items-center justify-center relative border-b border-border">
+                          <span className="text-4xl font-black text-muted-foreground/20">{idx + 1}</span>
+                          <div className="absolute top-2 left-2">
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", roleMeta.cls)}>
+                              {roleMeta.label}
+                            </span>
+                          </div>
+                          <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                            <span className={cn("h-2 w-2 rounded-full", page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30")} />
+                            <span className="text-[10px] text-muted-foreground">{page.status === "published" ? "Publicada" : "Borrador"}</span>
+                          </div>
+                          <button
+                            className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-1 rounded hover:bg-destructive/10 bg-background/80"
+                            onClick={e => { e.stopPropagation(); handleDelete(page.id); }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Page info */}
+                        <div className="p-4">
+                          <p className="font-semibold text-sm truncate mb-1">{page.name}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono truncate mb-3">
+                            /{page.slug}
+                          </p>
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+                            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {page.views || 0}</span>
+                            <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3" /> {page.leads_count || 0} leads</span>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="ml-auto h-6 text-[10px] px-2"
+                              onClick={e => { e.stopPropagation(); selectPage(page); setSelectedFunnelId(page.funnel_id!); }}
+                            >
+                              Editar
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* New page card */}
+                  <div
+                    className="border border-dashed border-border rounded-xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/60 hover:bg-accent/40 transition-all text-muted-foreground min-h-[220px]"
+                    onClick={() => setNewPageOpen(true)}
+                  >
+                    <div className="h-9 w-9 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
+                      <Plus className="h-4 w-4" />
+                    </div>
+                    <p className="text-sm font-medium">Nueva página</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── EDITOR VIEW ── */}
+        {builderView === "editor" && <div className="flex-1 flex flex-col min-w-0 min-h-0">
 
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-4">
@@ -1892,15 +2097,16 @@ export default function LandingBuilderPage() {
               />
             </div>
           )}
-        </div>
-      </div>
+        </div>}{/* end editor view */}
+
+      </div>{/* end flex h-full */}
 
       {/* ── New funnel dialog ── */}
       <Dialog open={newFunnelOpen} onOpenChange={setNewFunnelOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-primary" /> Nuevo funnel
+              <FolderOpen className="h-4 w-4 text-primary" /> Nuevo proyecto
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
