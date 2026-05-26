@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, Bell, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -335,17 +335,6 @@ export default function IntegrationsPage() {
                         <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
                         <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-full text-xs gap-1.5"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          await fb.subscribeLeadgen();
-                        }}
-                      >
-                        <Bell className="h-3 w-3" /> Suscribir páginas a Leadgen
-                      </Button>
                     </div>
                   )}
 
