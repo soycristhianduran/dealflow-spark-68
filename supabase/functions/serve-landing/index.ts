@@ -67,9 +67,13 @@ Deno.serve(async (req) => {
     (async () => { try { await supabase.rpc("inc_landing_page_views", { p_page_id: page.id }); } catch (_) {} })();
 
     // Resolve redirect URL after form submit:
-    // Priority: 1) form_config.redirect_url (user-configured), 2) funnel thank-you page (auto-detect)
+    // 1) Explicit form_config.redirect_url → use as-is (set by builder, always a pages.klosify.com URL).
+    // 2) Funnel thank-you page → bake only the SLUG; the browser builds the full URL at runtime with
+    //    window.location.origin so it always stays on the correct domain (pages.klosify.com, never supabase.co).
+    //    We cannot rely on req headers here — behind Cloudflare Worker the Host is the Supabase domain.
     const formConfig: Record<string, any> = (page.form_config as any) || {};
-    let thankyouUrl = formConfig.redirect_url || "";
+    const thankyouUrl = formConfig.redirect_url || "";  // explicit URL configured by user (may be empty)
+    let thankyouSlug = "";                               // fallback: baked slug, browser builds URL at runtime
 
     if (!thankyouUrl && page.funnel_id) {
       const { data: thankyouPage } = await supabase
@@ -80,18 +84,7 @@ Deno.serve(async (req) => {
         .eq("status", "published")
         .maybeSingle();
       if (thankyouPage?.slug) {
-        // Prefer the same origin as the incoming request (custom domain like pages.klosify.com)
-        // so the redirect stays on the branded domain and renders correctly.
-        const reqOrigin = (() => {
-          const h = req.headers.get("host") || "";
-          if (!h || h.includes("supabase.co")) {
-            return `${supabaseUrl}/functions/v1/serve-landing?slug=`;
-          }
-          return `https://${h}/`;
-        })();
-        thankyouUrl = reqOrigin.includes("?slug=")
-          ? `${reqOrigin}${thankyouPage.slug}`
-          : `${reqOrigin}${thankyouPage.slug}`;
+        thankyouSlug = thankyouPage.slug;
       }
     }
 
@@ -200,9 +193,12 @@ Deno.serve(async (req) => {
       .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
       .then(function(res){
         if(res.ok&&res.data.success){
-          // redirect_url comes fresh from landing-submit (reads DB at submit time).
-          // Fall back to the URL baked in at page-serve time.
-          var next=res.data.redirect_url||'${thankyouUrl}';
+          // 1) redirect_url from landing-submit (explicit form_config value, most reliable).
+          // 2) thankyouUrl baked at serve time (explicit form_config.redirect_url, safety net if fetch succeeds but returns empty).
+          // 3) thankyouSlug baked at serve time + window.location.origin evaluated at submit time
+          //    → always uses the correct domain (pages.klosify.com) regardless of how serve-landing was proxied.
+          var thankyouSlug='${thankyouSlug}';
+          var next=res.data.redirect_url||'${thankyouUrl}'||(thankyouSlug?window.location.origin+'/'+thankyouSlug:'');
           if(next){window.location.href=next;}
           else{f.innerHTML='<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem;font-weight:700;color:#16a34a">¡Gracias! Te contactaremos pronto.</p></div>';}
         }else{

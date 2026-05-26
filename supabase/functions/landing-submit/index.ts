@@ -231,30 +231,11 @@ Deno.serve(async (req) => {
     })();
 
     // ── Resolve redirect URL (read fresh from DB at submit time) ───────────────
-    // Priority: form_config.redirect_url → funnel thank-you page → ""
-    // supabaseUrl already declared above (automation trigger block)
-    let redirectUrl: string = formConfig.redirect_url || "";
-
-    if (!redirectUrl && page.funnel_id) {
-      const { data: thankYouPage } = await supabase
-        .from("landing_pages")
-        .select("slug")
-        .eq("funnel_id", page.funnel_id)
-        .eq("page_role", "thankyou")
-        .eq("status", "published")
-        .maybeSingle();
-      if (thankYouPage?.slug) {
-        // Use the Referer origin so redirects stay on the branded domain (pages.klosify.com)
-        const referer = req.headers.get("referer") || req.headers.get("origin") || "";
-        let pageOrigin = "";
-        try { pageOrigin = new URL(referer).origin; } catch (_) {}
-        if (pageOrigin && !pageOrigin.includes("supabase.co")) {
-          redirectUrl = `${pageOrigin}/${thankYouPage.slug}`;
-        } else {
-          redirectUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankYouPage.slug}`;
-        }
-      }
-    }
+    // Return form_config.redirect_url as-is (set explicitly by the builder using pages.klosify.com).
+    // If empty, the browser falls back to the baked-in thankyouSlug in serve-landing's override script,
+    // building the full URL at runtime with window.location.origin (always the correct domain).
+    // supabaseUrl already declared above (automation trigger block).
+    const redirectUrl: string = formConfig.redirect_url || "";
 
     return new Response(
       JSON.stringify({ success: true, contact_id: contactId, redirect_url: redirectUrl }),
