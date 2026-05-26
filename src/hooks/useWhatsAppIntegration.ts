@@ -93,7 +93,11 @@ export function useWhatsAppIntegration() {
       { p_provider: "whatsapp" },
     );
     if (stateErr || !stateToken) {
-      toast.error("No se pudo iniciar la conexión con WhatsApp. Intenta de nuevo.");
+      // Fallback: use user ID as state (less secure but functional while DB
+      // migration propagates — same pattern as useFacebookIntegration).
+      console.warn("create_oauth_state failed for whatsapp, using UUID fallback:", stateErr);
+      const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, user.id);
+      window.location.href = oauthUrl;
       return;
     }
 
