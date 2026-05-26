@@ -752,6 +752,178 @@ Deno.serve(async (req) => {
         );
       }
 
+      // ── Create Ad Set ─────────────────────────────────────────────────────
+      case "create_adset": {
+        const {
+          ad_account_id, campaign_id, name, optimization_goal,
+          daily_budget, start_time, end_time,
+          age_min, age_max, genders, countries, status,
+        } = body;
+
+        const rawAccId = String(ad_account_id).replace(/^act_/, "");
+        const acctEp   = `act_${rawAccId}`;
+
+        // Auto-select billing event from optimization goal
+        const BILLING: Record<string, string> = {
+          LEAD_GENERATION:     "IMPRESSIONS",
+          LINK_CLICKS:         "LINK_CLICKS",
+          REACH:               "IMPRESSIONS",
+          VIDEO_VIEWS:         "VIDEO_VIEWS",
+          OFFSITE_CONVERSIONS: "IMPRESSIONS",
+          POST_ENGAGEMENT:     "IMPRESSIONS",
+          APP_INSTALLS:        "IMPRESSIONS",
+        };
+        const billing_event = BILLING[optimization_goal] || "IMPRESSIONS";
+
+        const targeting: Record<string, any> = {
+          age_min: age_min || 18,
+          age_max: age_max || 65,
+          geo_locations: { countries: countries?.length ? countries : ["CO"] },
+        };
+        if (genders?.length) targeting.genders = genders; // 1=men, 2=women
+
+        const adsetParams: Record<string, any> = {
+          name,
+          campaign_id,
+          optimization_goal,
+          billing_event,
+          targeting:  JSON.stringify(targeting),
+          status:     status || "PAUSED",
+          access_token: fbToken,
+        };
+        if (daily_budget && Number(daily_budget) > 0)
+          adsetParams.daily_budget = Math.round(Number(daily_budget) * 100);
+        if (start_time) adsetParams.start_time = start_time;
+        if (end_time)   adsetParams.end_time   = end_time;
+
+        console.log("Creating adset:", { endpoint: acctEp, params: { ...adsetParams, access_token: "[hidden]" } });
+
+        const adsetRes  = await fetch(`${GRAPH_API}/${acctEp}/adsets`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(adsetParams),
+        });
+        const adsetData = await adsetRes.json();
+        console.log("Create adset response:", JSON.stringify(adsetData));
+
+        if (!adsetRes.ok || adsetData.error) {
+          const msg = adsetData.error?.error_user_msg || adsetData.error?.message || JSON.stringify(adsetData);
+          return new Response(JSON.stringify({ success: false, error: msg }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        await supabase.from("meta_adsets").upsert({
+          user_id:       user.id,
+          adset_id:      adsetData.id,
+          adset_name:    name,
+          campaign_id,
+          status:        status || "PAUSED",
+          daily_budget:  daily_budget ? Number(daily_budget) : null,
+          ad_account_id,
+        }, { onConflict: "user_id,adset_id" });
+
+        return new Response(
+          JSON.stringify({ success: true, adset_id: adsetData.id }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ── Create Ad (uploads image → creates creative → creates ad) ─────────
+      case "create_ad": {
+        const {
+          ad_account_id, adset_id, campaign_id, name,
+          page_id, image_url, headline, body: adBody,
+          link_url, call_to_action, status,
+        } = body;
+
+        const rawAccId2 = String(ad_account_id).replace(/^act_/, "");
+        const acctEp2   = `act_${rawAccId2}`;
+
+        // 1. Upload image → get hash (required by Meta for creatives)
+        let imageHash: string | null = null;
+        if (image_url) {
+          const imgRes  = await fetch(`${GRAPH_API}/${acctEp2}/adimages`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: image_url, access_token: fbToken }),
+          });
+          const imgData = await imgRes.json();
+          console.log("Image upload response:", JSON.stringify(imgData));
+          const imgKey  = Object.keys(imgData.images || {})[0];
+          if (imgKey) imageHash = imgData.images[imgKey].hash;
+        }
+
+        // 2. Build link_data for the story spec
+        const linkData: Record<string, any> = {
+          link:        link_url,
+          message:     adBody,
+          name:        headline,
+          call_to_action: { type: call_to_action || "LEARN_MORE" },
+        };
+        if (imageHash) linkData.image_hash = imageHash;
+
+        // 3. Create ad creative
+        const creativeRes  = await fetch(`${GRAPH_API}/${acctEp2}/adcreatives`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${name} - Creative`,
+            object_story_spec: JSON.stringify({ page_id, link_data: linkData }),
+            access_token: fbToken,
+          }),
+        });
+        const creativeData = await creativeRes.json();
+        console.log("Create creative response:", JSON.stringify(creativeData));
+
+        if (!creativeRes.ok || creativeData.error) {
+          const msg = creativeData.error?.error_user_msg || creativeData.error?.message || JSON.stringify(creativeData);
+          return new Response(JSON.stringify({ success: false, error: msg }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        // 4. Create the ad
+        const adRes  = await fetch(`${GRAPH_API}/${acctEp2}/ads`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            adset_id,
+            creative:     JSON.stringify({ creative_id: creativeData.id }),
+            status:       status || "PAUSED",
+            access_token: fbToken,
+          }),
+        });
+        const adData = await adRes.json();
+        console.log("Create ad response:", JSON.stringify(adData));
+
+        if (!adRes.ok || adData.error) {
+          const msg = adData.error?.error_user_msg || adData.error?.message || JSON.stringify(adData);
+          return new Response(JSON.stringify({ success: false, error: msg }),
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        }
+
+        // 5. Persist to meta_ads
+        await supabase.from("meta_ads").upsert({
+          user_id:       user.id,
+          ad_id:         adData.id,
+          ad_name:       name,
+          adset_id,
+          campaign_id:   campaign_id || "",
+          status:        status || "PAUSED",
+          creative_id:   creativeData.id,
+          headline,
+          body:          adBody,
+          image_url,
+          call_to_action,
+          ad_account_id,
+        }, { onConflict: "user_id,ad_id" });
+
+        return new Response(
+          JSON.stringify({ success: true, ad_id: adData.id }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
       default:
         return new Response(JSON.stringify({ error: "Unknown action" }), {
           status: 400,

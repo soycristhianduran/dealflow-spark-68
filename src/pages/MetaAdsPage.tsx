@@ -555,171 +555,414 @@ function AdCreativeCard({
   );
 }
 
-/* ─── Campaign creation dialog ───────────────────────────────────────────── */
+/* ─── Campaign creation wizard (3 steps) ────────────────────────────────── */
 const OBJECTIVES = [
-  { value: "OUTCOME_LEADS",      label: "🎯 Leads",              desc: "Captura formularios y mensajes" },
-  { value: "OUTCOME_SALES",      label: "🛍️ Ventas",             desc: "Conversiones y compras" },
-  { value: "OUTCOME_TRAFFIC",    label: "🚀 Tráfico",            desc: "Visitas a tu sitio web" },
-  { value: "OUTCOME_AWARENESS",  label: "📣 Reconocimiento",     desc: "Alcance e impresiones" },
-  { value: "OUTCOME_ENGAGEMENT", label: "💬 Interacción",        desc: "Likes, comentarios, mensajes" },
-  { value: "OUTCOME_APP_PROMOTION", label: "📱 Promoción de app", desc: "Instalaciones y eventos en app" },
+  { value: "OUTCOME_LEADS",        label: "🎯 Leads",              desc: "Captura formularios y mensajes",   opt: "LEAD_GENERATION"     },
+  { value: "OUTCOME_SALES",        label: "🛍️ Ventas",             desc: "Conversiones y compras",           opt: "OFFSITE_CONVERSIONS" },
+  { value: "OUTCOME_TRAFFIC",      label: "🚀 Tráfico",            desc: "Visitas a tu sitio web",           opt: "LINK_CLICKS"         },
+  { value: "OUTCOME_AWARENESS",    label: "📣 Reconocimiento",     desc: "Alcance e impresiones",            opt: "REACH"               },
+  { value: "OUTCOME_ENGAGEMENT",   label: "💬 Interacción",        desc: "Likes, comentarios, mensajes",     opt: "POST_ENGAGEMENT"     },
+  { value: "OUTCOME_APP_PROMOTION",label: "📱 Promoción de app",   desc: "Instalaciones y eventos en app",   opt: "APP_INSTALLS"        },
 ];
+
+const CTA_OPTIONS = [
+  { value: "LEARN_MORE",    label: "Más información" },
+  { value: "SIGN_UP",       label: "Registrarse" },
+  { value: "CONTACT_US",    label: "Contáctanos" },
+  { value: "GET_QUOTE",     label: "Obtener cotización" },
+  { value: "APPLY_NOW",     label: "Aplicar ahora" },
+  { value: "DOWNLOAD",      label: "Descargar" },
+  { value: "SHOP_NOW",      label: "Comprar ahora" },
+  { value: "SUBSCRIBE",     label: "Suscribirse" },
+  { value: "WATCH_MORE",    label: "Ver más" },
+  { value: "GET_OFFER",     label: "Obtener oferta" },
+];
+
+async function invokeApi(body: Record<string, any>) {
+  const { data: res, error: err } = await supabase.functions.invoke("facebook-api", { body });
+  let errMsg: string | undefined;
+  if (err) {
+    try { const j = await (err as any).context?.json?.(); errMsg = j?.error || err.message; }
+    catch { errMsg = err.message; }
+  }
+  return { res, err, errMsg };
+}
+
+function StepIndicator({ step }: { step: number }) {
+  const steps = ["Campaña", "Conjunto", "Anuncio"];
+  return (
+    <div className="flex items-center gap-0 mb-5">
+      {steps.map((s, i) => (
+        <div key={i} className="flex items-center">
+          <div className={cn(
+            "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all",
+            i + 1 === step  ? "bg-primary text-white"
+            : i + 1 < step  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30"
+            : "bg-muted text-muted-foreground"
+          )}>
+            {i + 1 < step ? <CheckCircle2 className="h-3 w-3" /> : <span>{i + 1}</span>}
+            {s}
+          </div>
+          {i < steps.length - 1 && (
+            <div className={cn("h-px w-4 mx-0.5", i + 1 < step ? "bg-emerald-400" : "bg-muted")} />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function CreateCampaignDialog({
   open,
   onClose,
   adAccountId,
+  pages,
   onCreated,
 }: {
   open: boolean;
   onClose: () => void;
   adAccountId: string | null;
+  pages: { page_id: string; page_name: string }[];
   onCreated: (campaignId: string) => void;
 }) {
+  const [step,       setStep]       = useState(1);
   const [saving,     setSaving]     = useState(false);
-  const [name,       setName]       = useState("");
-  const [objective,  setObjective]  = useState("OUTCOME_LEADS");
-  const [budget,     setBudget]     = useState("");
-  const [startPaused,setStartPaused]= useState(true);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Step 1 – Campaign
+  const [camName,      setCamName]      = useState("");
+  const [objective,    setObjective]    = useState("OUTCOME_LEADS");
+  const [camBudget,    setCamBudget]    = useState("");
+  const [startPaused,  setStartPaused]  = useState(true);
+  const [campaignId,   setCampaignId]   = useState<string | null>(null);
+
+  // Step 2 – Ad Set
+  const [adsetName,    setAdsetName]    = useState("");
+  const [adsetBudget,  setAdsetBudget]  = useState("");
+  const [ageMin,       setAgeMin]       = useState("18");
+  const [ageMax,       setAgeMax]       = useState("65");
+  const [gender,       setGender]       = useState("all");
+  const [adsetId,      setAdsetId]      = useState<string | null>(null);
+
+  // Step 3 – Ad
+  const [adName,       setAdName]       = useState("");
+  const [pageId,       setPageId]       = useState("");
+  const [imageUrl,     setImageUrl]     = useState("");
+  const [headline,     setHeadline]     = useState("");
+  const [adBody,       setAdBody]       = useState("");
+  const [linkUrl,      setLinkUrl]      = useState("");
+  const [cta,          setCta]          = useState("LEARN_MORE");
+
+  const handleClose = () => {
+    setStep(1);
+    setCamName(""); setObjective("OUTCOME_LEADS"); setCamBudget(""); setStartPaused(true); setCampaignId(null);
+    setAdsetName(""); setAdsetBudget(""); setAgeMin("18"); setAgeMax("65"); setGender("all"); setAdsetId(null);
+    setAdName(""); setPageId(""); setImageUrl(""); setHeadline(""); setAdBody(""); setLinkUrl(""); setCta("LEARN_MORE");
+    onClose();
+  };
+
+  // ── Step 1: Create campaign ────────────────────────────────────────────
+  const handleCreateCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !adAccountId) return;
+    if (!camName.trim() || !adAccountId) return;
     setSaving(true);
-    const { data: res, error: err } = await supabase.functions.invoke("facebook-api", {
-      body: {
-        action: "create_campaign",
-        ad_account_id: adAccountId,
-        name: name.trim(),
-        objective,
-        status: startPaused ? "PAUSED" : "ACTIVE",
-        daily_budget: budget ? Number(budget) : undefined,
-        special_ad_categories: [],
-      },
+    const { res, errMsg } = await invokeApi({
+      action: "create_campaign",
+      ad_account_id: adAccountId,
+      name: camName.trim(),
+      objective,
+      status: startPaused ? "PAUSED" : "ACTIVE",
+      daily_budget: camBudget ? Number(camBudget) : undefined,
+      special_ad_categories: [],
     });
     setSaving(false);
-    // On Supabase invoke: non-2xx → err is set, data is null.
-    // We return 200+{success:false} for handled Meta errors, so res is always populated.
-    // Fallback: extract message from FunctionsHttpError if res is somehow null.
-    let errMsg: string | undefined;
-    if (err) {
-      try { const j = await (err as any).context?.json?.(); errMsg = j?.error || err.message; }
-      catch { errMsg = err.message; }
-    }
-    if (err || !res?.success) {
+    if (!res?.success) {
       const { toast } = await import("sonner");
       toast.error(res?.error || errMsg || "Error al crear la campaña");
       return;
     }
     const { toast } = await import("sonner");
-    toast.success(`Campaña "${name}" creada`);
-    onCreated(res.campaign_id);
-    setName(""); setBudget("");
-    onClose();
+    toast.success("Campaña creada ✓");
+    setCampaignId(res.campaign_id);
+    // Pre-fill ad set name
+    const obj = OBJECTIVES.find(o => o.value === objective);
+    setAdsetName(`Conjunto – ${camName.trim()}`);
+    setStep(2);
+  };
+
+  // ── Step 2: Create ad set ──────────────────────────────────────────────
+  const handleCreateAdSet = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adsetName.trim() || !campaignId || !adAccountId) return;
+    if (!adsetBudget || Number(adsetBudget) <= 0) {
+      const { toast } = await import("sonner");
+      toast.error("El presupuesto del conjunto es obligatorio");
+      return;
+    }
+    setSaving(true);
+    const obj = OBJECTIVES.find(o => o.value === objective);
+    const genders = gender === "men" ? [1] : gender === "women" ? [2] : [];
+    const { res, errMsg } = await invokeApi({
+      action: "create_adset",
+      ad_account_id: adAccountId,
+      campaign_id: campaignId,
+      name: adsetName.trim(),
+      optimization_goal: obj?.opt || "LINK_CLICKS",
+      daily_budget: Number(adsetBudget),
+      age_min: Number(ageMin),
+      age_max: Number(ageMax),
+      genders,
+      countries: ["CO"],
+      status: "PAUSED",
+    });
+    setSaving(false);
+    if (!res?.success) {
+      const { toast } = await import("sonner");
+      toast.error(res?.error || errMsg || "Error al crear el conjunto de anuncios");
+      return;
+    }
+    const { toast } = await import("sonner");
+    toast.success("Conjunto de anuncios creado ✓");
+    setAdsetId(res.adset_id);
+    setAdName(`Anuncio – ${camName.trim()}`);
+    if (pages.length > 0) setPageId(pages[0].page_id);
+    setStep(3);
+  };
+
+  // ── Step 3: Create ad ──────────────────────────────────────────────────
+  const handleCreateAd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!adName.trim() || !adsetId || !campaignId || !adAccountId || !pageId || !linkUrl.trim()) return;
+    setSaving(true);
+    const { res, errMsg } = await invokeApi({
+      action: "create_ad",
+      ad_account_id: adAccountId,
+      adset_id: adsetId,
+      campaign_id: campaignId,
+      name: adName.trim(),
+      page_id: pageId,
+      image_url: imageUrl.trim() || undefined,
+      headline: headline.trim() || undefined,
+      body: adBody.trim() || undefined,
+      link_url: linkUrl.trim(),
+      call_to_action: cta,
+      status: "PAUSED",
+    });
+    setSaving(false);
+    if (!res?.success) {
+      const { toast } = await import("sonner");
+      toast.error(res?.error || errMsg || "Error al crear el anuncio");
+      return;
+    }
+    const { toast } = await import("sonner");
+    toast.success("¡Estructura creada completa! Campaña, conjunto y anuncio listos.");
+    onCreated(campaignId!);
+    handleClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-md">
+    <Dialog open={open} onOpenChange={v => !v && handleClose()}>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" /> Nueva campaña de Meta Ads
+            <Plus className="h-4 w-4 text-primary" /> Nueva estructura de campaña
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Name */}
-          <div className="space-y-1.5">
-            <Label htmlFor="cam-name" className="text-xs font-medium">Nombre de la campaña *</Label>
-            <Input
-              id="cam-name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              placeholder="Ej: Leads Julio 2026 – Formulario Web"
-              required
-              className="h-9"
-            />
-          </div>
 
-          {/* Objective */}
-          <div className="space-y-1.5">
-            <Label className="text-xs font-medium">Objetivo *</Label>
-            <div className="grid grid-cols-2 gap-2">
-              {OBJECTIVES.map(obj => (
-                <button
-                  type="button"
-                  key={obj.value}
-                  onClick={() => setObjective(obj.value)}
-                  className={cn(
-                    "flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-all",
-                    objective === obj.value
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "hover:border-primary/40 hover:bg-muted/50"
-                  )}
-                >
-                  <span className="text-xs font-semibold">{obj.label}</span>
-                  <span className="text-[10px] text-muted-foreground leading-tight">{obj.desc}</span>
-                </button>
-              ))}
+        <StepIndicator step={step} />
+
+        {/* ── Step 1: Campaign ── */}
+        {step === 1 && (
+          <form onSubmit={handleCreateCampaign} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="cam-name" className="text-xs font-medium">Nombre de la campaña *</Label>
+              <Input id="cam-name" value={camName} onChange={e => setCamName(e.target.value)}
+                placeholder="Ej: Leads Julio 2026 – Formulario Web" required className="h-9" />
             </div>
-          </div>
 
-          {/* Budget (optional CBO) */}
-          <div className="space-y-1.5">
-            <Label htmlFor="cam-budget" className="text-xs font-medium">
-              Presupuesto diario de campaña (opcional)
-              <span className="ml-1 text-muted-foreground font-normal">— si usas CBO</span>
-            </Label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
-              <Input
-                id="cam-budget"
-                type="number"
-                min="1"
-                step="0.01"
-                value={budget}
-                onChange={e => setBudget(e.target.value)}
-                placeholder="0.00"
-                className="h-9 pl-6"
-              />
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Objetivo *</Label>
+              <div className="grid grid-cols-2 gap-2">
+                {OBJECTIVES.map(obj => (
+                  <button type="button" key={obj.value} onClick={() => setObjective(obj.value)}
+                    className={cn("flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-all",
+                      objective === obj.value ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/40 hover:bg-muted/50")}>
+                    <span className="text-xs font-semibold">{obj.label}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">{obj.desc}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-            <p className="text-[10px] text-muted-foreground">
-              El presupuesto por conjunto de anuncios se configura después en Meta Ads Manager.
-            </p>
-          </div>
 
-          {/* Start status */}
-          <div className="flex items-center gap-3 rounded-lg border p-3">
-            <button
-              type="button"
-              onClick={() => setStartPaused(v => !v)}
-              className={cn(
-                "relative h-5 w-9 rounded-full transition-colors shrink-0",
-                !startPaused ? "bg-emerald-500" : "bg-muted"
-              )}
-            >
-              <span className={cn(
-                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
-                !startPaused ? "translate-x-4" : "translate-x-0.5"
-              )} />
-            </button>
-            <div>
-              <p className="text-xs font-medium">{startPaused ? "Crear pausada" : "Activar al crear"}</p>
-              <p className="text-[10px] text-muted-foreground">
-                {startPaused ? "Podrás activarla cuando tengas los conjuntos de anuncios listos." : "Se activará inmediatamente en Meta."}
-              </p>
+            <div className="space-y-1.5">
+              <Label htmlFor="cam-budget" className="text-xs font-medium">
+                Presupuesto campaña (opcional) <span className="text-muted-foreground font-normal">— CBO</span>
+              </Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                <Input id="cam-budget" type="number" min="1" value={camBudget}
+                  onChange={e => setCamBudget(e.target.value)} placeholder="0" className="h-9 pl-6" />
+              </div>
             </div>
-          </div>
 
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
-              Cancelar
-            </Button>
-            <Button type="submit" size="sm" disabled={saving || !name.trim() || !adAccountId}>
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
-              Crear campaña
-            </Button>
-          </DialogFooter>
-        </form>
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <button type="button" onClick={() => setStartPaused(v => !v)}
+                className={cn("relative h-5 w-9 rounded-full transition-colors shrink-0", !startPaused ? "bg-emerald-500" : "bg-muted")}>
+                <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                  !startPaused ? "translate-x-4" : "translate-x-0.5")} />
+              </button>
+              <div>
+                <p className="text-xs font-medium">{startPaused ? "Crear pausada" : "Activar al crear"}</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {startPaused ? "La activarás cuando el anuncio esté listo." : "Se activa inmediatamente en Meta."}
+                </p>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleClose}>Cancelar</Button>
+              <Button type="submit" size="sm" disabled={saving || !camName.trim() || !adAccountId}>
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Siguiente: Conjunto →
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+
+        {/* ── Step 2: Ad Set ── */}
+        {step === 2 && (
+          <form onSubmit={handleCreateAdSet} className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Nombre del conjunto *</Label>
+              <Input value={adsetName} onChange={e => setAdsetName(e.target.value)}
+                placeholder="Ej: Colombia – 25-45 – Intereses" required className="h-9" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Presupuesto diario (COP) *</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+                <Input type="number" min="1000" value={adsetBudget}
+                  onChange={e => setAdsetBudget(e.target.value)} placeholder="50000" required className="h-9 pl-6" />
+              </div>
+              <p className="text-[10px] text-muted-foreground">Mínimo recomendado: $20,000 COP/día</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Edad mínima</Label>
+                <Input type="number" min="18" max="64" value={ageMin}
+                  onChange={e => setAgeMin(e.target.value)} className="h-9" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Edad máxima</Label>
+                <Input type="number" min="19" max="65" value={ageMax}
+                  onChange={e => setAgeMax(e.target.value)} className="h-9" />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Género</Label>
+              <div className="flex gap-2">
+                {[{ v: "all", l: "Todos" }, { v: "men", l: "Hombres" }, { v: "women", l: "Mujeres" }].map(g => (
+                  <button type="button" key={g.v} onClick={() => setGender(g.v)}
+                    className={cn("flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
+                      gender === g.v ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/40")}>
+                    {g.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg bg-muted/50 px-3 py-2 text-[10px] text-muted-foreground">
+              🌍 Segmentación geográfica: <strong>Colombia</strong> · Más segmentaciones se configuran en Meta Ads Manager.
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>← Volver</Button>
+              <Button type="submit" size="sm" disabled={saving || !adsetName.trim() || !adsetBudget}>
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                Siguiente: Anuncio →
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
+
+        {/* ── Step 3: Ad ── */}
+        {step === 3 && (
+          <form onSubmit={handleCreateAd} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-medium">Nombre del anuncio *</Label>
+                <Input value={adName} onChange={e => setAdName(e.target.value)}
+                  placeholder="Ej: Anuncio Principal – Imagen" required className="h-9" />
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-medium">Página de Facebook *</Label>
+                <Select value={pageId} onValueChange={setPageId} required>
+                  <SelectTrigger className="h-9 text-xs">
+                    <SelectValue placeholder="Selecciona una página…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pages.map(p => (
+                      <SelectItem key={p.page_id} value={p.page_id} className="text-xs">{p.page_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-medium">URL de imagen (opcional)</Label>
+                <Input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+                  placeholder="https://…/imagen.jpg" className="h-9" type="url" />
+                <p className="text-[10px] text-muted-foreground">URL pública de la imagen (1200×628 recomendado)</p>
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-medium">Titular (headline) <span className="text-muted-foreground">{headline.length}/40</span></Label>
+                <Input value={headline} onChange={e => setHeadline(e.target.value.slice(0, 40))}
+                  placeholder="Tu propuesta de valor en pocas palabras" className="h-9" />
+              </div>
+
+              <div className="space-y-1.5 col-span-2">
+                <Label className="text-xs font-medium">Texto principal <span className="text-muted-foreground">{adBody.length}/125</span></Label>
+                <textarea
+                  value={adBody}
+                  onChange={e => setAdBody(e.target.value.slice(0, 125))}
+                  placeholder="Descripción que aparece sobre la imagen…"
+                  rows={3}
+                  className="w-full rounded-md border bg-background px-3 py-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">URL de destino *</Label>
+                <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} required
+                  placeholder="https://tu-sitio.com/landing" className="h-9" type="url" />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Botón CTA</Label>
+                <Select value={cta} onValueChange={setCta}>
+                  <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {CTA_OPTIONS.map(c => (
+                      <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 pt-1">
+              <Button type="button" variant="outline" size="sm" onClick={() => setStep(2)}>← Volver</Button>
+              <Button type="submit" size="sm" disabled={saving || !adName.trim() || !pageId || !linkUrl.trim()}>
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+                Crear anuncio
+              </Button>
+            </DialogFooter>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1424,6 +1667,7 @@ export default function MetaAdsPage() {
           open={createCampaignOpen}
           onClose={() => setCreateCampaignOpen(false)}
           adAccountId={campaigns[0]?.ad_account_id || null}
+          pages={fb.status?.pages || []}
           onCreated={() => refetch()}
         />
 
