@@ -67,26 +67,13 @@ Deno.serve(async (req) => {
     (async () => { try { await supabase.rpc("inc_landing_page_views", { p_page_id: page.id }); } catch (_) {} })();
 
     // Resolve redirect URL after form submit:
-    // 1) Explicit form_config.redirect_url → use as-is (set by builder, always a pages.klosify.com URL).
-    // 2) Funnel thank-you page → bake only the SLUG; the browser builds the full URL at runtime with
-    //    window.location.origin so it always stays on the correct domain (pages.klosify.com, never supabase.co).
-    //    We cannot rely on req headers here — behind Cloudflare Worker the Host is the Supabase domain.
+    // Only use form_config.redirect_url (set explicitly by the builder).
+    // "" = user chose "Mostrar mensaje de éxito" → no redirect, show inline message.
+    // Auto-detecting the funnel thank-you page is intentionally removed — it caused
+    // "Mostrar mensaje" to redirect anyway when the page belonged to a funnel.
     const formConfig: Record<string, any> = (page.form_config as any) || {};
-    const thankyouUrl = formConfig.redirect_url || "";  // explicit URL configured by user (may be empty)
-    let thankyouSlug = "";                               // fallback: baked slug, browser builds URL at runtime
-
-    if (!thankyouUrl && page.funnel_id) {
-      const { data: thankyouPage } = await supabase
-        .from("landing_pages")
-        .select("slug")
-        .eq("funnel_id", page.funnel_id)
-        .eq("page_role", "thankyou")
-        .eq("status", "published")
-        .maybeSingle();
-      if (thankyouPage?.slug) {
-        thankyouSlug = thankyouPage.slug;
-      }
-    }
+    const thankyouUrl = formConfig.redirect_url || "";  // explicit URL, or "" → show inline message
+    const thankyouSlug = "";                             // no longer auto-detected (see comment above)
 
     // Success message shown inline when no redirect is configured
     const successMessage = (formConfig.success_message || "¡Gracias! Te contactaremos pronto.").replace(/'/g, "\\'").replace(/\n/g, " ");
