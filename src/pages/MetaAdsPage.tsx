@@ -1086,6 +1086,131 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
   );
 }
 
+/* ─── ROAS Attribution Tab ───────────────────────────────────────────────── */
+function RoasTab({
+  campaigns,
+  roasData,
+}: {
+  campaigns: Campaign[];
+  roasData: Record<string, { leads: number; won: number; revenue: number }>;
+}) {
+  const fmt = (n: number) =>
+    new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
+
+  // Build rows joining campaign spend with CRM attribution
+  const rows = useMemo(() => {
+    return campaigns
+      .filter(c => (c.spend || 0) > 0 || roasData[c.campaign_id])
+      .map(c => {
+        const attr   = roasData[c.campaign_id] || { leads: 0, won: 0, revenue: 0 };
+        const spend  = c.spend || 0;
+        const roas   = spend > 0 && attr.revenue > 0 ? attr.revenue / spend : null;
+        const cpl    = attr.leads > 0 && spend > 0   ? spend / attr.leads   : null;
+        const winPct = attr.leads > 0                ? (attr.won / attr.leads) * 100 : null;
+        return { ...c, attr, spend, roas, cpl, winPct };
+      })
+      .sort((a, b) => (b.roas ?? -1) - (a.roas ?? -1));
+  }, [campaigns, roasData]);
+
+  const totalSpend   = rows.reduce((s, r) => s + r.spend, 0);
+  const totalRev     = rows.reduce((s, r) => s + r.attr.revenue, 0);
+  const totalLeads   = rows.reduce((s, r) => s + r.attr.leads, 0);
+  const totalWon     = rows.reduce((s, r) => s + r.attr.won, 0);
+  const globalRoas   = totalSpend > 0 && totalRev > 0 ? totalRev / totalSpend : null;
+
+  const noData = totalLeads === 0;
+
+  return (
+    <div className="space-y-5">
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Inversión Meta",    value: fmt(totalSpend),        sub: "gasto total importado" },
+          { label: "Ingresos atribuidos", value: fmt(totalRev),        sub: "deals ganados de Meta leads" },
+          { label: "ROAS global",        value: globalRoas ? `${globalRoas.toFixed(2)}x` : "—", sub: "ingreso por cada $ invertido", highlight: globalRoas !== null },
+          { label: "Tasa de cierre",     value: totalLeads > 0 ? `${((totalWon / totalLeads) * 100).toFixed(1)}%` : "—", sub: `${totalWon} ganados de ${totalLeads} leads` },
+        ].map((k, i) => (
+          <Card key={i} className="border-none shadow-sm">
+            <CardContent className="p-4">
+              <p className="text-[11px] text-muted-foreground mb-1">{k.label}</p>
+              <p className={cn("text-xl font-bold tracking-tight", k.highlight && "text-emerald-600")}>{k.value}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">{k.sub}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Attribution table */}
+      <Card className="border-none shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-primary" /> ROAS por campaña
+          </CardTitle>
+          {noData && (
+            <p className="text-xs text-muted-foreground">
+              No hay leads importados con atribución de campaña aún.
+              Importa leads desde la pestaña Campañas → Sincronizar para cruzar datos.
+            </p>
+          )}
+        </CardHeader>
+        {rows.length > 0 && (
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b bg-muted/30">
+                    {["Campaña", "Estado", "Inversión", "Leads CRM", "Deals ganados", "Ingresos cerrados", "ROAS", "CPL real", "Tasa cierre"].map(h => (
+                      <th key={h} className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(r => (
+                    <tr key={r.campaign_id} className="border-b hover:bg-muted/20 transition-colors">
+                      <td className="px-4 py-3">
+                        <p className="font-medium max-w-[200px] truncate">{r.campaign_name}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">{r.objective?.replace("OUTCOME_", "") || "—"}</p>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={cn(
+                          "text-[10px] font-medium px-2 py-0.5 rounded-full",
+                          r.status === "ACTIVE" ? "bg-emerald-100 text-emerald-700" : "bg-muted text-muted-foreground"
+                        )}>{r.status}</span>
+                      </td>
+                      <td className="px-4 py-3 font-medium">{fmt(r.spend)}</td>
+                      <td className="px-4 py-3">{r.attr.leads > 0 ? <span className="font-medium">{r.attr.leads}</span> : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-3">{r.attr.won > 0 ? <span className="font-medium text-emerald-600">{r.attr.won}</span> : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-3 font-medium text-emerald-600">{r.attr.revenue > 0 ? fmt(r.attr.revenue) : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-3">
+                        {r.roas !== null ? (
+                          <span className={cn(
+                            "font-bold px-2 py-0.5 rounded-full text-[11px]",
+                            r.roas >= 3 ? "bg-emerald-100 text-emerald-700"
+                            : r.roas >= 1 ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                          )}>{r.roas.toFixed(2)}x</span>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </td>
+                      <td className="px-4 py-3">{r.cpl !== null ? fmt(r.cpl) : <span className="text-muted-foreground">—</span>}</td>
+                      <td className="px-4 py-3">{r.winPct !== null ? `${r.winPct.toFixed(1)}%` : <span className="text-muted-foreground">—</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 p-4 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+        <p className="font-semibold">¿Cómo funciona la atribución?</p>
+        <p>Cada lead importado desde Meta (formularios o webhook) se etiqueta con el <strong>campaign_id</strong> del anuncio que lo generó. Cuando ese contacto avanza a <strong>deal ganado</strong> en tu pipeline, el valor del deal se atribuye a esa campaña.</p>
+        <p className="text-blue-600 dark:text-blue-400">Para capturar UTMs de tu sitio web → próximamente con el pixel de seguimiento en landing pages.</p>
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function MetaAdsPage() {
   const { user } = useAuth();
@@ -1094,7 +1219,7 @@ export default function MetaAdsPage() {
   const { path } = useWorkspace();
   const queryClient = useQueryClient();
 
-  const [activeTab,       setActiveTab]       = useState<"campaigns" | "ads">("campaigns");
+  const [activeTab,       setActiveTab]       = useState<"campaigns" | "ads" | "roas">("campaigns");
   const [statusFilter,    setStatusFilter]    = useState("all");
   const [objectiveFilter, setObjectiveFilter] = useState("all");
   const [dateFrom,        setDateFrom]        = useState<Date | undefined>();
@@ -1140,6 +1265,38 @@ export default function MetaAdsPage() {
     },
     enabled: !!user,
   });
+
+  /* ── ROAS attribution: contacts from Meta leads joined with won deals ── */
+  const { data: roasContacts = [] } = useQuery({
+    queryKey: ["meta-roas-contacts", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase
+        .from("contacts")
+        .select("meta_campaign_id, lead_status, budget, utm_campaign, campaign")
+        .eq("owner_id", user.id)
+        .or("meta_campaign_id.not.is.null,utm_campaign.not.is.null,campaign.not.is.null")
+        .not("source", "is", null);
+      return data || [];
+    },
+    enabled: !!user,
+  });
+
+  // Aggregate ROAS data per Meta campaign ID
+  const roasData = useMemo(() => {
+    const byId: Record<string, { leads: number; won: number; revenue: number }> = {};
+    for (const c of roasContacts) {
+      const key = c.meta_campaign_id || null;
+      if (!key) continue;
+      if (!byId[key]) byId[key] = { leads: 0, won: 0, revenue: 0 };
+      byId[key].leads++;
+      if (c.lead_status === "won") {
+        byId[key].won++;
+        byId[key].revenue += Number(c.budget) || 0;
+      }
+    }
+    return byId;
+  }, [roasContacts]);
 
   /* ── Toggle status ────────────────────────────────────────────────────── */
   const handleToggle = async (campaignId: string, newStatus: "ACTIVE" | "PAUSED") => {
@@ -1319,16 +1476,20 @@ export default function MetaAdsPage() {
                 </span>
               )}
             </button>
+            <button
+              onClick={() => setActiveTab("roas")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                activeTab === "roas"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <TrendingUp className="h-3.5 w-3.5" /> Atribución ROAS
+            </button>
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => setCreateCampaignOpen(true)}
-              disabled={campaigns.length === 0}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Nueva campaña
-            </Button>
             <Button
               size="sm"
               variant="outline"
@@ -1662,14 +1823,10 @@ export default function MetaAdsPage() {
 
         </>)} {/* end campaigns tab */}
 
-        {/* Campaign creation dialog */}
-        <CreateCampaignDialog
-          open={createCampaignOpen}
-          onClose={() => setCreateCampaignOpen(false)}
-          adAccountId={campaigns[0]?.ad_account_id || null}
-          pages={fb.status?.pages || []}
-          onCreated={() => refetch()}
-        />
+        {/* ── ROAS ATTRIBUTION TAB ─────────────────────────────────────────── */}
+        {activeTab === "roas" && (
+          <RoasTab campaigns={campaigns} roasData={roasData} />
+        )}
 
       </main>
     </AppLayout>

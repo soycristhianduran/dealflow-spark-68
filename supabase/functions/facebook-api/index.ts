@@ -225,6 +225,13 @@ Deno.serve(async (req) => {
             campaign: lead.campaign_name || lead.campaign_id || form_id,
             adset: lead.adset_name || lead.adset_id || null,
             ad: lead.ad_name || lead.ad_id || null,
+            meta_campaign_id: lead.campaign_id || null,
+            meta_ad_id:       lead.ad_id       || null,
+            meta_adset_id:    lead.adset_id    || null,
+            utm_source:       "facebook",
+            utm_medium:       "paid_social",
+            utm_campaign:     lead.campaign_name || lead.campaign_id || null,
+            utm_content:      lead.ad_name || lead.ad_id || null,
             status: "new",
             owner_id: user.id,
           };

@@ -76,6 +76,11 @@ Deno.serve(async (req) => {
 
     ALTER TABLE public.meta_ads ADD COLUMN IF NOT EXISTS video_id TEXT;
     ALTER TABLE public.meta_ads ADD COLUMN IF NOT EXISTS video_url TEXT;
+
+    ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS meta_campaign_id TEXT;
+    ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS meta_ad_id TEXT;
+    ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS meta_adset_id TEXT;
+    CREATE INDEX IF NOT EXISTS idx_contacts_meta_campaign_id ON public.contacts(meta_campaign_id) WHERE meta_campaign_id IS NOT NULL;
   `;
 
   // Execute via the Supabase management API (available from within edge functions)
