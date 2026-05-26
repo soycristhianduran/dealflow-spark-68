@@ -598,9 +598,17 @@ function CreateCampaignDialog({
       },
     });
     setSaving(false);
+    // On Supabase invoke: non-2xx → err is set, data is null.
+    // We return 200+{success:false} for handled Meta errors, so res is always populated.
+    // Fallback: extract message from FunctionsHttpError if res is somehow null.
+    let errMsg: string | undefined;
+    if (err) {
+      try { const j = await (err as any).context?.json?.(); errMsg = j?.error || err.message; }
+      catch { errMsg = err.message; }
+    }
     if (err || !res?.success) {
       const { toast } = await import("sonner");
-      toast.error(res?.error || "Error al crear la campaña");
+      toast.error(res?.error || errMsg || "Error al crear la campaña");
       return;
     }
     const { toast } = await import("sonner");

@@ -718,9 +718,11 @@ Deno.serve(async (req) => {
           const metaMsg = createData.error?.error_user_msg
             || createData.error?.message
             || JSON.stringify(createData);
+          // Return 200 so Supabase client puts the body in `data` (not in error.context).
+          // The caller checks `res.success === false` to detect failure.
           return new Response(
             JSON.stringify({ success: false, error: metaMsg }),
-            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
 
