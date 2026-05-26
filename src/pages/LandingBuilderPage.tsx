@@ -558,6 +558,33 @@ export default function LandingBuilderPage() {
     toast.success("Funnel eliminado");
   };
 
+  // ── Inline rename ────────────────────────────────────────────────────────────
+  // Single state tracks which item is being renamed (funnel or page)
+  const [renaming, setRenaming] = useState<{ id: string; type: "funnel" | "page"; value: string } | null>(null);
+
+  const startRename = (e: React.MouseEvent, id: string, type: "funnel" | "page", currentName: string) => {
+    e.stopPropagation();
+    setRenaming({ id, type, value: currentName });
+  };
+
+  const commitRename = async () => {
+    if (!renaming) return;
+    const trimmed = renaming.value.trim();
+    if (!trimmed) { setRenaming(null); return; }
+
+    if (renaming.type === "funnel") {
+      const { error } = await supabase.from("landing_funnels").update({ name: trimmed }).eq("id", renaming.id);
+      if (error) { toast.error("Error al renombrar"); return; }
+      setFunnels(prev => prev.map(f => f.id === renaming.id ? { ...f, name: trimmed } : f));
+    } else {
+      const { error } = await supabase.from("landing_pages").update({ name: trimmed }).eq("id", renaming.id);
+      if (error) { toast.error("Error al renombrar"); return; }
+      setPages(prev => prev.map(p => p.id === renaming.id ? { ...p, name: trimmed } : p));
+      if (selectedId === renaming.id) setName(trimmed);
+    }
+    setRenaming(null);
+  };
+
   // ── Edit mode: drive designMode from React parent (CSP-safe) ────────────────
   // Called directly from the iframe's onLoad prop — no useEffect race condition.
   // We manipulate contentDocument from the parent frame, so CSP inline-script
@@ -1275,7 +1302,19 @@ export default function LandingBuilderPage() {
                             page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30")} />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-left truncate block">{page.name}</span>
+                          {renaming?.id === page.id && renaming.type === "page" ? (
+                            <input
+                              autoFocus
+                              className="w-full text-xs bg-background border border-primary rounded px-1 py-0.5 outline-none"
+                              value={renaming.value}
+                              onChange={e => setRenaming(r => r ? { ...r, value: e.target.value } : r)}
+                              onBlur={commitRename}
+                              onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenaming(null); }}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          ) : (
+                            <span className="text-left truncate block">{page.name}</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {/* Role badge — click to cycle through roles */}
@@ -1299,6 +1338,10 @@ export default function LandingBuilderPage() {
                           </TooltipProvider>
                           <span className="text-[10px] text-muted-foreground hidden group-hover:hidden">{page.views}v</span>
                           {selectedId === page.id && <Check className="h-3 w-3 text-primary" />}
+                          <button className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground p-0.5 rounded hover:text-foreground"
+                            onClick={e => startRename(e, page.id, "page", page.name)}>
+                            <Edit2 className="h-3 w-3" />
+                          </button>
                           <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
                             onClick={e => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}>
                             <Trash2 className="h-3 w-3" />
@@ -1501,17 +1544,37 @@ export default function LandingBuilderPage() {
                             <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                               <FolderOpen className="h-4.5 w-4.5 text-primary" />
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
+                            {renaming?.id === funnel.id && renaming.type === "funnel" ? (
+                              <input
+                                autoFocus
+                                className="w-full text-sm font-semibold bg-background border border-primary rounded px-1.5 py-0.5 outline-none"
+                                value={renaming.value}
+                                onChange={e => setRenaming(r => r ? { ...r, value: e.target.value } : r)}
+                                onBlur={commitRename}
+                                onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenaming(null); }}
+                                onClick={e => e.stopPropagation()}
+                              />
+                            ) : (
                               <p className="font-semibold text-sm truncate">{funnel.name}</p>
-                              <p className="text-[11px] text-muted-foreground">{fp.length} {fp.length === 1 ? "página" : "páginas"}</p>
-                            </div>
+                            )}
+                            <p className="text-[11px] text-muted-foreground">{fp.length} {fp.length === 1 ? "página" : "páginas"}</p>
                           </div>
-                          <button
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-1 rounded hover:bg-destructive/10"
-                            onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          </div>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              className="text-muted-foreground p-1 rounded hover:bg-accent"
+                              onClick={e => startRename(e, funnel.id, "funnel", funnel.name)}
+                            >
+                              <Edit2 className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              className="text-destructive p-1 rounded hover:bg-destructive/10"
+                              onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </div>
 
                         {/* Page role pills */}
@@ -1623,7 +1686,27 @@ export default function LandingBuilderPage() {
 
                         {/* Page info */}
                         <div className="p-4">
-                          <p className="font-semibold text-sm truncate mb-1">{page.name}</p>
+                          {renaming?.id === page.id && renaming.type === "page" ? (
+                            <input
+                              autoFocus
+                              className="w-full text-sm font-semibold bg-background border border-primary rounded px-1.5 py-0.5 outline-none mb-1"
+                              value={renaming.value}
+                              onChange={e => setRenaming(r => r ? { ...r, value: e.target.value } : r)}
+                              onBlur={commitRename}
+                              onKeyDown={e => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setRenaming(null); }}
+                              onClick={e => e.stopPropagation()}
+                            />
+                          ) : (
+                            <div className="flex items-center gap-1 group/name mb-1">
+                              <p className="font-semibold text-sm truncate flex-1">{page.name}</p>
+                              <button
+                                className="opacity-0 group-hover/name:opacity-100 transition-opacity text-muted-foreground hover:text-foreground p-0.5 rounded shrink-0"
+                                onClick={e => startRename(e, page.id, "page", page.name)}
+                              >
+                                <Edit2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
                           <p className="text-[11px] text-muted-foreground font-mono truncate mb-3">
                             /{page.slug}
                           </p>
