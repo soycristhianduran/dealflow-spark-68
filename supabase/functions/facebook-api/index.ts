@@ -681,53 +681,73 @@ Deno.serve(async (req) => {
       case "create_campaign": {
         const { ad_account_id, name, objective, status, daily_budget, special_ad_categories } = body;
 
+        // Normalize ad account ID: stored values may already be "act_12345" or just "12345".
+        // The Graph API endpoint needs exactly one "act_" prefix.
+        const rawAccountId = String(ad_account_id).replace(/^act_/, "");
+        const accountEndpoint = `act_${rawAccountId}`;
+
         const params: Record<string, any> = {
           name,
-          objective,        // e.g. "OUTCOME_LEADS", "OUTCOME_SALES", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"
+          objective,
           status: status || "PAUSED",
-          special_ad_categories: special_ad_categories || [],
+          // For non-regulated ads (housing/employment/credit/political), send NONE
+          special_ad_categories: special_ad_categories?.length ? special_ad_categories : ["NONE"],
           access_token: fbToken,
         };
 
-        // Campaign Budget Optimization: set daily_budget in cents if provided
-        if (daily_budget && daily_budget > 0) {
-          params.daily_budget = Math.round(daily_budget * 100); // convert dollars to cents
+        // CBO budget (optional): only include if provided and > 0.
+        // Note: Meta requires budgets in the account currency's smallest unit
+        // (cents for USD, no conversion needed for whole-unit currencies like COP).
+        // We store the value as-is from the UI and send it in cents (× 100).
+        if (daily_budget && Number(daily_budget) > 0) {
+          params.daily_budget = Math.round(Number(daily_budget) * 100);
         }
 
-        const createRes = await fetch(`${GRAPH_API}/act_${ad_account_id}/campaigns`, {
+        console.log("Creating campaign:", { endpoint: accountEndpoint, params: { ...params, access_token: "[hidden]" } });
+
+        const createRes = await fetch(`${GRAPH_API}/${accountEndpoint}/campaigns`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(params),
         });
         const createData = await createRes.json();
 
+        console.log("Meta API response:", JSON.stringify(createData));
+
         if (!createRes.ok || createData.error) {
-          throw new Error(`Meta API error: ${createData.error?.message || JSON.stringify(createData)}`);
+          const metaMsg = createData.error?.error_user_msg
+            || createData.error?.message
+            || JSON.stringify(createData);
+          return new Response(
+            JSON.stringify({ success: false, error: metaMsg }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
         }
 
-        // Store the new campaign (basic data, metrics will come with next sync)
+        // Store the new campaign (metrics will come with next sync)
         const newCampaign = {
-          user_id: user.id,
-          campaign_id: createData.id,
-          campaign_name: name,
-          status: status || "PAUSED",
+          user_id:         user.id,
+          campaign_id:     createData.id,
+          campaign_name:   name,
+          status:          status || "PAUSED",
           objective,
-          daily_budget: daily_budget || null,
+          daily_budget:    daily_budget ? Number(daily_budget) : null,
           lifetime_budget: null,
-          spend: 0,
-          impressions: 0,
-          clicks: 0,
-          leads: 0,
-          cpl: null,
-          start_time: null,
-          stop_time: null,
-          ad_account_id,
+          spend:           0,
+          impressions:     0,
+          clicks:          0,
+          leads:           0,
+          cpl:             null,
+          start_time:      null,
+          stop_time:       null,
+          ad_account_id:   ad_account_id,
         };
         await supabase.from("meta_campaigns").insert(newCampaign);
 
-        return new Response(JSON.stringify({ success: true, campaign_id: createData.id, campaign: newCampaign }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ success: true, campaign_id: createData.id, campaign: newCampaign }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       default:
