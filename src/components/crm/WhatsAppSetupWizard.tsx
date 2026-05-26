@@ -38,9 +38,7 @@ type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 const STEPS = [
   { num: 1, label: "Iniciar sesión", icon: Shield },
   { num: 2, label: "Portafolio", icon: Building2 },
-  { num: 3, label: "Cuenta WABA", icon: MessageCircle },
   { num: 4, label: "Número", icon: Phone },
-  { num: 5, label: "Configuración", icon: Settings },
   { num: 6, label: "¡Listo!", icon: CheckCircle2 },
 ];
 
@@ -218,7 +216,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
         display_phone: phone.display_phone_number,
         business_name: phone.verified_name || selectedWaba?.business_name || selectedWaba?.name,
       });
-      setStep(5);
+      setStep(6);
     } catch (e: any) {
       toast.error("Error al guardar: " + e.message);
     } finally {
@@ -239,7 +237,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
         // token is optional — backend reuses saved OAuth token if not provided
         ...(manualToken.trim() ? { access_token: manualToken.trim() } : {}),
       });
-      setStep(5);
+      setStep(6);
     } catch (e: any) {
       toast.error("Error: " + e.message);
     } finally {
@@ -461,7 +459,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               )}
               <h2 className="text-white font-semibold text-sm">Conectar WhatsApp</h2>
             </div>
-            <span className="text-white/70 text-xs">Paso {step} de 6</span>
+            <span className="text-white/70 text-xs">Paso {STEPS.findIndex(s => s.num >= step) + 1} de {STEPS.length}</span>
           </div>
 
           {/* Step indicators */}
@@ -470,7 +468,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div
                 key={s.num}
                 className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                  s.num <= step ? "bg-white" : "bg-white/20"
+                  STEPS.findIndex(x => x.num >= step) >= STEPS.findIndex(x => x.num === s.num) ? "bg-white" : "bg-white/20"
                 }`}
               />
             ))}
@@ -805,59 +803,6 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
             </div>
           )}
 
-          {/* ===== STEP 5: Webhook configuration ===== */}
-          {step === 5 && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-4">
-                <div className="flex items-center gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-green-700 dark:text-green-400">¡Cuenta vinculada correctamente!</p>
-                    <p className="text-xs text-green-600/80 dark:text-green-400/70 mt-0.5">
-                      Solo falta configurar el webhook para recibir mensajes.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border p-4 space-y-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Settings className="h-4 w-4 text-muted-foreground" />
-                  URL del Webhook
-                </h4>
-                <p className="text-xs text-muted-foreground">
-                  Registra esta URL en tu app de Meta → WhatsApp → Configuración.
-                </p>
-                <div className="flex items-center gap-2 bg-muted rounded-lg p-2.5">
-                  <code className="text-[11px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="shrink-0 h-7 w-7"
-                    onClick={() => {
-                      navigator.clipboard.writeText(webhookUrl);
-                      toast.success("URL copiada");
-                    }}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground space-y-0.5">
-                  <p><strong>Campo:</strong> messages</p>
-                </div>
-              </div>
-
-              <Button
-                className="w-full gap-2"
-                onClick={() => {
-                  setStep(6);
-                  wa.refreshConfig();
-                }}
-              >
-                Finalizar configuración <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
