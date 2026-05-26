@@ -143,8 +143,9 @@ export function useFacebookIntegration() {
       "pages_messaging",
       // Lead forms
       "leads_retrieval",
-      // Ads
+      // Ads (read + create/update campaigns, adsets, ads)
       "ads_read",
+      "ads_management",
       // Business
       "business_management",
       // Instagram (DMs, comments, content read)
