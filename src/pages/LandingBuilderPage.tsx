@@ -2250,7 +2250,17 @@ export default function LandingBuilderPage() {
       </Dialog>
 
       {/* ── Form Integration Sheet ── */}
-      <Sheet open={formConfigOpen} onOpenChange={setFormConfigOpen}>
+      <Sheet open={formConfigOpen} onOpenChange={(open) => {
+        setFormConfigOpen(open);
+        // Auto-persist form_config whenever the sheet closes so redirect_url /
+        // cta_links are never lost even if the user closes via the X button.
+        if (!open && selectedId) {
+          supabase.from("landing_pages")
+            .update({ form_config: formConfig })
+            .eq("id", selectedId)
+            .then(() => {});
+        }
+      }}>
         <SheetContent side="right" className="w-[420px] sm:w-[460px] overflow-y-auto flex flex-col gap-0 p-0">
           <SheetHeader className="px-5 py-4 border-b shrink-0">
             <SheetTitle className="flex items-center gap-2 text-base">
@@ -2531,14 +2541,19 @@ export default function LandingBuilderPage() {
                 setFormConfigOpen(false);
                 if (selectedId) handleSave();
               }}
-              disabled={saving || !(formConfig.fields ?? []).length}
+              disabled={saving || (
+                !(formConfig.fields ?? []).length &&
+                !formConfig.redirect_url &&
+                !(formConfig.cta_links ?? []).some(c => c.url) &&
+                !formConfig.pipeline_id
+              )}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
               Guardar integración
             </Button>
             {!(formConfig.fields ?? []).length && (
               <p className="text-[10px] text-muted-foreground text-center mt-2">
-                Genera una landing con formulario primero.
+                Genera una landing con formulario para mapear campos al CRM.
               </p>
             )}
           </div>

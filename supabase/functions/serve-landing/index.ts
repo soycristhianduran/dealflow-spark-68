@@ -142,16 +142,24 @@ Deno.serve(async (req) => {
   function init(){
     var f=document.getElementById('lead-form');
     if(!f)return;
+    // Clone the form to strip ALL AI-generated event listeners (cloneNode drops listeners).
+    // This is the only reliable way to ensure our handler is the sole submit handler.
+    var parent=f.parentNode;
+    var nextSib=f.nextSibling;
+    var fc=f.cloneNode(true);
+    parent.insertBefore(fc,nextSib);
+    parent.removeChild(f);
+    f=fc;
     // Ensure hidden page_id input is present (fallback for native POST)
     if(!f.querySelector('input[name="page_id"]')){
       var hi=document.createElement('input');
       hi.type='hidden';hi.name='page_id';hi.value='${pageId}';
       f.appendChild(hi);
     }
-    // Override submit: capture phase + stopImmediatePropagation takes priority
+    // Single authoritative submit handler — no other listeners exist after clone
     f.addEventListener('submit',function(e){
       e.preventDefault();
-      e.stopImmediatePropagation();
+      e.stopPropagation();
       var btn=f.querySelector('button[type="submit"]');
       if(btn){btn.disabled=true;btn.textContent='Enviando...';}
       var d={page_id:'${pageId}',source:window.location.href};
@@ -171,7 +179,7 @@ Deno.serve(async (req) => {
       }).catch(function(){
         if(btn){btn.disabled=false;btn.textContent='Intentar de nuevo';}
       });
-    },true);
+    });
   }
   if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',init);}
   else{init();}
