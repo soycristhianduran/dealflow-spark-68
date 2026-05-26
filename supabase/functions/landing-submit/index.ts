@@ -41,10 +41,10 @@ Deno.serve(async (req) => {
 
     if (!page_id) throw new Error("page_id is required");
 
-    // Look up the landing page (including form_config)
+    // Look up the landing page (including form_config and funnel_id for redirect fallback)
     const { data: page, error: pageErr } = await supabase
       .from("landing_pages")
-      .select("id, organization_id, name, status, form_config")
+      .select("id, organization_id, name, status, form_config, funnel_id")
       .eq("id", page_id)
       .maybeSingle();
 
@@ -210,8 +210,26 @@ Deno.serve(async (req) => {
       }),
     }).catch(() => null);
 
+    // ── Resolve redirect URL (read fresh from DB at submit time) ───────────────
+    // Priority: form_config.redirect_url → funnel thank-you page → ""
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    let redirectUrl: string = formConfig.redirect_url || "";
+
+    if (!redirectUrl && page.funnel_id) {
+      const { data: thankYouPage } = await supabase
+        .from("landing_pages")
+        .select("slug")
+        .eq("funnel_id", page.funnel_id)
+        .eq("page_role", "thankyou")
+        .eq("status", "published")
+        .maybeSingle();
+      if (thankYouPage?.slug) {
+        redirectUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankYouPage.slug}`;
+      }
+    }
+
     return new Response(
-      JSON.stringify({ success: true, contact_id: contactId }),
+      JSON.stringify({ success: true, contact_id: contactId, redirect_url: redirectUrl }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e: any) {

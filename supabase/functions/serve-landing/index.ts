@@ -168,9 +168,13 @@ Deno.serve(async (req) => {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body:JSON.stringify(d)
-      }).then(function(r){
-        if(r.ok){
-          var next='${thankyouUrl}';
+      })
+      .then(function(r){return r.json().then(function(data){return{ok:r.ok,data:data};});})
+      .then(function(res){
+        if(res.ok&&res.data.success){
+          // redirect_url comes fresh from landing-submit (reads DB at submit time).
+          // Fall back to the URL baked in at page-serve time.
+          var next=res.data.redirect_url||'${thankyouUrl}';
           if(next){window.location.href=next;}
           else{f.innerHTML='<div style="text-align:center;padding:2rem"><p style="font-size:1.5rem;font-weight:700;color:#16a34a">¡Gracias! Te contactaremos pronto.</p></div>';}
         }else{
