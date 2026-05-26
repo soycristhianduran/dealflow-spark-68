@@ -111,7 +111,6 @@ export default function PipelinePage() {
     let contactsQuery = supabase.from("contacts")
       .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
       .eq("pipeline_id", pid)
-      .eq("lead_status", "active")
       .order("created_at", { ascending: false });
 
     // Vendors only see their own leads
@@ -267,17 +266,26 @@ export default function PipelinePage() {
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
+  // Derive lead_status from stage name (supports common Spanish/English naming patterns)
+  const inferLeadStatus = (stageName: string): "won" | "lost" | "active" => {
+    const n = stageName.toLowerCase();
+    if (n.includes("ganado") || n.includes("won") || n.includes("cerrado ganado") || n.includes("closed won")) return "won";
+    if (n.includes("perdido") || n.includes("lost") || n.includes("cerrado perdido") || n.includes("closed lost")) return "lost";
+    return "active";
+  };
+
   // Drag & drop contacts between stages
   const handleDrop = async (stageId: string) => {
     if (!draggedContact) return;
     setDragOverStage(null);
-    setContacts(prev => prev.map(c => c.id === draggedContact ? { ...c, stage_id: stageId } : c));
     const contactId = draggedContact;
     setDraggedContact(null);
-    await supabase.from("contacts").update({ stage_id: stageId }).eq("id", contactId);
+    const stage = stages.find(s => s.id === stageId);
+    const newLeadStatus = stage ? inferLeadStatus(stage.name) : "active";
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, stage_id: stageId } : c));
+    await supabase.from("contacts").update({ stage_id: stageId, lead_status: newLeadStatus }).eq("id", contactId);
     supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
     // Fire automation trigger: contact_stage_changed
-    const stage = stages.find(s => s.id === stageId);
     supabase.functions.invoke("automation-runner", {
       body: {
         action: "trigger_event",
