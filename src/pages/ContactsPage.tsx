@@ -30,13 +30,12 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   lost: { label: "Perdido", variant: "destructive" },
 };
 
-const statusFilters: { value: string; label: string }[] = [
-  { value: 'all', label: 'Todos' },
-  { value: 'new', label: 'Nuevos' },
-  { value: 'contacted', label: 'Contactados' },
-  { value: 'qualified', label: 'Calificados' },
-  { value: 'client', label: 'Clientes' },
-  { value: 'lost', label: 'Perdidos' },
+const leadStatusFilters: { value: string; label: string; color?: string }[] = [
+  { value: 'all',        label: 'Todos' },
+  { value: 'active',     label: 'Activos',      color: 'text-blue-600' },
+  { value: 'won',        label: 'Ganados',       color: 'text-green-600' },
+  { value: 'lost',       label: 'Perdidos',      color: 'text-red-500' },
+  { value: 'unassigned', label: 'Sin asignar',   color: 'text-muted-foreground' },
 ];
 
 const FIELD_OPTIONS = [
@@ -78,7 +77,7 @@ interface ProfileOption {
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all"); // lead_status filter
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -168,7 +167,8 @@ export default function ContactsPage() {
     let query = supabase.from("contacts")
       .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields")
       .order("created_at", { ascending: false });
-    if (statusFilter !== "all") query = query.eq("status", statusFilter);
+    if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
+    else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
     if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
     if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
@@ -596,8 +596,14 @@ export default function ContactsPage() {
             <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex gap-1.5 flex-wrap items-center">
-            {statusFilters.map(f => (
-              <Button key={f.value} variant={statusFilter === f.value ? "default" : "outline"} size="sm" className="text-xs h-8" onClick={() => setStatusFilter(f.value)}>
+            {leadStatusFilters.map(f => (
+              <Button
+                key={f.value}
+                variant={statusFilter === f.value ? "default" : "outline"}
+                size="sm"
+                className={`text-xs h-8 ${statusFilter !== f.value && f.color ? f.color : ""}`}
+                onClick={() => setStatusFilter(f.value)}
+              >
                 {f.label}
               </Button>
             ))}
