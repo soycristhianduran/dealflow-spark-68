@@ -16,6 +16,7 @@ import {
   DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3,
   RefreshCw, Loader2, CalendarIcon, X, Pause, Play, AlertTriangle,
   CheckCircle2, Zap, TrendingDown, Trophy, Target, ChevronDown, ChevronUp,
+  Image as ImageIcon, Download, ChevronRight, Layers,
 } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
@@ -66,6 +67,31 @@ interface ScoredCampaign extends Campaign {
   score: 1 | 2 | 3 | 4 | 5;
   insights: CampaignInsight[];
 }
+
+interface MetaAdSet {
+  id: string; adset_id: string; adset_name: string; campaign_id: string;
+  status: string | null; spend: number | null; impressions: number | null;
+  clicks: number | null; leads: number | null; cpl: number | null;
+  ad_account_id: string | null;
+}
+
+interface MetaAd {
+  id: string; ad_id: string; ad_name: string; adset_id: string; campaign_id: string;
+  status: string | null; headline: string | null; body: string | null;
+  image_url: string | null; call_to_action: string | null;
+  spend: number | null; impressions: number | null; clicks: number | null;
+  leads: number | null; cpl: number | null; creative_id: string | null;
+  ad_account_id: string | null;
+}
+
+const CTA_LABELS: Record<string, string> = {
+  LEARN_MORE: "Más información", SHOP_NOW: "Comprar ahora", SIGN_UP: "Regístrate",
+  CONTACT_US: "Contáctanos", GET_QUOTE: "Solicitar cotización", GET_OFFER: "Ver oferta",
+  SUBSCRIBE: "Suscribirse", DOWNLOAD: "Descargar", BOOK_NOW: "Reservar ahora",
+  APPLY_NOW: "Aplicar ahora", WATCH_MORE: "Ver más", SEND_MESSAGE: "Enviar mensaje",
+  BUY_NOW: "Comprar", CALL_NOW: "Llamar ahora", GET_DIRECTIONS: "Cómo llegar",
+  INSTALL_MOBILE_APP: "Instalar app", USE_APP: "Abrir app",
+};
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
 const STATUS_COLORS: Record<string, string> = {
@@ -291,6 +317,140 @@ function StatusToggle({
   );
 }
 
+/* ─── Creative card ──────────────────────────────────────────────────────── */
+function AdCreativeCard({
+  ad,
+  adsetName,
+  campaignName,
+  onToggle,
+  toggling,
+}: {
+  ad: MetaAd;
+  adsetName: string;
+  campaignName: string;
+  onToggle: (id: string, type: "ad", newStatus: "ACTIVE" | "PAUSED") => void;
+  toggling: boolean;
+}) {
+  const [bodyExpanded, setBodyExpanded] = useState(false);
+  const isActive = ad.status === "ACTIVE";
+  const canToggle = ad.status === "ACTIVE" || ad.status === "PAUSED";
+  const ctaLabel = ad.call_to_action ? (CTA_LABELS[ad.call_to_action] || ad.call_to_action) : null;
+
+  return (
+    <Card className="border shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+      {/* Image / thumbnail */}
+      {ad.image_url ? (
+        <div className="relative w-full bg-muted aspect-video overflow-hidden">
+          <img
+            src={ad.image_url}
+            alt={ad.ad_name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).parentElement!.classList.add("hidden");
+            }}
+          />
+          {/* status pill overlay */}
+          <div className="absolute top-2 right-2">
+            <span className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow",
+              isActive
+                ? "bg-emerald-500/90 text-white"
+                : "bg-amber-400/90 text-white"
+            )}>
+              <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+              {STATUS_LABELS[ad.status || ""] || ad.status}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="w-full aspect-video bg-muted/60 flex items-center justify-center text-muted-foreground/30">
+          <ImageIcon className="h-10 w-10" />
+        </div>
+      )}
+
+      <CardContent className="p-3 flex flex-col gap-2 flex-1">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
+          <span className="truncate max-w-[90px]">{campaignName}</span>
+          <ChevronRight className="h-3 w-3 shrink-0" />
+          <span className="truncate max-w-[90px]">{adsetName}</span>
+        </div>
+
+        {/* Ad name */}
+        <p className="text-xs font-semibold text-foreground leading-tight">{ad.ad_name}</p>
+
+        {/* Headline */}
+        {ad.headline && (
+          <p className="text-sm font-bold text-foreground leading-snug">{ad.headline}</p>
+        )}
+
+        {/* Body / caption */}
+        {ad.body && (
+          <div>
+            <p className={cn(
+              "text-xs text-muted-foreground leading-relaxed",
+              !bodyExpanded && "line-clamp-3"
+            )}>
+              {ad.body}
+            </p>
+            {ad.body.length > 120 && (
+              <button
+                onClick={() => setBodyExpanded(v => !v)}
+                className="text-[10px] text-primary mt-0.5 hover:underline"
+              >
+                {bodyExpanded ? "Ver menos" : "Ver más"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* CTA */}
+        {ctaLabel && (
+          <div className="mt-auto pt-1">
+            <span className="inline-block bg-primary/10 text-primary text-[11px] font-semibold px-3 py-1 rounded-full">
+              {ctaLabel}
+            </span>
+          </div>
+        )}
+
+        {/* Metrics */}
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground border-t pt-2 mt-1">
+          {(ad.spend || 0) > 0 && (
+            <span className="tabular-nums">${(ad.spend || 0).toLocaleString("es", { minimumFractionDigits: 2 })} gasto</span>
+          )}
+          {(ad.leads || 0) > 0 && (
+            <span className="tabular-nums font-semibold text-emerald-600">{ad.leads} leads</span>
+          )}
+          {ad.cpl && (
+            <span className="tabular-nums">${ad.cpl.toFixed(2)} CPL</span>
+          )}
+          {(ad.impressions || 0) > 0 && (
+            <span className="tabular-nums">{(ad.impressions || 0).toLocaleString("es")} impr.</span>
+          )}
+        </div>
+
+        {/* Toggle */}
+        {canToggle && (
+          <button
+            onClick={() => onToggle(ad.ad_id, "ad", isActive ? "PAUSED" : "ACTIVE")}
+            disabled={toggling}
+            className={cn(
+              "w-full flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium border transition-all",
+              isActive
+                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300"
+                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300",
+              toggling && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            {toggling ? <Loader2 className="h-3 w-3 animate-spin" /> : isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+            {isActive ? "Pausar anuncio" : "Activar anuncio"}
+          </button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 /* ─── Analysis panel ─────────────────────────────────────────────────────── */
 function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -417,13 +577,37 @@ export default function MetaAdsPage() {
   const { path } = useWorkspace();
   const queryClient = useQueryClient();
 
+  const [activeTab,       setActiveTab]       = useState<"campaigns" | "ads">("campaigns");
   const [statusFilter,    setStatusFilter]    = useState("all");
   const [objectiveFilter, setObjectiveFilter] = useState("all");
   const [dateFrom,        setDateFrom]        = useState<Date | undefined>();
   const [dateTo,          setDateTo]          = useState<Date | undefined>();
   const [togglingIds,     setTogglingIds]     = useState<Set<string>>(new Set());
+  const [importingAds,    setImportingAds]    = useState(false);
+  const [adCampaignFilter, setAdCampaignFilter] = useState("all");
+  const [adStatusFilter,   setAdStatusFilter]   = useState("all");
 
   /* ── Data ─────────────────────────────────────────────────────────────── */
+  const { data: adsets = [] } = useQuery({
+    queryKey: ["meta-adsets", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase.from("meta_adsets").select("*").eq("user_id", user.id).order("adset_name");
+      return (data || []) as MetaAdSet[];
+    },
+    enabled: !!user,
+  });
+
+  const { data: metaAds = [], refetch: refetchAds } = useQuery({
+    queryKey: ["meta-ads", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data } = await supabase.from("meta_ads").select("*").eq("user_id", user.id).order("spend", { ascending: false });
+      return (data || []) as MetaAd[];
+    },
+    enabled: !!user,
+  });
+
   const { data: campaigns = [], isLoading, refetch } = useQuery({
     queryKey: ["meta-campaigns", user?.id],
     queryFn: async () => {
@@ -444,13 +628,60 @@ export default function MetaAdsPage() {
     setTogglingIds(prev => new Set(prev).add(campaignId));
     const ok = await fb.updateCampaignStatus(campaignId, newStatus);
     if (ok) {
-      // Optimistic update in cache
       queryClient.setQueryData(["meta-campaigns", user?.id], (old: Campaign[] | undefined) =>
         (old || []).map(c => c.campaign_id === campaignId ? { ...c, status: newStatus } : c)
       );
     }
     setTogglingIds(prev => { const s = new Set(prev); s.delete(campaignId); return s; });
   };
+
+  const handleEntityToggle = async (
+    entityId: string,
+    entityType: "campaign" | "adset" | "ad",
+    newStatus: "ACTIVE" | "PAUSED"
+  ) => {
+    setTogglingIds(prev => new Set(prev).add(entityId));
+    const ok = await fb.updateEntityStatus(entityId, entityType, newStatus);
+    if (ok) {
+      // Optimistic update for ads
+      if (entityType === "ad") {
+        queryClient.setQueryData(["meta-ads", user?.id], (old: MetaAd[] | undefined) =>
+          (old || []).map(a => a.ad_id === entityId ? { ...a, status: newStatus } : a)
+        );
+      }
+    }
+    setTogglingIds(prev => { const s = new Set(prev); s.delete(entityId); return s; });
+  };
+
+  const handleImportStructure = async () => {
+    // Use the first ad account from any known campaign
+    const adAccountId = campaigns[0]?.ad_account_id;
+    if (!adAccountId) return;
+    setImportingAds(true);
+    await fb.importAdsStructure(adAccountId);
+    await Promise.all([refetchAds()]);
+    setImportingAds(false);
+  };
+
+  /* ── Ad filters ────────────────────────────────────────────────────────── */
+  const filteredAds = useMemo(() => metaAds.filter(a => {
+    if (adCampaignFilter !== "all" && a.campaign_id !== adCampaignFilter) return false;
+    if (adStatusFilter   !== "all" && a.status       !== adStatusFilter)  return false;
+    return true;
+  }), [metaAds, adCampaignFilter, adStatusFilter]);
+
+  // Build lookup maps for breadcrumb display
+  const campaignNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    campaigns.forEach(c => m.set(c.campaign_id, c.campaign_name));
+    return m;
+  }, [campaigns]);
+
+  const adsetNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    adsets.forEach(s => m.set(s.adset_id, s.adset_name));
+    return m;
+  }, [adsets]);
 
   /* ── Filtering ────────────────────────────────────────────────────────── */
   const uniqueObjectives = useMemo(() => {
@@ -539,6 +770,135 @@ export default function MetaAdsPage() {
     <AppLayout>
       <AppHeader title="Meta Ads" subtitle="Gestión y análisis de campañas" />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+
+        {/* ── Tab bar ──────────────────────────────────────────────────── */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+            <button
+              onClick={() => setActiveTab("campaigns")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                activeTab === "campaigns"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <BarChart3 className="h-3.5 w-3.5" /> Campañas
+            </button>
+            <button
+              onClick={() => setActiveTab("ads")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all",
+                activeTab === "ads"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Layers className="h-3.5 w-3.5" /> Anuncios y creativos
+              {metaAds.length > 0 && (
+                <span className="ml-1 rounded-full bg-primary/10 text-primary px-1.5 py-0 text-[10px] font-semibold">
+                  {metaAds.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Import structure button — shown in both tabs */}
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleImportStructure}
+            disabled={importingAds || campaigns.length === 0}
+          >
+            {importingAds
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+              : <Download className="h-3.5 w-3.5 mr-1" />}
+            {metaAds.length === 0 ? "Importar anuncios" : "Actualizar anuncios"}
+          </Button>
+        </div>
+
+        {/* ── ANUNCIOS TAB ─────────────────────────────────────────────────── */}
+        {activeTab === "ads" && (
+          <>
+            {/* Ad filters */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={adCampaignFilter} onValueChange={setAdCampaignFilter}>
+                <SelectTrigger className="w-[200px] h-8 text-xs">
+                  <SelectValue placeholder="Campaña" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las campañas</SelectItem>
+                  {campaigns.map(c => (
+                    <SelectItem key={c.campaign_id} value={c.campaign_id}>
+                      <span className="truncate max-w-[180px]">{c.campaign_name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={adStatusFilter} onValueChange={setAdStatusFilter}>
+                <SelectTrigger className="w-[150px] h-8 text-xs">
+                  <SelectValue placeholder="Estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los estados</SelectItem>
+                  <SelectItem value="ACTIVE">Activos</SelectItem>
+                  <SelectItem value="PAUSED">Pausados</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {(adCampaignFilter !== "all" || adStatusFilter !== "all") && (
+                <Button size="sm" variant="ghost" className="h-8 text-xs"
+                  onClick={() => { setAdCampaignFilter("all"); setAdStatusFilter("all"); }}>
+                  <X className="h-3 w-3 mr-1" /> Limpiar
+                </Button>
+              )}
+              <Badge variant="secondary" className="text-xs">{filteredAds.length} anuncios</Badge>
+            </div>
+
+            {metaAds.length === 0 ? (
+              <Card className="border-none shadow-sm">
+                <CardContent className="py-16 text-center space-y-3">
+                  <Layers className="h-12 w-12 text-muted-foreground/30 mx-auto" />
+                  <p className="text-sm font-medium text-foreground">Sin anuncios importados</p>
+                  <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                    Haz clic en "Importar anuncios" para traer todos los anuncios con su creatividad, textos e imágenes desde Meta.
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={handleImportStructure}
+                    disabled={importingAds || campaigns.length === 0}
+                  >
+                    {importingAds ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Download className="h-3.5 w-3.5 mr-1" />}
+                    Importar anuncios
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : filteredAds.length === 0 ? (
+              <Card className="border-none shadow-sm">
+                <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                  Sin anuncios para los filtros seleccionados.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {filteredAds.map(ad => (
+                  <AdCreativeCard
+                    key={ad.id}
+                    ad={ad}
+                    adsetName={adsetNameById.get(ad.adset_id) || ad.adset_id}
+                    campaignName={campaignNameById.get(ad.campaign_id) || ad.campaign_id}
+                    onToggle={handleEntityToggle}
+                    toggling={togglingIds.has(ad.ad_id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* ── CAMPAÑAS TAB (existing content wrapped) ──────────────────────── */}
+        {activeTab === "campaigns" && (<>
 
         {/* ── Filters ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -773,6 +1133,8 @@ export default function MetaAdsPage() {
             )}
           </CardContent>
         </Card>
+
+        </>)} {/* end campaigns tab */}
 
       </main>
     </AppLayout>

@@ -254,6 +254,32 @@ export function useFacebookIntegration() {
     return true;
   }, []);
 
+  const updateEntityStatus = useCallback(async (
+    entityId: string,
+    entityType: "campaign" | "adset" | "ad",
+    newStatus: "ACTIVE" | "PAUSED"
+  ): Promise<boolean> => {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "update_entity_status", entity_id: entityId, entity_type: entityType, new_status: newStatus },
+    });
+    if (error || !data?.success) {
+      toast.error(error?.message || "Error al actualizar");
+      return false;
+    }
+    const labels: Record<string, string> = { campaign: "Campaña", adset: "Ad Set", ad: "Anuncio" };
+    toast.success(`${labels[entityType]} ${newStatus === "ACTIVE" ? "activado/a" : "pausado/a"}`);
+    return true;
+  }, []);
+
+  const importAdsStructure = useCallback(async (adAccountId: string): Promise<{ adsets: number; ads: number } | null> => {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "get_ads_structure", ad_account_id: adAccountId },
+    });
+    if (error) { toast.error("Error al importar estructura de anuncios"); return null; }
+    toast.success(`${data.adsets} ad sets y ${data.ads} anuncios importados`);
+    return data;
+  }, []);
+
   const fetchLeads = useCallback(async (formId: string, pageId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "fetch_leads", form_id: formId, page_id: pageId },
@@ -293,5 +319,7 @@ export function useFacebookIntegration() {
     getAdAccounts, importCampaigns, fetchLeads,
     subscribeLeadgen,
     updateCampaignStatus,
+    updateEntityStatus,
+    importAdsStructure,
   };
 }

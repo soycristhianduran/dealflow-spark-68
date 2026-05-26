@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // Only fetch FB token for actions that need it
-    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status"];
+    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status", "get_ads_structure", "update_entity_status"];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
       fbToken = await getFbToken(supabase, user.id);
@@ -480,6 +480,147 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
+      }
+
+      // ===== FETCH AD SETS + ADS WITH CREATIVE DATA =====
+      case "get_ads_structure": {
+        const { ad_account_id } = body;
+
+        // ── Ad Sets ────────────────────────────────────────────────────────
+        const adsetsUrl = `${GRAPH_API}/${ad_account_id}/adsets` +
+          `?fields=id,name,status,campaign_id,daily_budget,lifetime_budget` +
+          `,insights.date_preset(maximum){spend,impressions,clicks,actions}` +
+          `&limit=200&access_token=${fbToken}`;
+
+        const adsetsRes = await fetch(adsetsUrl);
+        const adsetsData = await adsetsRes.json();
+        if (!adsetsRes.ok) throw new Error(`Meta API (adsets): ${JSON.stringify(adsetsData)}`);
+
+        const adsets = (adsetsData.data || []).map((s: any) => {
+          const ins = s.insights?.data?.[0] || {};
+          const leadActions = (ins.actions || []).find((a: any) => a.action_type === "lead");
+          const leads = leadActions ? Number(leadActions.value) : 0;
+          const spend = ins.spend ? Number(ins.spend) : 0;
+          return {
+            user_id: user.id,
+            adset_id: s.id,
+            adset_name: s.name,
+            campaign_id: s.campaign_id,
+            status: s.status,
+            daily_budget:    s.daily_budget    ? Number(s.daily_budget)    / 100 : null,
+            lifetime_budget: s.lifetime_budget ? Number(s.lifetime_budget) / 100 : null,
+            spend,
+            impressions: ins.impressions ? Number(ins.impressions) : 0,
+            clicks:      ins.clicks      ? Number(ins.clicks)      : 0,
+            leads,
+            cpl: leads > 0 ? spend / leads : null,
+            ad_account_id,
+          };
+        });
+
+        for (const adset of adsets) {
+          await supabase.from("meta_adsets").upsert(adset, { onConflict: "user_id,adset_id" });
+        }
+
+        // ── Ads with creative ──────────────────────────────────────────────
+        const adsUrl = `${GRAPH_API}/${ad_account_id}/ads` +
+          `?fields=id,name,status,adset_id,campaign_id` +
+          `,creative{id,name,title,body,image_url,thumbnail_url,call_to_action_type,object_story_spec}` +
+          `,insights.date_preset(maximum){spend,impressions,clicks,actions}` +
+          `&limit=200&access_token=${fbToken}`;
+
+        const adsRes = await fetch(adsUrl);
+        const adsRawData = await adsRes.json();
+        if (!adsRes.ok) throw new Error(`Meta API (ads): ${JSON.stringify(adsRawData)}`);
+
+        const ads = (adsRawData.data || []).map((a: any) => {
+          const cr = a.creative || {};
+          const oss = cr.object_story_spec || {};
+          // Try to extract text from object_story_spec for any ad format
+          const linkData  = oss.link_data  || oss.video_data || oss.photo_data || {};
+          const headline  = cr.title   || linkData.name    || "";
+          const body      = cr.body    || linkData.message || "";
+          const imageUrl  = cr.image_url || cr.thumbnail_url || linkData.picture || linkData.image_url || "";
+          const cta       = cr.call_to_action_type || linkData.call_to_action?.type || "";
+
+          const ins = a.insights?.data?.[0] || {};
+          const leadActions = (ins.actions || []).find((x: any) => x.action_type === "lead");
+          const leads = leadActions ? Number(leadActions.value) : 0;
+          const spend = ins.spend ? Number(ins.spend) : 0;
+
+          return {
+            user_id: user.id,
+            ad_id:      a.id,
+            ad_name:    a.name,
+            adset_id:   a.adset_id,
+            campaign_id: a.campaign_id,
+            status:      a.status,
+            creative_id: cr.id || null,
+            headline:    headline || null,
+            body:        body    || null,
+            image_url:   imageUrl || null,
+            call_to_action: cta || null,
+            spend,
+            impressions: ins.impressions ? Number(ins.impressions) : 0,
+            clicks:      ins.clicks      ? Number(ins.clicks)      : 0,
+            leads,
+            cpl: leads > 0 ? spend / leads : null,
+            ad_account_id,
+          };
+        });
+
+        for (const ad of ads) {
+          await supabase.from("meta_ads").upsert(ad, { onConflict: "user_id,ad_id" });
+        }
+
+        return new Response(
+          JSON.stringify({ adsets: adsets.length, ads: ads.length }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ===== UPDATE STATUS FOR ANY META ENTITY (campaign / adset / ad) =====
+      case "update_entity_status": {
+        const { entity_id, entity_type, new_status } = body;
+        if (!entity_id || !entity_type || !["ACTIVE", "PAUSED"].includes(new_status)) {
+          return new Response(
+            JSON.stringify({ error: "entity_id, entity_type and new_status (ACTIVE|PAUSED) are required" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+
+        const updateRes = await fetch(`${GRAPH_API}/${entity_id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: new_status, access_token: fbToken }),
+        });
+        const updateData = await updateRes.json();
+        if (!updateRes.ok || updateData.error) {
+          throw new Error(`Meta API error: ${updateData.error?.message || JSON.stringify(updateData)}`);
+        }
+
+        // Reflect in correct local table
+        const tableMap: Record<string, string> = {
+          campaign: "meta_campaigns",
+          adset:    "meta_adsets",
+          ad:       "meta_ads",
+        };
+        const idColMap: Record<string, string> = {
+          campaign: "campaign_id",
+          adset:    "adset_id",
+          ad:       "ad_id",
+        };
+        const table = tableMap[entity_type];
+        const idCol = idColMap[entity_type];
+        if (table && idCol) {
+          await supabase.from(table).update({ status: new_status })
+            .eq("user_id", user.id).eq(idCol, entity_id);
+        }
+
+        return new Response(
+          JSON.stringify({ success: true, entity_id, entity_type, status: new_status }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
 
       // ===== PAUSE / ACTIVATE CAMPAIGN =====
