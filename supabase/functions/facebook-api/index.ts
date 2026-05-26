@@ -404,7 +404,12 @@ Deno.serve(async (req) => {
           };
         });
 
-        // Upsert campaigns
+        // Replace campaigns for this ad account: delete stale ones first so
+        // removed/archived campaigns don't linger from a previous sync.
+        await supabase.from("meta_campaigns").delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", ad_account_id);
+
         for (const campaign of campaigns) {
           await supabase.from("meta_campaigns").upsert(campaign, { onConflict: "user_id,campaign_id" });
         }
@@ -479,8 +484,12 @@ Deno.serve(async (req) => {
 
       // ===== DISCONNECT =====
       case "disconnect": {
+        // Clear ALL Meta/Facebook data for this user on disconnect so that
+        // reconnecting with a different account starts with a clean slate.
         await supabase.from("facebook_lead_forms").delete().eq("user_id", user.id);
         await supabase.from("facebook_messages").delete().eq("user_id", user.id);
+        await supabase.from("meta_ads").delete().eq("user_id", user.id);
+        await supabase.from("meta_adsets").delete().eq("user_id", user.id);
         await supabase.from("meta_campaigns").delete().eq("user_id", user.id);
         await supabase.from("facebook_pages").delete().eq("user_id", user.id);
         await supabase.from("facebook_tokens").delete().eq("user_id", user.id);
@@ -524,6 +533,11 @@ Deno.serve(async (req) => {
             ad_account_id,
           };
         });
+
+        // Replace adsets for this ad account (same stale-data reasoning as campaigns)
+        await supabase.from("meta_adsets").delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", ad_account_id);
 
         for (const adset of adsets) {
           await supabase.from("meta_adsets").upsert(adset, { onConflict: "user_id,adset_id" });
@@ -596,6 +610,11 @@ Deno.serve(async (req) => {
         });
 
         const ads = await Promise.all(adsPromises);
+
+        // Replace ads for this ad account (delete first to remove stale/deleted ads)
+        await supabase.from("meta_ads").delete()
+          .eq("user_id", user.id)
+          .eq("ad_account_id", ad_account_id);
 
         for (const ad of ads) {
           await supabase.from("meta_ads").upsert(ad, { onConflict: "user_id,ad_id" });
