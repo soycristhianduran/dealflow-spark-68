@@ -1225,7 +1225,8 @@ export default function MetaAdsPage() {
   const [dateFrom,        setDateFrom]        = useState<Date | undefined>();
   const [dateTo,          setDateTo]          = useState<Date | undefined>();
   const [togglingIds,     setTogglingIds]     = useState<Set<string>>(new Set());
-  const [importingAds,      setImportingAds]      = useState(false);
+  const [syncing,           setSyncing]           = useState(false);
+  const [syncStep,          setSyncStep]          = useState<string | null>(null);
   const [adCampaignFilter,  setAdCampaignFilter]  = useState("all");
   const [adStatusFilter,    setAdStatusFilter]    = useState("all");
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
@@ -1328,14 +1329,40 @@ export default function MetaAdsPage() {
     setTogglingIds(prev => { const s = new Set(prev); s.delete(entityId); return s; });
   };
 
-  const handleImportStructure = async () => {
-    // Use the first ad account from any known campaign
-    const adAccountId = campaigns[0]?.ad_account_id;
-    if (!adAccountId) return;
-    setImportingAds(true);
+  // Single "sync all" — campaigns first, then full ads structure
+  const handleSyncAll = async () => {
+    if (!fb.status?.pages?.length && !campaigns.length) return;
+    setSyncing(true);
+
+    // Step 1: figure out the ad account to sync
+    // (prefer the one already imported; fallback to ad accounts API)
+    let adAccountId = campaigns[0]?.ad_account_id || null;
+    if (!adAccountId) {
+      setSyncStep("Buscando cuenta publicitaria…");
+      const accounts = await fb.getAdAccounts();
+      adAccountId = accounts[0]?.id || null;
+    }
+
+    if (!adAccountId) {
+      setSyncing(false);
+      setSyncStep(null);
+      const { toast } = await import("sonner");
+      toast.error("No se encontró ninguna cuenta publicitaria vinculada");
+      return;
+    }
+
+    // Step 2: import campaigns
+    setSyncStep("Importando campañas…");
+    await fb.importCampaigns(adAccountId);
+    await refetch();
+
+    // Step 3: import ad sets + ads + creatives
+    setSyncStep("Importando conjuntos y anuncios…");
     await fb.importAdsStructure(adAccountId);
-    await Promise.all([refetchAds()]);
-    setImportingAds(false);
+    await refetchAds();
+
+    setSyncing(false);
+    setSyncStep(null);
   };
 
   /* ── Ad filters ────────────────────────────────────────────────────────── */
@@ -1490,16 +1517,11 @@ export default function MetaAdsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleImportStructure}
-              disabled={importingAds || campaigns.length === 0}
-            >
-              {importingAds
+            <Button size="sm" onClick={handleSyncAll} disabled={syncing}>
+              {syncing
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                : <Download className="h-3.5 w-3.5 mr-1" />}
-              {metaAds.length === 0 ? "Importar anuncios" : "Actualizar"}
+                : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+              {syncing ? (syncStep || "Sincronizando…") : "Sincronizar todo"}
             </Button>
           </div>
         </div>
@@ -1549,15 +1571,11 @@ export default function MetaAdsPage() {
                   <Layers className="h-12 w-12 text-muted-foreground/30 mx-auto" />
                   <p className="text-sm font-medium text-foreground">Sin anuncios importados</p>
                   <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                    Haz clic en "Importar anuncios" para traer todos los anuncios con su creatividad, textos e imágenes desde Meta.
+                    Usa el botón "Sincronizar todo" para traer campañas, conjuntos y anuncios con sus creativos desde Meta.
                   </p>
-                  <Button
-                    size="sm"
-                    onClick={handleImportStructure}
-                    disabled={importingAds || campaigns.length === 0}
-                  >
-                    {importingAds ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Download className="h-3.5 w-3.5 mr-1" />}
-                    Importar anuncios
+                  <Button size="sm" onClick={handleSyncAll} disabled={syncing}>
+                    {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                    Sincronizar todo
                   </Button>
                 </CardContent>
               </Card>
@@ -1649,12 +1667,7 @@ export default function MetaAdsPage() {
             <Badge variant="secondary" className="text-xs">{filtered.length} campañas</Badge>
           </div>
 
-          <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isLoading}>
-            {isLoading
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-              : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-            Sincronizar
-          </Button>
+          {/* Sync handled by the global "Sincronizar todo" button in the tab bar */}
         </div>
 
         {/* ── KPI cards ─────────────────────────────────────────────────── */}
