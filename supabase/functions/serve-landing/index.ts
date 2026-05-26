@@ -80,7 +80,18 @@ Deno.serve(async (req) => {
         .eq("status", "published")
         .maybeSingle();
       if (thankyouPage?.slug) {
-        thankyouUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankyouPage.slug}`;
+        // Prefer the same origin as the incoming request (custom domain like pages.klosify.com)
+        // so the redirect stays on the branded domain and renders correctly.
+        const reqOrigin = (() => {
+          const h = req.headers.get("host") || "";
+          if (!h || h.includes("supabase.co")) {
+            return `${supabaseUrl}/functions/v1/serve-landing?slug=`;
+          }
+          return `https://${h}/`;
+        })();
+        thankyouUrl = reqOrigin.includes("?slug=")
+          ? `${reqOrigin}${thankyouPage.slug}`
+          : `${reqOrigin}${thankyouPage.slug}`;
       }
     }
 

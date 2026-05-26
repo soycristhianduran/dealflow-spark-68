@@ -244,7 +244,15 @@ Deno.serve(async (req) => {
         .eq("status", "published")
         .maybeSingle();
       if (thankYouPage?.slug) {
-        redirectUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankYouPage.slug}`;
+        // Use the Referer origin so redirects stay on the branded domain (pages.klosify.com)
+        const referer = req.headers.get("referer") || req.headers.get("origin") || "";
+        let pageOrigin = "";
+        try { pageOrigin = new URL(referer).origin; } catch (_) {}
+        if (pageOrigin && !pageOrigin.includes("supabase.co")) {
+          redirectUrl = `${pageOrigin}/${thankYouPage.slug}`;
+        } else {
+          redirectUrl = `${supabaseUrl}/functions/v1/serve-landing?slug=${thankYouPage.slug}`;
+        }
       }
     }
 

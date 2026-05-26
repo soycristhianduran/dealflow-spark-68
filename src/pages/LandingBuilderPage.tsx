@@ -2325,9 +2325,9 @@ export default function LandingBuilderPage() {
 
             {/* ── Connections (redirect + CTA) ── */}
             {(() => {
-              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+              // Use the public custom domain so redirects stay on pages.klosify.com
               const serveUrl = (slug: string | null) =>
-                slug ? `${supabaseUrl}/functions/v1/serve-landing?slug=${slug}` : "";
+                slug ? getPublicUrl(slug) : "";
 
               // Funnel pages available as targets (exclude current page)
               const targetPages = funnelPages.filter(p => p.id !== selectedId && p.slug);
@@ -2562,9 +2562,9 @@ export default function LandingBuilderPage() {
 
       {/* ── CTA inline link editor popover ── */}
       {ctaPopover.open && (() => {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+        // Use public custom domain for CTA links too
         const serveUrl = (slug: string | null) =>
-          slug ? `${supabaseUrl}/functions/v1/serve-landing?slug=${slug}` : "";
+          slug ? getPublicUrl(slug) : "";
         const targetPages = funnelPages.filter(p => p.id !== selectedId && p.slug);
         const matchPage = targetPages.find(p => serveUrl(p.slug) === ctaPopoverUrl);
         const mode = !ctaPopoverUrl ? "none" : matchPage ? matchPage.id : "custom";
