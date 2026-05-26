@@ -3,6 +3,9 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,7 +19,8 @@ import {
   DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3,
   RefreshCw, Loader2, CalendarIcon, X, Pause, Play, AlertTriangle,
   CheckCircle2, Zap, TrendingDown, Trophy, Target, ChevronDown, ChevronUp,
-  Image as ImageIcon, Download, ChevronRight, Layers,
+  Image as ImageIcon, Download, ChevronRight, Layers, Video, Plus,
+  ExternalLink, Maximize2,
 } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
@@ -78,7 +82,8 @@ interface MetaAdSet {
 interface MetaAd {
   id: string; ad_id: string; ad_name: string; adset_id: string; campaign_id: string;
   status: string | null; headline: string | null; body: string | null;
-  image_url: string | null; call_to_action: string | null;
+  image_url: string | null; video_id: string | null; video_url: string | null;
+  call_to_action: string | null;
   spend: number | null; impressions: number | null; clicks: number | null;
   leads: number | null; cpl: number | null; creative_id: string | null;
   ad_account_id: string | null;
@@ -317,6 +322,70 @@ function StatusToggle({
   );
 }
 
+/* ─── Creative preview modal ──────────────────────────────────────────────── */
+function CreativePreviewModal({ ad, open, onClose }: { ad: MetaAd; open: boolean; onClose: () => void }) {
+  const isVideo = !!(ad.video_url || ad.video_id);
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-2xl p-0 overflow-hidden">
+        {/* Media */}
+        <div className="bg-black w-full">
+          {ad.video_url ? (
+            <video
+              src={ad.video_url}
+              controls
+              autoPlay
+              className="w-full max-h-[60vh] object-contain"
+              poster={ad.image_url || undefined}
+            />
+          ) : ad.video_id ? (
+            <iframe
+              src={`https://www.facebook.com/video/embed?video_id=${ad.video_id}`}
+              className="w-full aspect-video"
+              allowFullScreen
+              allow="autoplay; encrypted-media"
+            />
+          ) : ad.image_url ? (
+            <img src={ad.image_url} alt={ad.ad_name} className="w-full max-h-[60vh] object-contain" />
+          ) : (
+            <div className="w-full aspect-video flex items-center justify-center text-white/20">
+              <ImageIcon className="h-16 w-16" />
+            </div>
+          )}
+        </div>
+        {/* Copy */}
+        <div className="p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              {ad.headline && <p className="text-base font-bold text-foreground leading-snug">{ad.headline}</p>}
+              <p className="text-xs text-muted-foreground mt-0.5">{ad.ad_name}</p>
+            </div>
+            <Badge variant={ad.status === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-xs">
+              {STATUS_LABELS[ad.status || ""] || ad.status}
+            </Badge>
+          </div>
+          {ad.body && (
+            <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{ad.body}</p>
+          )}
+          {ad.call_to_action && (
+            <span className="inline-block bg-primary text-primary-foreground text-xs font-semibold px-4 py-1.5 rounded-md">
+              {CTA_LABELS[ad.call_to_action] || ad.call_to_action}
+            </span>
+          )}
+          {/* Metrics row */}
+          <div className="flex flex-wrap gap-4 text-xs text-muted-foreground border-t pt-3">
+            {(ad.spend || 0) > 0 && <span><span className="font-semibold text-foreground">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span> gasto</span>}
+            {(ad.impressions || 0) > 0 && <span><span className="font-semibold text-foreground">{(ad.impressions||0).toLocaleString("es")}</span> impresiones</span>}
+            {(ad.clicks || 0) > 0 && <span><span className="font-semibold text-foreground">{ad.clicks}</span> clics</span>}
+            {(ad.leads || 0) > 0 && <span><span className="font-semibold text-emerald-600">{ad.leads}</span> leads</span>}
+            {ad.cpl && <span>CPL <span className="font-semibold text-foreground">${ad.cpl.toFixed(2)}</span></span>}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ─── Creative card ──────────────────────────────────────────────────────── */
 function AdCreativeCard({
   ad,
@@ -332,122 +401,319 @@ function AdCreativeCard({
   toggling: boolean;
 }) {
   const [bodyExpanded, setBodyExpanded] = useState(false);
-  const isActive = ad.status === "ACTIVE";
+  const [previewOpen,  setPreviewOpen]  = useState(false);
+
+  const isActive  = ad.status === "ACTIVE";
   const canToggle = ad.status === "ACTIVE" || ad.status === "PAUSED";
-  const ctaLabel = ad.call_to_action ? (CTA_LABELS[ad.call_to_action] || ad.call_to_action) : null;
+  const ctaLabel  = ad.call_to_action ? (CTA_LABELS[ad.call_to_action] || ad.call_to_action) : null;
+  const isVideo   = !!(ad.video_url || ad.video_id);
+  const hasThumbnail = !!(ad.image_url);
 
   return (
-    <Card className="border shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-      {/* Image / thumbnail */}
-      {ad.image_url ? (
-        <div className="relative w-full bg-muted aspect-video overflow-hidden">
-          <img
-            src={ad.image_url}
-            alt={ad.ad_name}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).parentElement!.classList.add("hidden");
-            }}
-          />
-          {/* status pill overlay */}
+    <>
+      <Card className="border shadow-sm overflow-hidden flex flex-col hover:shadow-md transition-shadow">
+
+        {/* ── Media area ─────────────────────────────────────────────────── */}
+        <div
+          className="relative w-full aspect-video bg-muted overflow-hidden group cursor-pointer"
+          onClick={() => setPreviewOpen(true)}
+        >
+          {/* Video: native player */}
+          {ad.video_url ? (
+            <video
+              src={ad.video_url}
+              poster={ad.image_url || undefined}
+              className="w-full h-full object-cover"
+              preload="metadata"
+              onClick={e => e.stopPropagation()} /* let the card click handle it */
+            />
+          ) : hasThumbnail ? (
+            <img
+              src={ad.image_url!}
+              alt={ad.ad_name}
+              className="w-full h-full object-cover"
+              onError={e => (e.currentTarget.style.display = "none")}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-muted-foreground/25">
+              {isVideo ? <Video className="h-12 w-12" /> : <ImageIcon className="h-12 w-12" />}
+            </div>
+          )}
+
+          {/* Play button overlay for video */}
+          {(isVideo && !ad.video_url) || (ad.video_url && hasThumbnail) ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full bg-black/50 flex items-center justify-center group-hover:bg-black/70 transition-colors">
+                <Play className="h-5 w-5 text-white ml-0.5" />
+              </div>
+            </div>
+          ) : null}
+
+          {/* Expand icon on hover */}
+          <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="rounded-md bg-black/50 p-1">
+              <Maximize2 className="h-3 w-3 text-white" />
+            </div>
+          </div>
+
+          {/* Status pill */}
           <div className="absolute top-2 right-2">
             <span className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow",
-              isActive
-                ? "bg-emerald-500/90 text-white"
-                : "bg-amber-400/90 text-white"
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold shadow-sm",
+              isActive ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-white"
             )}>
-              <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+              {isVideo && <Video className="h-2.5 w-2.5" />}
               {STATUS_LABELS[ad.status || ""] || ad.status}
             </span>
           </div>
         </div>
-      ) : (
-        <div className="w-full aspect-video bg-muted/60 flex items-center justify-center text-muted-foreground/30">
-          <ImageIcon className="h-10 w-10" />
-        </div>
-      )}
 
-      <CardContent className="p-3 flex flex-col gap-2 flex-1">
-        {/* Breadcrumb */}
-        <div className="flex items-center gap-1 text-[10px] text-muted-foreground truncate">
-          <span className="truncate max-w-[90px]">{campaignName}</span>
-          <ChevronRight className="h-3 w-3 shrink-0" />
-          <span className="truncate max-w-[90px]">{adsetName}</span>
-        </div>
+        {/* ── Content ────────────────────────────────────────────────────── */}
+        <CardContent className="p-3 flex flex-col gap-2 flex-1">
 
-        {/* Ad name */}
-        <p className="text-xs font-semibold text-foreground leading-tight">{ad.ad_name}</p>
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground overflow-hidden">
+            <span className="truncate max-w-[80px] shrink-0">{campaignName}</span>
+            <ChevronRight className="h-2.5 w-2.5 shrink-0" />
+            <span className="truncate">{adsetName}</span>
+          </div>
 
-        {/* Headline */}
-        {ad.headline && (
-          <p className="text-sm font-bold text-foreground leading-snug">{ad.headline}</p>
-        )}
+          {/* Headline */}
+          {ad.headline && (
+            <p className="text-sm font-bold text-foreground leading-snug line-clamp-2">{ad.headline}</p>
+          )}
 
-        {/* Body / caption */}
-        {ad.body && (
-          <div>
-            <p className={cn(
-              "text-xs text-muted-foreground leading-relaxed",
-              !bodyExpanded && "line-clamp-3"
-            )}>
-              {ad.body}
-            </p>
-            {ad.body.length > 120 && (
+          {/* Body / caption */}
+          {ad.body ? (
+            <div>
+              <p className={cn(
+                "text-xs text-muted-foreground leading-relaxed",
+                !bodyExpanded && "line-clamp-3"
+              )}>
+                {ad.body}
+              </p>
+              {ad.body.length > 140 && (
+                <button
+                  onClick={() => setBodyExpanded(v => !v)}
+                  className="text-[10px] text-primary mt-0.5 hover:underline"
+                >
+                  {bodyExpanded ? "Ver menos" : "Ver más"}
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground/50 italic">Sin texto de anuncio</p>
+          )}
+
+          {/* CTA */}
+          {ctaLabel && (
+            <div className="mt-auto pt-1">
+              <span className="inline-block bg-primary/10 text-primary text-[11px] font-semibold px-3 py-1 rounded-md">
+                {ctaLabel}
+              </span>
+            </div>
+          )}
+
+          {/* Metrics */}
+          <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] border-t pt-2 mt-1">
+            <span className="text-muted-foreground">Gasto <span className="font-semibold text-foreground tabular-nums">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span></span>
+            <span className="text-muted-foreground">Leads <span className={cn("font-semibold tabular-nums", (ad.leads||0) > 0 ? "text-emerald-600" : "text-foreground")}>{ad.leads || 0}</span></span>
+            {ad.cpl ? <span className="text-muted-foreground">CPL <span className="font-semibold text-foreground tabular-nums">${ad.cpl.toFixed(2)}</span></span> : null}
+            {(ad.impressions||0) > 0 && <span className="text-muted-foreground">Impr. <span className="font-semibold text-foreground tabular-nums">{(ad.impressions||0).toLocaleString("es")}</span></span>}
+          </div>
+
+          {/* Action bar */}
+          <div className="flex gap-1.5 mt-1">
+            <button
+              onClick={() => setPreviewOpen(true)}
+              className="flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-medium border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
+            >
+              <Maximize2 className="h-3 w-3" /> Ver creativo
+            </button>
+            {canToggle && (
               <button
-                onClick={() => setBodyExpanded(v => !v)}
-                className="text-[10px] text-primary mt-0.5 hover:underline"
+                onClick={() => onToggle(ad.ad_id, "ad", isActive ? "PAUSED" : "ACTIVE")}
+                disabled={toggling}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-medium border transition-all",
+                  isActive
+                    ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300",
+                  toggling && "opacity-50 cursor-not-allowed"
+                )}
               >
-                {bodyExpanded ? "Ver menos" : "Ver más"}
+                {toggling ? <Loader2 className="h-3 w-3 animate-spin" /> : isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                {isActive ? "Pausar" : "Activar"}
               </button>
             )}
           </div>
-        )}
+        </CardContent>
+      </Card>
 
-        {/* CTA */}
-        {ctaLabel && (
-          <div className="mt-auto pt-1">
-            <span className="inline-block bg-primary/10 text-primary text-[11px] font-semibold px-3 py-1 rounded-full">
-              {ctaLabel}
-            </span>
+      <CreativePreviewModal ad={ad} open={previewOpen} onClose={() => setPreviewOpen(false)} />
+    </>
+  );
+}
+
+/* ─── Campaign creation dialog ───────────────────────────────────────────── */
+const OBJECTIVES = [
+  { value: "OUTCOME_LEADS",      label: "🎯 Leads",              desc: "Captura formularios y mensajes" },
+  { value: "OUTCOME_SALES",      label: "🛍️ Ventas",             desc: "Conversiones y compras" },
+  { value: "OUTCOME_TRAFFIC",    label: "🚀 Tráfico",            desc: "Visitas a tu sitio web" },
+  { value: "OUTCOME_AWARENESS",  label: "📣 Reconocimiento",     desc: "Alcance e impresiones" },
+  { value: "OUTCOME_ENGAGEMENT", label: "💬 Interacción",        desc: "Likes, comentarios, mensajes" },
+  { value: "OUTCOME_APP_PROMOTION", label: "📱 Promoción de app", desc: "Instalaciones y eventos en app" },
+];
+
+function CreateCampaignDialog({
+  open,
+  onClose,
+  adAccountId,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  adAccountId: string | null;
+  onCreated: (campaignId: string) => void;
+}) {
+  const [saving,     setSaving]     = useState(false);
+  const [name,       setName]       = useState("");
+  const [objective,  setObjective]  = useState("OUTCOME_LEADS");
+  const [budget,     setBudget]     = useState("");
+  const [startPaused,setStartPaused]= useState(true);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim() || !adAccountId) return;
+    setSaving(true);
+    const { data: res, error: err } = await supabase.functions.invoke("facebook-api", {
+      body: {
+        action: "create_campaign",
+        ad_account_id: adAccountId,
+        name: name.trim(),
+        objective,
+        status: startPaused ? "PAUSED" : "ACTIVE",
+        daily_budget: budget ? Number(budget) : undefined,
+        special_ad_categories: [],
+      },
+    });
+    setSaving(false);
+    if (err || !res?.success) {
+      const { toast } = await import("sonner");
+      toast.error(res?.error || "Error al crear la campaña");
+      return;
+    }
+    const { toast } = await import("sonner");
+    toast.success(`Campaña "${name}" creada`);
+    onCreated(res.campaign_id);
+    setName(""); setBudget("");
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={v => !v && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Plus className="h-4 w-4 text-primary" /> Nueva campaña de Meta Ads
+          </DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="cam-name" className="text-xs font-medium">Nombre de la campaña *</Label>
+            <Input
+              id="cam-name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Ej: Leads Julio 2026 – Formulario Web"
+              required
+              className="h-9"
+            />
           </div>
-        )}
 
-        {/* Metrics */}
-        <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground border-t pt-2 mt-1">
-          {(ad.spend || 0) > 0 && (
-            <span className="tabular-nums">${(ad.spend || 0).toLocaleString("es", { minimumFractionDigits: 2 })} gasto</span>
-          )}
-          {(ad.leads || 0) > 0 && (
-            <span className="tabular-nums font-semibold text-emerald-600">{ad.leads} leads</span>
-          )}
-          {ad.cpl && (
-            <span className="tabular-nums">${ad.cpl.toFixed(2)} CPL</span>
-          )}
-          {(ad.impressions || 0) > 0 && (
-            <span className="tabular-nums">{(ad.impressions || 0).toLocaleString("es")} impr.</span>
-          )}
-        </div>
+          {/* Objective */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Objetivo *</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {OBJECTIVES.map(obj => (
+                <button
+                  type="button"
+                  key={obj.value}
+                  onClick={() => setObjective(obj.value)}
+                  className={cn(
+                    "flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-all",
+                    objective === obj.value
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "hover:border-primary/40 hover:bg-muted/50"
+                  )}
+                >
+                  <span className="text-xs font-semibold">{obj.label}</span>
+                  <span className="text-[10px] text-muted-foreground leading-tight">{obj.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-        {/* Toggle */}
-        {canToggle && (
-          <button
-            onClick={() => onToggle(ad.ad_id, "ad", isActive ? "PAUSED" : "ACTIVE")}
-            disabled={toggling}
-            className={cn(
-              "w-full flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium border transition-all",
-              isActive
-                ? "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-900/20 dark:border-amber-800 dark:text-amber-300"
-                : "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800 dark:text-emerald-300",
-              toggling && "opacity-50 cursor-not-allowed"
-            )}
-          >
-            {toggling ? <Loader2 className="h-3 w-3 animate-spin" /> : isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-            {isActive ? "Pausar anuncio" : "Activar anuncio"}
-          </button>
-        )}
-      </CardContent>
-    </Card>
+          {/* Budget (optional CBO) */}
+          <div className="space-y-1.5">
+            <Label htmlFor="cam-budget" className="text-xs font-medium">
+              Presupuesto diario de campaña (opcional)
+              <span className="ml-1 text-muted-foreground font-normal">— si usas CBO</span>
+            </Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
+              <Input
+                id="cam-budget"
+                type="number"
+                min="1"
+                step="0.01"
+                value={budget}
+                onChange={e => setBudget(e.target.value)}
+                placeholder="0.00"
+                className="h-9 pl-6"
+              />
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              El presupuesto por conjunto de anuncios se configura después en Meta Ads Manager.
+            </p>
+          </div>
+
+          {/* Start status */}
+          <div className="flex items-center gap-3 rounded-lg border p-3">
+            <button
+              type="button"
+              onClick={() => setStartPaused(v => !v)}
+              className={cn(
+                "relative h-5 w-9 rounded-full transition-colors shrink-0",
+                !startPaused ? "bg-emerald-500" : "bg-muted"
+              )}
+            >
+              <span className={cn(
+                "absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                !startPaused ? "translate-x-4" : "translate-x-0.5"
+              )} />
+            </button>
+            <div>
+              <p className="text-xs font-medium">{startPaused ? "Crear pausada" : "Activar al crear"}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {startPaused ? "Podrás activarla cuando tengas los conjuntos de anuncios listos." : "Se activará inmediatamente en Meta."}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} disabled={saving}>
+              Cancelar
+            </Button>
+            <Button type="submit" size="sm" disabled={saving || !name.trim() || !adAccountId}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+              Crear campaña
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -583,9 +849,10 @@ export default function MetaAdsPage() {
   const [dateFrom,        setDateFrom]        = useState<Date | undefined>();
   const [dateTo,          setDateTo]          = useState<Date | undefined>();
   const [togglingIds,     setTogglingIds]     = useState<Set<string>>(new Set());
-  const [importingAds,    setImportingAds]    = useState(false);
-  const [adCampaignFilter, setAdCampaignFilter] = useState("all");
-  const [adStatusFilter,   setAdStatusFilter]   = useState("all");
+  const [importingAds,      setImportingAds]      = useState(false);
+  const [adCampaignFilter,  setAdCampaignFilter]  = useState("all");
+  const [adStatusFilter,    setAdStatusFilter]    = useState("all");
+  const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
 
   /* ── Data ─────────────────────────────────────────────────────────────── */
   const { data: adsets = [] } = useQuery({
@@ -803,18 +1070,26 @@ export default function MetaAdsPage() {
             </button>
           </div>
 
-          {/* Import structure button — shown in both tabs */}
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleImportStructure}
-            disabled={importingAds || campaigns.length === 0}
-          >
-            {importingAds
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-              : <Download className="h-3.5 w-3.5 mr-1" />}
-            {metaAds.length === 0 ? "Importar anuncios" : "Actualizar anuncios"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              onClick={() => setCreateCampaignOpen(true)}
+              disabled={campaigns.length === 0}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1" /> Nueva campaña
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleImportStructure}
+              disabled={importingAds || campaigns.length === 0}
+            >
+              {importingAds
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                : <Download className="h-3.5 w-3.5 mr-1" />}
+              {metaAds.length === 0 ? "Importar anuncios" : "Actualizar"}
+            </Button>
+          </div>
         </div>
 
         {/* ── ANUNCIOS TAB ─────────────────────────────────────────────────── */}
@@ -1135,6 +1410,14 @@ export default function MetaAdsPage() {
         </Card>
 
         </>)} {/* end campaigns tab */}
+
+        {/* Campaign creation dialog */}
+        <CreateCampaignDialog
+          open={createCampaignOpen}
+          onClose={() => setCreateCampaignOpen(false)}
+          adAccountId={campaigns[0]?.ad_account_id || null}
+          onCreated={() => refetch()}
+        />
 
       </main>
     </AppLayout>

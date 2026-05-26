@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // Only fetch FB token for actions that need it
-    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status", "get_ads_structure", "update_entity_status"];
+    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status", "get_ads_structure", "update_entity_status", "create_campaign"];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
       fbToken = await getFbToken(supabase, user.id);
@@ -525,7 +525,7 @@ Deno.serve(async (req) => {
         // ── Ads with creative ──────────────────────────────────────────────
         const adsUrl = `${GRAPH_API}/${ad_account_id}/ads` +
           `?fields=id,name,status,adset_id,campaign_id` +
-          `,creative{id,name,title,body,image_url,thumbnail_url,call_to_action_type,object_story_spec}` +
+          `,creative{id,name,title,body,image_url,thumbnail_url,video_id,call_to_action_type,object_story_spec}` +
           `,insights.date_preset(maximum){spend,impressions,clicks,actions}` +
           `&limit=200&access_token=${fbToken}`;
 
@@ -533,7 +533,7 @@ Deno.serve(async (req) => {
         const adsRawData = await adsRes.json();
         if (!adsRes.ok) throw new Error(`Meta API (ads): ${JSON.stringify(adsRawData)}`);
 
-        const ads = (adsRawData.data || []).map((a: any) => {
+        const adsPromises = (adsRawData.data || []).map(async (a: any) => {
           const cr = a.creative || {};
           const oss = cr.object_story_spec || {};
           // Try to extract text from object_story_spec for any ad format
@@ -542,6 +542,23 @@ Deno.serve(async (req) => {
           const body      = cr.body    || linkData.message || "";
           const imageUrl  = cr.image_url || cr.thumbnail_url || linkData.picture || linkData.image_url || "";
           const cta       = cr.call_to_action_type || linkData.call_to_action?.type || "";
+
+          const videoId = cr.video_id || oss.video_data?.video_id || null;
+          let videoUrl: string | null = null;
+          let thumbUrl: string | null = null;
+
+          // For video ads, fetch the actual CDN source URL
+          if (videoId) {
+            try {
+              const vRes = await fetch(`${GRAPH_API}/${videoId}?fields=source,picture&access_token=${fbToken}`);
+              const vData = await vRes.json();
+              if (vData.source) videoUrl = vData.source;
+              if (vData.picture) thumbUrl = vData.picture;
+            } catch (_) { /* ignore */ }
+          }
+
+          // Final image/thumbnail: prefer video thumbnail, then existing image extraction
+          const finalImageUrl = thumbUrl || imageUrl || oss.video_data?.image_url || "";
 
           const ins = a.insights?.data?.[0] || {};
           const leadActions = (ins.actions || []).find((x: any) => x.action_type === "lead");
@@ -558,7 +575,9 @@ Deno.serve(async (req) => {
             creative_id: cr.id || null,
             headline:    headline || null,
             body:        body    || null,
-            image_url:   imageUrl || null,
+            image_url:   finalImageUrl || null,
+            video_id:    videoId || null,
+            video_url:   videoUrl || null,
             call_to_action: cta || null,
             spend,
             impressions: ins.impressions ? Number(ins.impressions) : 0,
@@ -568,6 +587,8 @@ Deno.serve(async (req) => {
             ad_account_id,
           };
         });
+
+        const ads = await Promise.all(adsPromises);
 
         for (const ad of ads) {
           await supabase.from("meta_ads").upsert(ad, { onConflict: "user_id,ad_id" });
@@ -652,6 +673,59 @@ Deno.serve(async (req) => {
           .eq("campaign_id", campaign_id);
 
         return new Response(JSON.stringify({ success: true, campaign_id, status: new_status }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== CREATE CAMPAIGN =====
+      case "create_campaign": {
+        const { ad_account_id, name, objective, status, daily_budget, special_ad_categories } = body;
+
+        const params: Record<string, any> = {
+          name,
+          objective,        // e.g. "OUTCOME_LEADS", "OUTCOME_SALES", "OUTCOME_TRAFFIC", "OUTCOME_AWARENESS"
+          status: status || "PAUSED",
+          special_ad_categories: special_ad_categories || [],
+          access_token: fbToken,
+        };
+
+        // Campaign Budget Optimization: set daily_budget in cents if provided
+        if (daily_budget && daily_budget > 0) {
+          params.daily_budget = Math.round(daily_budget * 100); // convert dollars to cents
+        }
+
+        const createRes = await fetch(`${GRAPH_API}/act_${ad_account_id}/campaigns`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(params),
+        });
+        const createData = await createRes.json();
+
+        if (!createRes.ok || createData.error) {
+          throw new Error(`Meta API error: ${createData.error?.message || JSON.stringify(createData)}`);
+        }
+
+        // Store the new campaign (basic data, metrics will come with next sync)
+        const newCampaign = {
+          user_id: user.id,
+          campaign_id: createData.id,
+          campaign_name: name,
+          status: status || "PAUSED",
+          objective,
+          daily_budget: daily_budget || null,
+          lifetime_budget: null,
+          spend: 0,
+          impressions: 0,
+          clicks: 0,
+          leads: 0,
+          cpl: null,
+          start_time: null,
+          stop_time: null,
+          ad_account_id,
+        };
+        await supabase.from("meta_campaigns").insert(newCampaign);
+
+        return new Response(JSON.stringify({ success: true, campaign_id: createData.id, campaign: newCampaign }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

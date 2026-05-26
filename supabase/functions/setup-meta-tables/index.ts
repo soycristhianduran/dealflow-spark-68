@@ -73,6 +73,9 @@ Deno.serve(async (req) => {
           USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
       END IF;
     END $$;
+
+    ALTER TABLE public.meta_ads ADD COLUMN IF NOT EXISTS video_id TEXT;
+    ALTER TABLE public.meta_ads ADD COLUMN IF NOT EXISTS video_url TEXT;
   `;
 
   // Execute via the Supabase management API (available from within edge functions)
