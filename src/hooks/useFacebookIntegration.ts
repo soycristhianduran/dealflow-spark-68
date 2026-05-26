@@ -239,6 +239,21 @@ export function useFacebookIntegration() {
     return data;
   }, [checkConnection]);
 
+  const updateCampaignStatus = useCallback(async (
+    campaignId: string,
+    newStatus: "ACTIVE" | "PAUSED"
+  ): Promise<boolean> => {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
+      body: { action: "update_campaign_status", campaign_id: campaignId, new_status: newStatus },
+    });
+    if (error || !data?.success) {
+      toast.error(error?.message || "Error al actualizar la campaña");
+      return false;
+    }
+    toast.success(newStatus === "ACTIVE" ? "Campaña activada" : "Campaña pausada");
+    return true;
+  }, []);
+
   const fetchLeads = useCallback(async (formId: string, pageId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "fetch_leads", form_id: formId, page_id: pageId },
@@ -277,5 +292,6 @@ export function useFacebookIntegration() {
     getConversations,
     getAdAccounts, importCampaigns, fetchLeads,
     subscribeLeadgen,
+    updateCampaignStatus,
   };
 }

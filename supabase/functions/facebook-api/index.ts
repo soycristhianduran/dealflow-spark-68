@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // Only fetch FB token for actions that need it
-    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns"];
+    const actionsNeedingToken = ["get_pages", "get_ad_accounts", "get_campaigns", "update_campaign_status"];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
       fbToken = await getFbToken(supabase, user.id);
@@ -478,6 +478,39 @@ Deno.serve(async (req) => {
         await supabase.from("facebook_pages").delete().eq("user_id", user.id);
         await supabase.from("facebook_tokens").delete().eq("user_id", user.id);
         return new Response(JSON.stringify({ success: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== PAUSE / ACTIVATE CAMPAIGN =====
+      case "update_campaign_status": {
+        const { campaign_id, new_status } = body; // new_status: "ACTIVE" | "PAUSED"
+        if (!campaign_id || !["ACTIVE", "PAUSED"].includes(new_status)) {
+          return new Response(JSON.stringify({ error: "campaign_id and new_status (ACTIVE|PAUSED) are required" }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        const updateRes = await fetch(`${GRAPH_API}/${campaign_id}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: new_status, access_token: fbToken }),
+        });
+        const updateData = await updateRes.json();
+
+        if (!updateRes.ok || updateData.error) {
+          throw new Error(`Meta API error: ${updateData.error?.message || JSON.stringify(updateData)}`);
+        }
+
+        // Reflect the new status in our local table
+        await supabase
+          .from("meta_campaigns")
+          .update({ status: new_status })
+          .eq("user_id", user.id)
+          .eq("campaign_id", campaign_id);
+
+        return new Response(JSON.stringify({ success: true, campaign_id, status: new_status }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
