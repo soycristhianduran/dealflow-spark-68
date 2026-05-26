@@ -8,12 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
 import { TemplatePicker } from "@/components/whatsapp/TemplatePicker";
@@ -64,6 +65,10 @@ interface ContactRow {
   pipeline_id: string | null;
   lead_status: string | null;
   pipeline_stages?: { id: string; name: string; color: string } | null;
+  utm_source?: string | null;
+  utm_medium?: string | null;
+  utm_campaign?: string | null;
+  custom_fields?: Record<string, any> | null;
 }
 
 interface ProfileOption {
@@ -77,6 +82,20 @@ export default function ContactsPage() {
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [utmSourceFilter, setUtmSourceFilter] = useState("all");
+  const [utmMediumFilter, setUtmMediumFilter] = useState("all");
+  const [utmCampaignFilter, setUtmCampaignFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("");
+  const [customFieldKey, setCustomFieldKey] = useState("");
+  const [customFieldValue, setCustomFieldValue] = useState("");
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Distinct values for UTM dropdowns
+  const [utmSources, setUtmSources] = useState<string[]>([]);
+  const [utmMediums, setUtmMediums] = useState<string[]>([]);
+  const [utmCampaigns, setUtmCampaigns] = useState<string[]>([]);
+  const [allTags, setAllTags] = useState<string[]>([]);
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stagesForFilter, setStagesForFilter] = useState<{ id: string; name: string; color: string }[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
@@ -86,6 +105,7 @@ export default function ContactsPage() {
   const [bulkWorking, setBulkWorking] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { organizationId } = useOrganizationContext();
   const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
 
   // Bulk action dialog state
@@ -146,12 +166,21 @@ export default function ContactsPage() {
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color)")
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields")
       .order("created_at", { ascending: false });
     if (statusFilter !== "all") query = query.eq("status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
     if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
     if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
+    if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
+    if (utmSourceFilter !== "all") query = query.eq("utm_source", utmSourceFilter);
+    if (utmMediumFilter !== "all") query = query.eq("utm_medium", utmMediumFilter);
+    if (utmCampaignFilter !== "all") query = query.eq("utm_campaign", utmCampaignFilter);
+    if (tagFilter) query = query.contains("tags", [tagFilter]);
+    if (customFieldKey && customFieldValue) {
+      // Filter by custom_fields JSONB — use filter with @> operator
+      query = query.contains("custom_fields", { [customFieldKey]: customFieldValue });
+    }
     // Vendors only see their own leads
     if (isVendor && myUserId) {
       query = query.eq("owner_id", myUserId);
@@ -161,7 +190,7 @@ export default function ContactsPage() {
     const { data, error } = await query;
     if (!error && data) setContacts(data as any);
     setLoading(false);
-  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -213,6 +242,22 @@ export default function ContactsPage() {
         setStageFilter("all");
       });
   }, [pipelineFilter]);
+
+  // Load distinct UTM values and tags for filter dropdowns
+  useEffect(() => {
+    if (!organizationId) return;
+    supabase.from("contacts")
+      .select("utm_source, utm_medium, utm_campaign, tags")
+      .eq("organization_id", organizationId)
+      .then(({ data }) => {
+        if (!data) return;
+        setUtmSources([...new Set(data.map(d => d.utm_source).filter(Boolean) as string[])].sort());
+        setUtmMediums([...new Set(data.map(d => d.utm_medium).filter(Boolean) as string[])].sort());
+        setUtmCampaigns([...new Set(data.map(d => d.utm_campaign).filter(Boolean) as string[])].sort());
+        const tags = data.flatMap(d => d.tags || []);
+        setAllTags([...new Set(tags)].sort());
+      });
+  }, [organizationId]);
 
   // Load saved email templates + org sender when dialog opens
   useEffect(() => {
@@ -525,6 +570,18 @@ export default function ContactsPage() {
     setTagInput("");
   };
 
+  const advancedFilterCount = [sourceFilter !== "all", utmSourceFilter !== "all", utmMediumFilter !== "all", utmCampaignFilter !== "all", !!tagFilter, !!(customFieldKey && customFieldValue)].filter(Boolean).length;
+
+  const clearAdvancedFilters = () => {
+    setSourceFilter("all");
+    setUtmSourceFilter("all");
+    setUtmMediumFilter("all");
+    setUtmCampaignFilter("all");
+    setTagFilter("");
+    setCustomFieldKey("");
+    setCustomFieldValue("");
+  };
+
   return (
     <AppLayout>
       <AppHeader title="Leads" subtitle={`${contacts.length} leads`} actions={
@@ -590,8 +647,152 @@ export default function ContactsPage() {
                 </SelectContent>
               </Select>
             )}
+            {/* Más filtros button */}
+            <Button
+              variant={advancedFilterCount > 0 ? "default" : "outline"}
+              size="sm"
+              className="h-8 text-xs gap-1.5"
+              onClick={() => setAdvancedOpen(prev => !prev)}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Más filtros
+              {advancedFilterCount > 0 && (
+                <span className="ml-0.5 rounded-full bg-white/20 px-1.5 text-[10px] font-semibold">{advancedFilterCount}</span>
+              )}
+            </Button>
           </div>
         </div>
+
+        {/* Advanced filters panel */}
+        {advancedOpen && (
+          <div className="rounded-lg border bg-card p-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros avanzados</p>
+              {advancedFilterCount > 0 && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearAdvancedFilters}>
+                  <X className="h-3 w-3 mr-1" /> Limpiar filtros
+                </Button>
+              )}
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {/* Source */}
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Fuente de origen</Label>
+                <Select value={sourceFilter} onValueChange={setSourceFilter}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las fuentes</SelectItem>
+                    {SOURCE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* UTM Source */}
+              {utmSources.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">UTM Fuente</Label>
+                  <Select value={utmSourceFilter} onValueChange={setUtmSourceFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {utmSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* UTM Medium */}
+              {utmMediums.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">UTM Medio</Label>
+                  <Select value={utmMediumFilter} onValueChange={setUtmMediumFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Todos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {utmMediums.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* UTM Campaign */}
+              {utmCampaigns.length > 0 && (
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-muted-foreground">UTM Campaña</Label>
+                  <Select value={utmCampaignFilter} onValueChange={setUtmCampaignFilter}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {utmCampaigns.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Tag filter */}
+              <div className="space-y-1">
+                <Label className="text-[11px] text-muted-foreground">Etiqueta (tag)</Label>
+                {allTags.length > 0 ? (
+                  <Select value={tagFilter || "all"} onValueChange={v => setTagFilter(v === "all" ? "" : v)}>
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Todas" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas las etiquetas</SelectItem>
+                      {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    className="h-8 text-xs"
+                    placeholder="Ej: vip"
+                    value={tagFilter}
+                    onChange={e => setTagFilter(e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* Custom field key/value */}
+              <div className="space-y-1 col-span-2">
+                <Label className="text-[11px] text-muted-foreground">Campo personalizado</Label>
+                <div className="flex gap-1.5">
+                  <Input
+                    className="h-8 text-xs flex-1"
+                    placeholder="Clave (ej: empresa)"
+                    value={customFieldKey}
+                    onChange={e => setCustomFieldKey(e.target.value)}
+                  />
+                  <Input
+                    className="h-8 text-xs flex-1"
+                    placeholder="Valor (ej: Acme)"
+                    value={customFieldValue}
+                    onChange={e => setCustomFieldValue(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Active filter chips */}
+            {advancedFilterCount > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {sourceFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">{sourceFilter}<button onClick={() => setSourceFilter("all")}><X className="h-3 w-3" /></button></Badge>}
+                {utmSourceFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">utm_source: {utmSourceFilter}<button onClick={() => setUtmSourceFilter("all")}><X className="h-3 w-3" /></button></Badge>}
+                {utmMediumFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">utm_medium: {utmMediumFilter}<button onClick={() => setUtmMediumFilter("all")}><X className="h-3 w-3" /></button></Badge>}
+                {utmCampaignFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">utm_campaign: {utmCampaignFilter}<button onClick={() => setUtmCampaignFilter("all")}><X className="h-3 w-3" /></button></Badge>}
+                {tagFilter && <Badge variant="secondary" className="text-xs gap-1">tag: {tagFilter}<button onClick={() => setTagFilter("")}><X className="h-3 w-3" /></button></Badge>}
+                {customFieldKey && customFieldValue && <Badge variant="secondary" className="text-xs gap-1">{customFieldKey}: {customFieldValue}<button onClick={() => { setCustomFieldKey(""); setCustomFieldValue(""); }}><X className="h-3 w-3" /></button></Badge>}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Bulk action bar */}
         {someChecked && (
