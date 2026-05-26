@@ -193,16 +193,6 @@ export default function IntegrationsPage() {
       clearParam("wa_error");
     }
 
-    // If no URL params but there's a pending OAuth token in the DB, open wizard at step 2
-    // This handles the case where the user lands on the page without the URL param
-    if (!params.get("wa_token_ready") && !params.get("wa_connected")) {
-      wa.checkHasPendingToken?.().then((hasPending) => {
-        if (hasPending) {
-          setWaWizardStartStep(2);
-          setWaWizardOpen(true);
-        }
-      });
-    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
