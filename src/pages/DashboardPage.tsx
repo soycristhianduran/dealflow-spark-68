@@ -115,6 +115,7 @@ export default function DashboardPage() {
   const [activeDeals, setActiveDeals] = useState<DealRow[]>([]);
   const [topObjections, setTopObjections] = useState<ObjectionRow[]>([]);
   const [objectionsAnalyzed, setObjectionsAnalyzed] = useState(0);
+  const [lostReasons, setLostReasons] = useState<{ label: string; count: number }[]>([]);
   // 7-day time series for the sparklines on KPI cards.
   // Keys come from fetched created_at timestamps so the sparkline reflects
   // real activity, not random data.
@@ -185,6 +186,22 @@ export default function DashboardPage() {
         return q;
       })(),
     ]);
+
+    // Lost reasons: aggregate client-side from contacts with lost_reason set
+    const lostRes = await (() => {
+      let q = supabase.from("contacts").select("lost_reason").eq("lead_status", "lost").not("lost_reason", "is", null);
+      if (vendorFilter) q = q.eq("owner_id", vendorFilter);
+      return q;
+    })();
+    const reasonCounts = new Map<string, number>();
+    for (const row of (lostRes.data || []) as any[]) {
+      if (row.lost_reason) reasonCounts.set(row.lost_reason, (reasonCounts.get(row.lost_reason) || 0) + 1);
+    }
+    setLostReasons(
+      [...reasonCounts.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([label, count]) => ({ label, count }))
+    );
 
     // Top objections: fetch all AI analyses with non-empty objections.
     // RLS already filters by user_id. We aggregate client-side because the
@@ -517,6 +534,47 @@ export default function DashboardPage() {
                           className="h-full rounded-full bg-warning transition-all"
                           style={{ width: `${pct}%` }}
                         />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <XCircle className="h-4 w-4 text-destructive" />
+              Razones de pérdida
+              {lostReasons.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground ml-1">
+                  · {lostReasons.reduce((s, r) => s + r.count, 0)} {lostReasons.reduce((s, r) => s + r.count, 0) === 1 ? 'deal' : 'deals'} perdidos
+                </span>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {lostReasons.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-6">
+                Aún no hay deals perdidos con razón registrada. Cuando muevas leads a "Cerrado perdido" verás el análisis aquí.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {lostReasons.map((r) => {
+                  const max = lostReasons[0].count;
+                  const pct = Math.round((r.count / max) * 100);
+                  return (
+                    <div key={r.label} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium text-foreground truncate pr-3">{r.label}</span>
+                        <Badge variant="outline" className="text-xs shrink-0 text-destructive border-destructive/30">
+                          {r.count} {r.count === 1 ? 'deal' : 'deals'}
+                        </Badge>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-destructive/60 transition-all" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                   );
