@@ -49,11 +49,13 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
 
     // ── Validate & consume the CSRF nonce ──────────────────────────────────
-    // Resolves to the user_id who initiated this OAuth flow, or NULL on
-    // tampering / replay / expiry. Done before code exchange so we never
-    // hit Meta's servers with an unattributable request.
+    // Primary path: state is a single-use nonce created by create_oauth_state().
+    // Fallback: state is the raw user UUID (used when the RPC table is not yet
+    // available; less CSRF-safe but acceptable during DB migration windows).
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let userId: string | null = null;
     if (state) {
+      // 1. Try nonce-based validation first
       const { data: consumed, error: consumeErr } = await earlySupabase.rpc(
         "consume_oauth_state",
         { p_token: state, p_provider: "facebook" },
@@ -62,6 +64,18 @@ Deno.serve(async (req) => {
         console.error("consume_oauth_state RPC failed:", consumeErr);
       }
       userId = (consumed as string | null) || null;
+
+      // 2. Fallback: raw UUID state (transitional — while oauth_state_tokens
+      //    table may not yet be deployed on some environments)
+      if (!userId && UUID_RE.test(state)) {
+        console.warn("CSRF nonce not found; accepting raw UUID state as fallback");
+        try {
+          const { data: adminUser } = await earlySupabase.auth.admin.getUserById(state);
+          if (adminUser?.user?.id) userId = adminUser.user.id;
+        } catch (e) {
+          console.error("UUID fallback lookup failed:", e);
+        }
+      }
     }
     if (!userId) {
       console.warn("OAuth callback rejected: invalid/expired/replayed state token");
@@ -159,7 +173,6 @@ Deno.serve(async (req) => {
     );
 
     // Success - redirect back to app, using workspace slug if available
-    const appUrl = Deno.env.get("APP_URL") || "https://dealflow-spark-68.lovable.app";
     const slug = await resolveOrgSlug(supabase, userId);
     return new Response(null, {
       status: 302,

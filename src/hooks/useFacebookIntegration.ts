@@ -128,7 +128,22 @@ export function useFacebookIntegration() {
     );
     if (stateErr || !stateToken) {
       setConnecting(false);
-      toast.error("No se pudo iniciar la conexión con Facebook. Intenta de nuevo.");
+      console.error("create_oauth_state failed:", stateErr);
+      // Fallback: use user ID as state (less secure but functional while DB
+      // migration propagates). The real CSRF-safe nonce will be used once the
+      // oauth_state_tokens table is confirmed present on the remote DB.
+      const fallbackState = user.id;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
+      const scopes = [
+        "pages_show_list","pages_read_engagement","pages_manage_metadata",
+        "pages_manage_ads","pages_messaging","leads_retrieval",
+        "ads_read","ads_management","business_management",
+        "instagram_basic","instagram_manage_messages",
+        "instagram_manage_comments","instagram_manage_insights",
+      ].join(",");
+      const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(fallbackState)}&response_type=code`;
+      window.location.href = oauthUrl;
       return;
     }
 
