@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       "update_campaign_status", "get_ads_structure", "update_entity_status",
       "create_campaign", "create_adset", "create_ad",
       "get_lead_forms", "save_lead_forms", "fetch_leads", "subscribe_leadgen",
-      "get_conversations",
+      "get_conversations", "get_video_url",
     ];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
@@ -578,21 +578,9 @@ Deno.serve(async (req) => {
           const cta       = cr.call_to_action_type || linkData.call_to_action?.type || "";
 
           const videoId = cr.video_id || oss.video_data?.video_id || null;
-          let videoUrl: string | null = null;
-          let thumbUrl: string | null = null;
 
-          // For video ads, fetch the actual CDN source URL
-          if (videoId) {
-            try {
-              const vRes = await fetch(`${GRAPH_API}/${videoId}?fields=source,picture&access_token=${fbToken}`);
-              const vData = await vRes.json();
-              if (vData.source) videoUrl = vData.source;
-              if (vData.picture) thumbUrl = vData.picture;
-            } catch (_) { /* ignore */ }
-          }
-
-          // Final image/thumbnail: prefer video thumbnail, then existing image extraction
-          const finalImageUrl = thumbUrl || imageUrl || oss.video_data?.image_url || "";
+          // Final image/thumbnail: prefer existing image extraction (video URL fetched lazily)
+          const finalImageUrl = imageUrl || oss.video_data?.image_url || "";
 
           const ins = a.insights?.data?.[0] || {};
           const leadActions = (ins.actions || []).find((x: any) => x.action_type === "lead");
@@ -611,7 +599,6 @@ Deno.serve(async (req) => {
             body:        body    || null,
             image_url:   finalImageUrl || null,
             video_id:    videoId || null,
-            video_url:   videoUrl || null,
             call_to_action: cta || null,
             spend,
             impressions: ins.impressions ? Number(ins.impressions) : 0,
@@ -959,6 +946,18 @@ Deno.serve(async (req) => {
 
         return new Response(
           JSON.stringify({ success: true, ad_id: adData.id }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // ===== LAZY-FETCH VIDEO URL (called when preview modal opens) =====
+      case "get_video_url": {
+        const { video_id } = body;
+        if (!video_id) return new Response(JSON.stringify({ url: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+        const vRes  = await fetch(`${GRAPH_API}/${video_id}?fields=source,picture&access_token=${fbToken}`);
+        const vData = await vRes.json();
+        return new Response(
+          JSON.stringify({ url: vData.source || null, thumbnail: vData.picture || null }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

@@ -325,26 +325,56 @@ function StatusToggle({
 /* ─── Creative preview modal ──────────────────────────────────────────────── */
 function CreativePreviewModal({ ad, open, onClose }: { ad: MetaAd; open: boolean; onClose: () => void }) {
   const isVideo = !!(ad.video_url || ad.video_id);
+  // Lazy-load video URL: only fetch from Meta API when the modal opens for a video ad.
+  // During bulk sync we no longer fetch video URLs, so ad.video_url will be null.
+  const [lazyVideoUrl, setLazyVideoUrl] = useState<string | null>(ad.video_url || null);
+  const [loadingVideo, setLoadingVideo] = useState(false);
+
+  // When modal opens for a video ad without a URL, fetch it now (single API call)
+  useState(() => {
+    if (open && ad.video_id && !lazyVideoUrl) {
+      setLoadingVideo(true);
+      supabase.functions.invoke("facebook-api", {
+        body: { action: "get_video_url", video_id: ad.video_id },
+      }).then(({ data }) => {
+        if (data?.url) setLazyVideoUrl(data.url);
+        setLoadingVideo(false);
+      });
+    }
+  });
+
+  // Reset when a different ad is shown
+  const prevAdId = useState(ad.ad_id)[0];
+  if (prevAdId !== ad.ad_id) {
+    setLazyVideoUrl(ad.video_url || null);
+  }
+
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-2xl p-0 overflow-hidden">
         {/* Media */}
         <div className="bg-black w-full">
-          {ad.video_url ? (
+          {lazyVideoUrl ? (
             <video
-              src={ad.video_url}
+              src={lazyVideoUrl}
               controls
               autoPlay
               className="w-full max-h-[60vh] object-contain"
               poster={ad.image_url || undefined}
             />
           ) : ad.video_id ? (
-            <iframe
-              src={`https://www.facebook.com/video/embed?video_id=${ad.video_id}`}
-              className="w-full aspect-video"
-              allowFullScreen
-              allow="autoplay; encrypted-media"
-            />
+            loadingVideo ? (
+              <div className="w-full aspect-video flex items-center justify-center">
+                <Loader2 className="h-8 w-8 text-white/40 animate-spin" />
+              </div>
+            ) : (
+              <iframe
+                src={`https://www.facebook.com/video/embed?video_id=${ad.video_id}`}
+                className="w-full aspect-video"
+                allowFullScreen
+                allow="autoplay; encrypted-media"
+              />
+            )
           ) : ad.image_url ? (
             <img src={ad.image_url} alt={ad.ad_name} className="w-full max-h-[60vh] object-contain" />
           ) : (
@@ -1227,6 +1257,20 @@ export default function MetaAdsPage() {
   const [togglingIds,     setTogglingIds]     = useState<Set<string>>(new Set());
   const [syncing,           setSyncing]           = useState(false);
   const [syncStep,          setSyncStep]          = useState<string | null>(null);
+  const [lastSyncAt, setLastSyncAt] = useState<number | null>(() => {
+    try { return Number(localStorage.getItem(`meta_sync_last_${user?.id}`)) || null; }
+    catch { return null; }
+  });
+
+  const SYNC_COOLDOWN_MS = 30 * 60 * 1000; // 30 min
+  const syncCooldownRemaining = lastSyncAt
+    ? Math.max(0, SYNC_COOLDOWN_MS - (Date.now() - lastSyncAt))
+    : 0;
+  const syncOnCooldown = syncCooldownRemaining > 0;
+  const syncCooldownLabel = syncOnCooldown
+    ? `Sync en ${Math.ceil(syncCooldownRemaining / 60000)} min`
+    : null;
+
   const [adCampaignFilter,  setAdCampaignFilter]  = useState("all");
   const [adStatusFilter,    setAdStatusFilter]    = useState("all");
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
@@ -1363,6 +1407,9 @@ export default function MetaAdsPage() {
 
     setSyncing(false);
     setSyncStep(null);
+    const now = Date.now();
+    setLastSyncAt(now);
+    try { localStorage.setItem(`meta_sync_last_${user?.id}`, String(now)); } catch {}
   };
 
   /* ── Ad filters ────────────────────────────────────────────────────────── */
@@ -1517,12 +1564,22 @@ export default function MetaAdsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleSyncAll} disabled={syncing}>
+            <Button size="sm" onClick={handleSyncAll} disabled={syncing || syncOnCooldown}
+              title={syncOnCooldown ? `Próxima sincronización disponible en ${Math.ceil(syncCooldownRemaining / 60000)} minutos` : undefined}>
               {syncing
                 ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                 : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-              {syncing ? (syncStep || "Sincronizando…") : "Sincronizar todo"}
+              {syncing
+                ? (syncStep || "Sincronizando…")
+                : syncOnCooldown
+                  ? syncCooldownLabel!
+                  : "Sincronizar todo"}
             </Button>
+            {lastSyncAt && !syncing && (
+              <span className="text-[10px] text-muted-foreground">
+                Últ. sync: {format(new Date(lastSyncAt), "HH:mm", { locale: es })}
+              </span>
+            )}
           </div>
         </div>
 
