@@ -198,29 +198,37 @@ Deno.serve(async (req) => {
     const pipelineNote = formConfig.stage_name
       ? ` → Pipeline: ${formConfig.pipeline_name || ""} / ${formConfig.stage_name}`
       : "";
-    await supabase.from("activities").insert({
-      organization_id: orgId,
-      contact_id: contactId,
-      type: "note",
-      title: `Lead desde landing: ${page.name}`,
-      description: `Formulario enviado desde ${body.source || "landing page"}${pipelineNote}${extraNotes ? ". " + extraNotes : ""}`,
-    }).catch(() => null);
-
-    // ── Fire automation trigger ─────────────────────────────────────────────
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        action: "trigger_event",
-        trigger_type: "landing_form_submitted",
+    // Use try/catch instead of .catch() — PostgrestBuilder in Deno doesn't always
+    // expose a .catch() method directly (depends on client version).
+    try {
+      await supabase.from("activities").insert({
+        organization_id: orgId,
         contact_id: contactId,
-        trigger_data: { landing_slug: page.id, landing_name: page.name, source: body.source },
-      }),
-    }).catch(() => null);
+        type: "note",
+        title: `Lead desde landing: ${page.name}`,
+        description: `Formulario enviado desde ${body.source || "landing page"}${pipelineNote}${extraNotes ? ". " + extraNotes : ""}`,
+      });
+    } catch (_) { /* non-critical */ }
+
+    // ── Fire automation trigger (fire-and-forget) ────────────────────────────
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    (async () => {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            action: "trigger_event",
+            trigger_type: "landing_form_submitted",
+            contact_id: contactId,
+            trigger_data: { landing_slug: page.id, landing_name: page.name, source: body.source },
+          }),
+        });
+      } catch (_) { /* non-critical */ }
+    })();
 
     // ── Resolve redirect URL (read fresh from DB at submit time) ───────────────
     // Priority: form_config.redirect_url → funnel thank-you page → ""
