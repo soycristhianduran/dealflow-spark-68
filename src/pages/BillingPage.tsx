@@ -69,13 +69,15 @@ export default function BillingPage() {
     if (!organizationId) return;
     setUsageLoading(true);
     (async () => {
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+      // Use UTC month start so it matches what the DB stores via date_trunc('month', NOW())
+      const now = new Date();
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
       const [{ data: u }, { data: boosts }] = await Promise.all([
         (supabase as any)
           .from("usage_counters")
           .select("ai_analyses_used, ai_objections_used, automated_messages_used, email_sends_used")
           .eq("organization_id", organizationId)
-          .gte("period_start", monthStart)
+          .eq("period_start", monthStart)
           .maybeSingle(),
         (supabase as any)
           .from("ai_boost_credits")
