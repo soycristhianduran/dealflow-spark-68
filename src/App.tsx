@@ -58,31 +58,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 // Redirect /billing?... → /w/{slug}/billing preserving query params
-// Uses undefined as "not yet fetched" to avoid infinite loading when slug is null
+// Uses the same get_my_organization RPC as RootRoute for consistency
 function BillingRedirect() {
   const { session, loading } = useAuth();
-  const [slug, setSlug] = useState<string | null | undefined>(undefined);
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(true);
   const search = typeof window !== "undefined" ? window.location.search : "";
 
   useEffect(() => {
-    if (!session) { setSlug(null); return; }
-    supabase
-      .from("organization_members")
-      .select("organizations(slug)")
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        setSlug((data as any)?.organizations?.slug ?? null);
-      });
-  }, [session]);
+    if (loading) return;
+    if (!session) { setChecking(false); return; }
+    (supabase as any).rpc("get_my_organization").then(({ data }: any) => {
+      const slug = data?.[0]?.org_slug || "_";
+      navigate(`/w/${slug}/billing${search}`, { replace: true });
+      setChecking(false);
+    });
+  }, [loading, session, navigate, search]);
 
-  // Still loading auth or waiting for org query
-  if (loading || slug === undefined) {
+  if (loading || (session && checking)) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
   }
   if (!session) return <Navigate to="/auth?next=/billing" replace />;
-  if (!slug) return <Navigate to="/" replace />;
-  return <Navigate to={`/w/${slug}/billing${search}`} replace />;
+  return null;
 }
 
 /** Root route: shows the marketing homepage for logged-out users, or redirects to workspace if logged in */
