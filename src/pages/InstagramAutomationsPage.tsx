@@ -15,6 +15,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Instagram, Plus, MessageCircle, MessageSquare, Sparkles,
   Trash2, Edit3, Loader2, Zap, Filter, Image as ImageIcon, X,
 } from "lucide-react";
@@ -57,6 +61,7 @@ export default function InstagramAutomationsPage() {
   const [replyText, setReplyText] = useState("");
   const [dmText, setDmText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingAutomation, setDeletingAutomation] = useState<Automation | null>(null);
 
   const loadAutomations = useCallback(async () => {
     if (!user) return;
@@ -66,7 +71,7 @@ export default function InstagramAutomationsPage() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    if (error) console.error(error);
+    if (error) toast.error("Error al cargar automatizaciones: " + error.message);
     setAutomations((data || []) as Automation[]);
     setLoading(false);
   }, [user]);
@@ -189,12 +194,17 @@ export default function InstagramAutomationsPage() {
     }
   };
 
-  const handleDelete = async (a: Automation) => {
-    if (!confirm(`¿Eliminar automatización "${a.name}"?`)) return;
+  const handleDelete = (a: Automation) => {
+    setDeletingAutomation(a);
+  };
+
+  const confirmDelete = async () => {
+    if (!deletingAutomation) return;
     const { error } = await supabase
       .from("instagram_comment_automations")
       .delete()
-      .eq("id", a.id);
+      .eq("id", deletingAutomation.id);
+    setDeletingAutomation(null);
     if (error) toast.error("Error al eliminar: " + error.message);
     else {
       toast.success("Eliminada");
@@ -499,6 +509,24 @@ export default function InstagramAutomationsPage() {
           onSelect={handleMediaPicked}
         />
       </div>
+
+      {/* ── Delete automation confirmation ──────────────────────────── */}
+      <AlertDialog open={!!deletingAutomation} onOpenChange={open => { if (!open) setDeletingAutomation(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar automatización?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se eliminará <strong>"{deletingAutomation?.name}"</strong>. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

@@ -12,7 +12,7 @@
  * Heavy lifting lives in Edge Functions; this page is mostly a read-only view.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -43,23 +43,29 @@ export default function BillingPage() {
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
 
-  // Show toast on checkout return
-  const checkoutStatus = searchParams.get("checkout_status");
-  if (checkoutStatus === "success" && !sessionStorage.getItem("billing_toast_shown")) {
-    sessionStorage.setItem("billing_toast_shown", "1");
-    toast.success("¡Pago exitoso! Tu plan está activo.");
-    refetch();
-    searchParams.delete("checkout_status");
-    setSearchParams(searchParams, { replace: true });
-  } else if (checkoutStatus === "canceled" && !sessionStorage.getItem("billing_toast_shown")) {
-    sessionStorage.setItem("billing_toast_shown", "1");
-    toast.info("Cancelaste el pago. Puedes intentarlo de nuevo cuando quieras.");
-    searchParams.delete("checkout_status");
-    setSearchParams(searchParams, { replace: true });
-  }
+  // Show toast on checkout return (run once on mount)
+  useEffect(() => {
+    const checkoutStatus = searchParams.get("checkout_status");
+    if (checkoutStatus === "success" && !sessionStorage.getItem("billing_toast_shown")) {
+      sessionStorage.setItem("billing_toast_shown", "1");
+      toast.success("¡Pago exitoso! Tu plan está activo.");
+      refetch();
+      const next = new URLSearchParams(searchParams);
+      next.delete("checkout_status");
+      setSearchParams(next, { replace: true });
+    } else if (checkoutStatus === "canceled" && !sessionStorage.getItem("billing_toast_shown")) {
+      sessionStorage.setItem("billing_toast_shown", "1");
+      toast.info("Cancelaste el pago. Puedes intentarlo de nuevo cuando quieras.");
+      const next = new URLSearchParams(searchParams);
+      next.delete("checkout_status");
+      setSearchParams(next, { replace: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Load usage counters + boost credits
-  if (organizationId && !usage) {
+  useEffect(() => {
+    if (!organizationId) return;
     (async () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
       const { data: u } = await (supabase as any)
@@ -76,7 +82,7 @@ export default function BillingPage() {
         .eq("organization_id", organizationId);
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
     })();
-  }
+  }, [organizationId]);
 
   async function buyBoost(price_id: string, label: string) {
     setPurchasingBoost(price_id);

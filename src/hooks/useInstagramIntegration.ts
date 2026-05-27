@@ -79,7 +79,7 @@ export function useInstagramIntegration() {
       body: { action: "status" },
     });
     if (error || data?.error) {
-      console.error("IG status error:", data?.error || error?.message);
+      console.warn("IG status error:", data?.error || error?.message);
       setIsConnected(false);
     } else {
       setStatus(data);

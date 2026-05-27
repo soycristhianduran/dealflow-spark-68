@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
@@ -106,6 +110,7 @@ export default function ContactsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
@@ -318,8 +323,11 @@ export default function ContactsPage() {
 
   // ── Bulk handlers ──────────────────────────────────────────────────────
 
-  const handleBulkDelete = async () => {
-    if (!confirm(`¿Eliminar ${selected.size} lead${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
+  const handleBulkDelete = () => {
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeBulkDelete = async () => {
     setBulkWorking(true);
     const { error } = await supabase.from("contacts").delete().in("id", [...selected]);
     if (error) { toast.error("Error al eliminar: " + error.message); setBulkWorking(false); return; }
@@ -1471,6 +1479,22 @@ export default function ContactsPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Delete leads confirmation ──────────────────────────────── */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.size} lead{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer. Los leads se eliminarán permanentemente.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkWorking}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} disabled={bulkWorking} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

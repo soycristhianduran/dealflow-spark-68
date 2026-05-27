@@ -4,6 +4,10 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -41,6 +45,8 @@ export default function EmailBuilderPage() {
 
   // Gallery dialog
   const [galleryOpen, setGalleryOpen] = useState(false);
+  // Delete confirmation
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [galleryCategory, setGalleryCategory] = useState<string>("Todos");
 
   // ── Load template list ──────────────────────────────────────────────────
@@ -144,8 +150,14 @@ export default function EmailBuilderPage() {
   };
 
   // ── Delete ──────────────────────────────────────────────────────────────
-  const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta plantilla?")) return;
+  const handleDelete = (id: string) => {
+    setDeleteId(id);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+    const id = deleteId;
+    setDeleteId(null);
     const { error } = await supabase.from("email_templates").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar"); return; }
     toast.success("Plantilla eliminada");
@@ -376,6 +388,21 @@ export default function EmailBuilderPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={open => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar esta plantilla?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer. La plantilla se eliminará permanentemente.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

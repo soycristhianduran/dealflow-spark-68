@@ -57,7 +57,7 @@ export function useWhatsAppIntegration() {
         setConfig(null);
       }
     } catch (e: any) {
-      console.error("Error fetching WA config:", e);
+      console.warn("Error fetching WA config:", e);
     } finally {
       setLoading(false);
     }

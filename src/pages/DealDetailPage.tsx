@@ -8,6 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -57,6 +61,7 @@ export default function DealDetailPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({ title: "", value: "", currency: "USD", contact_id: "", stage_id: "", expected_close_date: "", close_probability: "", source: "", product: "" });
   const [saving, setSaving] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const fetchDeal = async () => {
     if (!id) return;
@@ -120,8 +125,12 @@ export default function DealDetailPage() {
     fetchDeal();
   };
 
-  const handleDelete = async () => {
-    if (!id || !confirm("¿Eliminar este deal?")) return;
+  const handleDelete = () => {
+    setDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!id) return;
     const { error } = await supabase.from("deals").delete().eq("id", id);
     if (error) { toast.error("Error al eliminar"); return; }
     toast.success("Deal eliminado");
@@ -397,6 +406,21 @@ export default function DealDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar este deal?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

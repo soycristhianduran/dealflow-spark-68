@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Search, Trash2, KanbanSquare, Tag } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect } from "react";
@@ -38,6 +42,7 @@ export default function DealsPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
 
@@ -92,8 +97,11 @@ export default function DealsPage() {
     });
   };
 
-  const handleBulkDelete = async () => {
-    if (!confirm(`¿Eliminar ${selected.size} deal${selected.size !== 1 ? "s" : ""}? Esta acción no se puede deshacer.`)) return;
+  const handleBulkDelete = () => {
+    setDeleteConfirmOpen(true);
+  };
+
+  const executeBulkDelete = async () => {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").delete().in("id", [...selected]);
     if (error) { toast.error("Error al eliminar: " + error.message); }
@@ -270,6 +278,21 @@ export default function DealsPage() {
           </div>
         )}
       </main>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar {selected.size} deal{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkWorking}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={executeBulkDelete} disabled={bulkWorking} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
