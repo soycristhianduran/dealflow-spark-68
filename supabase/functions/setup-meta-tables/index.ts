@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
     ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS meta_ad_id TEXT;
     ALTER TABLE public.contacts ADD COLUMN IF NOT EXISTS meta_adset_id TEXT;
     CREATE INDEX IF NOT EXISTS idx_contacts_meta_campaign_id ON public.contacts(meta_campaign_id) WHERE meta_campaign_id IS NOT NULL;
+
+    ALTER TABLE public.facebook_lead_forms ADD COLUMN IF NOT EXISTS pipeline_id UUID REFERENCES public.pipelines(id) ON DELETE SET NULL;
   `;
 
   // Execute via the Supabase management API (available from within edge functions)

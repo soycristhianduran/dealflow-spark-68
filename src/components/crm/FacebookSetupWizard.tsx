@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus, Search, Download } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 
 interface FacebookSetupWizardProps {
@@ -17,7 +19,8 @@ interface FacebookSetupWizardProps {
 type Step = "pages" | "forms" | "mapping" | "messenger" | "campaigns" | "done";
 
 interface PageItem { id: string; name: string; access_token: string; category?: string; selected: boolean }
-interface FormItem { id: string; name: string; status: string; selected: boolean; questions?: { key: string; label: string; type: string }[] }
+interface FormItem { id: string; name: string; status: string; selected: boolean; pipeline_id?: string; questions?: { key: string; label: string; type: string }[] }
+interface PipelineOption { id: string; name: string }
 interface AdAccountItem { id: string; name: string; selected: boolean }
 interface FieldMapping { fb_field_name: string; fb_field_label: string; contact_field: string; is_custom_field: boolean }
 
@@ -43,8 +46,10 @@ const STANDARD_CONTACT_FIELDS = [
 
 export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardProps) {
   const fb = useFacebookIntegration();
+  const { user } = useAuth();
   const [step, setStep] = useState<Step>("pages");
   const [loading, setLoading] = useState(false);
+  const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
 
   // Pages
   const [pages, setPages] = useState<PageItem[]>([]);
@@ -79,8 +84,16 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     if (open) {
       setStep("pages");
       loadPages();
+      // Fetch pipelines for the form→pipeline selector
+      if (user) {
+        supabase
+          .from("pipelines")
+          .select("id, name")
+          .order("created_at", { ascending: true })
+          .then(({ data }) => setPipelines((data || []).map(p => ({ id: p.id, name: p.name }))));
+      }
     }
-  }, [open]);
+  }, [open, user]);
 
   const loadPages = async () => {
     setLoading(true);
@@ -105,7 +118,7 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     if (!selectedPageId) return;
     setLoading(true);
     const selected = forms.filter(f => f.selected);
-    await fb.saveLeadForms(selectedPageId, selected.map(f => ({ form_id: f.id, form_name: f.name, form_status: f.status })));
+    await fb.saveLeadForms(selectedPageId, selected.map(f => ({ form_id: f.id, form_name: f.name, form_status: f.status, pipeline_id: f.pipeline_id })));
 
     // Initialize mappings for each selected form from its questions
     const mappingsInit: Record<string, FieldMapping[]> = {};
@@ -360,24 +373,46 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
 
                   <div className="space-y-2 max-h-[240px] overflow-y-auto scrollbar-thin">
                     {filteredForms.map((form) => (
-                      <label key={form.id} className={cn(
-                        "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
+                      <div key={form.id} className={cn(
+                        "rounded-lg border p-3 transition-colors",
                         form.selected ? "border-primary/30 bg-primary/5" : "hover:bg-muted/50"
                       )}>
-                        <Checkbox
-                          checked={form.selected}
-                          onCheckedChange={(checked) =>
-                            setForms(prev => prev.map(f => f.id === form.id ? { ...f, selected: !!checked } : f))
-                          }
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground">{form.name}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <Badge variant="outline" className="text-xs">{form.status}</Badge>
-                            {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
+                        <label className="flex items-center gap-3 cursor-pointer">
+                          <Checkbox
+                            checked={form.selected}
+                            onCheckedChange={(checked) =>
+                              setForms(prev => prev.map(f => f.id === form.id ? { ...f, selected: !!checked } : f))
+                            }
+                          />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground">{form.name}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <Badge variant="outline" className="text-xs">{form.status}</Badge>
+                              {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
+                            </div>
                           </div>
-                        </div>
-                      </label>
+                        </label>
+                        {form.selected && pipelines.length > 0 && (
+                          <div className="mt-2 ml-7">
+                            <Select
+                              value={form.pipeline_id || "__default__"}
+                              onValueChange={(val) =>
+                                setForms(prev => prev.map(f => f.id === form.id ? { ...f, pipeline_id: val === "__default__" ? undefined : val } : f))
+                              }
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue placeholder="Pipeline de destino..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__default__" className="text-xs text-muted-foreground">Pipeline por defecto</SelectItem>
+                                {pipelines.map(p => (
+                                  <SelectItem key={p.id} value={p.id} className="text-xs">{p.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
                     ))}
                     {filteredForms.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-4">No se encontraron formularios con "{formSearch}"</p>

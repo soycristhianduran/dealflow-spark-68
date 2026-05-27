@@ -156,12 +156,17 @@ Deno.serve(async (req) => {
 
       // ===== SAVE SELECTED FORMS =====
       case "save_lead_forms": {
-        const { forms, page_id } = body; // [{form_id, form_name, form_status}]
+        const { forms, page_id } = body; // [{form_id, form_name, form_status, pipeline_id?}]
         for (const form of forms) {
-          await supabase.from("facebook_lead_forms").upsert(
-            { user_id: user.id, page_id, form_id: form.form_id, form_name: form.form_name, form_status: form.form_status || "active" },
-            { onConflict: "user_id,form_id" }
-          );
+          const row: Record<string, any> = {
+            user_id: user.id,
+            page_id,
+            form_id: form.form_id,
+            form_name: form.form_name,
+            form_status: form.form_status || "active",
+          };
+          if (form.pipeline_id) row.pipeline_id = form.pipeline_id;
+          await supabase.from("facebook_lead_forms").upsert(row, { onConflict: "user_id,form_id" });
         }
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -194,13 +199,17 @@ Deno.serve(async (req) => {
 
         const hasCustomMappings = userMappings && userMappings.length > 0;
 
-        // Get first pipeline and its first stage for auto-deal creation
-        const { data: pipeline } = await supabase
-          .from("pipelines")
-          .select("id")
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .single();
+        // Get the pipeline configured for this form, or fall back to the first one
+        const { data: formConfig } = await supabase
+          .from("facebook_lead_forms")
+          .select("pipeline_id")
+          .eq("user_id", user.id)
+          .eq("form_id", form_id)
+          .maybeSingle();
+
+        const { data: pipeline } = formConfig?.pipeline_id
+          ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
+          : await supabase.from("pipelines").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle();
 
         let firstStageId: string | null = null;
         if (pipeline) {

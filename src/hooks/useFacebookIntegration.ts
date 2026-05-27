@@ -213,7 +213,7 @@ export function useFacebookIntegration() {
     return data.forms || [];
   }, []);
 
-  const saveLeadForms = useCallback(async (pageId: string, forms: { form_id: string; form_name: string; form_status?: string }[]) => {
+  const saveLeadForms = useCallback(async (pageId: string, forms: { form_id: string; form_name: string; form_status?: string; pipeline_id?: string }[]) => {
     const { error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "save_lead_forms", page_id: pageId, forms },
     });

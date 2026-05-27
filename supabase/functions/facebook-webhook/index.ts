@@ -108,6 +108,14 @@ async function processLeadgenChange(
     }
   }
 
+  // Check if this form has a specific pipeline configured
+  const { data: formConfig } = await supabase
+    .from("facebook_lead_forms")
+    .select("pipeline_id")
+    .eq("user_id", userId)
+    .eq("form_id", formId)
+    .maybeSingle();
+
   const { data: userMappings } = await supabase
     .from("facebook_field_mappings")
     .select("fb_field_name, contact_field, is_custom_field")
@@ -206,13 +214,9 @@ async function processLeadgenChange(
   }
   console.log(`Created contact ${newContact.id} from lead ${leadgenId}`);
 
-  const { data: pipeline } = await supabase
-    .from("pipelines")
-    .select("id")
-    .eq("organization_id", organizationId)
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const { data: pipeline } = formConfig?.pipeline_id
+    ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
+    : await supabase.from("pipelines").select("id").eq("organization_id", organizationId).order("created_at", { ascending: true }).limit(1).maybeSingle();
 
   if (!pipeline) {
     console.warn(`No pipeline configured — contact created without deal (${newContact.id})`);
