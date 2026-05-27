@@ -810,35 +810,195 @@ export default function HomePage() {
 
         {/* ── HOW IT WORKS ──────────────────────────────────────────────────── */}
         <section className="bg-slate-950 py-24">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <FadeUp className="text-center mb-16">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+            <FadeUp className="text-center mb-14">
               <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Cómo funciona</p>
-              <h2 className="text-4xl md:text-5xl font-black text-white">Configura y vende en minutos</h2>
+              <h2 className="text-4xl md:text-5xl font-black text-white mb-4">Configura y vende en 3 pasos</h2>
+              <p className="text-slate-400 text-lg max-w-lg mx-auto">Sin técnicos, sin contratos, sin complicaciones.</p>
             </FadeUp>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-              {/* Animated connector line */}
-              <div className="hidden md:block absolute top-10 left-[calc(33%+0.5rem)] right-[calc(33%+0.5rem)] pointer-events-none">
-                <FadeUp from="scale" delay={300} className="h-px bg-gradient-to-r from-orange-500/50 via-orange-500/30 to-orange-500/50" />
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
 
-              {[
-                { step: "01", title: "Conecta tus canales", desc: "WhatsApp, Meta Ads e Instagram en 5 minutos. Sin código, sin llamar a un técnico.", Icon: Zap },
-                { step: "02", title: "Captura y califica leads", desc: "Los formularios de tus landings van directo al pipeline. La IA asigna un score de 1 a 10.", Icon: Brain },
-                { step: "03", title: "Cierra más ventas", desc: "Las automatizaciones hacen el seguimiento. Tú te enfocas solo en los hot leads.", Icon: TrendingUp },
-              ].map(({ step, title, desc, Icon }, i) => (
-                <FadeUp key={step} delay={i * 120}>
-                  <div className="relative group">
-                    <div className="w-14 h-14 bg-slate-900 border border-orange-500/30 rounded-2xl flex flex-col items-center justify-center mb-6 relative z-10 group-hover:border-orange-500/60 group-hover:bg-orange-500/5 transition-all duration-300">
-                      <span className="text-orange-500 font-black font-mono text-xs leading-none mb-0.5">{step}</span>
-                      <Icon className="w-4 h-4 text-orange-400" />
+              {/* ── Step 01 ── */}
+              <FadeUp delay={0}>
+                <div className="h-full flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group hover:border-orange-500/30 transition-all duration-300 hover:-translate-y-1">
+                  {/* Visual: channels → Klosify hub */}
+                  <div className="p-6 bg-slate-800/30 border-b border-slate-800 flex-shrink-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col gap-3">
+                        {[
+                          { color: "bg-green-500", Icon: MessageCircle, label: "WhatsApp"  },
+                          { color: "bg-blue-600",  Icon: BarChart3,     label: "Meta Ads"  },
+                          { color: "bg-pink-500",  Icon: MessageCircle, label: "Instagram" },
+                        ].map(({ color, Icon, label }) => (
+                          <div key={label} className="flex items-center gap-2">
+                            <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                              <Icon className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <span className="text-xs text-slate-400 font-medium">{label}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex flex-col gap-3 items-center px-1">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="h-px w-10 bg-gradient-to-r from-slate-700 to-orange-500/60" />
+                        ))}
+                      </div>
+                      <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-500/30 flex-shrink-0 group-hover:scale-105 transition-transform">
+                        <Zap className="w-7 h-7 text-white fill-white" />
+                      </div>
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">{desc}</p>
+                    <div className="mt-4 flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                      <span className="text-xs text-green-400 font-medium">3 canales conectados · activo</span>
+                    </div>
                   </div>
-                </FadeUp>
-              ))}
+                  {/* Content */}
+                  <div className="p-6 flex flex-col flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-slate-800 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center flex-shrink-0 group-hover:border-orange-500/60 group-hover:bg-orange-500/5 transition-all">
+                        <span className="text-orange-500 font-black font-mono text-[10px] leading-none">01</span>
+                        <Zap className="w-3 h-3 text-orange-400" />
+                      </div>
+                      <h3 className="text-base font-bold text-white">Conecta tus canales</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">WhatsApp Business, Meta Ads e Instagram en 5 minutos. Sin código, sin llamar a un técnico.</p>
+                    <ul className="space-y-2 mt-auto">
+                      {["Setup guiado paso a paso", "OAuth seguro con cada plataforma", "Confirmación en tiempo real"].map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </FadeUp>
+
+              {/* ── Step 02 ── */}
+              <FadeUp delay={130}>
+                <div className="h-full flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group hover:border-orange-500/30 transition-all duration-300 hover:-translate-y-1">
+                  {/* Visual: form → lead card */}
+                  <div className="p-6 bg-slate-800/30 border-b border-slate-800 flex-shrink-0">
+                    <div className="flex items-start gap-3">
+                      {/* Mini landing form */}
+                      <div className="flex-1 bg-slate-800 rounded-xl p-3 border border-slate-700/50">
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">Landing page</p>
+                        <div className="space-y-1.5">
+                          <div className="bg-slate-700/60 rounded-md h-5 w-full" />
+                          <div className="bg-slate-700/60 rounded-md h-5 w-4/5" />
+                          <div className="bg-orange-500 rounded-md h-6 w-full flex items-center justify-center">
+                            <span className="text-white text-[9px] font-bold tracking-wide">ENVIAR →</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Arrow */}
+                      <div className="flex items-center self-center flex-shrink-0 pt-3">
+                        <ArrowRight className="w-4 h-4 text-orange-400" />
+                      </div>
+                      {/* Lead card */}
+                      <div className="flex-1 bg-slate-800 rounded-xl p-3 border border-green-500/20">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="text-xs font-semibold text-white">Juan M.</span>
+                          <span className="text-xs font-black text-green-400 font-mono">9.1</span>
+                        </div>
+                        <p className="text-[10px] text-slate-500 mb-2">via Meta Ads</p>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
+                          <span className="text-[10px] text-green-400 font-medium">Hot lead</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
+                      <Brain className="w-3 h-3 text-blue-400 flex-shrink-0" />
+                      <span className="text-[10px] text-blue-300 font-medium">IA analizó 4 señales de compra</span>
+                    </div>
+                  </div>
+                  {/* Content */}
+                  <div className="p-6 flex flex-col flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-slate-800 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center flex-shrink-0 group-hover:border-orange-500/60 group-hover:bg-orange-500/5 transition-all">
+                        <span className="text-orange-500 font-black font-mono text-[10px] leading-none">02</span>
+                        <Brain className="w-3 h-3 text-orange-400" />
+                      </div>
+                      <h3 className="text-base font-bold text-white">Captura y califica leads</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">Los formularios van directo al pipeline. La IA analiza cada lead y asigna un score de 1 a 10 al instante.</p>
+                    <ul className="space-y-2 mt-auto">
+                      {["Formularios conectados al pipeline", "Score de IA en tiempo real", "Fuente del lead rastreada"].map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </FadeUp>
+
+              {/* ── Step 03 ── */}
+              <FadeUp delay={260}>
+                <div className="h-full flex flex-col bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden group hover:border-orange-500/30 transition-all duration-300 hover:-translate-y-1">
+                  {/* Visual: hot lead + auto WA follow-up */}
+                  <div className="p-6 bg-slate-800/30 border-b border-slate-800 flex-shrink-0">
+                    {/* Hot lead card */}
+                    <div className="bg-orange-500/10 border border-orange-500/30 rounded-xl p-3 mb-3">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-white">María G.</span>
+                        <span className="text-sm font-black text-green-400 font-mono">9.6</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-400 font-mono">$8,500</span>
+                        <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full font-semibold">🔥 HOT</span>
+                      </div>
+                    </div>
+                    {/* Auto WA message */}
+                    <div className="bg-slate-800 rounded-xl p-3 border border-slate-700/50">
+                      <div className="flex items-center gap-1.5 mb-2">
+                        <div className="w-4 h-4 bg-green-500 rounded-md flex items-center justify-center flex-shrink-0">
+                          <MessageCircle className="w-2.5 h-2.5 text-white" />
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium">Automatización · enviado</span>
+                        <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400" />
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed italic">"Hola María, ¿pudiste revisar la propuesta?"</p>
+                      <div className="flex items-center gap-1 mt-1.5">
+                        <Check className="w-2.5 h-2.5 text-green-400" />
+                        <Check className="w-2.5 h-2.5 text-green-400 -ml-1" />
+                        <span className="text-[10px] text-slate-600 ml-0.5">10:47 · leído</span>
+                      </div>
+                    </div>
+                  </div>
+                  {/* Content */}
+                  <div className="p-6 flex flex-col flex-1">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 bg-slate-800 border border-orange-500/30 rounded-xl flex flex-col items-center justify-center flex-shrink-0 group-hover:border-orange-500/60 group-hover:bg-orange-500/5 transition-all">
+                        <span className="text-orange-500 font-black font-mono text-[10px] leading-none">03</span>
+                        <TrendingUp className="w-3 h-3 text-orange-400" />
+                      </div>
+                      <h3 className="text-base font-bold text-white">Cierra más ventas</h3>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">Las automatizaciones hacen el seguimiento por ti. Enfócate solo en los hot leads que están listos para cerrar.</p>
+                    <ul className="space-y-2 mt-auto">
+                      {["Seguimientos automáticos por WhatsApp", "Alertas de leads sin respuesta", "Pronóstico de cierre por IA"].map((b) => (
+                        <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </FadeUp>
             </div>
+
+            {/* Result metric */}
+            <FadeUp delay={380} className="mt-10 flex justify-center">
+              <div className="inline-flex items-center gap-5 bg-slate-900 border border-slate-800 rounded-2xl px-8 py-5 hover:border-orange-500/20 transition-colors">
+                <span className="text-4xl font-black text-orange-400 font-mono leading-none">3×</span>
+                <div>
+                  <p className="text-white font-semibold text-sm">más ventas cerradas</p>
+                  <p className="text-slate-500 text-xs mt-0.5">en los primeros 30 días siguiendo este proceso</p>
+                </div>
+              </div>
+            </FadeUp>
           </div>
         </section>
 
