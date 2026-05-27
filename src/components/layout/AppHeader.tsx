@@ -1,4 +1,4 @@
-import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone } from "lucide-react";
+import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone, Building2, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -9,8 +9,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Separator } from "@/components/ui/separator";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 
 interface AppHeaderProps {
   title: string;
@@ -30,6 +32,56 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+
+  // ── Global search ─────────────────────────────────────────────────────────
+  const { organizationId } = useOrganizationContext();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchResults, setSearchResults] = useState<{
+    contacts: { id: string; full_name: string; primary_email: string | null }[];
+    companies: { id: string; name: string; industry: string | null }[];
+  }>({ contacts: [], companies: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim() || !organizationId) { setSearchResults({ contacts: [], companies: [] }); return; }
+    setSearchLoading(true);
+    const term = `%${q.trim()}%`;
+    const [{ data: contacts }, { data: companies }] = await Promise.all([
+      supabase.from("contacts")
+        .select("id, full_name, primary_email")
+        .eq("organization_id", organizationId)
+        .or(`full_name.ilike.${term},primary_email.ilike.${term},primary_phone.ilike.${term}`)
+        .limit(5),
+      supabase.from("companies")
+        .select("id, name, industry")
+        .eq("organization_id", organizationId)
+        .ilike("name", term)
+        .limit(5),
+    ]);
+    setSearchResults({ contacts: contacts ?? [], companies: companies ?? [] });
+    setSearchLoading(false);
+  }, [organizationId]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => runSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, runSearch]);
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const hasResults = searchResults.contacts.length > 0 || searchResults.companies.length > 0;
+  // ─────────────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -127,9 +179,62 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
 
       <div className="flex items-center gap-2">
         {actions}
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input placeholder="Buscar..." className="h-9 w-56 pl-8 text-sm" />
+        {/* ── Global search ── */}
+        <div ref={searchRef} className="relative hidden md:block">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+          <Input
+            placeholder="Buscar..."
+            className="h-9 w-56 pl-8 text-sm"
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true); }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={e => e.key === "Escape" && setSearchOpen(false)}
+          />
+          {searchOpen && searchQuery.trim() && (
+            <div className="absolute top-full mt-1 w-72 rounded-md border bg-popover shadow-lg z-50 overflow-hidden">
+              {searchLoading && (
+                <p className="px-3 py-2 text-xs text-muted-foreground">Buscando...</p>
+              )}
+              {!searchLoading && !hasResults && (
+                <p className="px-3 py-2 text-xs text-muted-foreground">Sin resultados para "{searchQuery}"</p>
+              )}
+              {!searchLoading && searchResults.contacts.length > 0 && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Users className="h-3 w-3" /> Contactos
+                  </p>
+                  {searchResults.contacts.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { navigate(path(`/contacts/${c.id}`)); setSearchOpen(false); setSearchQuery(""); }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <span className="font-medium truncate">{c.full_name}</span>
+                      {c.primary_email && <span className="text-xs text-muted-foreground truncate">{c.primary_email}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {!searchLoading && searchResults.companies.length > 0 && (
+                <div>
+                  <p className="px-3 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3" /> Empresas
+                  </p>
+                  {searchResults.companies.map(c => (
+                    <button
+                      key={c.id}
+                      onClick={() => { navigate(path(`/companies/${c.id}`)); setSearchOpen(false); setSearchQuery(""); }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent transition-colors text-left"
+                    >
+                      <span className="font-medium truncate">{c.name}</span>
+                      {c.industry && <span className="text-xs text-muted-foreground truncate">{c.industry}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div className="border-t px-3 py-1.5" />
+            </div>
+          )}
         </div>
         <Button variant="ghost" size="icon" className="h-9 w-9 hidden md:inline-flex" onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")} title={resolvedTheme === "dark" ? "Modo claro" : "Modo oscuro"}>
           {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
