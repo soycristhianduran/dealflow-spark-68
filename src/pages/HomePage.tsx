@@ -1,16 +1,20 @@
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import {
   MessageCircle, BarChart3, Brain, GitBranch, Check, X, Menu, Shield,
   TrendingUp, Layout, Plus, Minus, Zap, Sparkles, Star, BadgePercent,
-  Wand2, Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight,
+  Wand2, Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2,
 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface FaqItem { q: string; a: string }
 interface Plan {
+  id: string;
   name: string; monthly: number; annual: number; desc: string;
   features: string[]; notIncluded: string[]; cta: string; popular: boolean;
 }
@@ -23,6 +27,7 @@ interface Testimonial { quote: string; name: string; role: string; company: stri
 
 const plans: Plan[] = [
   {
+    id: "starter",
     name: "Starter", monthly: 29, annual: 24,
     desc: "Para emprendedores que están comenzando",
     features: ["1 usuario", "500 contactos", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Todas las integraciones"],
@@ -30,6 +35,7 @@ const plans: Plan[] = [
     cta: "Empezar gratis", popular: false,
   },
   {
+    id: "pro",
     name: "Pro", monthly: 39, annual: 32,
     desc: "Para equipos de ventas en crecimiento",
     features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 leads/mes", "Automatizaciones de Instagram", "WhatsApp Business nativo", "Meta Ads + ROAS"],
@@ -37,11 +43,12 @@ const plans: Plan[] = [
     cta: "Comenzar ahora →", popular: true,
   },
   {
+    id: "business",
     name: "Business", monthly: 89, annual: 74,
     desc: "Para agencias y equipos grandes",
     features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 leads/mes", "Soporte prioritario", "Todo lo del Pro"],
     notIncluded: [],
-    cta: "Contactar ventas", popular: false,
+    cta: "Suscribirse ahora →", popular: false,
   },
 ];
 
@@ -346,7 +353,9 @@ function FaqAccordion({ items }: { items: FaqItem[] }) {
   );
 }
 
-function PlanCard({ plan, isAnnual }: { plan: Plan; isAnnual: boolean }) {
+function PlanCard({ plan, isAnnual, onCta, loading }: {
+  plan: Plan; isAnnual: boolean; onCta: () => void; loading: boolean;
+}) {
   const price = isAnnual ? plan.annual : plan.monthly;
   return (
     <div className={`relative flex flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-2 border-orange-500 shadow-2xl shadow-orange-500/10 md:scale-105 bg-white hover:shadow-orange-500/20" : "border border-slate-200 bg-white shadow-sm hover:shadow-lg"}`}>
@@ -368,9 +377,13 @@ function PlanCard({ plan, isAnnual }: { plan: Plan; isAnnual: boolean }) {
         </div>
         {isAnnual && <p className="text-xs text-green-600 font-medium mt-1">Facturado anualmente · Ahorras ${(plan.monthly - plan.annual) * 12}/año</p>}
       </div>
-      <Link to="/auth" className={`block text-center py-3 px-6 rounded-xl font-semibold text-sm transition-all mb-8 ${plan.popular ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:from-orange-400 hover:to-orange-500" : "border-2 border-slate-200 text-slate-700 hover:border-orange-500 hover:text-orange-500"}`}>
-        {plan.cta}
-      </Link>
+      <button
+        onClick={onCta}
+        disabled={loading}
+        className={`flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl font-semibold text-sm transition-all mb-8 disabled:opacity-70 disabled:cursor-not-allowed ${plan.popular ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:from-orange-400 hover:to-orange-500" : "border-2 border-slate-200 text-slate-700 hover:border-orange-500 hover:text-orange-500"}`}
+      >
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</> : plan.cta}
+      </button>
       <div className="space-y-3 flex-1">
         {plan.features.map((f, i) => (
           <div key={i} className="flex items-start gap-3">
@@ -392,11 +405,56 @@ function PlanCard({ plan, isAnnual }: { plan: Plan; isAnnual: boolean }) {
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const { session } = useAuth();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [stripePrices, setStripePrices] = useState<Record<string, { monthly: string | null; annual: string | null }>>({});
   const heroGlowRef  = useRef<HTMLDivElement>(null);
   const heroGridRef  = useRef<HTMLDivElement>(null);
+
+  // Fetch Stripe price IDs from DB (public table, no auth needed)
+  useEffect(() => {
+    (async () => {
+      const { data } = await (supabase as any)
+        .from("plans")
+        .select("id, stripe_price_id_monthly, stripe_price_id_annual");
+      if (data) {
+        const map: Record<string, { monthly: string | null; annual: string | null }> = {};
+        for (const p of data) map[p.id] = { monthly: p.stripe_price_id_monthly, annual: p.stripe_price_id_annual };
+        setStripePrices(map);
+      }
+    })();
+  }, []);
+
+  async function startCheckout(planId: string) {
+    // Not logged in → go to auth, then bounce to /pricing which handles checkout
+    if (!session) {
+      navigate(`/auth?plan=${planId}&interval=${isAnnual ? "annual" : "monthly"}`);
+      return;
+    }
+    const prices = stripePrices[planId];
+    const priceId = isAnnual ? prices?.annual : prices?.monthly;
+    if (!priceId) {
+      toast.error("Este plan no está disponible en este momento. Intenta más tarde.");
+      return;
+    }
+    setCheckoutLoading(planId);
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-create-checkout-session", {
+        body: { mode: "subscription", price_id: priceId, success_path: "/billing", cancel_path: "/billing" },
+      });
+      if (error || !data?.url) {
+        toast.error("No se pudo iniciar el pago. Intenta de nuevo.");
+        return;
+      }
+      window.location.href = data.url;
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
 
   useEffect(() => {
     const fn = () => {
@@ -1083,7 +1141,12 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start max-w-5xl mx-auto pb-8">
               {plans.map((plan, i) => (
                 <FadeUp key={plan.name} delay={i * 100}>
-                  <PlanCard plan={plan} isAnnual={isAnnual} />
+                  <PlanCard
+                    plan={plan}
+                    isAnnual={isAnnual}
+                    onCta={() => startCheckout(plan.id)}
+                    loading={checkoutLoading === plan.id}
+                  />
                 </FadeUp>
               ))}
             </div>
