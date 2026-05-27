@@ -462,7 +462,7 @@ Deno.serve(async (req) => {
           else if (amount === 4900) credits = 5000;
         } else if (kind === "ia_landings") {
           if (amount === 900) credits = 5;
-          else if (amount === 3500) credits = 25;
+          else if (amount === 2900) credits = 25;
         }
 
         if (credits === 0) {

@@ -48,7 +48,7 @@ export const IA_LANDINGS_PACKS = [
     label: "IA Landings +25 créditos",
     description: "25 créditos para generar landing pages con IA",
     credits: 25,
-    priceUsd: 35,
+    priceUsd: 29,
     price_id: "price_1TZGQHRvVDvs7cXCLkDWkJXI",
   },
 ] as const;
