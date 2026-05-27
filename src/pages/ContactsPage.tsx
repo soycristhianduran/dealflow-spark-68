@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
@@ -75,6 +75,8 @@ interface ProfileOption {
   full_name: string;
 }
 
+const PAGE_SIZE = 50;
+
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // lead_status filter
@@ -99,6 +101,8 @@ export default function ContactsPage() {
   const [stagesForFilter, setStagesForFilter] = useState<{ id: string; name: string; color: string }[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
@@ -164,9 +168,12 @@ export default function ContactsPage() {
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
+    const from = currentPage * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
     let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields")
-      .order("created_at", { ascending: false });
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
     if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
     else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
@@ -178,19 +185,20 @@ export default function ContactsPage() {
     if (utmCampaignFilter !== "all") query = query.eq("utm_campaign", utmCampaignFilter);
     if (tagFilter) query = query.contains("tags", [tagFilter]);
     if (customFieldKey && customFieldValue) {
-      // Filter by custom_fields JSONB — use filter with @> operator
       query = query.contains("custom_fields", { [customFieldKey]: customFieldValue });
     }
-    // Vendors only see their own leads
     if (isVendor && myUserId) {
       query = query.eq("owner_id", myUserId);
     } else if (isOwnerOrAdmin && ownerFilter !== "all") {
       query = query.eq("owner_id", ownerFilter);
     }
-    const { data, error } = await query;
-    if (!error && data) setContacts(data as any);
+    const { data, error, count } = await query;
+    if (!error && data) {
+      setContacts(data as any);
+      setTotalCount(count ?? 0);
+    }
     setLoading(false);
-  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [currentPage, statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -203,6 +211,11 @@ export default function ContactsPage() {
   }, [fetchContacts]);
 
   useEffect(() => { setSelected(new Set()); }, [statusFilter, search, ownerFilter]);
+
+  // Reset to page 0 whenever any filter changes
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue]);
 
   // Fetch team members via edge function (bypasses RLS on profiles table).
   // Used for: owner filter dropdown, reassign dialog, Vendedor column display.
@@ -584,7 +597,7 @@ export default function ContactsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Leads" subtitle={`${contacts.length} leads`} actions={
+      <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" /> Nuevo lead
         </Button>
@@ -966,6 +979,38 @@ export default function ContactsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination controls */}
+        {totalCount > PAGE_SIZE && (
+          <div className="flex items-center justify-between px-1 py-1">
+            <p className="text-xs text-muted-foreground">
+              Mostrando {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalCount)} de {totalCount} leads
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={currentPage === 0}
+                onClick={() => setCurrentPage(p => p - 1)}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="text-xs text-muted-foreground px-2">
+                Página {currentPage + 1} de {Math.ceil(totalCount / PAGE_SIZE)}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 w-8 p-0"
+                disabled={(currentPage + 1) * PAGE_SIZE >= totalCount}
+                onClick={() => setCurrentPage(p => p + 1)}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
 
       <CreateContactDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchContacts} />
