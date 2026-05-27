@@ -145,13 +145,77 @@
   .logo-img.sz-36 { width: 36px; height: 36px; border-radius: 10px; background: white; }
 
   @media (max-width: 768px) {
-    .hero h1 { font-size: 32px; }
-    .plans-grid { grid-template-columns: 1fr; }
-    .plan-card.popular { transform: none; }
-    .diff-grid { grid-template-columns: repeat(2, 1fr); }
-    .stack-wrapper { grid-template-columns: 1fr; }
-    .vs-col { padding: 16px 0; }
-  }
+  /* Hero */
+  .hero { padding: 48px 20px 40px; }
+  .hero h1 { font-size: 30px; }
+  .hero p { font-size: 16px; margin-bottom: 28px; }
+  .hero-badges { gap: 8px; }
+  .hero-badge { font-size: 11px; padding: 6px 12px; }
+  .logo-text { font-size: 20px; }
+  .logo-icon { width: 38px; height: 38px; font-size: 18px; }
+
+  /* Differentiators */
+  .diff-section { padding: 40px 20px; }
+  .diff-section h2 { font-size: 24px; }
+  .diff-grid { grid-template-columns: 1fr; gap: 12px; }
+  .diff-card { padding: 24px 20px; }
+
+  /* Plans */
+  .plans-section { padding: 48px 20px; }
+  .plans-section h2 { font-size: 28px; }
+  .plans-grid { grid-template-columns: 1fr; gap: 32px; max-width: 100%; }
+  .plan-card.popular { transform: none; box-shadow: 0 12px 32px rgba(249,115,22,0.15); }
+
+  /* Stack savings */
+  .stack-section { padding: 48px 20px; }
+  .stack-section h2 { font-size: 24px; }
+  .stack-wrapper { grid-template-columns: 1fr; gap: 0; }
+  .stack-tools { border-radius: 16px 16px 0 0; border-bottom: none; }
+  .stack-klosify { border-radius: 0 0 16px 16px; }
+  .vs-col { padding: 16px 0; }
+  .vs-badge { width: 40px; height: 40px; font-size: 12px; }
+  .tool-row { padding: 12px 16px; }
+  .tool-name { font-size: 13px; }
+  .tool-note { font-size: 11px; }
+  .tool-cost { font-size: 13px; }
+  .stack-head { padding: 16px 20px 12px; }
+  .stack-total-row { padding: 14px 16px; }
+  .stack-total-price { font-size: 20px; }
+  .klosify-body { padding: 20px 16px; }
+  .klosify-big-price { font-size: 38px; }
+  .klosify-includes-list li { font-size: 12px; }
+
+  /* Addons */
+  .addons-section { padding: 48px 20px; }
+  .addons-section h2 { font-size: 24px; }
+  .addons-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+  .addon-card { padding: 20px 16px; }
+  .addon-card .addon-price { font-size: 22px; }
+
+  /* Comparison */
+  .comp-section { padding: 48px 20px; }
+  .comp-section h2 { font-size: 24px; }
+  .comp-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .comp-table { min-width: 560px; font-size: 12px; }
+  .comp-table th, .comp-table td { padding: 10px 12px; }
+  .comp-table th img { width: 20px; height: 20px; }
+
+  /* CTA */
+  .cta-section { padding: 56px 20px; }
+  .cta-section h2 { font-size: 28px; }
+  .cta-section p { font-size: 15px; margin-bottom: 28px; }
+  .cta-btn { font-size: 15px; padding: 14px 32px; }
+
+  /* Footer */
+  .footer { flex-direction: column; gap: 16px; text-align: center; padding: 24px 20px; }
+  .footer-links { gap: 16px; justify-content: center; flex-wrap: wrap; }
+}
+
+@media (max-width: 420px) {
+  .hero h1 { font-size: 26px; }
+  .addons-grid { grid-template-columns: 1fr; }
+  .plan-price { font-size: 40px; }
+}
 </style>
 </head>
 <body>
@@ -441,6 +505,7 @@
 <div class="comp-section">
   <h2>Klosify vs la competencia</h2>
   <p class="sub">Más funcionalidades. Mejor precio. Hecho para LATAM.</p>
+  <div class="comp-table-wrap">
   <table class="comp-table">
     <thead>
       <tr>
@@ -496,6 +561,7 @@
       </tr>
     </tbody>
   </table>
+  </div>
 </div>
 
 <!-- CTA FINAL -->
