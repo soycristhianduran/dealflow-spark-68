@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, CalendarDays,
   CheckSquare, Settings, ChevronLeft, ChevronRight, Zap, Plug,
-  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp,
+  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -62,6 +62,7 @@ const powerGroups = [
 ];
 
 const bottomItems = [
+  { title: "Facturación", url: "/billing", icon: CreditCard },
   { title: "Configuración", url: "/settings", icon: Settings },
 ];
 
