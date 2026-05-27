@@ -36,7 +36,7 @@ export function LockoutScreen() {
       ? "Tu acceso al CRM está pausado. Reactiva tu suscripción para continuar trabajando con tus datos."
       : status === "unpaid" || status === "past_due"
       ? "Actualiza tu método de pago para reanudar tu acceso al CRM."
-      : "Para seguir usando Velocity CRM, elige un plan que se ajuste a tu equipo.";
+      : "Para seguir usando Klosify CRM, elige un plan que se ajuste a tu equipo.";
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">

@@ -24,7 +24,7 @@ const DataDeletionPage = () => {
         <p>
           De acuerdo con la Ley 1581 de 2012 (Colombia), el GDPR (Unión
           Europea) y las políticas de plataforma de Meta, cualquier persona
-          cuyos datos sean tratados por <strong>Velocity CRM</strong>
+          cuyos datos sean tratados por <strong>Klosify CRM</strong>
           (operado por CRISTHIAN DURAN, NIT 1094270110-2) tiene derecho a
           solicitar su eliminación.
         </p>
@@ -32,7 +32,7 @@ const DataDeletionPage = () => {
         <ul>
           <li>Usuarios de Instagram cuyas conversaciones (DMs) o comentarios
             están almacenados en nuestra base de datos.</li>
-          <li>Contactos de WhatsApp del cliente que usa Velocity CRM.</li>
+          <li>Contactos de WhatsApp del cliente que usa Klosify CRM.</li>
           <li>Leads generados a través de Facebook Lead Ads.</li>
           <li>Cualquier persona cuyos datos hayan sido almacenados por
             nuestros Clientes en el CRM.</li>
@@ -42,12 +42,12 @@ const DataDeletionPage = () => {
 
         <h3>Opción 1 — Eliminación directa por el cliente del CRM</h3>
         <p>
-          Si tus datos están en la cuenta de un Cliente de Velocity CRM,
+          Si tus datos están en la cuenta de un Cliente de Klosify CRM,
           contacta directamente con esa empresa o profesional. Ellos pueden
           eliminar tus datos inmediatamente desde su panel.
         </p>
 
-        <h3>Opción 2 — Solicitud directa a Velocity CRM</h3>
+        <h3>Opción 2 — Solicitud directa a Klosify CRM</h3>
         <p>
           Envía un correo a{" "}
           <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
@@ -67,7 +67,7 @@ const DataDeletionPage = () => {
         <h3>Opción 3 — Solicitud automatizada a través de Meta</h3>
         <p>
           Si previamente conectaste tu cuenta de Instagram o Facebook a
-          Velocity CRM y deseas revocar el acceso completo:
+          Klosify CRM y deseas revocar el acceso completo:
         </p>
         <ol>
           <li>Abre Instagram → Configuración → <strong>Apps y sitios web</strong>{" "}
@@ -81,10 +81,10 @@ const DataDeletionPage = () => {
             </a>)
           </li>
           <li>Busca <strong>"CRM ADV Messages"</strong> o
-            <strong> "Velocity CRM"</strong></li>
+            <strong> "Klosify CRM"</strong></li>
           <li>Click en <strong>"Eliminar"</strong> — esto revoca todos los
             permisos otorgados y dispara automáticamente una notificación a
-            Velocity CRM para eliminar tus datos.</li>
+            Klosify CRM para eliminar tus datos.</li>
         </ol>
 
         <h2>Tiempo de procesamiento</h2>

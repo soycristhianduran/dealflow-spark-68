@@ -16,11 +16,11 @@ const TermsPage = () => {
 
         <h2>1. Aceptación</h2>
         <p>
-          Estos Términos rigen el uso de <strong>Velocity CRM</strong> (en
+          Estos Términos rigen el uso de <strong>Klosify CRM</strong> (en
           adelante, "el Servicio"), una plataforma de software como servicio
           (SaaS) operada por <strong>CRISTHIAN DURAN</strong>, identificado
           con NIT <strong>1094270110-2</strong>, domiciliado en Colombia (en
-          adelante, "Velocity CRM" o "nosotros").
+          adelante, "Klosify CRM" o "nosotros").
         </p>
         <p>
           Al registrarte, acceder o utilizar el Servicio, aceptas estos
@@ -30,7 +30,7 @@ const TermsPage = () => {
 
         <h2>2. Descripción del Servicio</h2>
         <p>
-          Velocity CRM es una herramienta de gestión de relaciones con
+          Klosify CRM es una herramienta de gestión de relaciones con
           clientes (CRM) que permite a empresas y profesionales:
         </p>
         <ul>
@@ -78,14 +78,14 @@ const TermsPage = () => {
         <h2>5. Integraciones con Meta</h2>
         <p>
           Al conectar tus cuentas de Facebook, Instagram o WhatsApp a
-          Velocity CRM, autorizas a Velocity CRM a acceder, almacenar y
+          Klosify CRM, autorizas a Klosify CRM a acceder, almacenar y
           procesar los datos descritos en nuestra{" "}
           <a href="/privacy" className="text-primary underline">Política de Privacidad</a>{" "}
           a través de las APIs oficiales de Meta.
         </p>
         <p>
           Puedes revocar este acceso en cualquier momento desde Instagram →
-          Configuración → Apps y sitios web, o desde el panel de Velocity
+          Configuración → Apps y sitios web, o desde el panel de Klosify
           CRM. La revocación dispara la eliminación de los datos asociados
           según se detalla en la{" "}
           <a href="/data-deletion" className="text-primary underline">
@@ -98,9 +98,9 @@ const TermsPage = () => {
           <li>El código, diseño, marca y contenido del Servicio son propiedad
             exclusiva de CRISTHIAN DURAN.</li>
           <li>Los datos que el Cliente carga al Servicio (contactos, mensajes,
-            archivos) siguen siendo propiedad del Cliente. Velocity CRM
+            archivos) siguen siendo propiedad del Cliente. Klosify CRM
             actúa como encargado del tratamiento, no como propietario.</li>
-          <li>Otorgas a Velocity CRM una licencia limitada y no exclusiva
+          <li>Otorgas a Klosify CRM una licencia limitada y no exclusiva
             para procesar tus datos solo en la medida necesaria para
             prestar el Servicio.</li>
         </ul>
@@ -116,7 +116,7 @@ const TermsPage = () => {
         <h2>8. Suscripción, precios y cancelación</h2>
         <p>
           Los planes, precios y métodos de pago se publican en la página de
-          precios de Velocity CRM. Puedes cancelar tu suscripción en
+          precios de Klosify CRM. Puedes cancelar tu suscripción en
           cualquier momento; la cancelación se hace efectiva al final del
           ciclo de facturación en curso. No hay reembolsos por períodos
           parcialmente utilizados, salvo obligación legal.
@@ -129,9 +129,9 @@ const TermsPage = () => {
         <ul>
           <li>El Servicio se presta <em>"tal cual"</em> y <em>"según
             disponibilidad"</em>, sin garantías expresas o implícitas.</li>
-          <li>Velocity CRM no es responsable de daños indirectos,
+          <li>Klosify CRM no es responsable de daños indirectos,
             incidentales, especiales, consecuentes o lucro cesante.</li>
-          <li>La responsabilidad agregada de Velocity CRM por cualquier
+          <li>La responsabilidad agregada de Klosify CRM por cualquier
             reclamo no excederá el monto pagado por el Cliente en los 12
             meses anteriores al evento que origina la reclamación.</li>
           <li>No nos hacemos responsables por interrupciones derivadas de
@@ -142,7 +142,7 @@ const TermsPage = () => {
         <h2>10. Indemnización</h2>
         <p>
           Aceptas indemnizar y mantener indemne a CRISTHIAN DURAN y al
-          equipo de Velocity CRM frente a cualquier reclamación de
+          equipo de Klosify CRM frente a cualquier reclamación de
           terceros derivada del uso indebido del Servicio por tu parte,
           incluido el incumplimiento de las políticas de plataforma de
           Meta, el envío de spam o la violación de derechos de terceros.
@@ -155,7 +155,7 @@ const TermsPage = () => {
         <ul>
           <li>Violas estos Términos.</li>
           <li>Tu actividad pone en riesgo la integridad del Servicio o la
-            relación de Velocity CRM con Meta u otros proveedores.</li>
+            relación de Klosify CRM con Meta u otros proveedores.</li>
           <li>Falta de pago.</li>
           <li>Solicitud de autoridad competente.</li>
         </ul>
@@ -164,7 +164,7 @@ const TermsPage = () => {
         <p>
           Estos Términos se rigen por la legislación de la <strong>República
             de Colombia</strong>. Cualquier disputa será sometida a los
-          jueces competentes del domicilio de Velocity CRM, renunciando las
+          jueces competentes del domicilio de Klosify CRM, renunciando las
           partes a cualquier otro fuero.
         </p>
 

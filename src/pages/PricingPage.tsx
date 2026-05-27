@@ -252,7 +252,7 @@ export default function PricingPage() {
         {/* AI Boost mention */}
         <div className="text-center mt-10 text-sm text-muted-foreground">
           ¿Necesitas más análisis IA?{" "}
-          <Link to="/billing" className="underline">AI Boost desde $9</Link>
+          <Link to="/billing" className="underline">IA Boost desde $19</Link>
           {" "}— compra paquetes adicionales cuando tu plan llegue al límite.
         </div>
 
@@ -273,8 +273,8 @@ export default function PricingPage() {
                 </thead>
                 <tbody>
                   <tr className="border-b bg-primary/5">
-                    <td className="py-2 font-semibold">Velocity CRM Pro</td>
-                    <td className="py-2">3 usuarios incluidos + AI nativa</td>
+                    <td className="py-2 font-semibold">Klosify CRM Pro</td>
+                    <td className="py-2">3 usuarios incluidos + IA nativa</td>
                     <td className="py-2 text-right font-bold text-primary">$39 USD</td>
                   </tr>
                   <tr className="border-b">

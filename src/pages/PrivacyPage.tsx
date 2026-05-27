@@ -18,7 +18,7 @@ const PrivacyPage = () => {
 
         <h2>1. Responsable del tratamiento</h2>
         <p>
-          <strong>CRISTHIAN DURAN</strong> (en adelante, "Velocity CRM" o
+          <strong>CRISTHIAN DURAN</strong> (en adelante, "Klosify CRM" o
           "nosotros"), con identificación tributaria <strong>NIT 1094270110-2</strong>,
           domiciliado en Colombia, es el responsable del tratamiento de los
           datos personales recopilados a través de la aplicación
@@ -26,7 +26,7 @@ const PrivacyPage = () => {
         </p>
         <p>
           Esta política describe cómo recopilamos, usamos, almacenamos y
-          protegemos los datos de los usuarios de Velocity CRM ("Clientes")
+          protegemos los datos de los usuarios de Klosify CRM ("Clientes")
           y de los terceros que interactúan con ellos a través de las
           plataformas integradas — Meta (Facebook, Instagram, WhatsApp) y
           otras.
@@ -46,7 +46,7 @@ const PrivacyPage = () => {
 
         <h3>2.2. Datos provenientes de Meta (Instagram, Facebook, WhatsApp)</h3>
         <p>
-          Cuando un Cliente conecta sus cuentas de Meta a Velocity CRM,
+          Cuando un Cliente conecta sus cuentas de Meta a Klosify CRM,
           recibimos a través de las APIs oficiales de Meta los siguientes datos:
         </p>
         <ul>
@@ -165,14 +165,14 @@ const PrivacyPage = () => {
 
         <h2>8. Cookies</h2>
         <p>
-          Velocity CRM utiliza únicamente cookies técnicas necesarias para el
+          Klosify CRM utiliza únicamente cookies técnicas necesarias para el
           funcionamiento de la sesión (autenticación). No utilizamos cookies
           de rastreo publicitario ni de terceros.
         </p>
 
         <h2>9. Menores de edad</h2>
         <p>
-          Velocity CRM es un producto B2B dirigido a empresas y profesionales
+          Klosify CRM es un producto B2B dirigido a empresas y profesionales
           mayores de 18 años. No recopilamos intencionalmente datos de
           menores. Si un Cliente recibe mensajes de menores a través de sus
           canales conectados, es responsabilidad del Cliente cumplir con la

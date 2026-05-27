@@ -85,7 +85,7 @@ const DataDeletionStatusPage = () => {
       <article className="max-w-2xl mx-auto prose prose-slate dark:prose-invert">
         <h1>Estado de la solicitud de eliminación de datos</h1>
         <p className="text-sm text-muted-foreground">
-          Velocity CRM · operado por CRISTHIAN DURAN (NIT 1094270110-2)
+          Klosify CRM · operado por CRISTHIAN DURAN (NIT 1094270110-2)
         </p>
 
         {state.kind === "loading" && (
@@ -97,7 +97,7 @@ const DataDeletionStatusPage = () => {
             <h2>Código no proporcionado</h2>
             <p>
               Esta página muestra el estado de una solicitud de eliminación
-              de datos generada cuando un usuario revoca el acceso a Velocity
+              de datos generada cuando un usuario revoca el acceso a Klosify
               CRM desde su cuenta de Facebook o Instagram. Para consultar el
               estado, abre el enlace tal cual te lo entregó Meta, asegurándote
               de incluir el parámetro <code>?code=...</code> en la URL.

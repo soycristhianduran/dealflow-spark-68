@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 8080
+    },
+    {
+      "name": "docs-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["serve", "docs", "-p", "4321", "--no-clipboard"],
+      "port": 4321
     }
   ]
 }

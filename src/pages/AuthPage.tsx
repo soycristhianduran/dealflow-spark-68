@@ -112,7 +112,7 @@ export default function AuthPage() {
               <Zap className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Velocity CRM</CardTitle>
+          <CardTitle className="text-2xl font-bold">Klosify CRM</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">Gestión comercial inteligente</p>
         </CardHeader>
         <CardContent>

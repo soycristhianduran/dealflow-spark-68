@@ -65,7 +65,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                     <Zap className="h-4 w-4 text-primary-foreground" />
                   </div>
                 )}
-                <SheetTitle className="text-base font-bold">Velocity CRM</SheetTitle>
+                <SheetTitle className="text-base font-bold">Klosify CRM</SheetTitle>
               </div>
             </SheetHeader>
 
