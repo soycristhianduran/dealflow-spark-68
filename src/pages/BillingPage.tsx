@@ -40,6 +40,7 @@ export default function BillingPage() {
   const [usage, setUsage] = useState<UsageRow | null>(null);
   const [usageLoading, setUsageLoading] = useState(true);
   const [boostCredits, setBoostCredits] = useState<number>(0);
+  const [landingCredits, setLandingCredits] = useState<number>(0);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
 
@@ -71,7 +72,7 @@ export default function BillingPage() {
       // Use UTC month start so it matches what the DB stores via date_trunc('month', NOW())
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const [{ data: u }, { data: boosts }] = await Promise.all([
+      const [{ data: u }, { data: boosts }, { data: landings }] = await Promise.all([
         (supabase as any)
           .from("usage_counters")
           .select("ai_analyses_used, automated_messages_used, email_sends_used")
@@ -82,9 +83,14 @@ export default function BillingPage() {
           .from("ai_boost_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
+        (supabase as any)
+          .from("ia_landings_credits")
+          .select("credits_remaining")
+          .eq("organization_id", organizationId),
       ]);
       setUsage(u ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0 });
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
+      setLandingCredits((landings ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setUsageLoading(false);
     })();
   }, [organizationId]);
@@ -234,6 +240,34 @@ export default function BillingPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* IA Landings credits */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-orange-500" />
+              Créditos IA Landings
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {usageLoading ? (
+              <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+              </div>
+            ) : landingCredits > 0 ? (
+              <>
+                <p className="text-3xl font-bold">{landingCredits}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Se descuenta 1 crédito cada vez que generas una landing page con IA. Refinar páginas existentes no consume créditos.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No tienes créditos disponibles. Compra un paquete para generar landings con IA.
+              </p>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Upgrade prompt or AI Boost CTA */}
         <Card>

@@ -108,6 +108,50 @@ Deno.serve(async (req) => {
     const submitUrl = `${supabaseUrl}/functions/v1/landing-submit`;
     const pageIdPlaceholder = page_id || "PENDING";
 
+    // ── Credit gate (only for new generations, not refinements) ─────────────
+    const isNewGeneration = !current_html; // FRESH or FUNNEL_NEW_PAGE
+    if (isNewGeneration) {
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!membership?.organization_id) {
+        throw new Error("No estás asociado a ninguna organización");
+      }
+
+      const orgId = membership.organization_id;
+
+      // Find oldest pack with credits remaining
+      const { data: creditRow } = await supabase
+        .from("ia_landings_credits")
+        .select("id, credits_remaining")
+        .eq("organization_id", orgId)
+        .gt("credits_remaining", 0)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (!creditRow) {
+        return new Response(
+          JSON.stringify({
+            error: "No tienes créditos de IA Landings disponibles. Compra un paquete en Facturación para seguir generando.",
+            code: "no_landing_credits",
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Decrement credit after we know the generation will proceed
+      // (we do it before the API call to avoid charging twice on retry, and because
+      //  the credit is the "license to call" the expensive API, not the result)
+      await supabase
+        .from("ia_landings_credits")
+        .update({ credits_remaining: creditRow.credits_remaining - 1, updated_at: new Date().toISOString() })
+        .eq("id", creditRow.id);
+    }
+
     let systemPrompt: string;
     let messages: { role: string; content: string }[];
 
