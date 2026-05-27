@@ -298,6 +298,15 @@ async function processEnrollment(enr: any, supabase: any) {
       } else if (!cleanPhone) {
         logs = addLog("Contacto sin teléfono válido — paso omitido");
       } else {
+        // Check automated message quota before sending
+        const { data: hasQuota } = await supabase.rpc("consume_automated_message_quota", {
+          p_org_id: contact.organization_id,
+          p_amount: 1,
+        });
+        if (!hasQuota) {
+          logs = addLog("Límite de mensajes automatizados alcanzado — paso omitido");
+        } else {
+
         const variables: string[] = (cfg.variables || []).map((v: string) => renderVars(v, ctx));
 
         // Fetch template metadata (header type + approved media handle)
@@ -373,6 +382,7 @@ async function processEnrollment(enr: any, supabase: any) {
         });
 
         logs = addLog(`WhatsApp ${cfg.template_name} enviado a ${contact.primary_phone}`);
+        } // end hasQuota
       }
     }
 
