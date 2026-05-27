@@ -34,6 +34,8 @@ export default function AuthPage() {
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
+  const [view, setView] = useState<"tabs" | "forgot" | "forgot-sent">("tabs");
+  const [forgotEmail, setForgotEmail] = useState("");
 
   // Detect if arriving from an invitation link
   const redirectParam = searchParams.get("redirect") || "";
@@ -69,6 +71,17 @@ export default function AuthPage() {
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) toast.error(error.message);
+    setLoading(false);
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+      redirectTo: `${window.location.origin}/auth/reset-password`,
+    });
+    if (error) toast.error(error.message);
+    else setView("forgot-sent");
     setLoading(false);
   };
 
@@ -116,6 +129,47 @@ export default function AuthPage() {
           <p className="text-sm text-muted-foreground mt-1">Gestión comercial inteligente</p>
         </CardHeader>
         <CardContent>
+          {/* ── Forgot password: sent ── */}
+          {view === "forgot-sent" && (
+            <div className="space-y-4 text-center py-2">
+              <div className="text-4xl">📬</div>
+              <p className="font-medium">Revisa tu correo</p>
+              <p className="text-sm text-muted-foreground">
+                Enviamos un enlace a <strong>{forgotEmail}</strong> para que restablezcas tu contraseña.
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setView("tabs")}>
+                ← Volver al inicio de sesión
+              </Button>
+            </div>
+          )}
+
+          {/* ── Forgot password: form ── */}
+          {view === "forgot" && (
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+              </p>
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <Input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={e => setForgotEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                />
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Enviando..." : "Enviar enlace"}
+              </Button>
+              <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setView("tabs")}>
+                ← Volver
+              </Button>
+            </form>
+          )}
+
+          {/* ── Normal tabs ── */}
+          {view === "tabs" && <>
           {inviteToken && (
             <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-center">
               🎉 Te están invitando a unirte a un equipo. <br />
@@ -141,6 +195,13 @@ export default function AuthPage() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Ingresando..." : "Iniciar sesión"}
                 </Button>
+                <button
+                  type="button"
+                  onClick={() => { setForgotEmail(email); setView("forgot"); }}
+                  className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
+                >
+                  ¿Olvidaste tu contraseña?
+                </button>
               </form>
             </TabsContent>
 
@@ -228,6 +289,7 @@ export default function AuthPage() {
               </form>
             </TabsContent>
           </Tabs>
+          </>}
         </CardContent>
       </Card>
     </div>

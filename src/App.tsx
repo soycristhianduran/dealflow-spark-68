@@ -42,6 +42,7 @@ import PricingPage from "./pages/PricingPage";
 import BillingPage from "./pages/BillingPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import { TrialBanner } from "@/components/billing/TrialBanner";
@@ -164,6 +165,7 @@ function AppRoutes() {
     <Routes>
       {/* Public routes */}
       <Route path="/auth" element={<AuthPage />} />
+      <Route path="/auth/reset-password" element={<ResetPasswordPage />} />
       <Route path="/invite" element={<InviteAcceptPage />} />
       <Route path="/data-deletion" element={<DataDeletionPage />} />
       {/* Alias en español — Meta rechaza URLs que contengan "data-deletion"
