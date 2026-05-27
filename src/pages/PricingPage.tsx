@@ -14,7 +14,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
+import { CheckCircle2, Sparkles, ArrowRight, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -100,13 +100,42 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background py-12 px-6">
+    <div className="min-h-screen bg-background">
+      {/* ── Navbar ── */}
+      <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+          <Link to="/" className="flex items-center gap-2">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(24 95% 58%), hsl(18 88% 50%))" }}>
+              <Zap className="w-4 h-4 text-white fill-white" />
+            </div>
+            <span className="font-bold text-base tracking-tight">Klosify <span className="text-primary">CRM</span></span>
+          </Link>
+          <div className="flex items-center gap-3">
+            {session ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to="/">Ir al dashboard</Link>
+              </Button>
+            ) : (
+              <>
+                <Button asChild variant="ghost" size="sm">
+                  <Link to="/auth">Iniciar sesión</Link>
+                </Button>
+                <Button asChild size="sm">
+                  <Link to="/auth">Empezar gratis →</Link>
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      <div className="py-12 px-6">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10 space-y-3">
           <h1 className="text-4xl font-bold">Precios simples, sin sorpresas</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Empieza con 14 días gratis del plan Pro. Sin tarjeta de crédito.
+            Empieza con 7 días gratis del plan Pro. Sin tarjeta de crédito.
             Cancela cuando quieras.
           </p>
 
@@ -218,16 +247,20 @@ export default function PricingPage() {
                       <FeatureRow ok>
                         {formatLimit(plan.monthly_automated_messages)} mensajes automatizados/mes
                       </FeatureRow>
-                      <FeatureRow ok>
+                      <FeatureRow ok={plan.monthly_ai_analyses !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                          {formatLimit(plan.monthly_ai_analyses)} análisis IA/mes
+                          {plan.monthly_ai_analyses === null
+                            ? "Sin IA Boost"
+                            : `${formatLimit(plan.monthly_ai_analyses)} análisis IA/mes`}
                         </span>
                       </FeatureRow>
-                      <FeatureRow ok>
+                      <FeatureRow ok={plan.monthly_ai_objections !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-                          {formatLimit(plan.monthly_ai_objections)} detecciones objeción/mes
+                          {plan.monthly_ai_objections === null
+                            ? "Sin detección de objeciones"
+                            : `${formatLimit(plan.monthly_ai_objections)} detecciones objeción/mes`}
                         </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.feature_email_campaigns}>
@@ -300,6 +333,7 @@ export default function PricingPage() {
             </p>
           </CardContent>
         </Card>
+      </div>
       </div>
     </div>
   );
