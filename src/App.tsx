@@ -57,29 +57,30 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-// Redirect /billing?... and /billing/... → /w/{slug}/billing preserving query params
+// Redirect /billing?... → /w/{slug}/billing preserving query params
+// Uses undefined as "not yet fetched" to avoid infinite loading when slug is null
 function BillingRedirect() {
   const { session, loading } = useAuth();
-  const [slug, setSlug] = useState<string | null>(null);
+  const [slug, setSlug] = useState<string | null | undefined>(undefined);
   const search = typeof window !== "undefined" ? window.location.search : "";
 
   useEffect(() => {
-    if (!session) return;
+    if (!session) { setSlug(null); return; }
     supabase
       .from("organization_members")
       .select("organizations(slug)")
       .eq("user_id", session.user.id)
       .maybeSingle()
       .then(({ data }) => {
-        const s = (data as any)?.organizations?.slug ?? null;
-        setSlug(s);
+        setSlug((data as any)?.organizations?.slug ?? null);
       });
   }, [session]);
 
-  if (loading || (session && slug === null)) {
+  // Still loading auth or waiting for org query
+  if (loading || slug === undefined) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
   }
-  if (!session) return <Navigate to="/auth" replace />;
+  if (!session) return <Navigate to="/auth?next=/billing" replace />;
   if (!slug) return <Navigate to="/" replace />;
   return <Navigate to={`/w/${slug}/billing${search}`} replace />;
 }

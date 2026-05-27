@@ -285,7 +285,12 @@ export default function PricingPage() {
         {/* AI Boost mention */}
         <div className="text-center mt-10 text-sm text-muted-foreground">
           ¿Necesitas más análisis IA?{" "}
-          <Link to="/billing" className="underline">IA Boost desde $19</Link>
+          <button
+            onClick={() => session ? navigate("/billing") : navigate("/auth")}
+            className="underline hover:text-foreground transition-colors"
+          >
+            IA Boost desde $19
+          </button>
           {" "}— compra paquetes adicionales cuando tu plan llegue al límite.
         </div>
 
