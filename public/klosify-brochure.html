@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Klosify CRM — Planes y Precios</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #f8fafc; color: #1e293b; }
+
+  /* HERO */
+  .hero { background: #0f172a; color: white; padding: 80px 40px; text-align: center; position: relative; overflow: hidden; }
+  .hero::before { content: ''; position: absolute; top: -100px; right: -100px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(249,115,22,0.15) 0%, transparent 70%); }
+  .hero::after { content: ''; position: absolute; bottom: -100px; left: -100px; width: 300px; height: 300px; background: radial-gradient(circle, rgba(249,115,22,0.1) 0%, transparent 70%); }
+  .logo { display: inline-flex; align-items: center; gap: 12px; margin-bottom: 48px; }
+  .logo-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; box-shadow: 0 8px 24px rgba(249,115,22,0.4); }
+  .logo-text { font-size: 26px; font-weight: 800; }
+  .logo-text span { color: #f97316; }
+  .hero h1 { font-size: 52px; font-weight: 900; line-height: 1.1; margin-bottom: 20px; position: relative; z-index: 1; }
+  .hero h1 span { color: #f97316; }
+  .hero p { font-size: 20px; color: #94a3b8; max-width: 600px; margin: 0 auto 40px; position: relative; z-index: 1; line-height: 1.6; }
+  .hero-badges { display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
+  .hero-badge { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.12); padding: 8px 16px; border-radius: 50px; font-size: 13px; color: #cbd5e1; display: flex; align-items: center; gap: 6px; }
+
+  /* DIFFERENTIATORS */
+  .diff-section { background: white; padding: 60px 40px; }
+  .diff-section h2 { text-align: center; font-size: 32px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+  .diff-section .sub { text-align: center; color: #64748b; font-size: 16px; margin-bottom: 48px; }
+  .diff-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; max-width: 1000px; margin: 0 auto; }
+  .diff-card { text-align: center; padding: 32px 24px; border-radius: 16px; background: #f8fafc; border: 1px solid #e2e8f0; transition: transform 0.2s; }
+  .diff-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,0.08); }
+  .diff-icon { font-size: 40px; margin-bottom: 16px; }
+  .diff-title { font-size: 15px; font-weight: 700; color: #0f172a; margin-bottom: 8px; }
+  .diff-desc { font-size: 13px; color: #64748b; line-height: 1.5; }
+
+  /* PLANS */
+  .plans-section { padding: 80px 40px; background: #f8fafc; }
+  .plans-section h2 { text-align: center; font-size: 36px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+  .plans-section .sub { text-align: center; color: #64748b; font-size: 16px; margin-bottom: 56px; }
+  .plans-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; max-width: 1000px; margin: 0 auto; }
+  .plan-card { background: white; border-radius: 20px; padding: 32px; border: 2px solid #e2e8f0; position: relative; }
+  .plan-card.popular { border-color: #f97316; box-shadow: 0 20px 60px rgba(249,115,22,0.15); transform: scale(1.03); }
+  .popular-badge { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-size: 12px; font-weight: 700; padding: 6px 20px; border-radius: 50px; white-space: nowrap; box-shadow: 0 4px 12px rgba(249,115,22,0.4); }
+  .plan-name { font-size: 18px; font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+  .plan-desc { font-size: 13px; color: #64748b; margin-bottom: 24px; }
+  .plan-price { font-size: 48px; font-weight: 900; color: #0f172a; line-height: 1; }
+  .plan-price span { font-size: 16px; font-weight: 400; color: #64748b; }
+  .plan-divider { border: none; border-top: 1px solid #f1f5f9; margin: 24px 0; }
+  .plan-feature { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px; font-size: 14px; color: #374151; }
+  .plan-feature .check { color: #16a34a; font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .plan-feature .cross { color: #d1d5db; font-size: 16px; flex-shrink: 0; }
+  .plan-feature strong { font-weight: 600; }
+  .plan-cta { display: block; width: 100%; padding: 14px; border-radius: 12px; font-size: 15px; font-weight: 700; text-align: center; cursor: pointer; border: none; margin-top: 24px; text-decoration: none; }
+  .plan-cta.primary { background: linear-gradient(135deg, #f97316, #ea580c); color: white; box-shadow: 0 8px 20px rgba(249,115,22,0.3); }
+  .plan-cta.secondary { background: #f1f5f9; color: #0f172a; }
+  .plan-cta.secondary:hover { background: #e2e8f0; }
+  .section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8; font-weight: 600; margin-bottom: 8px; margin-top: 4px; }
+
+  /* ADDONS */
+  .addons-section { background: #0f172a; padding: 70px 40px; }
+  .addons-section h2 { text-align: center; font-size: 32px; font-weight: 800; color: white; margin-bottom: 8px; }
+  .addons-section .sub { text-align: center; color: #64748b; font-size: 16px; margin-bottom: 48px; }
+  .addons-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; max-width: 900px; margin: 0 auto; }
+  .addon-card { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 28px; }
+  .addon-card .addon-icon { font-size: 32px; margin-bottom: 16px; }
+  .addon-card .addon-price { font-size: 28px; font-weight: 800; color: white; margin-bottom: 4px; }
+  .addon-card .addon-price span { font-size: 14px; font-weight: 400; color: #64748b; }
+  .addon-card .addon-name { font-size: 14px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+  .addon-card .addon-desc { font-size: 13px; color: #64748b; line-height: 1.5; }
+
+  /* COMPARISON */
+  .comp-section { background: white; padding: 70px 40px; }
+  .comp-section h2 { text-align: center; font-size: 32px; font-weight: 800; color: #0f172a; margin-bottom: 8px; }
+  .comp-section .sub { text-align: center; color: #64748b; font-size: 16px; margin-bottom: 48px; }
+  .comp-table { width: 100%; max-width: 860px; margin: 0 auto; border-collapse: collapse; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+  .comp-table th { padding: 16px 20px; font-size: 14px; font-weight: 700; text-align: center; background: #f8fafc; color: #374151; vertical-align: bottom; }
+  .comp-table th.ours { background: #0f172a; color: white; }
+  .comp-table th.ours span { color: #f97316; }
+  .comp-table td { padding: 14px 20px; font-size: 14px; text-align: center; border-bottom: 1px solid #f1f5f9; color: #475569; }
+  .comp-table td:first-child { text-align: left; font-weight: 500; color: #374151; }
+  .comp-table td.ours { background: #fff7ed; font-weight: 700; color: #16a34a; }
+  .comp-table tr:last-child td { border-bottom: none; }
+  .win { color: #16a34a; font-weight: 700; }
+  .lose { color: #94a3b8; }
+
+  /* CTA FINAL */
+  .cta-section { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 80px 40px; text-align: center; position: relative; overflow: hidden; }
+  .cta-section::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 600px; height: 600px; background: radial-gradient(circle, rgba(249,115,22,0.1) 0%, transparent 70%); }
+  .cta-section h2 { font-size: 40px; font-weight: 900; color: white; margin-bottom: 16px; position: relative; z-index: 1; }
+  .cta-section p { font-size: 18px; color: #94a3b8; margin-bottom: 40px; position: relative; z-index: 1; }
+  .cta-btn { display: inline-block; background: linear-gradient(135deg, #f97316, #ea580c); color: white; font-size: 18px; font-weight: 700; padding: 18px 48px; border-radius: 50px; text-decoration: none; box-shadow: 0 12px 32px rgba(249,115,22,0.4); position: relative; z-index: 1; }
+
+  /* FOOTER */
+  .footer { background: #0f172a; padding: 24px 40px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #1e293b; }
+  .footer-brand { font-size: 18px; font-weight: 800; color: white; }
+  .footer-brand span { color: #f97316; }
+  .footer-links { display: flex; gap: 24px; }
+  .footer-links a { color: #64748b; text-decoration: none; font-size: 13px; }
+
+  /* STACK SAVINGS */
+  .stack-section { background: #fff7ed; padding: 80px 40px; }
+  .stack-section h2 { text-align: center; font-size: 34px; font-weight: 900; color: #0f172a; margin-bottom: 8px; }
+  .stack-section h2 span { color: #f97316; }
+  .stack-section .sub { text-align: center; color: #64748b; font-size: 16px; margin-bottom: 56px; }
+  .stack-wrapper { display: grid; grid-template-columns: 1fr auto 1fr; gap: 0; max-width: 900px; margin: 0 auto; align-items: stretch; }
+  .stack-side { border-radius: 20px; overflow: hidden; }
+  .stack-tools { border: 2px solid #e2e8f0; background: white; }
+  .stack-klosify { border: 2px solid #f97316; background: white; box-shadow: 0 20px 60px rgba(249,115,22,0.15); display: flex; flex-direction: column; }
+  .stack-head { padding: 20px 28px 16px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+  .stack-tools .stack-head { background: #f8fafc; color: #64748b; border-bottom: 1px solid #f1f5f9; }
+  .stack-klosify .stack-head { background: #0f172a; color: #f97316; text-align: center; border-bottom: 1px solid #1e293b; font-size: 14px; }
+  .tool-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 28px; border-bottom: 1px solid #f8fafc; gap: 12px; }
+  .tool-row:last-of-type { border-bottom: none; }
+  .tool-left { display: flex; align-items: center; gap: 12px; }
+  .tool-emoji { font-size: 22px; flex-shrink: 0; }
+  .tool-name { font-size: 14px; font-weight: 600; color: #1e293b; }
+  .tool-note { font-size: 12px; color: #94a3b8; margin-top: 2px; }
+  .tool-cost { font-size: 14px; font-weight: 700; color: #ef4444; white-space: nowrap; }
+  .stack-total-row { background: #fef2f2; padding: 18px 28px; display: flex; justify-content: space-between; align-items: center; border-top: 2px solid #fecaca; }
+  .stack-total-label { font-size: 13px; font-weight: 700; color: #b91c1c; text-transform: uppercase; letter-spacing: 0.5px; }
+  .stack-total-price { font-size: 24px; font-weight: 900; color: #b91c1c; }
+  .stack-total-price .crossed { text-decoration: line-through; opacity: 0.5; font-size: 18px; }
+
+  .vs-col { display: flex; align-items: center; justify-content: center; padding: 0 20px; }
+  .vs-badge { width: 48px; height: 48px; border-radius: 50%; background: #0f172a; color: white; font-size: 14px; font-weight: 900; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+  .klosify-body { flex: 1; padding: 24px 28px; display: flex; flex-direction: column; justify-content: center; }
+  .klosify-includes-list { list-style: none; margin-bottom: 24px; }
+  .klosify-includes-list li { font-size: 13px; color: #374151; padding: 6px 0; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #fef3c7; }
+  .klosify-includes-list li:last-child { border-bottom: none; }
+  .klosify-includes-list li::before { content: '✓'; color: #16a34a; font-weight: 700; font-size: 14px; }
+  .klosify-price-box { background: #0f172a; border-radius: 14px; padding: 20px 24px; text-align: center; }
+  .klosify-plan-name { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #64748b; margin-bottom: 8px; font-weight: 600; }
+  .klosify-big-price { font-size: 48px; font-weight: 900; color: white; line-height: 1; }
+  .klosify-big-price span { font-size: 16px; font-weight: 400; color: #64748b; }
+  .klosify-savings-badge { margin-top: 12px; background: linear-gradient(135deg, #f97316, #ea580c); border-radius: 50px; padding: 8px 16px; display: inline-block; font-size: 13px; font-weight: 700; color: white; }
+  .klosify-annual { font-size: 12px; color: #64748b; margin-top: 8px; text-align: center; }
+
+  /* LOGO IMAGES */
+  .logo-img { object-fit: contain; display: inline-block; vertical-align: middle; }
+  .logo-img.sz-16 { width: 16px; height: 16px; border-radius: 3px; }
+  .logo-img.sz-18 { width: 18px; height: 18px; border-radius: 4px; margin-right: 5px; }
+  .logo-img.sz-28 { width: 28px; height: 28px; border-radius: 6px; display: block; margin: 0 auto 6px; }
+  .logo-img.sz-32 { width: 32px; height: 32px; border-radius: 8px; background: white; }
+  .logo-img.sz-36 { width: 36px; height: 36px; border-radius: 10px; background: white; }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 32px; }
+    .plans-grid { grid-template-columns: 1fr; }
+    .plan-card.popular { transform: none; }
+    .diff-grid { grid-template-columns: repeat(2, 1fr); }
+    .stack-wrapper { grid-template-columns: 1fr; }
+    .vs-col { padding: 16px 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    <div class="logo-text">Klosify <span>CRM</span></div>
+  </div>
+  <h1>Cierra más ventas.<br><span>Con menos herramientas.</span></h1>
+  <p>El CRM todo-en-uno para LATAM con WhatsApp nativo, Meta Ads integrado e Inteligencia Artificial incluida desde $29/mes.</p>
+  <div class="hero-badges">
+    <div class="hero-badge"><img src="https://cdn.simpleicons.org/whatsapp/25D366" class="logo-img sz-16" alt="WhatsApp" onerror="this.style.opacity='0'"> WhatsApp Business nativo</div>
+    <div class="hero-badge"><img src="https://cdn.simpleicons.org/meta/0081FB" class="logo-img sz-16" alt="Meta" onerror="this.style.opacity='0'"> Meta Ads + ROAS</div>
+    <div class="hero-badge">🤖 IA incluida</div>
+    <div class="hero-badge">⚡ Sin setup técnico</div>
+  </div>
+</div>
+
+<!-- DIFFERENTIATORS -->
+<div class="diff-section">
+  <h2>¿Por qué Klosify?</h2>
+  <p class="sub">Todo lo que necesitas para vender más, en un solo lugar</p>
+  <div class="diff-grid">
+    <div class="diff-card">
+      <div class="diff-icon"><img src="https://cdn.simpleicons.org/whatsapp/25D366" class="logo-img sz-36" alt="WhatsApp" onerror="this.style.opacity='0'"></div>
+      <div class="diff-title">WhatsApp Business Nativo</div>
+      <div class="diff-desc">Envía y recibe mensajes directamente desde el CRM. Sin apps externas, sin costos adicionales.</div>
+    </div>
+    <div class="diff-card">
+      <div class="diff-icon"><img src="https://cdn.simpleicons.org/meta/0081FB" class="logo-img sz-36" alt="Meta" onerror="this.style.opacity='0'"></div>
+      <div class="diff-title">Meta Ads + ROAS Real</div>
+      <div class="diff-desc">Ve exactamente cuánto ganas por cada peso invertido en publicidad. Facebook e Instagram conectados.</div>
+    </div>
+    <div class="diff-card">
+      <div class="diff-icon">🎨</div>
+      <div class="diff-title">Landings con IA</div>
+      <div class="diff-desc">Describe tu página y la IA la crea en segundos. Profesional, optimizada para conversión y lista para publicar.</div>
+    </div>
+    <div class="diff-card">
+      <div class="diff-icon">🎯</div>
+      <div class="diff-title">IA Boost — Scoring</div>
+      <div class="diff-desc">La IA analiza todos tus leads y te dice quién está listo para comprar, quién necesita seguimiento y qué objeciones tiene.</div>
+    </div>
+    <div class="diff-card">
+      <div class="diff-icon">⚡</div>
+      <div class="diff-title">Automatizaciones</div>
+      <div class="diff-desc">Automatiza seguimientos, respuestas de WhatsApp y asignación de leads. Tu equipo enfocado en cerrar, no en tareas manuales.</div>
+    </div>
+  </div>
+</div>
+
+<!-- PLANS -->
+<div class="plans-section">
+  <h2>Elige tu plan</h2>
+  <p class="sub">Sin contratos. Sin sorpresas. Cancela cuando quieras.</p>
+
+  <div class="plans-grid">
+
+    <!-- STARTER -->
+    <div class="plan-card">
+      <div class="plan-name">Starter</div>
+      <div class="plan-desc">Para emprendedores y negocios que están comenzando</div>
+      <div class="plan-price">$29<span>/mes</span></div>
+      <hr class="plan-divider">
+      <div class="section-label">Capacidad</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>1 usuario</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>1.000 contactos</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>1 pipeline</strong></div></div>
+      <div class="section-label">Inteligencia Artificial</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>3 landings con IA</strong> — publicadas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Créditos IA extra: <strong>$9 / 5 landings</strong></div></div>
+      <div class="plan-feature"><span class="cross">✗</span><div style="color:#94a3b8">IA Boost (scoring de leads)</div></div>
+      <div class="section-label">Integraciones incluidas</div>
+      <div class="plan-feature"><span class="check">✓</span><div>WhatsApp Business</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Meta Ads + ROAS</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Instagram</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Google Calendar</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>TikTok Ads</div></div>
+      <div class="section-label">Funcionalidades</div>
+      <div class="plan-feature"><span class="check">✓</span><div>Pipeline de ventas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Conversaciones centralizadas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Email Builder</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Plantillas WA ilimitadas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>3 flujos</strong> de automatización</div></div>
+      <div class="plan-feature"><span class="cross">✗</span><div style="color:#94a3b8">Automatizaciones de Instagram</div></div>
+      <a class="plan-cta secondary" href="#">Empezar gratis</a>
+    </div>
+
+    <!-- PRO -->
+    <div class="plan-card popular">
+      <div class="popular-badge">⭐ Más Popular</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-desc">Para equipos de ventas y negocios en crecimiento</div>
+      <div class="plan-price">$39<span>/mes</span></div>
+      <hr class="plan-divider">
+      <div class="section-label">Capacidad</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>3 usuarios</strong> incluidos</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Usuarios extra: <strong>+$9/seat</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>10.000 contactos</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>3 pipelines</strong></div></div>
+      <div class="section-label">Inteligencia Artificial</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>15 landings con IA</strong> — publicadas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Créditos IA extra: <strong>$9 / 5 landings</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>IA Boost</strong> — 1.000 leads/mes</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Boost extra: <strong>$9 / 1.000 leads</strong></div></div>
+      <div class="section-label">Integraciones incluidas</div>
+      <div class="plan-feature"><span class="check">✓</span><div>WhatsApp Business</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Meta Ads + ROAS</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Instagram</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Google Calendar</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>TikTok Ads</div></div>
+      <div class="section-label">Funcionalidades</div>
+      <div class="plan-feature"><span class="check">✓</span><div>Todo lo del Starter</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>Flujos ilimitados</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>Automatizaciones de Instagram</strong></div></div>
+      <a class="plan-cta primary" href="#">Comenzar ahora →</a>
+    </div>
+
+    <!-- BUSINESS -->
+    <div class="plan-card">
+      <div class="plan-name">Business</div>
+      <div class="plan-desc">Para agencias y equipos comerciales grandes</div>
+      <div class="plan-price">$89<span>/mes</span></div>
+      <hr class="plan-divider">
+      <div class="section-label">Capacidad</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>10 usuarios</strong> incluidos</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Usuarios extra: <strong>+$9/seat</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>Contactos ilimitados</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>Pipelines ilimitados</strong></div></div>
+      <div class="section-label">Inteligencia Artificial</div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>50 landings con IA</strong> — publicadas</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Créditos IA extra: <strong>$9 / 5 landings</strong></div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>IA Boost</strong> — 5.000 leads/mes</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Boost extra: <strong>$39 / 5.000 leads</strong></div></div>
+      <div class="section-label">Integraciones incluidas</div>
+      <div class="plan-feature"><span class="check">✓</span><div>WhatsApp Business</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Meta Ads + ROAS</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Instagram</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>Google Calendar</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div>TikTok Ads</div></div>
+      <div class="section-label">Funcionalidades</div>
+      <div class="plan-feature"><span class="check">✓</span><div>Todo lo del Pro</div></div>
+      <div class="plan-feature"><span class="check">✓</span><div><strong>Soporte prioritario</strong></div></div>
+      <a class="plan-cta secondary" href="#">Contactar ventas →</a>
+    </div>
+
+  </div>
+</div>
+
+<!-- STACK SAVINGS -->
+<div class="stack-section">
+  <h2>¿Cuánto pagarías <span>sin Klosify?</span></h2>
+  <p class="sub">Suma las herramientas que reemplazamos y verás por qué nuestros clientes no vuelven atrás</p>
+
+  <div class="stack-wrapper">
+
+    <!-- TOOL STACK -->
+    <div class="stack-side stack-tools">
+      <div class="stack-head">Stack tradicional</div>
+
+      <div class="tool-row">
+        <div class="tool-left">
+          <div class="tool-emoji"><img src="https://www.google.com/s2/favicons?domain=kommo.com&sz=64" class="logo-img sz-32" alt="Kommo" onerror="this.style.opacity='0'"></div>
+          <div>
+            <div class="tool-name">CRM — Kommo Advanced</div>
+            <div class="tool-note">Pipeline de ventas + contactos (2 usuarios)</div>
+          </div>
+        </div>
+        <div class="tool-cost">$50/mes</div>
+      </div>
+
+      <div class="tool-row">
+        <div class="tool-left">
+          <div class="tool-emoji"><img src="https://www.google.com/s2/favicons?domain=lovable.dev&sz=64" class="logo-img sz-32" alt="Lovable" onerror="this.style.opacity='0'"></div>
+          <div>
+            <div class="tool-name">Lovable — Landing Pages con IA</div>
+            <div class="tool-note">Creación de páginas con inteligencia artificial</div>
+          </div>
+        </div>
+        <div class="tool-cost">$25/mes</div>
+      </div>
+
+      <div class="tool-row">
+        <div class="tool-left">
+          <div class="tool-emoji"><img src="https://cdn.simpleicons.org/zapier/FF4A00" class="logo-img sz-32" alt="Zapier" onerror="this.style.opacity='0'"></div>
+          <div>
+            <div class="tool-name">Zapier Professional</div>
+            <div class="tool-note">Conectar CRM + WhatsApp + Meta Ads + Calendar</div>
+          </div>
+        </div>
+        <div class="tool-cost">$49/mes</div>
+      </div>
+
+      <div class="tool-row">
+        <div class="tool-left">
+          <div class="tool-emoji"><img src="https://cdn.simpleicons.org/mailchimp/FFE01B" class="logo-img sz-32" alt="Mailchimp" onerror="this.style.opacity='0'"></div>
+          <div>
+            <div class="tool-name">Mailchimp Standard</div>
+            <div class="tool-note">Email marketing hasta 1.500 contactos</div>
+          </div>
+        </div>
+        <div class="tool-cost">$20/mes</div>
+      </div>
+
+      <div class="tool-row">
+        <div class="tool-left">
+          <div class="tool-emoji"><img src="https://www.google.com/s2/favicons?domain=manychat.com&sz=64" class="logo-img sz-32" alt="ManyChat" onerror="this.style.opacity='0'"></div>
+          <div>
+            <div class="tool-name">ManyChat Pro</div>
+            <div class="tool-note">Automatizaciones de Instagram y WhatsApp</div>
+          </div>
+        </div>
+        <div class="tool-cost">$15/mes</div>
+      </div>
+
+      <div class="stack-total-row">
+        <span class="stack-total-label">💸 Total mensual</span>
+        <span class="stack-total-price">$159/mes</span>
+      </div>
+    </div>
+
+    <!-- VS -->
+    <div class="vs-col">
+      <div class="vs-badge">VS</div>
+    </div>
+
+    <!-- KLOSIFY -->
+    <div class="stack-side stack-klosify">
+      <div class="stack-head">✦ Todo reemplazado por Klosify</div>
+      <div class="klosify-body">
+        <ul class="klosify-includes-list">
+          <li>CRM completo con pipeline y contactos</li>
+          <li>Landing pages con IA incluidas</li>
+          <li>Integraciones nativas sin Zapier</li>
+          <li>Email marketing integrado</li>
+          <li>Automatizaciones de Instagram</li>
+          <li>WhatsApp Business nativo</li>
+          <li>Meta Ads + ROAS en tiempo real</li>
+        </ul>
+        <div class="klosify-price-box">
+          <div class="klosify-plan-name">Klosify Pro</div>
+          <div class="klosify-big-price">$39<span>/mes</span></div>
+          <div class="klosify-savings-badge">🎉 Ahorras $120/mes</div>
+          <div class="klosify-annual">= <strong>$1.440/año</strong> en tu bolsillo</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADDONS -->
+<div class="addons-section">
+  <h2 style="color:white;">¿Necesitas más? Compra solo lo que usas</h2>
+  <p class="sub">Sin cambiar de plan. Sin compromisos.</p>
+  <div class="addons-grid">
+    <div class="addon-card">
+      <div class="addon-icon">🎨</div>
+      <div class="addon-price">$9 <span>/ paquete</span></div>
+      <div class="addon-name">5 Créditos IA — Landings</div>
+      <div class="addon-desc">Genera 5 landing pages adicionales con IA. Disponible en todos los planes.</div>
+    </div>
+    <div class="addon-card">
+      <div class="addon-icon">🎯</div>
+      <div class="addon-price">$9 <span>/ paquete</span></div>
+      <div class="addon-name">IA Boost — 1.000 leads</div>
+      <div class="addon-desc">Analiza 1.000 leads adicionales con IA. Scoring, temperatura y objeciones.</div>
+    </div>
+    <div class="addon-card">
+      <div class="addon-icon">🚀</div>
+      <div class="addon-price">$39 <span>/ paquete</span></div>
+      <div class="addon-name">IA Boost XL — 5.000 leads</div>
+      <div class="addon-desc">Para equipos con alto volumen. Analiza 5.000 leads de una sola vez.</div>
+    </div>
+    <div class="addon-card">
+      <div class="addon-icon">👤</div>
+      <div class="addon-price">$9 <span>/ mes</span></div>
+      <div class="addon-name">Seat Adicional</div>
+      <div class="addon-desc">Agrega un usuario más a tu workspace sin hacer upgrade de plan. Solo en Pro y Business.</div>
+    </div>
+  </div>
+</div>
+
+<!-- COMPARISON -->
+<div class="comp-section">
+  <h2>Klosify vs la competencia</h2>
+  <p class="sub">Más funcionalidades. Mejor precio. Hecho para LATAM.</p>
+  <table class="comp-table">
+    <thead>
+      <tr>
+        <th style="text-align:left;">Característica</th>
+        <th class="ours"><span>Klosify</span> CRM</th>
+        <th><img src="https://www.google.com/s2/favicons?domain=gohighlevel.com&sz=64" class="logo-img sz-28" alt="GoHighLevel" onerror="this.style.opacity='0'">GoHighLevel</th>
+        <th><img src="https://cdn.simpleicons.org/hubspot/FF7A59" class="logo-img sz-28" alt="HubSpot" onerror="this.style.opacity='0'">HubSpot</th>
+        <th><img src="https://www.google.com/s2/favicons?domain=kommo.com&sz=64" class="logo-img sz-28" alt="Kommo" onerror="this.style.opacity='0'">Kommo</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Precio base</td>
+        <td class="ours win">$29/mes</td>
+        <td class="lose">$97/mes</td>
+        <td class="lose">$50/mes</td>
+        <td class="lose">$15/usuario</td>
+      </tr>
+      <tr>
+        <td>WhatsApp Business nativo</td>
+        <td class="ours win">✓ Incluido</td>
+        <td class="lose">Extra / limitado</td>
+        <td class="lose">No disponible</td>
+        <td class="lose">Externa</td>
+      </tr>
+      <tr>
+        <td>Meta Ads + ROAS directo</td>
+        <td class="ours win">✓ Incluido</td>
+        <td class="lose">Básico</td>
+        <td class="lose">Solo planes caros</td>
+        <td class="lose">No disponible</td>
+      </tr>
+      <tr>
+        <td>Landing pages con IA</td>
+        <td class="ours win">✓ Incluido</td>
+        <td class="lose">Limitado</td>
+        <td class="lose">No disponible</td>
+        <td class="lose">No disponible</td>
+      </tr>
+      <tr>
+        <td>IA Scoring de leads</td>
+        <td class="ours win">✓ Incluido</td>
+        <td class="lose">No disponible</td>
+        <td class="lose">Solo Enterprise</td>
+        <td class="lose">No disponible</td>
+      </tr>
+      <tr>
+        <td>En español para LATAM</td>
+        <td class="ours win">✓ Nativo</td>
+        <td class="lose">Inglés</td>
+        <td class="lose">Parcial</td>
+        <td class="lose">Parcial</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CTA FINAL -->
+<div class="cta-section">
+  <h2>Empieza hoy mismo</h2>
+  <p>Únete a los negocios que ya están cerrando más ventas con Klosify CRM</p>
+  <a class="cta-btn" href="#">Crear mi cuenta gratis →</a>
+</div>
+
+<!-- FOOTER -->
+<div class="footer">
+  <div class="footer-brand">Klosify <span>CRM</span></div>
+  <div class="footer-links">
+    <a href="#">Términos</a>
+    <a href="#">Privacidad</a>
+    <a href="#">Soporte</a>
+  </div>
+</div>
+
+</body>
+</html>
