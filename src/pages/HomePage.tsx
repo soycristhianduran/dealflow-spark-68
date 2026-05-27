@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import type { LucideIcon } from "lucide-react";
 import {
   MessageCircle,
   BarChart3,
@@ -13,6 +14,15 @@ import {
   Layout,
   Plus,
   Minus,
+  Zap,
+  Sparkles,
+  Star,
+  BadgePercent,
+  Wand2,
+  Target,
+  Rocket,
+  UserPlus,
+  Heart,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -20,10 +30,6 @@ import {
 interface FaqItem {
   q: string;
   a: string;
-}
-
-interface PlanFeature {
-  text: string;
 }
 
 interface Plan {
@@ -35,6 +41,35 @@ interface Plan {
   notIncluded: string[];
   cta: string;
   popular: boolean;
+}
+
+interface FeatureCard {
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  bullets: string[];
+  color: string;
+}
+
+interface AddOn {
+  icon: LucideIcon;
+  label: string;
+  price: string;
+  iconColor: string;
+  iconBg: string;
+}
+
+interface StackTool {
+  domain: string;
+  name: string;
+  price: string;
+  brandColor: string;
+}
+
+interface IntegrationLogo {
+  domain: string;
+  name: string;
+  brandColor: string;
 }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
@@ -125,12 +160,12 @@ const faqItems: FaqItem[] = [
   },
 ];
 
-const toolStack = [
-  { domain: "kommo.com", name: "Kommo CRM", price: "$50/mes" },
-  { domain: "lovable.dev", name: "Lovable (landings IA)", price: "$25/mes" },
-  { domain: "zapier.com", name: "Zapier Professional", price: "$49/mes" },
-  { domain: "mailchimp.com", name: "Mailchimp Standard", price: "$20/mes" },
-  { domain: "manychat.com", name: "ManyChat Pro", price: "$15/mes" },
+const toolStack: StackTool[] = [
+  { domain: "kommo.com", name: "Kommo CRM", price: "$50/mes", brandColor: "bg-blue-600" },
+  { domain: "lovable.dev", name: "Lovable", price: "$25/mes", brandColor: "bg-pink-500" },
+  { domain: "zapier.com", name: "Zapier Professional", price: "$49/mes", brandColor: "bg-orange-500" },
+  { domain: "mailchimp.com", name: "Mailchimp Standard", price: "$20/mes", brandColor: "bg-yellow-500" },
+  { domain: "manychat.com", name: "ManyChat Pro", price: "$15/mes", brandColor: "bg-blue-500" },
 ];
 
 const klosifyIncludes = [
@@ -143,61 +178,150 @@ const klosifyIncludes = [
   "Meta Ads + ROAS",
 ];
 
-const integrationLogos = [
-  { domain: "whatsapp.com", name: "WhatsApp" },
-  { domain: "meta.com", name: "Meta" },
-  { domain: "instagram.com", name: "Instagram" },
-  { domain: "tiktok.com", name: "TikTok" },
-  { domain: "google.com", name: "Google" },
+const integrationLogos: IntegrationLogo[] = [
+  { domain: "whatsapp.com", name: "WhatsApp", brandColor: "bg-green-500" },
+  { domain: "meta.com", name: "Meta", brandColor: "bg-blue-600" },
+  { domain: "instagram.com", name: "Instagram", brandColor: "bg-pink-500" },
+  { domain: "tiktok.com", name: "TikTok", brandColor: "bg-slate-800" },
+  { domain: "google.com", name: "Google", brandColor: "bg-blue-500" },
 ];
 
-const featureCards = [
+const featureCards: FeatureCard[] = [
   {
     icon: MessageCircle,
     title: "WhatsApp Business Nativo",
-    desc: "Envía y recibe mensajes desde el CRM. Plantillas ilimitadas, conversaciones centralizadas.",
+    desc: "Gestión completa de conversaciones desde el CRM. Sin apps externas.",
+    bullets: [
+      "Plantillas aprobadas por Meta",
+      "Respuestas automáticas 24/7",
+      "Bandeja multiagente centralizada",
+    ],
     color: "bg-green-500",
   },
   {
     icon: BarChart3,
     title: "Meta Ads + ROAS Real",
-    desc: "Conecta Facebook e Instagram Ads. Ve el retorno real de cada peso invertido en publicidad.",
+    desc: "Conecta tus campañas y ve el retorno real de cada peso invertido.",
+    bullets: [
+      "Facebook e Instagram Ads",
+      "ROAS por campaña y ad set",
+      "Leads sincronizados al pipeline",
+    ],
     color: "bg-blue-500",
   },
   {
     icon: Layout,
     title: "Landings con IA",
-    desc: "Describe tu página y la IA la genera en segundos. Lista para publicar y capturar leads automáticamente.",
+    desc: "Describe tu página y la IA la genera en segundos, lista para capturar leads.",
+    bullets: [
+      "Editor drag & drop incluido",
+      "Formularios → leads automáticos",
+      "Subdominio gratis incluido",
+    ],
     color: "bg-purple-500",
   },
   {
     icon: Brain,
     title: "IA Boost — Lead Scoring",
-    desc: "La IA analiza cada lead: temperatura de compra, probabilidad de cierre y objeciones detectadas.",
+    desc: "La IA prioriza tus leads según probabilidad de cierre y temperatura de compra.",
+    bullets: [
+      "Score de 1 a 10 por lead",
+      "Detección automática de objeciones",
+      "Recomendaciones de siguiente paso",
+    ],
     color: "bg-orange-500",
   },
   {
     icon: GitBranch,
     title: "Automatizaciones",
-    desc: "Flujos automáticos para WhatsApp, asignación de leads y seguimientos. Tu equipo enfocado en cerrar.",
+    desc: "Flujos inteligentes para WhatsApp, asignación de leads y seguimientos.",
+    bullets: [
+      "WhatsApp + email + tareas",
+      "Condiciones y bifurcaciones",
+      "Plantillas por industria listas",
+    ],
     color: "bg-pink-500",
   },
   {
     icon: TrendingUp,
     title: "Pipeline Visual",
-    desc: "Gestiona todo tu proceso comercial en un kanban intuitivo. Sin oportunidades perdidas.",
+    desc: "Kanban de oportunidades sin nada perdido. Todo tu proceso comercial en un vistazo.",
+    bullets: [
+      "Etapas 100% personalizables",
+      "Alertas de seguimiento vencido",
+      "Pronóstico de ingresos del mes",
+    ],
     color: "bg-teal-500",
   },
 ];
 
-const addOns = [
-  { emoji: "🎨", label: "+5 Landings IA", price: "$9" },
-  { emoji: "🎯", label: "+1.000 IA Boost", price: "$9" },
-  { emoji: "🚀", label: "+5.000 IA Boost", price: "$39" },
-  { emoji: "👤", label: "Seat adicional", price: "$9/mes" },
+const addOns: AddOn[] = [
+  {
+    icon: Wand2,
+    label: "+5 Landings IA",
+    price: "$9",
+    iconColor: "text-purple-600",
+    iconBg: "bg-purple-100",
+  },
+  {
+    icon: Target,
+    label: "+1.000 IA Boost",
+    price: "$9",
+    iconColor: "text-blue-600",
+    iconBg: "bg-blue-100",
+  },
+  {
+    icon: Rocket,
+    label: "+5.000 IA Boost",
+    price: "$39",
+    iconColor: "text-orange-600",
+    iconBg: "bg-orange-100",
+  },
+  {
+    icon: UserPlus,
+    label: "Seat adicional",
+    price: "$9/mes",
+    iconColor: "text-teal-600",
+    iconBg: "bg-teal-100",
+  },
 ];
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
+
+/** Renders a Clearbit logo; falls back to a branded initial badge on error */
+function LogoWithFallback({
+  domain,
+  name,
+  brandColor,
+  size = "w-8 h-8",
+}: {
+  domain: string;
+  name: string;
+  brandColor: string;
+  size?: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const initial = name.charAt(0).toUpperCase();
+
+  if (failed) {
+    return (
+      <div
+        className={`${brandColor} ${size} rounded-lg flex items-center justify-center text-white font-bold text-xs flex-shrink-0`}
+      >
+        {initial}
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`https://logo.clearbit.com/${domain}`}
+      alt={name}
+      className={`${size} rounded-lg object-contain flex-shrink-0`}
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 function FaqAccordion({ items }: { items: FaqItem[] }) {
   const [open, setOpen] = useState<number | null>(null);
@@ -229,13 +353,7 @@ function FaqAccordion({ items }: { items: FaqItem[] }) {
   );
 }
 
-function PlanCard({
-  plan,
-  isAnnual,
-}: {
-  plan: Plan;
-  isAnnual: boolean;
-}) {
+function PlanCard({ plan, isAnnual }: { plan: Plan; isAnnual: boolean }) {
   const price = isAnnual ? plan.annual : plan.monthly;
 
   return (
@@ -248,8 +366,9 @@ function PlanCard({
     >
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-          <span className="bg-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">
-            ⭐ Más Popular
+          <span className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">
+            <Star className="w-3 h-3 fill-current" />
+            Más Popular
           </span>
         </div>
       )}
@@ -332,8 +451,8 @@ export default function HomePage() {
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center gap-3 flex-shrink-0">
-              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-lg shadow-lg shadow-orange-500/30">
-                ⚡
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                <Zap className="w-5 h-5 text-white fill-white" />
               </div>
               <span className="text-white font-bold text-lg tracking-tight">
                 Klosify <span className="text-orange-500">CRM</span>
@@ -438,8 +557,9 @@ export default function HomePage() {
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative">
           {/* Badge */}
-          <div className="inline-flex items-center bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
-            ✦ Nuevo — IA Boost: scoring automático de leads
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-6">
+            <Sparkles className="w-3.5 h-3.5" />
+            Nuevo — IA Boost: scoring automático de leads
           </div>
 
           {/* Headline */}
@@ -490,15 +610,17 @@ export default function HomePage() {
             </p>
             <div className="flex items-center justify-center gap-8 flex-wrap">
               {integrationLogos.map((logo) => (
-                <img
+                <div
                   key={logo.domain}
-                  src={`https://logo.clearbit.com/${logo.domain}`}
-                  alt={logo.name}
-                  className="w-8 h-8 grayscale opacity-60 hover:opacity-100 hover:grayscale-0 transition-all duration-300 object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.opacity = "0";
-                  }}
-                />
+                  className="grayscale opacity-60 hover:opacity-100 hover:grayscale-0 transition-all duration-300"
+                >
+                  <LogoWithFallback
+                    domain={logo.domain}
+                    name={logo.name}
+                    brandColor={logo.brandColor}
+                    size="w-8 h-8"
+                  />
+                </div>
               ))}
             </div>
           </div>
@@ -531,7 +653,15 @@ export default function HomePage() {
                     <Icon className="w-6 h-6 text-white" />
                   </div>
                   <h3 className="text-lg font-bold text-slate-900 mb-2">{card.title}</h3>
-                  <p className="text-slate-500 text-sm leading-relaxed">{card.desc}</p>
+                  <p className="text-slate-500 text-sm leading-relaxed mb-4">{card.desc}</p>
+                  <ul className="space-y-2">
+                    {card.bullets.map((bullet) => (
+                      <li key={bullet} className="flex items-start gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0 mt-1.5" />
+                        <span className="text-xs text-slate-400">{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               );
             })}
@@ -559,13 +689,11 @@ export default function HomePage() {
                 {toolStack.map((tool) => (
                   <div key={tool.domain} className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={`https://logo.clearbit.com/${tool.domain}`}
-                        alt={tool.name}
-                        className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.opacity = "0";
-                        }}
+                      <LogoWithFallback
+                        domain={tool.domain}
+                        name={tool.name}
+                        brandColor={tool.brandColor}
+                        size="w-8 h-8"
                       />
                       <span className="text-sm font-medium text-slate-700">{tool.name}</span>
                     </div>
@@ -607,8 +735,9 @@ export default function HomePage() {
               {/* Price box */}
               <div className="bg-slate-900 rounded-xl p-5 mt-6 text-center">
                 <p className="text-3xl font-black text-white mb-2">$39/mes</p>
-                <div className="inline-flex items-center bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold mb-2">
-                  🎉 Ahorras $120/mes
+                <div className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold mb-2">
+                  <BadgePercent className="w-3.5 h-3.5" />
+                  Ahorras $120/mes
                 </div>
                 <p className="text-slate-500 text-xs">$1.440/año en tu bolsillo</p>
               </div>
@@ -669,16 +798,23 @@ export default function HomePage() {
               Complementos disponibles
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
-              {addOns.map((addon) => (
-                <div
-                  key={addon.label}
-                  className="bg-slate-50 rounded-xl p-4 text-center border border-slate-100"
-                >
-                  <div className="text-2xl mb-2">{addon.emoji}</div>
-                  <p className="text-xs font-semibold text-slate-700 mb-1">{addon.label}</p>
-                  <p className="text-sm font-black text-orange-500">{addon.price}</p>
-                </div>
-              ))}
+              {addOns.map((addon) => {
+                const AddonIcon = addon.icon;
+                return (
+                  <div
+                    key={addon.label}
+                    className="bg-slate-50 rounded-xl p-5 text-center border border-slate-100 hover:border-slate-200 hover:shadow-sm transition-all"
+                  >
+                    <div
+                      className={`w-10 h-10 ${addon.iconBg} rounded-xl flex items-center justify-center mx-auto mb-3`}
+                    >
+                      <AddonIcon className={`w-5 h-5 ${addon.iconColor}`} />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-700 mb-1">{addon.label}</p>
+                    <p className="text-sm font-black text-orange-500">{addon.price}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -713,9 +849,14 @@ export default function HomePage() {
           >
             Crear mi cuenta gratis →
           </Link>
-          <p className="mt-6 text-sm text-slate-600">
-            ✓ Sin setup técnico · ✓ Soporte en español · ✓ Datos seguros en LATAM
-          </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-6">
+            {["Sin setup técnico", "Soporte en español", "Datos seguros en LATAM"].map((b) => (
+              <div key={b} className="flex items-center gap-2">
+                <Check className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                <span className="text-sm text-slate-600">{b}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -726,8 +867,8 @@ export default function HomePage() {
             {/* Brand */}
             <div className="md:col-span-1">
               <Link to="/" className="flex items-center gap-2.5 mb-4">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-base shadow-lg shadow-orange-500/30">
-                  ⚡
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30">
+                  <Zap className="w-4 h-4 text-white fill-white" />
                 </div>
                 <span className="text-white font-bold">
                   Klosify <span className="text-orange-500">CRM</span>
@@ -770,18 +911,12 @@ export default function HomePage() {
               </h4>
               <ul className="space-y-3">
                 <li>
-                  <Link
-                    to="/terms"
-                    className="text-sm hover:text-white transition-colors"
-                  >
+                  <Link to="/terms" className="text-sm hover:text-white transition-colors">
                     Términos
                   </Link>
                 </li>
                 <li>
-                  <Link
-                    to="/privacy"
-                    className="text-sm hover:text-white transition-colors"
-                  >
+                  <Link to="/privacy" className="text-sm hover:text-white transition-colors">
                     Privacidad
                   </Link>
                 </li>
@@ -827,8 +962,10 @@ export default function HomePage() {
           </div>
 
           <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-            <p className="text-sm text-slate-600">
-              © 2026 Klosify CRM · Hecho con ❤️ para LATAM
+            <p className="text-sm text-slate-600 flex items-center gap-1.5">
+              © 2026 Klosify CRM · Hecho con
+              <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500 inline" />
+              para LATAM
             </p>
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-slate-700" />
