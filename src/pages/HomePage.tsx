@@ -265,6 +265,62 @@ function PipelineMockup() {
   );
 }
 
+// ─── Marquee data ─────────────────────────────────────────────────────────────
+
+const marqueeRow1 = [
+  { icon: MessageCircle, label: "WhatsApp Business",     color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/20"  },
+  { icon: BarChart3,     label: "Meta Ads + ROAS",       color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/20"   },
+  { icon: Brain,         label: "IA Lead Scoring",       color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+  { icon: Layout,        label: "Landings con IA",       color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+  { icon: TrendingUp,    label: "Pipeline Visual",       color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/20"   },
+  { icon: GitBranch,     label: "Automatizaciones",      color: "text-pink-400",   bg: "bg-pink-500/10",   border: "border-pink-500/20"   },
+  { icon: MessageCircle, label: "Instagram DMs",         color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/20"   },
+  { icon: Users,         label: "Multi-usuario",         color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/20"   },
+];
+
+const marqueeRow2 = [
+  "Sin contratos de permanencia",
+  "Soporte en español",
+  "Datos alojados en LATAM",
+  "Setup en menos de 30 min",
+  "Sin tarjeta de crédito",
+  "API de WhatsApp oficial",
+  "IA incluida en todos los planes",
+  "Cancela cuando quieras",
+  "Actualizaciones automáticas",
+  "99.9% uptime garantizado",
+];
+
+function Marquee() {
+  const doubled1 = [...marqueeRow1, ...marqueeRow1];
+  const doubled2 = [...marqueeRow2, ...marqueeRow2];
+  return (
+    <div
+      className="bg-slate-950 border-y border-slate-800/60 py-5 select-none overflow-hidden"
+      style={{ maskImage: "linear-gradient(to right, transparent, black 8%, black 92%, transparent)" }}
+    >
+      {/* Row 1 — scrolls left */}
+      <div className="marquee-left flex gap-3 w-max mb-3">
+        {doubled1.map(({ icon: Icon, label, color, bg, border }, i) => (
+          <div key={i} className={`flex items-center gap-2 ${bg} border ${border} rounded-full px-4 py-2 whitespace-nowrap`}>
+            <Icon className={`w-3.5 h-3.5 ${color} flex-shrink-0`} />
+            <span className="text-sm text-slate-300 font-medium">{label}</span>
+          </div>
+        ))}
+      </div>
+      {/* Row 2 — scrolls right */}
+      <div className="marquee-right flex gap-3 w-max">
+        {doubled2.map((label, i) => (
+          <div key={i} className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/40 rounded-full px-4 py-2 whitespace-nowrap">
+            <div className="w-1 h-1 rounded-full bg-orange-500/60 flex-shrink-0" />
+            <span className="text-sm text-slate-500 font-medium">{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FaqAccordion({ items }: { items: FaqItem[] }) {
   const [open, setOpen] = useState<number | null>(null);
   return (
@@ -339,9 +395,17 @@ export default function HomePage() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isAnnual, setIsAnnual] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const heroGlowRef  = useRef<HTMLDivElement>(null);
+  const heroGridRef  = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 10);
+    const fn = () => {
+      const y = window.scrollY;
+      setScrolled(y > 10);
+      // Parallax — direct DOM for zero re-render cost
+      if (heroGlowRef.current) heroGlowRef.current.style.transform = `translateY(${y * 0.35}px)`;
+      if (heroGridRef.current) heroGridRef.current.style.transform = `translateY(${y * 0.18}px)`;
+    };
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
   }, []);
@@ -419,6 +483,17 @@ export default function HomePage() {
         /* Bento card hover — icon pulse */
         .bento-card:hover .bento-icon { transform: scale(1.12) rotate(-3deg); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
         .bento-icon { transition: transform 0.3s ease; }
+
+        /* Marquee infinite scroll */
+        @keyframes marquee-left  { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes marquee-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+        .marquee-left  { animation: marquee-left  28s linear infinite; }
+        .marquee-right { animation: marquee-right 32s linear infinite; }
+        .marquee-left:hover, .marquee-right:hover { animation-play-state: paused; }
+
+        /* Parallax hero layers (set via JS) */
+        .hero-parallax-glow { will-change: transform; }
+        .hero-parallax-grid { will-change: transform; }
       `}</style>
 
       <div className="min-h-screen bg-white font-sans antialiased">
@@ -476,8 +551,8 @@ export default function HomePage() {
 
         {/* ── HERO ──────────────────────────────────────────────────────────── */}
         <section className="bg-slate-950 pt-32 pb-20 relative overflow-hidden">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.10),transparent_70%)] pointer-events-none" />
-          <div className="absolute inset-0 opacity-[0.025] pointer-events-none" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "64px 64px" }} />
+          <div ref={heroGlowRef} className="hero-parallax-glow absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.10),transparent_70%)] pointer-events-none" />
+          <div ref={heroGridRef} className="hero-parallax-grid absolute inset-0 opacity-[0.025] pointer-events-none" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "64px 64px" }} />
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
@@ -511,7 +586,7 @@ export default function HomePage() {
                 </div>
 
                 <div className="hero-anim flex flex-wrap items-center gap-x-5 gap-y-2 mt-7" style={{ animationDelay: "360ms" }}>
-                  {["Sin tarjeta de crédito", "14 días gratis", "Cancela cuando quieras"].map((b) => (
+                  {["Sin tarjeta de crédito", "7 días gratis", "Cancela cuando quieras"].map((b) => (
                     <div key={b} className="flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
                       <span className="text-sm text-slate-500">{b}</span>
@@ -558,6 +633,9 @@ export default function HomePage() {
             </div>
           </div>
         </div>
+
+        {/* ── MARQUEE ───────────────────────────────────────────────────────── */}
+        <Marquee />
 
         {/* ── FEATURES — BENTO GRID ─────────────────────────────────────────── */}
         <section id="features" className="bg-white py-24">
@@ -915,10 +993,10 @@ export default function HomePage() {
             <FadeUp>
               <div className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-8">
                 <Zap className="w-3.5 h-3.5 fill-orange-400" />
-                Sin tarjeta de crédito · 14 días gratis
+                Sin tarjeta de crédito · 7 días gratis
               </div>
               <h2 className="text-4xl md:text-5xl font-black text-white mb-5">Empieza hoy. Es gratis.</h2>
-              <p className="text-lg text-slate-400 mb-10">14 días de prueba completa. Cancela cuando quieras.</p>
+              <p className="text-lg text-slate-400 mb-10">7 días de prueba completa. Cancela cuando quieras.</p>
               <Link to="/auth" className="shimmer-btn inline-flex items-center gap-2 text-white px-10 py-4 rounded-xl text-base font-bold shadow-2xl shadow-orange-500/30 hover:-translate-y-0.5 transition-transform">
                 Crear mi cuenta gratis
                 <ArrowRight className="w-4 h-4" />
