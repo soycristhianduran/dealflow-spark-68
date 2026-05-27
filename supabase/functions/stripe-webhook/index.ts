@@ -235,58 +235,78 @@ async function dispatchPaymentFailedEmail(
   });
 }
 
-async function recordAiBoostPurchase(
+async function recordIaBoostPurchase(
   supabase: any,
-  paymentIntent: Stripe.PaymentIntent,
+  orgId: string,
+  credits: number,
+  paymentIntentId: string,
 ): Promise<void> {
-  const orgId = paymentIntent.metadata?.organization_id as string | undefined;
-  if (!orgId) {
-    console.warn("Payment intent has no organization_id metadata, skipping:", paymentIntent.id);
-    return;
-  }
-
-  // Determine credit amount from the price metadata or amount paid.
-  // Convention: each Boost product has a metadata field `boost_credits`
-  // (we'll set this in the Stripe Dashboard when creating products).
-  // Fallback: derive from amount paid ($9=100, $29=500, $79=2000).
-  let credits = 0;
-  try {
-    // Pull the latest charge to get the price metadata if available
-    const charge = paymentIntent.latest_charge;
-    if (typeof charge === "string" || !charge) {
-      // Without the price ID we have to fall back to amount-based heuristic
-      const amount = paymentIntent.amount; // in cents
-      if (amount === 900) credits = 100;
-      else if (amount === 2900) credits = 500;
-      else if (amount === 7900) credits = 2000;
-    }
-  } catch (e) {
-    console.warn("Could not parse AI boost credit amount from payment intent:", e);
-  }
-
-  if (credits === 0) {
-    console.warn(`AI boost purchase for org ${orgId} had unknown credit amount, skipping`);
-    return;
-  }
-
-  // Idempotency: if we've already recorded this payment_intent, skip
+  // Idempotency: skip if already recorded
   const { data: existing } = await supabase
     .from("ai_boost_credits")
     .select("id")
-    .eq("stripe_payment_intent_id", paymentIntent.id)
+    .eq("stripe_payment_intent_id", paymentIntentId)
     .maybeSingle();
   if (existing) {
-    console.log(`AI boost payment ${paymentIntent.id} already recorded, skipping`);
+    console.log(`IA Boost payment ${paymentIntentId} already recorded, skipping`);
     return;
   }
-
   await supabase.from("ai_boost_credits").insert({
     organization_id: orgId,
     credits_remaining: credits,
     credits_initial: credits,
-    stripe_payment_intent_id: paymentIntent.id,
+    stripe_payment_intent_id: paymentIntentId,
   });
-  console.log(`Recorded AI boost: org=${orgId}, credits=${credits}, pi=${paymentIntent.id}`);
+  console.log(`Recorded IA Boost: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
+}
+
+async function recordIaLandingsPurchase(
+  supabase: any,
+  orgId: string,
+  credits: number,
+  paymentIntentId: string,
+): Promise<void> {
+  // Idempotency: skip if already recorded
+  const { data: existing } = await supabase
+    .from("ia_landings_credits")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (existing) {
+    console.log(`IA Landings payment ${paymentIntentId} already recorded, skipping`);
+    return;
+  }
+  await supabase.from("ia_landings_credits").insert({
+    organization_id: orgId,
+    credits_remaining: credits,
+    credits_initial: credits,
+    stripe_payment_intent_id: paymentIntentId,
+  });
+  console.log(`Recorded IA Landings: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
+}
+
+// Resolve credits and kind from a checkout session's line items (uses Stripe
+// price metadata set by stripe-setup-products: { credits, kind }).
+async function resolveCreditsFromSession(
+  stripe: Stripe,
+  sessionId: string,
+): Promise<{ kind: string; credits: number } | null> {
+  try {
+    const lineItems = await stripe.checkout.sessions.listLineItems(sessionId, {
+      expand: ["data.price"],
+      limit: 1,
+    });
+    const price = lineItems.data[0]?.price as Stripe.Price | undefined;
+    const kind = price?.metadata?.kind;
+    const credits = parseInt(price?.metadata?.credits ?? "0", 10);
+    if (kind && credits > 0) return { kind, credits };
+  } catch (e) {
+    console.warn("Could not fetch line items for session", sessionId, e);
+  }
+
+  // Fallback: infer from amount if metadata is missing
+  // Maps current prices → credits (update if prices change)
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -337,29 +357,43 @@ Deno.serve(async (req) => {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
         const orgId = session.metadata?.organization_id as string | undefined;
-        const kind = session.metadata?.purchase_kind as string | undefined;
 
         if (!orgId) {
           console.warn("checkout.session.completed has no organization_id metadata");
           break;
         }
 
-        if (kind === "ai_boost" && session.payment_intent) {
-          // One-time AI Boost purchase — credits will be recorded in the
-          // `payment_intent.succeeded` event handler (or we could do it
-          // here too — but PI gives us more data). Skip for now.
-          console.log(`AI boost checkout completed for org=${orgId}, awaiting payment_intent event`);
+        // ── One-time credit pack (IA Boost or IA Landings) ────────────────
+        if (session.mode === "payment" && session.payment_intent) {
+          const paymentIntentId = typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : session.payment_intent.id;
+
+          // Read credits + kind from the Stripe price metadata
+          const resolved = await resolveCreditsFromSession(stripe, session.id);
+
+          if (!resolved) {
+            console.warn(`Could not resolve credits for session ${session.id}, org=${orgId}`);
+            break;
+          }
+
+          if (resolved.kind === "ia_boost") {
+            await recordIaBoostPurchase(supabase, orgId, resolved.credits, paymentIntentId);
+          } else if (resolved.kind === "ia_landings") {
+            await recordIaLandingsPurchase(supabase, orgId, resolved.credits, paymentIntentId);
+          } else {
+            console.warn(`Unknown credit kind="${resolved.kind}" for session ${session.id}`);
+          }
           break;
         }
 
-        // Subscription purchase — fetch the subscription and upsert it
+        // ── Subscription purchase — fetch and upsert ──────────────────────
         if (session.mode === "subscription" && session.subscription) {
           const subId = typeof session.subscription === "string"
             ? session.subscription
             : session.subscription.id;
           const fullSub = await stripe.subscriptions.retrieve(subId);
-          // Make sure metadata.organization_id is set on the subscription too
-          // (we set it at checkout creation time)
+          // Ensure organization_id is set on the Stripe subscription metadata
           if (!fullSub.metadata?.organization_id) {
             await stripe.subscriptions.update(subId, {
               metadata: { organization_id: orgId },
@@ -410,12 +444,36 @@ Deno.serve(async (req) => {
         break;
       }
 
-      // ── One-time AI Boost payment succeeded ──────────────────────────────
+      // ── One-time payment succeeded (fallback — primary handling is in
+      //    checkout.session.completed which has price metadata) ────────────
       case "payment_intent.succeeded": {
         const pi = event.data.object as Stripe.PaymentIntent;
-        // Only record AI boost — not subscription invoice payments
-        if (pi.metadata?.kind === "ai_boost") {
-          await recordAiBoostPurchase(supabase, pi);
+        const orgId = pi.metadata?.organization_id as string | undefined;
+        const kind = pi.metadata?.kind as string | undefined;
+        if (!orgId || !kind) break; // subscription invoice — ignore
+
+        // Derive credits from amount as fallback (checkout.session.completed
+        // is the preferred handler; this only fires if the session event
+        // was missed or credits weren't yet resolved there).
+        const amount = pi.amount; // cents
+        let credits = 0;
+        if (kind === "ia_boost") {
+          if (amount === 1900) credits = 1000;
+          else if (amount === 4900) credits = 5000;
+        } else if (kind === "ia_landings") {
+          if (amount === 900) credits = 5;
+          else if (amount === 3500) credits = 25;
+        }
+
+        if (credits === 0) {
+          console.warn(`payment_intent.succeeded: unknown amount ${amount} for kind=${kind}, skipping`);
+          break;
+        }
+
+        if (kind === "ia_boost") {
+          await recordIaBoostPurchase(supabase, orgId, credits, pi.id);
+        } else if (kind === "ia_landings") {
+          await recordIaLandingsPurchase(supabase, orgId, credits, pi.id);
         }
         break;
       }
