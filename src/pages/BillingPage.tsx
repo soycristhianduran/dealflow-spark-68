@@ -29,7 +29,6 @@ import { IA_BOOST_PACKS, IA_LANDINGS_PACKS } from "@/lib/stripe-products";
 
 interface UsageRow {
   ai_analyses_used: number;
-  ai_objections_used: number;
   automated_messages_used: number;
   email_sends_used: number;
 }
@@ -75,7 +74,7 @@ export default function BillingPage() {
       const [{ data: u }, { data: boosts }] = await Promise.all([
         (supabase as any)
           .from("usage_counters")
-          .select("ai_analyses_used, ai_objections_used, automated_messages_used, email_sends_used")
+          .select("ai_analyses_used, automated_messages_used, email_sends_used")
           .eq("organization_id", organizationId)
           .eq("period_start", monthStart)
           .maybeSingle(),
@@ -84,7 +83,7 @@ export default function BillingPage() {
           .select("credits_remaining")
           .eq("organization_id", organizationId),
       ]);
-      setUsage(u ?? { ai_analyses_used: 0, ai_objections_used: 0, automated_messages_used: 0, email_sends_used: 0 });
+      setUsage(u ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0 });
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setUsageLoading(false);
     })();
@@ -200,11 +199,6 @@ export default function BillingPage() {
                   used={usage?.ai_analyses_used ?? 0}
                   limit={subscription.monthlyAiAnalyses}
                   boostExtra={boostCredits}
-                />
-                <UsageBar
-                  label="Detección de objeciones IA"
-                  used={usage?.ai_objections_used ?? 0}
-                  limit={subscription.monthlyAiObjections}
                 />
                 <UsageBar
                   label="Mensajes automatizados"
