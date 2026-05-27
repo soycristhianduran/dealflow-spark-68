@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
           // Find which user owns this phone_number_id (also fetch access_token for media download)
           const { data: config } = await supabase
             .from("whatsapp_configs")
-            .select("user_id, access_token")
+            .select("user_id, organization_id, access_token")
             .eq("phone_number_id", phoneNumberId)
             .eq("is_active", true)
             .single();
@@ -174,12 +174,56 @@ Deno.serve(async (req) => {
               }
 
               // Try to find contact by phone
-              const { data: contact } = await supabase
+              let { data: contact } = await supabase
                 .from("contacts")
                 .select("id")
                 .eq("owner_id", config.user_id)
                 .or(`primary_phone.eq.${senderPhone},primary_phone.eq.+${senderPhone}`)
                 .maybeSingle();
+
+              // ── Auto-create lead from first WhatsApp message ───────────────
+              // If no contact exists yet, create one so the lead isn't lost.
+              // Meta sometimes sends the WhatsApp display name in value.contacts[].profile.name
+              if (!contact && config.organization_id) {
+                const waProfile = (value.contacts || []).find(
+                  (c: any) => c.wa_id === senderPhone || c.wa_id === `+${senderPhone}`,
+                );
+                const displayName: string | null = waProfile?.profile?.name || null;
+                const nameParts = displayName ? displayName.trim().split(/\s+/) : [];
+                const firstName = nameParts[0] || null;
+                const lastName = nameParts.slice(1).join(" ") || null;
+                // Normalize: always store with leading "+"
+                const normalizedPhone = senderPhone.startsWith("+") ? senderPhone : `+${senderPhone}`;
+
+                const { data: newContact, error: createErr } = await supabase
+                  .from("contacts")
+                  .insert({
+                    owner_id: config.user_id,
+                    organization_id: config.organization_id,
+                    primary_phone: normalizedPhone,
+                    first_name: firstName,
+                    last_name: lastName,
+                    full_name: displayName || normalizedPhone,
+                    source: "whatsapp",
+                  })
+                  .select("id")
+                  .single();
+
+                if (createErr) {
+                  console.error("Auto-create contact error:", createErr.message);
+                } else if (newContact) {
+                  console.log(`Auto-created contact ${newContact.id} from WhatsApp number ${normalizedPhone}`);
+                  contact = newContact;
+
+                  // Relink any previous orphaned messages from this number
+                  await supabase
+                    .from("whatsapp_messages")
+                    .update({ contact_id: newContact.id })
+                    .eq("user_id", config.user_id)
+                    .or(`phone_number.eq.${senderPhone},phone_number.eq.+${senderPhone}`)
+                    .is("contact_id", null);
+                }
+              }
 
               // Save incoming message
               await supabase.from("whatsapp_messages").insert({
