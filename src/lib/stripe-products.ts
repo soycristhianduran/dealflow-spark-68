@@ -1,48 +1,56 @@
 /**
- * Stripe product/price IDs used by Velocity CRM.
+ * Stripe product/price IDs for Klosify CRM.
  *
  * Plan prices (Starter, Pro, Business — monthly & annual) live in the
  * `plans` table in the DB. The pricing page reads them from there so a
  * price change is a one-row UPDATE without code deploy.
  *
- * AI Boost packs are one-time payments and don't fit the `plans` table
- * cleanly, so we keep them as constants here.
+ * One-time credit packs (IA Boost + IA Landings) are kept here as
+ * constants since they don't belong in the subscriptions table.
  */
 
-export const AI_BOOST_PRICES = {
-  boost_100:  "price_1TZGPoRvVDvs7cXCzNjVpQPB",
-  boost_500:  "price_1TZGQHRvVDvs7cXCLkDWkJXI",
-  boost_2000: "price_1TZGQcRvVDvs7cXCbNiuwIUd",
-} as const;
+// ── IA Boost (one-time, adds AI analysis credits) ────────────────────────────
 
-export type AiBoostPack = keyof typeof AI_BOOST_PRICES;
-
-export const AI_BOOST_PACKS: Array<{
-  id: AiBoostPack;
-  label: string;
-  credits: number;
-  priceUsd: number;
-  price_id: string;
-}> = [
+export const IA_BOOST_PACKS = [
   {
-    id: "boost_100",
-    label: "AI Boost +100",
-    credits: 100,
+    key: "ia_boost_1000",
+    label: "IA Boost +1,000 contactos",
+    description: "1,000 análisis adicionales de contactos con IA",
+    credits: 1000,
+    priceUsd: 19,
+    price_id: "price_1TZGQcRvVDvs7cXCbNiuwIUd",
+  },
+  {
+    key: "ia_boost_5000",
+    label: "IA Boost +5,000 contactos",
+    description: "5,000 análisis adicionales de contactos con IA",
+    credits: 5000,
+    priceUsd: 49,
+    price_id: "price_1TbjldRvVDvs7cXCuqHVwGyc",
+  },
+] as const;
+
+export type IaBoostPackKey = typeof IA_BOOST_PACKS[number]["key"];
+
+// ── IA Landings (one-time, adds landing page generation credits) ──────────────
+
+export const IA_LANDINGS_PACKS = [
+  {
+    key: "ia_landings_5",
+    label: "IA Landings +5 créditos",
+    description: "5 créditos para generar landing pages con IA",
+    credits: 5,
     priceUsd: 9,
-    price_id: AI_BOOST_PRICES.boost_100,
+    price_id: "price_1TZGPoRvVDvs7cXCzNjVpQPB",
   },
   {
-    id: "boost_500",
-    label: "AI Boost +500",
-    credits: 500,
-    priceUsd: 29,
-    price_id: AI_BOOST_PRICES.boost_500,
+    key: "ia_landings_25",
+    label: "IA Landings +25 créditos",
+    description: "25 créditos para generar landing pages con IA",
+    credits: 25,
+    priceUsd: 35,
+    price_id: "price_1TZGQHRvVDvs7cXCLkDWkJXI",
   },
-  {
-    id: "boost_2000",
-    label: "AI Boost +2,000",
-    credits: 2000,
-    priceUsd: 79,
-    price_id: AI_BOOST_PRICES.boost_2000,
-  },
-];
+] as const;
+
+export type IaLandingsPackKey = typeof IA_LANDINGS_PACKS[number]["key"];

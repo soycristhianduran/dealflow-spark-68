@@ -25,7 +25,7 @@ import { CreditCard, Sparkles, ExternalLink, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { AI_BOOST_PACKS } from "@/lib/stripe-products";
+import { IA_BOOST_PACKS, IA_LANDINGS_PACKS } from "@/lib/stripe-products";
 
 interface UsageRow {
   ai_analyses_used: number;
@@ -241,14 +241,25 @@ export default function BillingPage() {
                   Ver planes
                 </Link>
               </Button>
-              {AI_BOOST_PACKS.map((pack) => (
+              {IA_BOOST_PACKS.map((pack) => (
                 <Button
-                  key={pack.id}
+                  key={pack.key}
                   variant="outline"
                   onClick={() => buyBoost(pack.price_id, pack.label)}
                   disabled={purchasingBoost === pack.price_id}
                 >
                   <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
+                  {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
+                </Button>
+              ))}
+              {IA_LANDINGS_PACKS.map((pack) => (
+                <Button
+                  key={pack.key}
+                  variant="outline"
+                  onClick={() => buyBoost(pack.price_id, pack.label)}
+                  disabled={purchasingBoost === pack.price_id}
+                >
+                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
                   {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
                 </Button>
               ))}
