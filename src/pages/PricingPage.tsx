@@ -174,7 +174,7 @@ export default function PricingPage() {
                   className={
                     isPro
                       // Pro: sunset gradient border + lift + glow effect
-                      ? "relative border-0 shadow-xl scale-105 md:scale-110 z-10 ring-2 ring-primary/30 overflow-hidden"
+                      ? "relative border-0 shadow-xl scale-105 md:scale-110 z-10 ring-2 ring-primary/30"
                       : "relative border shadow-sm hover:shadow-md transition-shadow"
                   }
                   style={isPro ? {
