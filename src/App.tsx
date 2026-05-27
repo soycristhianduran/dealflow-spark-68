@@ -9,6 +9,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AuthPage from "./pages/AuthPage";
+import HomePage from "./pages/HomePage";
 import DashboardPage from "./pages/DashboardPage";
 import ContactsPage from "./pages/ContactsPage";
 import ContactDetailPage from "./pages/ContactDetailPage";
@@ -56,32 +57,29 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/** After login, redirect user to their workspace slug URL */
-function RootRedirect() {
+/** Root route: shows the marketing homepage for logged-out users, or redirects to workspace if logged in */
+function RootRoute() {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     if (loading) return;
-    if (!session) { navigate("/auth", { replace: true }); return; }
-
+    if (!session) {
+      setChecking(false);
+      return;
+    }
     supabase.rpc("get_my_organization").then(({ data }) => {
       const slug = data?.[0]?.org_slug;
-      if (slug) {
-        navigate(`/w/${slug}`, { replace: true });
-      } else {
-        // No slug yet — go to settings so user can set one
-        navigate("/w/_/settings", { replace: true });
-      }
+      navigate(slug ? `/w/${slug}` : "/w/_/settings", { replace: true });
       setChecking(false);
     });
   }, [loading, session, navigate]);
 
-  if (loading || checking) {
+  if (loading || (session && checking)) {
     return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
   }
-  return null;
+  return <HomePage />;
 }
 
 function WorkspaceRoutes() {
@@ -157,8 +155,8 @@ function AppRoutes() {
       {/* Workspace entry point: validates slug + renders workspace */}
       <Route path="/w/:slug/*" element={<WorkspaceEntryPage />} />
 
-      {/* Root: redirect to user's workspace slug */}
-      <Route path="/" element={<RootRedirect />} />
+      {/* Root: marketing homepage for guests, workspace redirect for logged-in users */}
+      <Route path="/" element={<RootRoute />} />
 
       {/* Legacy flat routes (backward compat) — redirect to slug-based */}
       <Route path="*" element={<NotFound />} />
