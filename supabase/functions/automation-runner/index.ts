@@ -27,6 +27,46 @@ function renderVars(template: string, ctx: Record<string, any>): string {
   });
 }
 
+/**
+ * Evaluates an If/Else condition step against the contact.
+ * Returns true if the condition passes, false if it fails.
+ */
+function evaluateCondition(cfg: any, contact: any): boolean {
+  const { field = "tags", operator = "contains", value = "" } = cfg;
+  let fieldValue: any;
+
+  switch (field) {
+    case "tags":
+      fieldValue = Array.isArray(contact.tags) ? contact.tags : [];
+      break;
+    case "primary_email":
+      fieldValue = contact.primary_email ?? "";
+      break;
+    case "lead_status":
+    case "status":
+      fieldValue = contact.status ?? contact.lead_status ?? "";
+      break;
+    default:
+      fieldValue = contact[field] ?? "";
+  }
+
+  switch (operator) {
+    case "contains":
+      if (Array.isArray(fieldValue)) {
+        return fieldValue.some((t: string) => String(t).toLowerCase().includes(String(value).toLowerCase()));
+      }
+      return String(fieldValue).toLowerCase().includes(String(value).toLowerCase());
+    case "equals":
+      if (Array.isArray(fieldValue)) return fieldValue.includes(value);
+      return String(fieldValue).toLowerCase() === String(value).toLowerCase();
+    case "not_empty":
+      if (Array.isArray(fieldValue)) return fieldValue.length > 0;
+      return String(fieldValue).trim().length > 0;
+    default:
+      return true;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -237,6 +277,7 @@ async function processEnrollment(enr: any, supabase: any) {
 
   // Execute the step
   let logs = enr.logs || [];
+  let extraSkip = 0; // set to 1 by condition step when condition is FALSE (skip next step)
   try {
     if (step.type === "wait") {
       // We already waited — just advance
@@ -454,6 +495,16 @@ async function processEnrollment(enr: any, supabase: any) {
       }
     }
 
+    else if (step.type === "condition") {
+      const passed = evaluateCondition(step.config || {}, contact);
+      if (passed) {
+        logs = addLog(`Condición "${step.config?.field} ${step.config?.operator} ${step.config?.value}" → VERDADERA, continúa al siguiente paso`);
+      } else {
+        extraSkip = 1;
+        logs = addLog(`Condición "${step.config?.field} ${step.config?.operator} ${step.config?.value}" → FALSA, se omite el siguiente paso`);
+      }
+    }
+
     else if (step.type === "send_webhook") {
       const { url, method = "POST", include_contact } = step.config || {};
       if (url) {
@@ -515,8 +566,8 @@ async function processEnrollment(enr: any, supabase: any) {
     // Continue to next step even on error (don't block the whole enrollment)
   }
 
-  // Advance to next step
-  const nextIndex = stepIndex + 1;
+  // Advance to next step (extraSkip=1 when condition was FALSE → skip the next step)
+  const nextIndex = stepIndex + 1 + extraSkip;
 
   if (nextIndex >= steps.length) {
     await supabase.from("automation_enrollments").update({

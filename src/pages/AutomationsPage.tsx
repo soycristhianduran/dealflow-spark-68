@@ -1188,9 +1188,9 @@ function StepConfigEditor({ step, onChange }: {
           <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)} />
         </div>
       </div>
-      <p className="text-xs text-amber-600 flex items-start gap-1">
+      <p className="text-xs text-muted-foreground flex items-start gap-1">
         <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-        El flujo continúa independientemente de la condición hasta implementar bifurcaciones completas.
+        Si la condición se cumple, continúa al siguiente paso. Si no se cumple, ese paso se omite.
       </p>
     </div>
   );
