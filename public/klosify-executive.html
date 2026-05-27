@@ -110,6 +110,24 @@
   .logo-img.sz-32 { width: 32px; height: 32px; border-radius: 8px; background: white; }
   .logo-img.sz-36 { width: 36px; height: 36px; border-radius: 10px; background: white; }
 
+  /* TARGET AUDIENCE */
+  .segment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .segment-card { background: white; border-radius: 12px; padding: 22px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); border-top: 3px solid #e2e8f0; }
+  .segment-card.primary { border-top-color: #f97316; }
+  .segment-icon { font-size: 28px; margin-bottom: 12px; }
+  .segment-name { font-size: 14px; font-weight: 700; color: #0f172a; margin-bottom: 6px; }
+  .segment-desc { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 12px; }
+  .segment-plan { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #f97316; background: #fff7ed; padding: 3px 10px; border-radius: 20px; display: inline-block; }
+  .icp-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px; }
+  .icp-box { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.07); }
+  .icp-box h4 { font-size: 13px; font-weight: 700; color: #0f172a; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+  .icp-item { font-size: 13px; color: #475569; padding: 5px 0; border-bottom: 1px solid #f8fafc; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+  .icp-item:last-child { border-bottom: none; }
+  .icp-dot { width: 6px; height: 6px; border-radius: 50%; background: #f97316; margin-top: 5px; flex-shrink: 0; }
+  .trigger-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .trigger-item { background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 12px 14px; font-size: 13px; color: #92400e; display: flex; align-items: flex-start; gap: 8px; line-height: 1.4; }
+  .trigger-item::before { content: '⚡'; flex-shrink: 0; }
+
   /* FOOTER */
   .footer { background: #0f172a; color: #64748b; padding: 30px 60px; font-size: 13px; display: flex; justify-content: space-between; align-items: center; margin-top: 60px; }
   .footer .brand { color: white; font-weight: 700; }
@@ -176,9 +194,65 @@
     </div>
   </div>
 
-  <!-- 2. EL PRODUCTO -->
+  <!-- 2. A QUIÉN VA DIRIGIDO -->
   <div class="section">
     <div class="section-subtitle">02</div>
+    <div class="section-title">A quién va dirigido</div>
+
+    <p>Klosify está diseñado para negocios y profesionales latinoamericanos que venden activamente, utilizan WhatsApp como canal principal de comunicación con sus clientes, y necesitan una solución integrada sin pagar por cuatro o cinco herramientas separadas. El mercado objetivo son <strong>PyMEs, agencias y consultores de ventas con entre 1 y 15 personas en su equipo comercial.</strong></p>
+
+    <div class="segment-grid">
+      <div class="segment-card primary">
+        <div class="segment-icon">🏢</div>
+        <div class="segment-name">Agencias de Marketing Digital</div>
+        <div class="segment-desc">Gestionan Meta Ads para sus clientes, necesitan reportar ROAS con datos reales y manejar las conversaciones de WhatsApp de múltiples cuentas desde un solo lugar.</div>
+        <span class="segment-plan">Plan Pro / Business</span>
+      </div>
+      <div class="segment-card primary">
+        <div class="segment-icon">💼</div>
+        <div class="segment-name">Equipos Comerciales de PyMEs</div>
+        <div class="segment-desc">Negocios con 2 a 10 vendedores que cierran ventas por WhatsApp. Necesitan pipeline, seguimiento automatizado y visibilidad del equipo sin complicaciones técnicas.</div>
+        <span class="segment-plan">Plan Pro</span>
+      </div>
+      <div class="segment-card">
+        <div class="segment-icon">🚀</div>
+        <div class="segment-name">Emprendedores y Consultores</div>
+        <div class="segment-desc">Freelancers o solopreneurs que venden servicios o infoproductos. Quieren lanzar landing pages rápido, capturar leads con IA y gestionar todo desde un solo panel.</div>
+        <span class="segment-plan">Plan Starter / Pro</span>
+      </div>
+    </div>
+
+    <div class="icp-grid">
+      <div class="icp-box">
+        <h4>📍 Perfil demográfico</h4>
+        <div class="icp-item"><div class="icp-dot"></div>Mercados principales: Colombia, México, Argentina, Perú, Venezuela, Ecuador</div>
+        <div class="icp-item"><div class="icp-dot"></div>Equipo: 1 a 15 personas en ventas o marketing</div>
+        <div class="icp-item"><div class="icp-dot"></div>Facturación: $20K – $2M USD/año</div>
+        <div class="icp-item"><div class="icp-dot"></div>Industrias: servicios, educación, inmobiliaria, salud, e-commerce, consultoría</div>
+      </div>
+      <div class="icp-box">
+        <h4>🛠️ Stack tecnológico actual</h4>
+        <div class="icp-item"><div class="icp-dot"></div>WhatsApp Business (app o API) como canal principal de ventas</div>
+        <div class="icp-item"><div class="icp-dot"></div>Facebook e Instagram Ads activos con presupuesto mensual</div>
+        <div class="icp-item"><div class="icp-dot"></div>Sin CRM formal o usando Excel / Notion para seguimiento</div>
+        <div class="icp-item"><div class="icp-dot"></div>Landing pages en Wix, Webflow o contratan diseñadores por proyecto</div>
+      </div>
+    </div>
+
+    <p style="font-size:13px; font-weight:700; color:#0f172a; margin-bottom:12px;">⚡ Señales de compra — el cliente llega cuando:</p>
+    <div class="trigger-grid">
+      <div class="trigger-item">Paga Kommo o Pipedrive pero siente que es caro por usuario y le falta WhatsApp nativo</div>
+      <div class="trigger-item">Tiene leads por WhatsApp, formularios de Facebook y email, todo desorganizado</div>
+      <div class="trigger-item">Reporta resultados de Meta Ads manualmente o en hojas de cálculo cada semana</div>
+      <div class="trigger-item">Quiere crear landing pages sin depender de un diseñador o pagar otra suscripción</div>
+      <div class="trigger-item">Su equipo de ventas trabaja sin proceso claro — no hay pipeline ni seguimiento automático</div>
+      <div class="trigger-item">Busca una solución en español, con soporte en su zona horaria y precios en USD accesibles</div>
+    </div>
+  </div>
+
+  <!-- 3. EL PRODUCTO -->
+  <div class="section">
+    <div class="section-subtitle">03</div>
     <div class="section-title">El Producto</div>
 
     <p>Klosify CRM elimina la necesidad de contratar múltiples herramientas (WhatsApp API, herramienta de anuncios, CRM, generador de landings) unificándolas en una sola plataforma con un precio significativamente menor al costo combinado de las alternativas.</p>
@@ -236,7 +310,7 @@
 
   <!-- 3. PLANES Y PRECIOS -->
   <div class="section">
-    <div class="section-subtitle">03</div>
+    <div class="section-subtitle">04</div>
     <div class="section-title">Planes y Precios</div>
 
     <table class="plans-table">
@@ -284,7 +358,7 @@
 
   <!-- 4. INGRESOS ADICIONALES -->
   <div class="section">
-    <div class="section-subtitle">04</div>
+    <div class="section-subtitle">05</div>
     <div class="section-title">Ingresos Adicionales (Add-ons)</div>
     <p>Además de la suscripción mensual, el modelo genera ingresos por consumo. Los clientes pueden comprar créditos adicionales cuando superan sus límites incluidos, sin necesidad de hacer upgrade de plan.</p>
 
@@ -318,7 +392,7 @@
 
   <!-- 5. MODELO DE NEGOCIO -->
   <div class="section">
-    <div class="section-subtitle">05</div>
+    <div class="section-subtitle">06</div>
     <div class="section-title">Modelo de Negocio y Rentabilidad</div>
 
     <div class="biz-grid">
@@ -391,7 +465,7 @@
 
   <!-- 6. VENTAJAS COMPETITIVAS -->
   <div class="section">
-    <div class="section-subtitle">06</div>
+    <div class="section-subtitle">07</div>
     <div class="section-title">Ventajas Competitivas</div>
 
     <table class="comp-table">
