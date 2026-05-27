@@ -190,15 +190,85 @@ async function processLeadgenChange(
   }
 
   if (existingContactId) {
-    console.log(`Lead ${leadgenId} already exists as contact ${existingContactId} — logging duplicate activity`);
-    // Log an activity so the team knows this person re-submitted the form
+    console.log(`Lead ${leadgenId} already exists as contact ${existingContactId} — re-activating as new opportunity`);
+
+    // ── Patch contact with any new data from the form ──────────────────────
+    const patch: Record<string, any> = {};
+    if (contactData.primary_email && !contactData.primary_email.includes("@")) {} // skip invalid
+    else if (contactData.primary_email) patch.primary_email = contactData.primary_email;
+    if (contactData.primary_phone) patch.primary_phone = contactData.primary_phone;
+    if (contactData.first_name)    patch.first_name    = contactData.first_name;
+    if (contactData.last_name)     patch.last_name     = contactData.last_name;
+    if (Object.keys(patch).length) {
+      await supabase.from("contacts").update(patch).eq("id", existingContactId)
+        .catch((e: any) => console.warn("Could not patch existing contact:", e));
+    }
+
+    // ── Re-assign to pipeline/stage (treat as fresh lead) ─────────────────
+    const { data: pipeline } = formConfig?.pipeline_id
+      ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
+      : await supabase.from("pipelines").select("id").eq("organization_id", organizationId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+
+    if (pipeline) {
+      const { data: stage } = await supabase
+        .from("pipeline_stages")
+        .select("id")
+        .eq("pipeline_id", pipeline.id)
+        .order("order", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (stage) {
+        await supabase.from("contacts")
+          .update({ pipeline_id: pipeline.id, stage_id: stage.id, lead_status: "active" })
+          .eq("id", existingContactId)
+          .catch((e: any) => console.warn("Could not re-assign pipeline:", e));
+      }
+    }
+
+    // ── Log activity with context: returning lead, new form submission ─────
     await supabase.from("activities").insert({
       related_entity_type: "contact",
       related_entity_id: existingContactId,
       event_type: "note",
       event_source: "facebook_lead_form",
-      summary: `🔁 Nuevo lead recibido desde Facebook Lead Form (contacto duplicado)\nFormulario: ${formId} · Lead ID: ${leadgenId}`,
-    }).catch((e: any) => console.warn("Could not log duplicate activity:", e));
+      summary: `🔁 Lead existente volvió a interactuar — nuevo formulario de Meta\nFormulario: ${formId} · Lead ID: ${leadgenId}\nContacto reactivado como nueva oportunidad.`,
+    }).catch((e: any) => console.warn("Could not log re-activation activity:", e));
+
+    // ── Fire automations (same as a new lead) ─────────────────────────────
+    try {
+      const { data: automations } = await supabase
+        .from("automations")
+        .select("id, trigger_config")
+        .eq("user_id", userId)
+        .eq("is_active", true)
+        .eq("trigger_type", "meta_lead_form");
+
+      const matching = (automations || []).filter((a: any) => {
+        const cfg = a.trigger_config || {};
+        return !cfg.form_id || cfg.form_id === formId;
+      });
+
+      if (matching.length > 0) {
+        const enrollments = matching.map((a: any) => ({
+          automation_id: a.id,
+          contact_id: existingContactId,
+          user_id: userId,
+          status: "active",
+          current_step_index: 0,
+          next_run_at: new Date().toISOString(),
+        }));
+        await supabase.from("automation_enrollments").insert(enrollments);
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
+          body: JSON.stringify({}),
+        }).catch((e) => console.warn("Could not trigger automation-runner:", e));
+      }
+    } catch (autoErr) {
+      console.warn("Error triggering automations for re-activated lead:", autoErr);
+    }
+
     return;
   }
 

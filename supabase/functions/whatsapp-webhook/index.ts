@@ -222,6 +222,32 @@ Deno.serve(async (req) => {
                     .eq("user_id", config.user_id)
                     .or(`phone_number.eq.${senderPhone},phone_number.eq.+${senderPhone}`)
                     .is("contact_id", null);
+
+                  // Assign to first pipeline/stage so the lead appears in the pipeline view
+                  const { data: waPipeline } = await supabase
+                    .from("pipelines")
+                    .select("id")
+                    .eq("organization_id", config.organization_id)
+                    .order("created_at", { ascending: true })
+                    .limit(1)
+                    .maybeSingle();
+
+                  if (waPipeline) {
+                    const { data: waStage } = await supabase
+                      .from("pipeline_stages")
+                      .select("id")
+                      .eq("pipeline_id", waPipeline.id)
+                      .order("order", { ascending: true })
+                      .limit(1)
+                      .maybeSingle();
+
+                    if (waStage) {
+                      await supabase.from("contacts")
+                        .update({ pipeline_id: waPipeline.id, stage_id: waStage.id, lead_status: "active" })
+                        .eq("id", newContact.id);
+                      console.log(`Assigned contact ${newContact.id} → pipeline ${waPipeline.id}, stage ${waStage.id}`);
+                    }
+                  }
                 }
               }
 
