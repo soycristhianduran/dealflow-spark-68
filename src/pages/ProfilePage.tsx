@@ -62,7 +62,7 @@ export default function ProfilePage() {
         });
       }
     } catch (err) {
-      console.error("Error fetching profile:", err);
+      console.warn("Error fetching profile:", err);
     } finally {
       setLoading(false);
     }
@@ -90,7 +90,7 @@ export default function ProfilePage() {
       toast.success("Perfil actualizado correctamente");
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
-      console.error("Error saving profile:", err);
+      console.warn("Error saving profile:", err);
       toast.error("Error al guardar el perfil");
     } finally {
       setSaving(false);
@@ -118,7 +118,7 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
-      console.error("Error changing password:", err);
+      console.warn("Error changing password:", err);
       toast.error(err.message || "Error al cambiar la contraseña");
     } finally {
       setChangingPassword(false);
@@ -138,7 +138,7 @@ export default function ProfilePage() {
       navigate("/auth");
       toast.success("Tu cuenta ha sido eliminada");
     } catch (err: any) {
-      console.error("Error deleting account:", err);
+      console.warn("Error deleting account:", err);
       toast.error(err.message || "Error al eliminar la cuenta");
     } finally {
       setDeleting(false);
@@ -191,7 +191,7 @@ export default function ProfilePage() {
       toast.success("Foto de perfil actualizada");
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
-      console.error("Error uploading avatar:", err);
+      console.warn("Error uploading avatar:", err);
       toast.error("Error al subir la imagen");
     } finally {
       setUploading(false);

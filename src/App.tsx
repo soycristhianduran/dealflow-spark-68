@@ -48,6 +48,7 @@ import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { LockoutScreen } from "@/components/billing/LockoutScreen";
 import { useSubscription } from "@/hooks/useSubscription";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -195,21 +196,23 @@ function AppRoutes() {
 }
 
 const App = () => (
-  <ThemeProvider>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <AuthProvider>
-            <OrganizationProvider>
-              <AppRoutes />
-            </OrganizationProvider>
-          </AuthProvider>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </ThemeProvider>
+  <ErrorBoundary>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <AuthProvider>
+              <OrganizationProvider>
+                <AppRoutes />
+              </OrganizationProvider>
+            </AuthProvider>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
+  </ErrorBoundary>
 );
 
 export default App;

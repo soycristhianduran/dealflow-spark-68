@@ -479,7 +479,7 @@ export default function ContactsPage() {
     }).select("id").single();
 
     if (campErr || !campData) {
-      console.error("Campaign insert error:", campErr);
+      console.warn("Campaign insert error:", campErr);
       toast.error(`Error al crear la campaña: ${campErr?.message ?? "intenta de nuevo"}`);
       return;
     }

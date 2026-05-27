@@ -79,7 +79,7 @@ export function useSubscription(): UseSubscriptionReturn {
       { p_org_id: organizationId },
     );
     if (error) {
-      console.error("get_active_subscription failed:", error);
+      console.warn("get_active_subscription failed:", error);
       setSubscription(null);
       setLoading(false);
       return;

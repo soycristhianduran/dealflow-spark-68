@@ -66,7 +66,7 @@ export default function InstagramInboxPage() {
       .eq("user_id", user.id)
       .order("last_message_at", { ascending: false });
     if (error) {
-      console.error("loadConversations:", error);
+      toast.error("Error al cargar conversaciones: " + error.message);
     } else {
       setConversations((data || []) as IgConversation[]);
     }
@@ -83,7 +83,7 @@ export default function InstagramInboxPage() {
       .select("id, ig_message_id, direction, message_type, message_text, attachment_url, sender_id, status, sent_at")
       .eq("conversation_id", conv.id)
       .order("sent_at", { ascending: true });
-    if (error) console.error("loadMessages:", error);
+    if (error) toast.error("Error al cargar mensajes: " + error.message);
     setMessages((data || []) as IgMessage[]);
     setLoadingMsgs(false);
 

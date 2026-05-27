@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { CreditCard, Sparkles, ExternalLink, CheckCircle2 } from "lucide-react";
+import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -39,6 +39,7 @@ export default function BillingPage() {
   const { organizationId } = useOrganizationContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [usage, setUsage] = useState<UsageRow | null>(null);
+  const [usageLoading, setUsageLoading] = useState(true);
   const [boostCredits, setBoostCredits] = useState<number>(0);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
@@ -66,21 +67,24 @@ export default function BillingPage() {
   // Load usage counters + boost credits
   useEffect(() => {
     if (!organizationId) return;
+    setUsageLoading(true);
     (async () => {
       const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-      const { data: u } = await (supabase as any)
-        .from("usage_counters")
-        .select("ai_analyses_used, ai_objections_used, automated_messages_used, email_sends_used")
-        .eq("organization_id", organizationId)
-        .gte("period_start", monthStart)
-        .maybeSingle();
+      const [{ data: u }, { data: boosts }] = await Promise.all([
+        (supabase as any)
+          .from("usage_counters")
+          .select("ai_analyses_used, ai_objections_used, automated_messages_used, email_sends_used")
+          .eq("organization_id", organizationId)
+          .gte("period_start", monthStart)
+          .maybeSingle(),
+        (supabase as any)
+          .from("ai_boost_credits")
+          .select("credits_remaining")
+          .eq("organization_id", organizationId),
+      ]);
       setUsage(u ?? { ai_analyses_used: 0, ai_objections_used: 0, automated_messages_used: 0, email_sends_used: 0 });
-
-      const { data: boosts } = await (supabase as any)
-        .from("ai_boost_credits")
-        .select("credits_remaining")
-        .eq("organization_id", organizationId);
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
+      setUsageLoading(false);
     })();
   }, [organizationId]);
 
@@ -183,28 +187,36 @@ export default function BillingPage() {
             <CardTitle className="text-lg">Uso de este mes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <UsageBar
-              label="Análisis IA de leads"
-              used={usage?.ai_analyses_used ?? 0}
-              limit={subscription.monthlyAiAnalyses}
-              boostExtra={boostCredits}
-            />
-            <UsageBar
-              label="Detección de objeciones IA"
-              used={usage?.ai_objections_used ?? 0}
-              limit={subscription.monthlyAiObjections}
-            />
-            <UsageBar
-              label="Mensajes automatizados"
-              used={usage?.automated_messages_used ?? 0}
-              limit={subscription.monthlyAutomatedMessages}
-            />
-            {subscription.featureEmailCampaigns && (
-              <UsageBar
-                label="Envíos de Email Campaigns"
-                used={usage?.email_sends_used ?? 0}
-                limit={subscription.monthlyEmailSends}
-              />
+            {usageLoading ? (
+              <div className="flex items-center gap-2 py-4 text-muted-foreground text-sm">
+                <Loader2 className="h-4 w-4 animate-spin" /> Cargando uso…
+              </div>
+            ) : (
+              <>
+                <UsageBar
+                  label="Análisis IA de leads"
+                  used={usage?.ai_analyses_used ?? 0}
+                  limit={subscription.monthlyAiAnalyses}
+                  boostExtra={boostCredits}
+                />
+                <UsageBar
+                  label="Detección de objeciones IA"
+                  used={usage?.ai_objections_used ?? 0}
+                  limit={subscription.monthlyAiObjections}
+                />
+                <UsageBar
+                  label="Mensajes automatizados"
+                  used={usage?.automated_messages_used ?? 0}
+                  limit={subscription.monthlyAutomatedMessages}
+                />
+                {subscription.featureEmailCampaigns && (
+                  <UsageBar
+                    label="Envíos de Email Campaigns"
+                    used={usage?.email_sends_used ?? 0}
+                    limit={subscription.monthlyEmailSends}
+                  />
+                )}
+              </>
             )}
           </CardContent>
         </Card>

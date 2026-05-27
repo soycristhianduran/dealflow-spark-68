@@ -101,7 +101,7 @@ export function useGoogleCalendar() {
       });
 
       if (error) {
-        console.error("Error creating Google Calendar event:", error);
+        console.warn("Error creating Google Calendar event:", error);
         if (data?.code === "TOKEN_EXPIRED") {
           setIsConnected(false);
           toast.error("Token de Google expirado. Reconecta Google Calendar desde Integraciones.");

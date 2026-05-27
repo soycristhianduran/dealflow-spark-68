@@ -128,7 +128,7 @@ export function useFacebookIntegration() {
     );
     if (stateErr || !stateToken) {
       setConnecting(false);
-      console.error("create_oauth_state failed:", stateErr);
+      console.warn("create_oauth_state failed, using UUID fallback:", stateErr);
       // Fallback: use user ID as state (less secure but functional while DB
       // migration propagates). The real CSRF-safe nonce will be used once the
       // oauth_state_tokens table is confirmed present on the remote DB.

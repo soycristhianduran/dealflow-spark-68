@@ -335,7 +335,7 @@ export default function ConversationsPage() {
       setRecSeconds(0);
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
-      console.error("recorder start failed:", e);
+      console.warn("recorder start failed:", e);
       toast.error("Micrófono no disponible: " + (e?.message || e));
     }
   }, [selected]);
