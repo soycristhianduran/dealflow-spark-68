@@ -249,22 +249,41 @@ export default function BillingPage() {
               Créditos IA Landings
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {usageLoading ? (
               <div className="flex items-center gap-2 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
               </div>
-            ) : landingCredits > 0 ? (
-              <>
-                <p className="text-3xl font-bold">{landingCredits}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Se descuenta 1 crédito cada vez que generas una landing page con IA. Refinar páginas existentes no consume créditos.
-                </p>
-              </>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                No tienes créditos disponibles. Compra un paquete para generar landings con IA.
-              </p>
+              <>
+                {landingCredits > 0 ? (
+                  <>
+                    <p className="text-3xl font-bold">{landingCredits} <span className="text-base font-normal text-muted-foreground">créditos disponibles</span></p>
+                    <p className="text-sm text-muted-foreground">
+                      Se descuenta 1 crédito al generar una landing nueva. Refinar páginas existentes es gratis.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No tienes créditos disponibles. Compra un paquete para generar landings con IA.
+                  </p>
+                )}
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {IA_LANDINGS_PACKS.map((pack) => (
+                    <Button
+                      key={pack.key}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => buyBoost(pack.price_id, pack.label)}
+                      disabled={purchasingBoost === pack.price_id}
+                      className="gap-1.5"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-orange-500" />
+                      {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
+                    </Button>
+                  ))}
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
