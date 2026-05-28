@@ -588,6 +588,91 @@ async function processInstagramMessenger(
   });
 
   console.log(`IG DM stored: from=${senderId} to=${recipientId} text=${messageText.substring(0, 60)}`);
+
+  // ── AI Agent: respond automatically if enabled ────────────────────────────
+  (async () => {
+    try {
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", account.user_id)
+        .maybeSingle();
+
+      if (!membership?.organization_id) return;
+
+      // Fetch last 6 messages for context
+      const { data: recentMsgs } = await supabase
+        .from("instagram_messages")
+        .select("direction, message_text, message_type")
+        .eq("user_id", account.user_id)
+        .eq("sender_id", senderId)
+        .order("sent_at", { ascending: false })
+        .limit(6);
+
+      const history = (recentMsgs || []).reverse().map((m: any) => ({
+        role: m.direction === "incoming" ? "user" : "assistant",
+        content: m.message_text || `[${m.message_type}]`,
+      }));
+
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const agentRes = await fetch(`${supabaseUrl}/functions/v1/ai-agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          channel: "instagram",
+          organization_id: membership.organization_id,
+          user_id: account.user_id,
+          session_key: senderId,
+          message: { type: messageType, content: messageText, media_url: attachmentUrl },
+          recent_messages: history,
+        }),
+      });
+
+      const agentData = await agentRes.json();
+      if (!agentData?.response) return;
+
+      // Send reply via Instagram API
+      await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          action: "send_message",
+          ig_account_id: account.id,
+          recipient_id: senderId,
+          message: agentData.response,
+          user_id: account.user_id,
+        }),
+      });
+
+      // Save outgoing AI message
+      await supabase.from("instagram_messages").insert({
+        user_id: account.user_id,
+        conversation_id: conversationId,
+        ig_account_id: account.id,
+        direction: "outgoing",
+        message_type: "text",
+        message_text: agentData.response,
+        sender_id: recipientId,
+        recipient_id: senderId,
+        status: "sent",
+        sent_at: new Date().toISOString(),
+        received_at: new Date().toISOString(),
+        is_ai_generated: true,
+      });
+
+      if (agentData.escalated) {
+        console.log(`IG AI agent escalated conversation with ${senderId}`);
+      }
+    } catch (e) {
+      console.warn("IG AI agent error (non-fatal):", e);
+    }
+  })();
 }
 
 /**

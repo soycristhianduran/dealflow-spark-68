@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, CalendarDays,
   CheckSquare, Settings, ChevronLeft, ChevronRight, Zap, Plug,
-  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard,
+  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard, Bot,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -19,6 +19,7 @@ const navItems = [
   { title: "Calendario",     url: "/calendar",     icon: CalendarDays },
   { title: "Tareas",         url: "/tasks",        icon: CheckSquare },
   { title: "Conversaciones", url: "/conversations",icon: MessageSquare },
+  { title: "Agente IA",      url: "/ai-agent",     icon: Bot },
 ];
 
 // ── Grupos de sección "Avanzado" (admin / owner) ──────────────────────────────

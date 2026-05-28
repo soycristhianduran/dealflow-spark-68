@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle,
+  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
 import {
@@ -100,6 +100,10 @@ export default function ConversationsPage() {
   const [channelFilter, setChannelFilter] = useState<FilterMode>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<UnifiedConversation | null>(null);
+
+  // AI Agent pause state per conversation key
+  const [agentPaused, setAgentPaused] = useState<boolean>(false);
+  const [togglingAgent, setTogglingAgent] = useState(false);
   const [igConversations, setIgConversations] = useState<IgConvRow[]>([]);
   const [igMessages, setIgMessages] = useState<IgMessageRow[]>([]);
   const [loadingIg, setLoadingIg] = useState(true);
@@ -274,6 +278,56 @@ export default function ConversationsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
+
+  // Load AI agent pause state when conversation changes
+  useEffect(() => {
+    if (!selected) { setAgentPaused(false); return; }
+    (async () => {
+      const sessionKey = selected.channel === "whatsapp"
+        ? (selected.id.startsWith("+") ? selected.id : `+${selected.id}`)
+        : selected.id;
+      const { data } = await (supabase as any)
+        .from("ai_agent_paused")
+        .select("paused_at")
+        .eq("channel", selected.channel)
+        .eq("session_key", sessionKey)
+        .maybeSingle();
+      setAgentPaused(!!data);
+    })();
+  }, [selected?.id, selected?.channel]);
+
+  async function toggleAgentPause() {
+    if (!selected) return;
+    setTogglingAgent(true);
+    try {
+      const sessionKey = selected.channel === "whatsapp"
+        ? (selected.id.startsWith("+") ? selected.id : `+${selected.id}`)
+        : selected.id;
+
+      if (agentPaused) {
+        // Resume AI agent
+        await (supabase as any)
+          .from("ai_agent_paused")
+          .delete()
+          .eq("channel", selected.channel)
+          .eq("session_key", sessionKey);
+        setAgentPaused(false);
+        toast.success("Agente IA reactivado para esta conversación");
+      } else {
+        // Pause AI agent — human taking over
+        await (supabase as any)
+          .from("ai_agent_paused")
+          .upsert({ channel: selected.channel, session_key: sessionKey, paused_at: new Date().toISOString() },
+            { onConflict: "organization_id,channel,session_key" });
+        setAgentPaused(true);
+        toast.success("Agente IA pausado — puedes responder tú");
+      }
+    } catch (e) {
+      toast.error("Error al cambiar estado del agente");
+    } finally {
+      setTogglingAgent(false);
+    }
+  }
 
   // ── Send text message ─────────────────────────────────────────────────────
   const handleSend = async () => {
@@ -588,6 +642,26 @@ export default function ConversationsPage() {
                   <p className="text-sm font-semibold truncate">{selected.display_name}</p>
                   <p className="text-xs text-muted-foreground">{selected.subtitle}</p>
                 </div>
+                {/* AI Agent toggle */}
+                <button
+                  onClick={toggleAgentPause}
+                  disabled={togglingAgent}
+                  title={agentPaused ? "Reactivar agente IA" : "Pausar agente IA (tomar control)"}
+                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors border ${
+                    agentPaused
+                      ? "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                      : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                  }`}
+                >
+                  {togglingAgent ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : agentPaused ? (
+                    <BotOff className="h-3 w-3" />
+                  ) : (
+                    <Bot className="h-3 w-3" />
+                  )}
+                  {agentPaused ? "IA pausada" : "IA activa"}
+                </button>
               </div>
 
               {/* Messages */}
