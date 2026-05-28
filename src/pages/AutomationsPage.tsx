@@ -257,6 +257,7 @@ function TriggerNode(_: NodeProps) {
     ? (triggerConfig?.form_name ? `📋 ${triggerConfig.form_name}` : "Sin formulario seleccionado")
     : triggerType === "tag_added" ? (triggerConfig?.tag ? `Tag: "${triggerConfig.tag}"` : "")
     : triggerType === "contact_stage_changed" ? (triggerConfig?.stage_name ? `Etapa: "${triggerConfig.stage_name}"` : "")
+    : triggerType === "scheduled" ? (triggerConfig?.cron_expression ? describeCron(triggerConfig.cron_expression) : "Sin configurar")
     : null;
 
   return (
@@ -403,6 +404,117 @@ function StepPicker({ open, onClose, onSelect }: {
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ── Scheduled trigger helpers ─────────────────────────────────────────────────
+const CRON_PRESETS = [
+  { label: "Cada día a las 9:00 am",          value: "0 9 * * *" },
+  { label: "Cada lunes a las 9:00 am",         value: "0 9 * * 1" },
+  { label: "El 1° de cada mes a las 9:00 am",  value: "0 9 1 * *" },
+  { label: "Días hábiles a las 9:00 am",       value: "0 9 * * 1-5" },
+  { label: "Cada 6 horas",                     value: "0 */6 * * *" },
+  { label: "Cada 30 minutos",                  value: "*/30 * * * *" },
+  { label: "Personalizado",                    value: "__custom__" },
+];
+
+function describeCron(expr: string): string {
+  if (!expr?.trim()) return "";
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return "⚠ Necesita exactamente 5 campos separados por espacio";
+  const [min, hour, dom, , dow] = parts;
+  const DOW_ES: Record<string, string> = {
+    "0": "domingos", "1": "lunes", "2": "martes", "3": "miércoles",
+    "4": "jueves", "5": "viernes", "6": "sábados", "1-5": "días hábiles (lun–vie)",
+  };
+  if (min.startsWith("*/") && hour === "*" && dom === "*" && dow === "*")
+    return `↻ Cada ${min.slice(2)} minutos`;
+  if (min === "0" && hour.startsWith("*/") && dom === "*" && dow === "*")
+    return `↻ Cada ${hour.slice(2)} horas`;
+  const hourNum = parseInt(hour);
+  const hourStr = isNaN(hourNum) ? hour : `${hourNum}:00`;
+  if (min === "0" && !isNaN(hourNum) && dom === "*" && dow === "*")
+    return `↻ Todos los días a las ${hourStr}`;
+  if (min === "0" && !isNaN(hourNum) && dom === "*" && dow !== "*")
+    return `↻ Cada ${DOW_ES[dow] ?? `día (${dow})`} a las ${hourStr}`;
+  if (min === "0" && !isNaN(hourNum) && dom !== "*" && dom !== "*/1" && dow === "*")
+    return `↻ El día ${dom} de cada mes a las ${hourStr}`;
+  return `Expresión cron: ${expr}`;
+}
+
+function ScheduledTriggerEditor({
+  triggerConfig, onChange,
+}: { triggerConfig: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
+  const cronExpr: string = triggerConfig?.cron_expression ?? "";
+  const knownPreset = CRON_PRESETS.find(p => p.value === cronExpr && p.value !== "__custom__");
+  const [presetKey, setPresetKey] = React.useState<string>(knownPreset?.value ?? (cronExpr ? "__custom__" : "0 9 * * *"));
+  const [custom, setCustom] = React.useState(cronExpr || "0 9 * * *");
+
+  // Sync on external changes (e.g. opening editor with saved value)
+  React.useEffect(() => {
+    const saved = triggerConfig?.cron_expression ?? "";
+    const known = CRON_PRESETS.find(p => p.value === saved && p.value !== "__custom__");
+    if (known) { setPresetKey(known.value); }
+    else if (saved) { setPresetKey("__custom__"); setCustom(saved); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handlePreset = (val: string) => {
+    setPresetKey(val);
+    if (val !== "__custom__") onChange({ ...triggerConfig, cron_expression: val });
+  };
+
+  const handleCustom = (val: string) => {
+    setCustom(val);
+    onChange({ ...triggerConfig, cron_expression: val });
+  };
+
+  const activeExpr = presetKey === "__custom__" ? custom : presetKey;
+  const description = describeCron(activeExpr);
+  const isValid = activeExpr.trim().split(/\s+/).length === 5;
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5 text-amber-500" />
+          Frecuencia de disparo
+        </Label>
+        <Select value={presetKey} onValueChange={handlePreset}>
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {CRON_PRESETS.map(p => (
+              <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {presetKey === "__custom__" && (
+        <div>
+          <Label className="text-xs">Expresión cron personalizada</Label>
+          <Input
+            className="mt-1 font-mono text-sm"
+            value={custom}
+            onChange={e => handleCustom(e.target.value)}
+            placeholder="0 9 * * 1"
+          />
+          <p className="text-xs text-muted-foreground mt-1">Formato: minuto hora díaMes mes díaSemana</p>
+        </div>
+      )}
+
+      {activeExpr && (
+        <div className={`rounded-lg border p-3 text-xs space-y-0.5 ${isValid ? "border-amber-200 bg-amber-50 text-amber-800" : "border-red-200 bg-red-50 text-red-700"}`}>
+          <p className="font-medium">{isValid ? description : description}</p>
+          {isValid && (
+            <p className="text-amber-600/80">
+              El runner corre cada 5 minutos. Cada vez que se detecte una nueva
+              hora de disparo, <strong>todos los contactos de tu organización</strong> serán
+              enrolados en el flujo.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -678,15 +790,7 @@ function TriggerConfigEditor({
         </div>
       )}
       {triggerType === "scheduled" && (
-        <div>
-          <Label>Cron expression</Label>
-          <Input
-            className="mt-1"
-            value={triggerConfig?.cron ?? ""}
-            onChange={e => onChange(triggerType, { ...triggerConfig, cron: e.target.value })}
-            placeholder="0 9 * * 1"
-          />
-        </div>
+        <ScheduledTriggerEditor triggerConfig={triggerConfig} onChange={cfg => onChange("scheduled", cfg)} />
       )}
     </div>
   );

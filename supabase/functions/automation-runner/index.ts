@@ -67,6 +67,58 @@ function evaluateCondition(cfg: any, contact: any): boolean {
   }
 }
 
+/**
+ * Minimal 5-field cron parser: "minute hour dayOfMonth month dayOfWeek"
+ * Supports: *, n, *\/n, n,m,...  and n-m ranges.
+ * Returns true if the expression fired at any minute between `since` and `now`.
+ * Lookback is capped at 1 hour to avoid re-processing old contacts.
+ */
+function isScheduledDue(cronExpr: string, lastTriggeredAt: string | null, now: Date): boolean {
+  const parts = cronExpr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+
+  // Window start: lastTriggeredAt+1min OR 1 hour ago, whichever is more recent
+  const oneHourAgo = new Date(now.getTime() - 60 * 60_000);
+  const sinceBase = lastTriggeredAt ? new Date(new Date(lastTriggeredAt).getTime() + 60_000) : oneHourAgo;
+  const since = sinceBase > oneHourAgo ? sinceBase : oneHourAgo;
+
+  if (since >= now) return false;
+
+  function matchField(field: string, value: number): boolean {
+    if (field === "*") return true;
+    if (field.startsWith("*/")) {
+      const step = parseInt(field.slice(2));
+      return !isNaN(step) && value % step === 0;
+    }
+    if (field.includes(",")) return field.split(",").some(v => parseInt(v.trim()) === value);
+    if (field.includes("-")) {
+      const [a, b] = field.split("-").map(Number);
+      return value >= a && value <= b;
+    }
+    return parseInt(field) === value;
+  }
+
+  // Step through each minute in [since, now]
+  const cursor = new Date(since);
+  cursor.setSeconds(0, 0);
+  // Advance to next full minute if we landed mid-minute
+  if (cursor < since) cursor.setMinutes(cursor.getMinutes() + 1);
+
+  while (cursor <= now) {
+    if (
+      matchField(parts[0], cursor.getMinutes()) &&
+      matchField(parts[1], cursor.getHours()) &&
+      matchField(parts[2], cursor.getDate()) &&
+      matchField(parts[3], cursor.getMonth() + 1) &&
+      matchField(parts[4], cursor.getDay())
+    ) {
+      return true;
+    }
+    cursor.setMinutes(cursor.getMinutes() + 1);
+  }
+  return false;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -232,7 +284,67 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed, completed, errors }), {
+    // ── Scheduled trigger: enroll contacts for due automations ──────────────────
+    const nowDate = new Date(now);
+    const { data: scheduledAutos } = await supabase
+      .from("automations")
+      .select("id, name, trigger_config, organization_id, user_id, last_triggered_at")
+      .eq("trigger_type", "scheduled")
+      .eq("is_active", true);
+
+    let scheduledEnrolled = 0;
+
+    for (const auto of (scheduledAutos || [])) {
+      const cronExpr: string = (auto.trigger_config?.cron_expression || "").trim();
+      if (!cronExpr) continue;
+      if (!isScheduledDue(cronExpr, auto.last_triggered_at, nowDate)) continue;
+
+      // Stamp last_triggered_at BEFORE enrolling to prevent duplicate runs
+      // if this cron tick takes longer than 5 minutes
+      await supabase
+        .from("automations")
+        .update({ last_triggered_at: nowDate.toISOString() })
+        .eq("id", auto.id);
+
+      // Fetch contacts in this org (limit 500 per run to stay within timeout)
+      const { data: orgContacts } = await supabase
+        .from("contacts")
+        .select("id")
+        .eq("organization_id", auto.organization_id)
+        .limit(500);
+
+      for (const c of (orgContacts || [])) {
+        // Skip contacts already active or waiting in this automation
+        const { data: existing } = await supabase
+          .from("automation_enrollments")
+          .select("id")
+          .eq("automation_id", auto.id)
+          .eq("contact_id", c.id)
+          .in("status", ["active", "waiting"])
+          .maybeSingle();
+        if (existing) continue;
+
+        const { data: inserted } = await supabase
+          .from("automation_enrollments")
+          .insert({
+            automation_id: auto.id,
+            contact_id: c.id,
+            user_id: auto.user_id,
+            status: "active",
+            current_step_index: 0,
+            next_run_at: nowDate.toISOString(),
+          })
+          .select("*, automations(*), contacts(*)")
+          .single();
+
+        if (inserted) {
+          try { await processEnrollment(inserted, supabase); } catch (_) {}
+          scheduledEnrolled++;
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ processed, completed, errors, scheduled_enrolled: scheduledEnrolled }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
