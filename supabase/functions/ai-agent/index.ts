@@ -131,7 +131,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5. Consume session credit (billing)
+    // 5. Consume session credit (billing) — enforces monthly quota + add-on overflow
     const { data: sessionData, error: sessionErr } = await supabase.rpc(
       "consume_ai_agent_session",
       { p_org_id: organization_id, p_channel: channel, p_session_key: session_key },
@@ -139,6 +139,9 @@ Deno.serve(async (req) => {
     if (sessionErr) {
       console.error("consume_ai_agent_session error:", sessionErr.message);
       // Non-fatal — continue anyway to not block the user experience
+    }
+    if (sessionData?.quota_exceeded) {
+      return json({ response: null, reason: "quota_exceeded" });
     }
 
     // 6. Prepare user message content for Claude

@@ -54,3 +54,28 @@ export const IA_LANDINGS_PACKS = [
 ] as const;
 
 export type IaLandingsPackKey = typeof IA_LANDINGS_PACKS[number]["key"];
+
+// ── IA Agent (one-time, adds AI Agent conversation credits) ───────────────────
+// Price IDs are created by running `stripe-setup-products` edge function.
+// Update these values after running that function.
+
+export const IA_AGENT_PACKS = [
+  {
+    key: "ia_agent_200",
+    label: "Agente IA +200 conversaciones",
+    description: "200 conversaciones adicionales para el Agente IA",
+    credits: 200,
+    priceUsd: 9,
+    price_id: "price_1TbswiRvVDvs7cXCBLbnX48I",
+  },
+  {
+    key: "ia_agent_1000",
+    label: "Agente IA +1,000 conversaciones",
+    description: "1,000 conversaciones adicionales para el Agente IA",
+    credits: 1000,
+    priceUsd: 29,
+    price_id: "price_1TbswiRvVDvs7cXCkfJQ35XY",
+  },
+] as const;
+
+export type IaAgentPackKey = typeof IA_AGENT_PACKS[number]["key"];

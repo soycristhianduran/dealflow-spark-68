@@ -21,11 +21,11 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2 } from "lucide-react";
+import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2, Bot } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { IA_BOOST_PACKS, IA_LANDINGS_PACKS } from "@/lib/stripe-products";
+import { IA_BOOST_PACKS, IA_LANDINGS_PACKS, IA_AGENT_PACKS } from "@/lib/stripe-products";
 
 interface UsageRow {
   ai_analyses_used: number;
@@ -42,6 +42,7 @@ export default function BillingPage() {
   const [usageLoading, setUsageLoading] = useState(true);
   const [boostCredits, setBoostCredits] = useState<number>(0);
   const [landingCredits, setLandingCredits] = useState<number>(0);
+  const [agentCredits, setAgentCredits] = useState<number>(0);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
 
@@ -73,7 +74,7 @@ export default function BillingPage() {
       // Use UTC month start so it matches what the DB stores via date_trunc('month', NOW())
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const [{ data: u }, { data: boosts }, { data: landings }] = await Promise.all([
+      const [{ data: u }, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
         (supabase as any)
           .from("usage_counters")
           .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used")
@@ -88,10 +89,15 @@ export default function BillingPage() {
           .from("ia_landings_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
+        (supabase as any)
+          .from("ia_agent_credits")
+          .select("credits_remaining")
+          .eq("organization_id", organizationId),
       ]);
       setUsage(u ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0 });
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setLandingCredits((landings ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
+      setAgentCredits((agents ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setUsageLoading(false);
     })();
   }, [organizationId]);
@@ -295,6 +301,60 @@ export default function BillingPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* IA Agent conversation credits */}
+        {subscription.featureAiAgent && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Bot className="h-5 w-5 text-violet-500" />
+                Créditos Agente IA
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {usageLoading ? (
+                <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+                </div>
+              ) : (
+                <>
+                  {agentCredits > 0 ? (
+                    <>
+                      <p className="text-3xl font-bold">
+                        {agentCredits.toLocaleString()}{" "}
+                        <span className="text-base font-normal text-muted-foreground">conversaciones adicionales</span>
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        Se consumen automáticamente cuando se agota el cupo mensual de tu plan.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No tienes conversaciones adicionales. Compra un paquete para seguir usando el Agente IA cuando se acabe tu cuota mensual.
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {IA_AGENT_PACKS.map((pack) => (
+                      <Button
+                        key={pack.key}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => buyBoost(pack.price_id, pack.label)}
+                        disabled={purchasingBoost === pack.price_id}
+                        className="gap-1.5"
+                      >
+                        <Bot className="h-3.5 w-3.5 text-violet-500" />
+                        {purchasingBoost === pack.price_id
+                          ? "Procesando..."
+                          : `${pack.label} — $${pack.priceUsd}`}
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Upgrade prompt or AI Boost CTA */}
         <Card>

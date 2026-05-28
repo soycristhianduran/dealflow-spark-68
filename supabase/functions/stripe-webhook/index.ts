@@ -285,6 +285,31 @@ async function recordIaLandingsPurchase(
   console.log(`Recorded IA Landings: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
 }
 
+async function recordIaAgentPurchase(
+  supabase: any,
+  orgId: string,
+  credits: number,
+  paymentIntentId: string,
+): Promise<void> {
+  // Idempotency: skip if already recorded
+  const { data: existing } = await supabase
+    .from("ia_agent_credits")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (existing) {
+    console.log(`IA Agent payment ${paymentIntentId} already recorded, skipping`);
+    return;
+  }
+  await supabase.from("ia_agent_credits").insert({
+    organization_id: orgId,
+    credits_remaining: credits,
+    credits_initial: credits,
+    stripe_payment_intent_id: paymentIntentId,
+  });
+  console.log(`Recorded IA Agent: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
+}
+
 // Resolve credits and kind from a checkout session's line items (uses Stripe
 // price metadata set by stripe-setup-products: { credits, kind }).
 async function resolveCreditsFromSession(
@@ -381,6 +406,8 @@ Deno.serve(async (req) => {
             await recordIaBoostPurchase(supabase, orgId, resolved.credits, paymentIntentId);
           } else if (resolved.kind === "ia_landings") {
             await recordIaLandingsPurchase(supabase, orgId, resolved.credits, paymentIntentId);
+          } else if (resolved.kind === "ia_agent") {
+            await recordIaAgentPurchase(supabase, orgId, resolved.credits, paymentIntentId);
           } else {
             console.warn(`Unknown credit kind="${resolved.kind}" for session ${session.id}`);
           }
@@ -463,6 +490,9 @@ Deno.serve(async (req) => {
         } else if (kind === "ia_landings") {
           if (amount === 900) credits = 5;
           else if (amount === 2900) credits = 25;
+        } else if (kind === "ia_agent") {
+          if (amount === 900)  credits = 200;
+          else if (amount === 2900) credits = 1000;
         }
 
         if (credits === 0) {
@@ -474,6 +504,8 @@ Deno.serve(async (req) => {
           await recordIaBoostPurchase(supabase, orgId, credits, pi.id);
         } else if (kind === "ia_landings") {
           await recordIaLandingsPurchase(supabase, orgId, credits, pi.id);
+        } else if (kind === "ia_agent") {
+          await recordIaAgentPurchase(supabase, orgId, credits, pi.id);
         }
         break;
       }

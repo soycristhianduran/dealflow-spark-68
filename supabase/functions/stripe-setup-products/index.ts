@@ -130,6 +130,22 @@ const CREDIT_PACKS = [
     credits: 5000,
     kind: "ia_boost",
   },
+  {
+    key: "ia_agent_200",
+    name: "Agente IA +200 conversaciones",
+    description: "200 conversaciones adicionales para el Agente IA 24/7",
+    price_cents: 900,   // $9
+    credits: 200,
+    kind: "ia_agent",
+  },
+  {
+    key: "ia_agent_1000",
+    name: "Agente IA +1,000 conversaciones",
+    description: "1,000 conversaciones adicionales para el Agente IA 24/7 (mejor valor)",
+    price_cents: 2900,  // $29
+    credits: 1000,
+    kind: "ia_agent",
+  },
 ] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
