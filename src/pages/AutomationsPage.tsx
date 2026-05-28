@@ -1360,6 +1360,161 @@ function EmailStepEditor({ step, onChange }: {
   );
 }
 
+// ── Update contact step editor ────────────────────────────────────────────────
+const UPDATE_CONTACT_FIELDS: {
+  group: string;
+  fields: { value: string; label: string; type: "text" | "textarea" | "number" | "date" | "select"; options?: { value: string; label: string }[] }[]
+}[] = [
+  {
+    group: "Estado del lead",
+    fields: [
+      { value: "lead_status", label: "Estado del lead", type: "select", options: [
+        { value: "nuevo", label: "Nuevo" },
+        { value: "contactado", label: "Contactado" },
+        { value: "calificado", label: "Calificado" },
+        { value: "propuesta_enviada", label: "Propuesta enviada" },
+        { value: "negociando", label: "Negociando" },
+        { value: "ganado", label: "Ganado" },
+        { value: "perdido", label: "Perdido" },
+      ]},
+      { value: "lost_reason", label: "Razón de pérdida", type: "text" },
+      { value: "score", label: "Puntuación (score)", type: "number" },
+      { value: "budget", label: "Presupuesto", type: "number" },
+      { value: "budget_currency", label: "Moneda", type: "select", options: [
+        { value: "USD", label: "USD — Dólar" },
+        { value: "EUR", label: "EUR — Euro" },
+        { value: "COP", label: "COP — Peso colombiano" },
+        { value: "MXN", label: "MXN — Peso mexicano" },
+        { value: "ARS", label: "ARS — Peso argentino" },
+        { value: "CLP", label: "CLP — Peso chileno" },
+        { value: "BRL", label: "BRL — Real brasileño" },
+      ]},
+      { value: "expected_close_date", label: "Fecha de cierre esperada", type: "date" },
+    ],
+  },
+  {
+    group: "Datos del contacto",
+    fields: [
+      { value: "notes", label: "Notas", type: "textarea" },
+      { value: "preferred_channel", label: "Canal preferido", type: "select", options: [
+        { value: "whatsapp", label: "WhatsApp" },
+        { value: "email", label: "Email" },
+        { value: "phone", label: "Teléfono" },
+        { value: "instagram", label: "Instagram" },
+      ]},
+      { value: "language", label: "Idioma", type: "select", options: [
+        { value: "es", label: "Español" },
+        { value: "en", label: "English" },
+        { value: "pt", label: "Português" },
+        { value: "fr", label: "Français" },
+      ]},
+      { value: "city", label: "Ciudad", type: "text" },
+      { value: "country", label: "País", type: "text" },
+    ],
+  },
+  {
+    group: "Atribución",
+    fields: [
+      { value: "source", label: "Fuente", type: "select", options: [
+        { value: "organic", label: "Orgánico" },
+        { value: "paid_meta", label: "Meta Ads" },
+        { value: "paid_google", label: "Google Ads" },
+        { value: "referral", label: "Referido" },
+        { value: "whatsapp", label: "WhatsApp" },
+        { value: "instagram", label: "Instagram" },
+        { value: "email", label: "Email" },
+        { value: "website", label: "Web" },
+        { value: "other", label: "Otro" },
+      ]},
+      { value: "campaign", label: "Campaña", type: "text" },
+    ],
+  },
+];
+
+function UpdateContactEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const c = step.config;
+  const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
+
+  // Flatten to find the selected field definition
+  const allFields = UPDATE_CONTACT_FIELDS.flatMap(g => g.fields);
+  const fieldDef = allFields.find(f => f.value === c.field);
+
+  return (
+    <div className="space-y-3">
+      {/* Field selector */}
+      <div>
+        <Label className="text-xs font-semibold">Campo a actualizar</Label>
+        <Select value={c.field ?? ""} onValueChange={v => set("field", v)}>
+          <SelectTrigger className="mt-1">
+            <SelectValue placeholder="Seleccionar campo..." />
+          </SelectTrigger>
+          <SelectContent>
+            {UPDATE_CONTACT_FIELDS.map(group => (
+              <React.Fragment key={group.group}>
+                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  {group.group}
+                </div>
+                {group.fields.map(f => (
+                  <SelectItem key={f.value} value={f.value} className="pl-4">
+                    {f.label}
+                  </SelectItem>
+                ))}
+              </React.Fragment>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Value input — adapts to field type */}
+      {fieldDef && (
+        <div>
+          <Label className="text-xs font-semibold">Nuevo valor</Label>
+          {fieldDef.type === "select" && (
+            <Select value={c.value ?? ""} onValueChange={v => set("value", v)}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectContent>
+                {fieldDef.options!.map(o => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {fieldDef.type === "text" && (
+            <Input className="mt-1" value={c.value ?? ""} onChange={e => set("value", e.target.value)}
+              placeholder={`Nuevo ${fieldDef.label.toLowerCase()}`} />
+          )}
+          {fieldDef.type === "number" && (
+            <Input type="number" className="mt-1" value={c.value ?? ""} onChange={e => set("value", e.target.value)}
+              placeholder="0" />
+          )}
+          {fieldDef.type === "date" && (
+            <Input type="date" className="mt-1" value={c.value ?? ""} onChange={e => set("value", e.target.value)} />
+          )}
+          {fieldDef.type === "textarea" && (
+            <>
+              <Textarea className="mt-1" rows={3} value={c.value ?? ""} onChange={e => set("value", e.target.value)}
+                placeholder={`Escribe las ${fieldDef.label.toLowerCase()}...`} />
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
+              </p>
+            </>
+          )}
+        </div>
+      )}
+
+      {!c.field && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          Selecciona un campo para configurar el valor.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -1396,26 +1551,7 @@ function StepConfigEditor({ step, onChange }: {
     </div>
   );
 
-  if (step.type === "update_contact") return (
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <Label className="text-xs">Campo</Label>
-        <Select value={c.field ?? ""} onValueChange={v => set("field", v)}>
-          <SelectTrigger><SelectValue placeholder="Campo" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="lead_status">Estado Lead</SelectItem>
-            <SelectItem value="company_name">Empresa</SelectItem>
-            <SelectItem value="notes">Notas</SelectItem>
-            <SelectItem value="lead_source">Fuente</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <Label className="text-xs">Valor</Label>
-        <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)} placeholder="Nuevo valor" />
-      </div>
-    </div>
-  );
+  if (step.type === "update_contact") return <UpdateContactEditor step={step} onChange={onChange} />;
 
   if (step.type === "assign_owner") return (
     <AssignOwnerStepEditor step={step} onChange={onChange} />
