@@ -1204,6 +1204,123 @@ function MovePipelineStepEditor({ step, onChange }: {
   );
 }
 
+// ── Email step editor (with template picker) ──────────────────────────────────
+function EmailStepEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const c = step.config;
+  const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
+
+  const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; html: string }[]>([]);
+  const [loadingTpl, setLoadingTpl] = useState(false);
+
+  useEffect(() => {
+    setLoadingTpl(true);
+    supabase
+      .from("email_templates")
+      .select("id, name, subject, html")
+      .order("name", { ascending: true })
+      .then(({ data }) => { setTemplates(data || []); setLoadingTpl(false); });
+  }, []);
+
+  const handleSelectTemplate = (templateId: string) => {
+    const tpl = templates.find(t => t.id === templateId);
+    if (!tpl) return;
+    onChange({ ...step, config: {
+      ...c,
+      template_id: tpl.id,
+      template_name: tpl.name,
+      subject: tpl.subject || c.subject || "",
+      html_content: tpl.html || c.html_content || "",
+    }});
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* ── Template picker ── */}
+      <div>
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <Mail className="h-3.5 w-3.5 text-blue-500" />
+          Plantilla del Email Builder
+        </Label>
+        {loadingTpl ? (
+          <p className="text-xs text-muted-foreground mt-1">Cargando plantillas...</p>
+        ) : templates.length === 0 ? (
+          <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
+            <p className="font-medium">No hay plantillas creadas</p>
+            <p>Ve a <strong>Marketing → Email Builder</strong> y crea una plantilla primero.</p>
+          </div>
+        ) : (
+          <>
+            <Select
+              value={c.template_id ?? ""}
+              onValueChange={handleSelectTemplate}
+            >
+              <SelectTrigger className="mt-1">
+                <SelectValue placeholder="Seleccionar plantilla..." />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map(t => (
+                  <SelectItem key={t.id} value={t.id}>
+                    <span className="font-medium">{t.name}</span>
+                    {t.subject && <span className="text-muted-foreground ml-2 text-xs truncate">— {t.subject}</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {c.template_id && (
+              <p className="text-xs text-green-700 flex items-center gap-1 mt-1">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                Plantilla cargada — puedes editar el asunto y contenido abajo
+              </p>
+            )}
+            {!c.template_id && (
+              <p className="text-xs text-muted-foreground mt-1">
+                O déjalo en blanco para escribir el contenido manualmente.
+              </p>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="border-t pt-3 space-y-3">
+        {/* ── Remitente ── */}
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <Label className="text-xs">Nombre remitente</Label>
+            <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder="Mi Empresa" />
+          </div>
+          <div>
+            <Label className="text-xs">Email remitente</Label>
+            <Input value={c.from_email ?? ""} onChange={e => set("from_email", e.target.value)} placeholder="hola@empresa.com" />
+          </div>
+        </div>
+
+        {/* ── Asunto ── */}
+        <div>
+          <Label className="text-xs">Asunto</Label>
+          <Input value={c.subject ?? ""} onChange={e => set("subject", e.target.value)} placeholder="Hola {{contact.first_name}}" />
+        </div>
+
+        {/* ── Contenido ── */}
+        <div>
+          <Label className="text-xs">Contenido HTML</Label>
+          <Textarea
+            value={c.html_content ?? ""}
+            onChange={e => set("html_content", e.target.value)}
+            rows={6}
+            placeholder="<p>Hola {{contact.first_name}},</p>"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code> <code>{"{{contact.email}}"}</code> <code>{"{{contact.company}}"}</code>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -1229,31 +1346,7 @@ function StepConfigEditor({ step, onChange }: {
     </div>
   );
 
-  if (step.type === "send_email") return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <Label className="text-xs">Nombre remitente</Label>
-          <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder="Mi Empresa" />
-        </div>
-        <div>
-          <Label className="text-xs">Email remitente</Label>
-          <Input value={c.from_email ?? ""} onChange={e => set("from_email", e.target.value)} placeholder="hola@empresa.com" />
-        </div>
-      </div>
-      <div>
-        <Label className="text-xs">Asunto</Label>
-        <Input value={c.subject ?? ""} onChange={e => set("subject", e.target.value)} placeholder="Hola {{contact.first_name}}" />
-      </div>
-      <div>
-        <Label className="text-xs">Contenido HTML</Label>
-        <Textarea value={c.html_content ?? ""} onChange={e => set("html_content", e.target.value)} rows={6} placeholder="<p>Hola {{contact.first_name}},</p>" />
-        <p className="text-xs text-muted-foreground mt-1">
-          Variables disponibles: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code> <code>{"{{contact.email}}"}</code> <code>{"{{contact.company}}"}</code>
-        </p>
-      </div>
-    </div>
-  );
+  if (step.type === "send_email") return <EmailStepEditor step={step} onChange={onChange} />;
 
   if (step.type === "send_whatsapp") return <WhatsAppStepEditor step={step} onChange={onChange} />;
 
