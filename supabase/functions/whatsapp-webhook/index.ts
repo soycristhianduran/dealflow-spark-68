@@ -290,6 +290,20 @@ Deno.serve(async (req) => {
                   console.log(`Auto-created contact ${newContact.id} from WhatsApp number ${normalizedPhone}`);
                   contact = newContact;
 
+                  // Fire contact_created automation trigger (fire-and-forget)
+                  fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({
+                      action: "trigger_event",
+                      trigger_type: "contact_created",
+                      contact_id: newContact.id,
+                    }),
+                  }).catch(e => console.warn("contact_created automation trigger failed:", e));
+
                   // Relink any previous orphaned messages from this number
                   await supabase
                     .from("whatsapp_messages")
@@ -340,6 +354,23 @@ Deno.serve(async (req) => {
                 status: "received",
                 sent_at: new Date(parseInt(msg.timestamp) * 1000).toISOString(),
               });
+
+              // Fire whatsapp_incoming automation trigger (fire-and-forget)
+              if (contact?.id) {
+                fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({
+                    action: "trigger_event",
+                    trigger_type: "whatsapp_incoming",
+                    contact_id: contact.id,
+                    trigger_data: { message_text: messageText, message_type: messageType, phone: senderPhone },
+                  }),
+                }).catch(e => console.warn("whatsapp_incoming automation trigger failed:", e));
+              }
 
               // Log activity if contact found
               if (contact?.id) {

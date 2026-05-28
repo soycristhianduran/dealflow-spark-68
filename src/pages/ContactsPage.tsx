@@ -553,9 +553,21 @@ export default function ContactsPage() {
       const { data: rows } = await supabase.from("contacts").select("id, tags").in("id", ids);
       if (!rows) { setBulkWorking(false); return; }
       for (const row of rows) {
-        const existing = row.tags || [];
-        const merged = Array.from(new Set([...existing, ...pendingTags]));
+        const existing: string[] = row.tags || [];
+        const newTags = pendingTags.filter((t: string) => !existing.includes(t));
+        const merged = [...existing, ...newTags];
         await supabase.from("contacts").update({ tags: merged }).eq("id", row.id);
+        // Fire tag_added automation trigger for each truly new tag (fire-and-forget)
+        if (newTags.length > 0) {
+          supabase.functions.invoke("automation-runner", {
+            body: {
+              action: "trigger_event",
+              trigger_type: "tag_added",
+              contact_id: row.id,
+              trigger_data: { new_tags: newTags },
+            },
+          }).catch(() => {});
+        }
       }
     }
 

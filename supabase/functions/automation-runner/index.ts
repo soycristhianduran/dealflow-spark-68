@@ -127,7 +127,13 @@ Deno.serve(async (req) => {
         if (trigger_type === "landing_form_submitted" && cfg.page_id && cfg.page_id !== trigger_data?.landing_slug) continue;
         if (trigger_type === "email_opened"  && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
         if (trigger_type === "email_clicked" && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
-        if (trigger_type === "contact_stage_changed" && cfg.stage_id && cfg.stage_id !== trigger_data?.stage_id) continue;
+        // tag_added: filter by specific tag if configured
+        if (trigger_type === "tag_added" && cfg.tag && !((trigger_data?.new_tags || []) as string[]).includes(cfg.tag)) continue;
+        // contact_stage_changed: filter by stage_id if stored, fall back to stage_name
+        if (trigger_type === "contact_stage_changed") {
+          if (cfg.stage_id && cfg.stage_id !== trigger_data?.stage_id) continue;
+          if (!cfg.stage_id && cfg.stage_name && cfg.stage_name !== trigger_data?.stage_name) continue;
+        }
 
         // Skip if already active/waiting in this automation
         const { data: existing } = await supabase
@@ -324,12 +330,15 @@ async function processEnrollment(enr: any, supabase: any) {
 
     else if (step.type === "send_whatsapp") {
       const cfg = step.config || {};
-      // Look up WhatsApp config by org — org-scoped since migration 20260522
+      // Look up primary WhatsApp config for this org (multi-number aware)
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
         .eq("organization_id", contact.organization_id)
         .eq("is_active", true)
+        .neq("phone_number_id", "pending")
+        .order("is_primary", { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       const cleanPhone = (contact.primary_phone || "").replace(/[^0-9]/g, "");
@@ -416,6 +425,7 @@ async function processEnrollment(enr: any, supabase: any) {
           contact_id: contact.id,
           wa_message_id: data.messages?.[0]?.id,
           phone_number: contact.primary_phone.replace(/[^0-9]/g, ""),
+          from_phone_number_id: waConfig.phone_number_id,
           direction: "outgoing",
           message_type: "template",
           message_text: msgText,

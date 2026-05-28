@@ -259,7 +259,7 @@ export default function PipelinePage() {
     const nameParts = leadFullName.trim().split(" ");
     const first_name = nameParts[0] || "";
     const last_name = nameParts.slice(1).join(" ") || "";
-    const { error } = await supabase.from("contacts").insert({
+    const { data: newLead, error } = await supabase.from("contacts").insert({
       full_name: leadFullName.trim(),
       first_name,
       last_name: last_name || null,
@@ -272,9 +272,17 @@ export default function PipelinePage() {
       owner_id: session?.user?.id || null,
       lead_status: "active",
       ...(organizationId ? { organization_id: organizationId } : {}),
-    });
+    }).select("id").single();
     setSavingLead(false);
     if (error) { toast.error("Error: " + error.message); return; }
+
+    // Fire contact_created automation trigger (fire-and-forget)
+    if (newLead?.id) {
+      supabase.functions.invoke("automation-runner", {
+        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: newLead.id },
+      }).catch(() => {});
+    }
+
     toast.success("Lead creado");
     setLeadDialogOpen(false);
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
