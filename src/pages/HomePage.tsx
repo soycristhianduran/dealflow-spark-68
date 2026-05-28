@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   MessageCircle, BarChart3, Brain, GitBranch, Check, X, Menu, Shield,
   TrendingUp, Layout, Plus, Minus, Zap, Sparkles, Star, BadgePercent,
-  Wand2, Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2,
+  Wand2, Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -30,7 +30,7 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter", monthly: 29, annual: 24,
     desc: "Para emprendedores que están comenzando",
-    features: ["1 usuario", "500 contactos", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Todas las integraciones"],
+    features: ["1 usuario", "500 contactos", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Todas las integraciones", "Agente IA — 100 conversaciones/mes"],
     notIncluded: ["IA Boost (scoring)", "Automatizaciones de Instagram"],
     cta: "Empezar gratis", popular: false,
   },
@@ -38,7 +38,7 @@ const plans: Plan[] = [
     id: "pro",
     name: "Pro", monthly: 39, annual: 32,
     desc: "Para equipos de ventas en crecimiento",
-    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 leads/mes", "Automatizaciones de Instagram", "WhatsApp Business nativo", "Meta Ads + ROAS"],
+    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 leads/mes", "Agente IA — 500 conversaciones/mes", "Automatizaciones de Instagram", "WhatsApp Business nativo", "Meta Ads + ROAS"],
     notIncluded: [],
     cta: "Comenzar ahora →", popular: true,
   },
@@ -46,7 +46,7 @@ const plans: Plan[] = [
     id: "business",
     name: "Business", monthly: 89, annual: 74,
     desc: "Para agencias y equipos grandes",
-    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 leads/mes", "Soporte prioritario", "Todo lo del Pro"],
+    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 leads/mes", "Agente IA — 2.500 conversaciones/mes", "Soporte prioritario", "Todo lo del Pro"],
     notIncluded: [],
     cta: "Suscribirse ahora →", popular: false,
   },
@@ -846,6 +846,47 @@ export default function HomePage() {
                   <div className="flex flex-wrap gap-2 mt-auto">
                     {["WhatsApp + email", "Condiciones", "Plantillas por industria"].map((t) => (
                       <span key={t} className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </FadeUp>
+
+              <FadeUp className="md:col-span-2" delay={160}>
+                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-violet-500/20 hover:shadow-xl hover:shadow-violet-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_0%,rgba(139,92,246,0.08),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                    <Bot className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className="text-lg font-bold text-white">Agente IA 24/7</h3>
+                      <span className="text-[10px] font-bold uppercase tracking-wider bg-violet-500/20 text-violet-300 border border-violet-500/30 px-2 py-0.5 rounded-full">Nuevo</span>
+                    </div>
+                    <p className="text-slate-400 text-sm leading-relaxed">Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.</p>
+                  </div>
+                  <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
+                    <div className="space-y-2.5">
+                      {[
+                        { msg: "Hola, ¿cuánto cuesta el plan Pro?", time: "23:14", out: false },
+                        { msg: "¡Hola! El plan Pro está a $59/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
+                        { msg: "Sí, quiero hablar con alguien para comprarlo", time: "23:15", out: false },
+                        { msg: "¡Perfecto! Voy a comunicarte con uno de nuestros asesores ahora mismo 😊", time: "23:15", out: true, ai: true },
+                      ].map((m, i) => (
+                        <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+                          <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-700/50 border border-slate-600/30"}`}>
+                            <p className="text-xs text-slate-300 leading-relaxed">{m.msg}</p>
+                            <div className="flex items-center justify-end gap-1 mt-0.5">
+                              {(m as any).ai && <span className="text-[9px] text-violet-400">• IA</span>}
+                              <p className="text-[10px] text-slate-600">{m.time}</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {["WhatsApp + Instagram", "Entiende audios", "Escala automático"].map((t) => (
+                      <span key={t} className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">{t}</span>
                     ))}
                   </div>
                 </div>
