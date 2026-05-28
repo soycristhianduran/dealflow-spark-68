@@ -1037,15 +1037,18 @@ function AssignOwnerStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { organizationId } = useOrganizationContext();
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string }[]>([]);
   useEffect(() => {
-    supabase.from("profiles").select("user_id, first_name, last_name").then(({ data }) => {
-      if (data) setProfiles(data.map(p => ({
-        user_id: p.user_id,
-        full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Sin nombre",
+    if (!organizationId) return;
+    supabase.rpc("get_org_members", { p_org_id: organizationId }).then(({ data, error }) => {
+      if (error) console.warn("get_org_members error:", error.message);
+      if (data) setProfiles((data as any[]).map(m => ({
+        user_id: m.user_id,
+        full_name: m.full_name || m.email || m.user_id,
       })));
     });
-  }, []);
+  }, [organizationId]);
 
   const c = step.config;
   const mode: "specific" | "round_robin" = c.mode ?? "specific";
