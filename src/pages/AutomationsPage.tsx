@@ -1060,13 +1060,13 @@ function AssignOwnerStepEditor({ step, onChange }: {
       // Fallback: direct query using org-scoped RLS policies
       const { data: members } = await supabase
         .from("organization_members")
-        .select("user_id, profiles(first_name, last_name)")
+        .select("user_id, profiles(first_name, last_name, email)")
         .eq("organization_id", oid);
 
       setProfiles((members || []).map((m: any) => {
         const p = m.profiles;
         const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
-        return { user_id: m.user_id, full_name: name || m.user_id };
+        return { user_id: m.user_id, full_name: name || p?.email || m.user_id };
       }));
       setLoading(false);
     };
