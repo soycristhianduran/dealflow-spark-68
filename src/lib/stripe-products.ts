@@ -18,7 +18,7 @@ export const IA_BOOST_PACKS = [
     description: "1,000 análisis adicionales de contactos con IA",
     credits: 1000,
     priceUsd: 19,
-    price_id: "price_1TZGQcRvVDvs7cXCbNiuwIUd",
+    price_id: "price_1TbswhRvVDvs7cXCvm8l27mT",
   },
   {
     key: "ia_boost_5000",
@@ -26,7 +26,7 @@ export const IA_BOOST_PACKS = [
     description: "5,000 análisis adicionales de contactos con IA",
     credits: 5000,
     priceUsd: 49,
-    price_id: "price_1TbjldRvVDvs7cXCuqHVwGyc",
+    price_id: "price_1TbswhRvVDvs7cXC1wTja50X",
   },
 ] as const;
 
@@ -41,15 +41,15 @@ export const IA_LANDINGS_PACKS = [
     description: "5 créditos para generar landing pages con IA",
     credits: 5,
     priceUsd: 9,
-    price_id: "price_1TZGPoRvVDvs7cXCzNjVpQPB",
+    price_id: "price_1TbswgRvVDvs7cXCHxshzl0T",
   },
   {
     key: "ia_landings_25",
     label: "IA Landings +25 créditos",
     description: "25 créditos para generar landing pages con IA",
     credits: 25,
-    priceUsd: 29,
-    price_id: "price_1TZGQHRvVDvs7cXCLkDWkJXI",
+    priceUsd: 35,
+    price_id: "price_1TbswgRvVDvs7cXCTEkVOtjD",
   },
 ] as const;
 
