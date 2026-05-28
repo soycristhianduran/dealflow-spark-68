@@ -650,16 +650,15 @@ async function processInstagramMessenger(
   console.log(`IG DM stored: from=${senderId} to=${recipientId} text=${messageText.substring(0, 60)}`);
 
   // ── AI Agent: respond automatically if enabled ────────────────────────────
-  (async () => {
-    try {
-      const { data: membership } = await supabase
-        .from("organization_members")
-        .select("organization_id")
-        .eq("user_id", account.user_id)
-        .maybeSingle();
+  // Awaited inline so it completes within the outer EdgeRuntime.waitUntil work promise.
+  try {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", account.user_id)
+      .maybeSingle();
 
-      if (!membership?.organization_id) return;
-
+    if (membership?.organization_id) {
       // Fetch last 12 messages for context (13 rows, skip index 0 = current message)
       const { data: recentMsgs } = await supabase
         .from("instagram_messages")
@@ -696,55 +695,57 @@ async function processInstagramMessenger(
       });
 
       const agentData = await agentRes.json();
-      if (!agentData?.response) return;
+      console.log("IG AI agent response:", JSON.stringify(agentData).substring(0, 200));
 
-      // Split long responses into multiple short messages
-      const parts = splitResponse(agentData.response);
+      if (agentData?.response) {
+        // Split long responses into multiple short messages
+        const parts = splitResponse(agentData.response);
 
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (i > 0) await sleep(700);
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i];
+          if (i > 0) await sleep(700);
 
-        // Send this part via Instagram API
-        await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({
-            action: "send_message",
-            ig_account_id: account.id,
-            recipient_id: senderId,
-            message: part,
+          // Send this part via Instagram API
+          await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+            },
+            body: JSON.stringify({
+              action: "send_message",
+              ig_account_id: account.id,
+              recipient_id: senderId,
+              message: part,
+              user_id: account.user_id,
+            }),
+          });
+
+          // Save this part to DB
+          await supabase.from("instagram_messages").insert({
             user_id: account.user_id,
-          }),
-        });
+            conversation_id: conversationId,
+            ig_account_id: account.id,
+            direction: "outgoing",
+            message_type: "text",
+            message_text: part,
+            sender_id: recipientId,
+            recipient_id: senderId,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            received_at: new Date().toISOString(),
+            is_ai_generated: true,
+          });
+        }
 
-        // Save this part to DB
-        await supabase.from("instagram_messages").insert({
-          user_id: account.user_id,
-          conversation_id: conversationId,
-          ig_account_id: account.id,
-          direction: "outgoing",
-          message_type: "text",
-          message_text: part,
-          sender_id: recipientId,
-          recipient_id: senderId,
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          received_at: new Date().toISOString(),
-          is_ai_generated: true,
-        });
+        if (agentData.escalated) {
+          console.log(`IG AI agent escalated conversation with ${senderId}`);
+        }
       }
-
-      if (agentData.escalated) {
-        console.log(`IG AI agent escalated conversation with ${senderId}`);
-      }
-    } catch (e) {
-      console.warn("IG AI agent error (non-fatal):", e);
     }
-  })();
+  } catch (e) {
+    console.warn("IG AI agent error (non-fatal):", e);
+  }
 }
 
 /**

@@ -381,10 +381,10 @@ Deno.serve(async (req) => {
                 if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
 
                 // ── AI Agent: respond automatically if enabled ─────────────
-                const agentPromise = (async () => {
-                  try {
-                    if (!config.organization_id) return;
-
+                // Awaited inline (not fire-and-forget) — Claude Haiku responds
+                // in ~1-2s, well within Meta's 20s webhook timeout.
+                try {
+                  if (config.organization_id) {
                     // Fetch last 12 messages for context (13 rows, skip index 0
                     // which is the current message just inserted, so history
                     // contains only PREVIOUS messages — avoids duplicate context).
@@ -427,70 +427,70 @@ Deno.serve(async (req) => {
                     );
 
                     const agentData = await agentRes.json();
-                    if (!agentData?.response) return;
+                    console.log("AI agent response:", JSON.stringify(agentData).substring(0, 200));
 
-                    // Split long responses into multiple short messages
-                    const parts = splitResponse(agentData.response);
+                    if (agentData?.response) {
+                      // Split long responses into multiple short messages
+                      const parts = splitResponse(agentData.response);
 
-                    for (let i = 0; i < parts.length; i++) {
-                      const part = parts[i];
+                      for (let i = 0; i < parts.length; i++) {
+                        const part = parts[i];
 
-                      // Small pause between messages so it feels natural (skip on first)
-                      if (i > 0) await sleep(700);
+                        // Small pause between messages so it feels natural (skip on first)
+                        if (i > 0) await sleep(700);
 
-                      // Send this part via WhatsApp
-                      const sendRes = await fetch(
-                        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`,
-                        {
-                          method: "POST",
-                          headers: {
-                            "Content-Type": "application/json",
-                            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                          },
-                          body: JSON.stringify({
-                            phone_number_id: phoneNumberId,
-                            to: senderPhone,
-                            message: part,
-                            user_id: config.user_id,
-                          }),
-                        }
-                      );
+                        // Send this part via WhatsApp
+                        const sendRes = await fetch(
+                          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                            },
+                            body: JSON.stringify({
+                              phone_number_id: phoneNumberId,
+                              to: senderPhone,
+                              message: part,
+                              user_id: config.user_id,
+                            }),
+                          }
+                        );
 
-                      const sendData = await sendRes.json();
-                      const waOutId = sendData?.messages?.[0]?.id || null;
+                        const sendData = await sendRes.json();
+                        const waOutId = sendData?.messages?.[0]?.id || null;
 
-                      // Save this part to DB
-                      await supabase.from("whatsapp_messages").insert({
-                        user_id: config.user_id,
-                        contact_id: contact.id,
-                        wa_message_id: waOutId,
-                        phone_number: senderPhone,
-                        direction: "outgoing",
-                        message_type: "text",
-                        message_text: part,
-                        status: "sent",
-                        sent_at: new Date().toISOString(),
-                        is_ai_generated: true,
-                      });
+                        // Save this part to DB
+                        await supabase.from("whatsapp_messages").insert({
+                          user_id: config.user_id,
+                          contact_id: contact.id,
+                          wa_message_id: waOutId,
+                          phone_number: senderPhone,
+                          direction: "outgoing",
+                          message_type: "text",
+                          message_text: part,
+                          status: "sent",
+                          sent_at: new Date().toISOString(),
+                          is_ai_generated: true,
+                        });
+                      }
+
+                      // If escalated: log activity to notify the vendor
+                      if (agentData.escalated) {
+                        await supabase.from("activities").insert({
+                          related_entity_type: "contact",
+                          related_entity_id: contact.id,
+                          event_type: "note",
+                          event_source: "ai_agent",
+                          summary: `🤖 El agente IA escaló esta conversación — el lead quiere hablar con un asesor. Por favor retoma la conversación en WhatsApp.`,
+                          created_by: config.user_id,
+                        });
+                      }
                     }
-
-                    // If escalated: log activity to notify the vendor
-                    if (agentData.escalated) {
-                      await supabase.from("activities").insert({
-                        related_entity_type: "contact",
-                        related_entity_id: contact.id,
-                        event_type: "note",
-                        event_source: "ai_agent",
-                        summary: `🤖 El agente IA escaló esta conversación — el lead quiere hablar con un asesor. Por favor retoma la conversación en WhatsApp.`,
-                        created_by: config.user_id,
-                      });
-                    }
-                  } catch (e) {
-                    console.warn("AI agent error (non-fatal):", e);
                   }
-                })();
-                // @ts-ignore
-                if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(agentPromise);
+                } catch (e) {
+                  console.warn("AI agent error (non-fatal):", e);
+                }
               }
             }
           }
