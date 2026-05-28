@@ -1045,13 +1045,29 @@ function AssignOwnerStepEditor({ step, onChange }: {
     let orgId = organizationId;
 
     const fetchMembers = async (oid: string) => {
-      const { data, error } = await supabase.rpc("get_org_members", { p_org_id: oid });
-      if (error) console.warn("get_org_members error:", error.message);
-      const members = (data as any[] | null) || [];
-      setProfiles(members.map(m => ({
-        user_id: m.user_id,
-        full_name: m.full_name || m.email || m.user_id,
-      })));
+      // Try RPC first (SECURITY DEFINER, reads auth.users for emails)
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("get_org_members", { p_org_id: oid });
+      if (!rpcErr && rpcData && (rpcData as any[]).length > 0) {
+        setProfiles((rpcData as any[]).map(m => ({
+          user_id: m.user_id,
+          full_name: m.full_name || m.email || m.user_id,
+        })));
+        setLoading(false);
+        return;
+      }
+      if (rpcErr) console.warn("get_org_members RPC error:", rpcErr.message);
+
+      // Fallback: direct query using org-scoped RLS policies
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("user_id, profiles(first_name, last_name)")
+        .eq("organization_id", oid);
+
+      setProfiles((members || []).map((m: any) => {
+        const p = m.profiles;
+        const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
+        return { user_id: m.user_id, full_name: name || m.user_id };
+      }));
       setLoading(false);
     };
 
