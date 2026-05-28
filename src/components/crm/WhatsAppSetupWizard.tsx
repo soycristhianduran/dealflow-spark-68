@@ -388,14 +388,11 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               ))}
             </div>
 
-            {/* Add another number */}
+            {/* Add another number — launches OAuth directly */}
             <Button
               variant="outline"
               className="w-full gap-2"
-              onClick={() => {
-                setStep(1);
-                setUseManual(false);
-              }}
+              onClick={() => wa.connect()}
             >
               <Plus className="h-4 w-4" />
               Conectar otro número

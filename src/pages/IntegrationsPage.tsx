@@ -407,12 +407,12 @@ export default function IntegrationsPage() {
                         </div>
                       ))}
 
-                      {/* Add another number */}
+                      {/* Add another number — triggers OAuth directly, no wizard */}
                       <Button
                         size="sm"
                         variant="outline"
                         className="w-full text-xs gap-1.5 h-7"
-                        onClick={() => { setWaWizardStartStep(1); setWaWizardOpen(true); }}
+                        onClick={() => wa.connect()}
                       >
                         <Plus className="h-3.5 w-3.5" /> Conectar otro número
                       </Button>
