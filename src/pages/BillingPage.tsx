@@ -66,15 +66,18 @@ export default function BillingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [usageError, setUsageError] = useState<string | null>(null);
+
   // Load usage counters + boost credits
   useEffect(() => {
     if (!organizationId) return;
     setUsageLoading(true);
+    setUsageError(null);
     (async () => {
       // Use UTC month start so it matches what the DB stores via date_trunc('month', NOW())
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const [{ data: u }, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
+      const [usageRes, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
         (supabase as any)
           .from("usage_counters")
           .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used")
@@ -94,7 +97,19 @@ export default function BillingPage() {
           .select("credits_remaining")
           .eq("organization_id", organizationId),
       ]);
-      setUsage(u ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0 });
+
+      // IMPORTANT: If the usage query errors (e.g. a missing column after a migration),
+      // we must NOT fall back to zeros — that would hide real usage data from users.
+      // Instead we show an explicit error so the issue is immediately visible.
+      if (usageRes.error) {
+        console.error("usage_counters query failed:", usageRes.error.message);
+        setUsageError(usageRes.error.message);
+        setUsage(null);
+      } else {
+        // null means no row yet this month → user hasn't consumed anything, true zero
+        setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0 });
+      }
+
       setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setLandingCredits((landings ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
       setAgentCredits((agents ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
@@ -245,6 +260,12 @@ export default function BillingPage() {
           {usageLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
               <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+            </div>
+          ) : usageError ? (
+            <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
+              <p className="font-semibold">No se pudieron cargar los datos de uso.</p>
+              <p className="text-xs mt-0.5 text-red-500 dark:text-red-500 font-mono">{usageError}</p>
+              <p className="text-xs mt-1 text-red-600 dark:text-red-400">Contacta a soporte — tus datos no se han perdido.</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
