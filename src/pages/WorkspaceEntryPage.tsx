@@ -35,6 +35,7 @@ import LandingBuilderPage from "./LandingBuilderPage";
 import AutomationsPage from "./AutomationsPage";
 import MorePage from "./MorePage";
 import BillingPage from "./BillingPage";
+import AIAgentPage from "./AIAgentPage";
 import NotFound from "./NotFound";
 
 function P({ children }: { children: React.ReactNode }) {
@@ -114,6 +115,7 @@ export default function WorkspaceEntryPage() {
         <Route path="landing-builder" element={<P><LandingBuilderPage /></P>} />
         <Route path="automations" element={<P><AutomationsPage /></P>} />
         <Route path="billing" element={<P><BillingPage /></P>} />
+        <Route path="ai-agent" element={<P><AIAgentPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
