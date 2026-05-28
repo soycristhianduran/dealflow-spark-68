@@ -144,65 +144,69 @@ export default function BillingPage() {
   return (
     <AppLayout>
       <AppHeader title="Facturación" />
-      <div className="p-6 space-y-6 max-w-4xl mx-auto">
-        {/* Current plan card */}
+      <div className="p-4 md:p-6 space-y-5 max-w-2xl">
+
+        {/* ── Plan actual ─────────────────────────────────────────── */}
         <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                Plan actual: <span className="text-primary">{subscription.planName}</span>
-                {subscription.status === "trialing_internal" && (
-                  <Badge variant="secondary">Prueba gratis</Badge>
+          <CardContent className="pt-5 pb-5">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-base font-semibold text-foreground">Plan actual:</span>
+                  <span className="text-base font-semibold text-primary">{subscription.planName}</span>
+                  {subscription.status === "trialing_internal" && (
+                    <Badge variant="secondary">Prueba gratis</Badge>
+                  )}
+                  {subscription.status === "active" && (
+                    <Badge className="bg-green-600 hover:bg-green-600 text-white">Activo</Badge>
+                  )}
+                  {subscription.status === "past_due" && (
+                    <Badge variant="destructive">Pago pendiente</Badge>
+                  )}
+                  {subscription.status === "canceled" && (
+                    <Badge variant="outline">Cancelado</Badge>
+                  )}
+                </div>
+                {subscription.status === "trialing_internal" && daysLeftInTrial !== null && (
+                  <p className="text-sm text-muted-foreground">
+                    {daysLeftInTrial > 0
+                      ? `Tu prueba termina en ${daysLeftInTrial} días.`
+                      : "Tu prueba termina hoy."}
+                  </p>
                 )}
-                {subscription.status === "active" && (
-                  <Badge variant="default" className="bg-green-600 hover:bg-green-600">Activo</Badge>
+                {subscription.status === "active" && subscription.currentPeriodEnd && (
+                  <p className="text-sm text-muted-foreground">
+                    {subscription.cancelAtPeriodEnd ? "Termina" : "Próxima renovación"}:{" "}
+                    {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CO", {
+                      dateStyle: "long",
+                    })}
+                  </p>
                 )}
-                {subscription.status === "past_due" && (
-                  <Badge variant="destructive">Pago pendiente</Badge>
+              </div>
+              <div className="shrink-0">
+                {subscription.status === "active" || subscription.status === "past_due" ? (
+                  <Button size="sm" onClick={openCustomerPortal} disabled={openingPortal}>
+                    <ExternalLink className="h-4 w-4 mr-1.5" />
+                    {openingPortal ? "Abriendo..." : "Administrar"}
+                  </Button>
+                ) : (
+                  <Button size="sm" asChild>
+                    <Link to="/pricing">Elegir un plan</Link>
+                  </Button>
                 )}
-                {subscription.status === "canceled" && (
-                  <Badge variant="outline">Cancelado</Badge>
-                )}
-              </CardTitle>
-              {subscription.status === "trialing_internal" && daysLeftInTrial !== null && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {daysLeftInTrial > 0
-                    ? `Tu prueba termina en ${daysLeftInTrial} días.`
-                    : "Tu prueba termina hoy."}
-                </p>
-              )}
-              {subscription.status === "active" && subscription.currentPeriodEnd && (
-                <p className="text-sm text-muted-foreground mt-1">
-                  {subscription.cancelAtPeriodEnd ? "Termina" : "Próxima renovación"}:{" "}
-                  {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CO", {
-                    dateStyle: "long",
-                  })}
-                </p>
-              )}
+              </div>
             </div>
-            <div className="flex gap-2">
-              {subscription.status === "active" || subscription.status === "past_due" ? (
-                <Button onClick={openCustomerPortal} disabled={openingPortal}>
-                  <ExternalLink className="h-4 w-4 mr-2" />
-                  {openingPortal ? "Abriendo..." : "Administrar"}
-                </Button>
-              ) : (
-                <Button asChild>
-                  <Link to="/pricing">Elegir un plan</Link>
-                </Button>
-              )}
-            </div>
-          </CardHeader>
+          </CardContent>
         </Card>
 
-        {/* Usage card */}
+        {/* ── Uso de este mes ─────────────────────────────────────── */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Uso de este mes</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">Uso de este mes</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {usageLoading ? (
-              <div className="flex items-center gap-2 py-4 text-muted-foreground text-sm">
+              <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
                 <Loader2 className="h-4 w-4 animate-spin" /> Cargando uso…
               </div>
             ) : (
@@ -220,7 +224,7 @@ export default function BillingPage() {
                 />
                 {subscription.featureEmailCampaigns && (
                   <UsageBar
-                    label="Envíos de Email Campaigns"
+                    label="Email Campaigns"
                     used={usage?.email_sends_used ?? 0}
                     limit={subscription.monthlyEmailSends}
                   />
@@ -237,116 +241,67 @@ export default function BillingPage() {
           </CardContent>
         </Card>
 
-        {/* AI Boost credits */}
+        {/* ── AI Boost créditos (solo si hay) ─────────────────────── */}
         {boostCredits > 0 && (
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-amber-500" />
-                AI Boost créditos disponibles
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{boostCredits.toLocaleString()}</p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Estos créditos se consumen automáticamente cuando se acaba el cupo mensual de tu plan.
-              </p>
+            <CardContent className="pt-5 pb-5 flex items-center gap-4">
+              <Sparkles className="h-8 w-8 text-amber-500 shrink-0" />
+              <div>
+                <p className="text-2xl font-bold leading-none">{boostCredits.toLocaleString()}</p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  créditos AI Boost disponibles
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
 
-        {/* IA Landings credits */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-orange-500" />
-              Créditos IA Landings
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {usageLoading ? (
-              <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
-              </div>
-            ) : (
-              <>
-                {landingCredits > 0 ? (
-                  <>
-                    <p className="text-3xl font-bold">{landingCredits} <span className="text-base font-normal text-muted-foreground">créditos disponibles</span></p>
-                    <p className="text-sm text-muted-foreground">
-                      Se descuenta 1 crédito al generar una landing nueva. Refinar páginas existentes es gratis.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    No tienes créditos disponibles. Compra un paquete para generar landings con IA.
-                  </p>
-                )}
-                <div className="flex flex-wrap gap-2 pt-1">
-                  {IA_LANDINGS_PACKS.map((pack) => (
-                    <Button
-                      key={pack.key}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => buyBoost(pack.price_id, pack.label)}
-                      disabled={purchasingBoost === pack.price_id}
-                      className="gap-1.5"
-                    >
-                      <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                      {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* ── Paquetes de créditos ─────────────────────────────────── */}
+        {/* Two-column grid on sm+, stacked on mobile */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-        {/* IA Agent conversation credits */}
-        {subscription.featureAiAgent && (
+          {/* IA Landings */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Bot className="h-5 w-5 text-violet-500" />
-                Créditos Agente IA
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-orange-500" />
+                Créditos IA Landings
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               {usageLoading ? (
                 <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
                 </div>
               ) : (
                 <>
-                  {agentCredits > 0 ? (
-                    <>
-                      <p className="text-3xl font-bold">
-                        {agentCredits.toLocaleString()}{" "}
-                        <span className="text-base font-normal text-muted-foreground">conversaciones adicionales</span>
+                  {landingCredits > 0 ? (
+                    <div>
+                      <p className="text-2xl font-bold leading-none">{landingCredits}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        créditos disponibles
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        Se consumen automáticamente cuando se agota el cupo mensual de tu plan.
-                      </p>
-                    </>
+                    </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">
-                      No tienes conversaciones adicionales. Compra un paquete para seguir usando el Agente IA cuando se acabe tu cuota mensual.
+                    <p className="text-xs text-muted-foreground">
+                      Sin créditos. Compra un paquete para generar landings con IA.
                     </p>
                   )}
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {IA_AGENT_PACKS.map((pack) => (
+                  <div className="space-y-1.5">
+                    {IA_LANDINGS_PACKS.map((pack) => (
                       <Button
                         key={pack.key}
                         size="sm"
                         variant="outline"
+                        className="w-full justify-start gap-2 text-xs"
                         onClick={() => buyBoost(pack.price_id, pack.label)}
                         disabled={purchasingBoost === pack.price_id}
-                        className="gap-1.5"
                       >
-                        <Bot className="h-3.5 w-3.5 text-violet-500" />
-                        {purchasingBoost === pack.price_id
-                          ? "Procesando..."
-                          : `${pack.label} — $${pack.priceUsd}`}
+                        <Sparkles className="h-3 w-3 text-orange-500 shrink-0" />
+                        <span className="flex-1 text-left truncate">
+                          {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
+                        </span>
+                        <span className="text-muted-foreground font-medium shrink-0">${pack.priceUsd}</span>
                       </Button>
                     ))}
                   </div>
@@ -354,53 +309,101 @@ export default function BillingPage() {
               )}
             </CardContent>
           </Card>
-        )}
 
-        {/* Upgrade prompt or AI Boost CTA */}
+          {/* IA Agent */}
+          {subscription.featureAiAgent && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-violet-500" />
+                  Conversaciones extra Agente IA
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {usageLoading ? (
+                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
+                  </div>
+                ) : (
+                  <>
+                    {agentCredits > 0 ? (
+                      <div>
+                        <p className="text-2xl font-bold leading-none">{agentCredits.toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          conversaciones adicionales
+                        </p>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">
+                        Sin conversaciones extra. Compra un paquete para cuando se agote tu cuota mensual.
+                      </p>
+                    )}
+                    <div className="space-y-1.5">
+                      {IA_AGENT_PACKS.map((pack) => (
+                        <Button
+                          key={pack.key}
+                          size="sm"
+                          variant="outline"
+                          className="w-full justify-start gap-2 text-xs"
+                          onClick={() => buyBoost(pack.price_id, pack.label)}
+                          disabled={purchasingBoost === pack.price_id}
+                        >
+                          <Bot className="h-3 w-3 text-violet-500 shrink-0" />
+                          <span className="flex-1 text-left truncate">
+                            {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
+                          </span>
+                          <span className="text-muted-foreground font-medium shrink-0">${pack.priceUsd}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+
+        {/* ── AI Boost packs + upgrade ────────────────────────────── */}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {subscription.planId === "business" ? "Comprar más créditos IA" : "¿Necesitas más?"}
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-semibold">
+              {subscription.planId === "business" ? "Más créditos de análisis IA" : "¿Necesitas más capacidad?"}
             </CardTitle>
-          </CardHeader>
-          <CardContent>
             {subscription.planId !== "business" && (
-              <p className="text-sm text-muted-foreground mb-3">
-                Si llegas al límite del plan, puedes upgradear o comprar un paquete de AI Boost.
+              <p className="text-sm text-muted-foreground">
+                Cambia de plan o añade créditos de análisis IA a los contactos.
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
-              <Button asChild variant="outline">
-                <Link to="/pricing">
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Ver planes
-                </Link>
-              </Button>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {subscription.planId !== "business" && (
+                <Button asChild variant="outline" className="justify-start gap-2">
+                  <Link to="/pricing">
+                    <CreditCard className="h-4 w-4 shrink-0" />
+                    <span>Ver todos los planes</span>
+                  </Link>
+                </Button>
+              )}
               {IA_BOOST_PACKS.map((pack) => (
                 <Button
                   key={pack.key}
                   variant="outline"
+                  className="justify-start gap-2"
                   onClick={() => buyBoost(pack.price_id, pack.label)}
                   disabled={purchasingBoost === pack.price_id}
                 >
-                  <Sparkles className="h-4 w-4 mr-2 text-amber-500" />
-                  {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
-                </Button>
-              ))}
-              {IA_LANDINGS_PACKS.map((pack) => (
-                <Button
-                  key={pack.key}
-                  variant="outline"
-                  onClick={() => buyBoost(pack.price_id, pack.label)}
-                  disabled={purchasingBoost === pack.price_id}
-                >
-                  <Sparkles className="h-4 w-4 mr-2 text-orange-500" />
-                  {purchasingBoost === pack.price_id ? "Procesando..." : `${pack.label} — $${pack.priceUsd}`}
+                  <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                  <span className="flex-1 text-left truncate">
+                    {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
+                  </span>
+                  <span className="text-muted-foreground text-sm shrink-0">${pack.priceUsd}</span>
                 </Button>
               ))}
             </div>
           </CardContent>
         </Card>
+
       </div>
     </AppLayout>
   );
