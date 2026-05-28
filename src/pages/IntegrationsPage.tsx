@@ -454,7 +454,7 @@ export default function IntegrationsPage() {
                     {isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
-                      <>{integration.id === "whatsapp" ? <><Plus className="h-3.5 w-3.5 mr-1" />Conectar otro número</> : integration.id === "facebook" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
+                      <>{integration.id === "whatsapp" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : integration.id === "facebook" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
                     ) : (
                       <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}
