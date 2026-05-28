@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2, Bot } from "lucide-react";
+import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2, Bot, Zap, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -141,310 +141,257 @@ export default function BillingPage() {
     );
   }
 
+  // ── Helper: status badge ─────────────────────────────────────────────────────
+  const StatusBadge = () => {
+    if (subscription.status === "trialing_internal")
+      return <Badge variant="secondary" className="text-xs">Prueba gratis</Badge>;
+    if (subscription.status === "active")
+      return <Badge className="bg-green-600 hover:bg-green-600 text-white text-xs">Activo</Badge>;
+    if (subscription.status === "past_due")
+      return <Badge variant="destructive" className="text-xs">Pago pendiente</Badge>;
+    if (subscription.status === "canceled")
+      return <Badge variant="outline" className="text-xs">Cancelado</Badge>;
+    return null;
+  };
+
+  const usageItems = [
+    {
+      label: "Análisis IA",
+      used: usage?.ai_analyses_used ?? 0,
+      limit: subscription.monthlyAiAnalyses,
+      extra: boostCredits,
+      icon: Sparkles,
+      color: "text-amber-500",
+      show: true,
+    },
+    {
+      label: "Msgs automatizados",
+      used: usage?.automated_messages_used ?? 0,
+      limit: subscription.monthlyAutomatedMessages,
+      icon: Zap,
+      color: "text-blue-500",
+      show: true,
+    },
+    {
+      label: "Email Campaigns",
+      used: usage?.email_sends_used ?? 0,
+      limit: subscription.monthlyEmailSends,
+      icon: TrendingUp,
+      color: "text-indigo-500",
+      show: subscription.featureEmailCampaigns,
+    },
+    {
+      label: "Agente IA",
+      used: usage?.ai_agent_conversations_used ?? 0,
+      limit: subscription.monthlyAiAgentConversations,
+      icon: Bot,
+      color: "text-violet-500",
+      show: subscription.featureAiAgent,
+    },
+  ].filter((i) => i.show);
+
   return (
     <AppLayout>
       <AppHeader title="Facturación" />
-      <div className="p-4 md:p-6 space-y-5 max-w-2xl">
+      <div className="p-4 md:p-6 space-y-6">
 
-        {/* ── Plan actual ─────────────────────────────────────────── */}
-        <Card>
-          <CardContent className="pt-5 pb-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-base font-semibold text-foreground">Plan actual:</span>
-                  <span className="text-base font-semibold text-primary">{subscription.planName}</span>
-                  {subscription.status === "trialing_internal" && (
-                    <Badge variant="secondary">Prueba gratis</Badge>
-                  )}
-                  {subscription.status === "active" && (
-                    <Badge className="bg-green-600 hover:bg-green-600 text-white">Activo</Badge>
-                  )}
-                  {subscription.status === "past_due" && (
-                    <Badge variant="destructive">Pago pendiente</Badge>
-                  )}
-                  {subscription.status === "canceled" && (
-                    <Badge variant="outline">Cancelado</Badge>
-                  )}
-                </div>
-                {subscription.status === "trialing_internal" && daysLeftInTrial !== null && (
-                  <p className="text-sm text-muted-foreground">
-                    {daysLeftInTrial > 0
-                      ? `Tu prueba termina en ${daysLeftInTrial} días.`
-                      : "Tu prueba termina hoy."}
-                  </p>
-                )}
-                {subscription.status === "active" && subscription.currentPeriodEnd && (
-                  <p className="text-sm text-muted-foreground">
-                    {subscription.cancelAtPeriodEnd ? "Termina" : "Próxima renovación"}:{" "}
-                    {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CO", {
-                      dateStyle: "long",
-                    })}
-                  </p>
-                )}
-              </div>
-              <div className="shrink-0">
-                {subscription.status === "active" || subscription.status === "past_due" ? (
-                  <Button size="sm" onClick={openCustomerPortal} disabled={openingPortal}>
-                    <ExternalLink className="h-4 w-4 mr-1.5" />
-                    {openingPortal ? "Abriendo..." : "Administrar"}
-                  </Button>
-                ) : (
-                  <Button size="sm" asChild>
-                    <Link to="/pricing">Elegir un plan</Link>
-                  </Button>
-                )}
-              </div>
+        {/* ── Plan card ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-base font-semibold">Plan actual:</span>
+              <span className="text-base font-bold text-primary">{subscription.planName}</span>
+              <StatusBadge />
             </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Uso de este mes ─────────────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">Uso de este mes</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {usageLoading ? (
-              <div className="flex items-center gap-2 py-2 text-muted-foreground text-sm">
-                <Loader2 className="h-4 w-4 animate-spin" /> Cargando uso…
-              </div>
-            ) : (
-              <>
-                <UsageBar
-                  label="Análisis IA de leads"
-                  used={usage?.ai_analyses_used ?? 0}
-                  limit={subscription.monthlyAiAnalyses}
-                  boostExtra={boostCredits}
-                />
-                <UsageBar
-                  label="Mensajes automatizados"
-                  used={usage?.automated_messages_used ?? 0}
-                  limit={subscription.monthlyAutomatedMessages}
-                />
-                {subscription.featureEmailCampaigns && (
-                  <UsageBar
-                    label="Email Campaigns"
-                    used={usage?.email_sends_used ?? 0}
-                    limit={subscription.monthlyEmailSends}
-                  />
-                )}
-                {subscription.featureAiAgent && (
-                  <UsageBar
-                    label="Conversaciones Agente IA"
-                    used={usage?.ai_agent_conversations_used ?? 0}
-                    limit={subscription.monthlyAiAgentConversations}
-                  />
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── AI Boost créditos (solo si hay) ─────────────────────── */}
-        {boostCredits > 0 && (
-          <Card>
-            <CardContent className="pt-5 pb-5 flex items-center gap-4">
-              <Sparkles className="h-8 w-8 text-amber-500 shrink-0" />
-              <div>
-                <p className="text-2xl font-bold leading-none">{boostCredits.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  créditos AI Boost disponibles
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* ── Paquetes de créditos ─────────────────────────────────── */}
-        {/* Two-column grid on sm+, stacked on mobile */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-          {/* IA Landings */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-orange-500" />
-                Créditos IA Landings
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {usageLoading ? (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
-                </div>
-              ) : (
-                <>
-                  {landingCredits > 0 ? (
-                    <div>
-                      <p className="text-2xl font-bold leading-none">{landingCredits}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        créditos disponibles
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Sin créditos. Compra un paquete para generar landings con IA.
-                    </p>
-                  )}
-                  <div className="space-y-1.5">
-                    {IA_LANDINGS_PACKS.map((pack) => (
-                      <Button
-                        key={pack.key}
-                        size="sm"
-                        variant="outline"
-                        className="w-full justify-start gap-2 text-xs"
-                        onClick={() => buyBoost(pack.price_id, pack.label)}
-                        disabled={purchasingBoost === pack.price_id}
-                      >
-                        <Sparkles className="h-3 w-3 text-orange-500 shrink-0" />
-                        <span className="flex-1 text-left truncate">
-                          {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
-                        </span>
-                        <span className="text-muted-foreground font-medium shrink-0">${pack.priceUsd}</span>
-                      </Button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* IA Agent */}
-          {subscription.featureAiAgent && (
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <Bot className="h-4 w-4 text-violet-500" />
-                  Conversaciones extra Agente IA
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {usageLoading ? (
-                  <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando…
-                  </div>
-                ) : (
-                  <>
-                    {agentCredits > 0 ? (
-                      <div>
-                        <p className="text-2xl font-bold leading-none">{agentCredits.toLocaleString()}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          conversaciones adicionales
-                        </p>
-                      </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">
-                        Sin conversaciones extra. Compra un paquete para cuando se agote tu cuota mensual.
-                      </p>
-                    )}
-                    <div className="space-y-1.5">
-                      {IA_AGENT_PACKS.map((pack) => (
-                        <Button
-                          key={pack.key}
-                          size="sm"
-                          variant="outline"
-                          className="w-full justify-start gap-2 text-xs"
-                          onClick={() => buyBoost(pack.price_id, pack.label)}
-                          disabled={purchasingBoost === pack.price_id}
-                        >
-                          <Bot className="h-3 w-3 text-violet-500 shrink-0" />
-                          <span className="flex-1 text-left truncate">
-                            {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
-                          </span>
-                          <span className="text-muted-foreground font-medium shrink-0">${pack.priceUsd}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          )}
-        </div>
-
-        {/* ── AI Boost packs + upgrade ────────────────────────────── */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base font-semibold">
-              {subscription.planId === "business" ? "Más créditos de análisis IA" : "¿Necesitas más capacidad?"}
-            </CardTitle>
-            {subscription.planId !== "business" && (
+            {subscription.status === "trialing_internal" && daysLeftInTrial !== null && (
               <p className="text-sm text-muted-foreground">
-                Cambia de plan o añade créditos de análisis IA a los contactos.
+                {daysLeftInTrial > 0
+                  ? `Tu prueba termina en ${daysLeftInTrial} días. Elige un plan para no perder el acceso.`
+                  : "Tu prueba termina hoy."}
               </p>
             )}
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {subscription.planId !== "business" && (
-                <Button asChild variant="outline" className="justify-start gap-2">
-                  <Link to="/pricing">
-                    <CreditCard className="h-4 w-4 shrink-0" />
-                    <span>Ver todos los planes</span>
-                  </Link>
-                </Button>
-              )}
-              {IA_BOOST_PACKS.map((pack) => (
-                <Button
-                  key={pack.key}
-                  variant="outline"
-                  className="justify-start gap-2"
-                  onClick={() => buyBoost(pack.price_id, pack.label)}
-                  disabled={purchasingBoost === pack.price_id}
-                >
-                  <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
-                  <span className="flex-1 text-left truncate">
-                    {purchasingBoost === pack.price_id ? "Procesando..." : pack.label}
-                  </span>
-                  <span className="text-muted-foreground text-sm shrink-0">${pack.priceUsd}</span>
-                </Button>
-              ))}
+            {subscription.status === "active" && subscription.currentPeriodEnd && (
+              <p className="text-sm text-muted-foreground">
+                {subscription.cancelAtPeriodEnd ? "Cancela el" : "Próxima renovación"}:{" "}
+                {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CO", { dateStyle: "long" })}
+              </p>
+            )}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {subscription.planId !== "business" && (
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/pricing">Cambiar plan</Link>
+              </Button>
+            )}
+            {(subscription.status === "active" || subscription.status === "past_due") && (
+              <Button size="sm" onClick={openCustomerPortal} disabled={openingPortal}>
+                <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                {openingPortal ? "Abriendo..." : "Administrar"}
+              </Button>
+            )}
+            {subscription.status === "trialing_internal" && (
+              <Button size="sm" asChild>
+                <Link to="/pricing">Elegir plan</Link>
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Uso del mes — grid de métricas ─────────────────────────────────── */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Uso este mes
+          </h2>
+          {usageLoading ? (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
+              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
             </div>
-          </CardContent>
-        </Card>
+          ) : (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              {usageItems.map((item) => {
+                const isUnlimited = item.limit === null;
+                const total = isUnlimited ? null : (item.limit! + (item.extra ?? 0));
+                const pct = total ? Math.min(100, Math.round((item.used / total) * 100)) : 0;
+                const isDanger = !isUnlimited && pct >= 90;
+                const isWarn   = !isUnlimited && pct >= 70 && !isDanger;
+                return (
+                  <div key={item.label}
+                    className={`rounded-xl border bg-card p-4 flex flex-col gap-3 ${isDanger ? "border-red-300 dark:border-red-800" : ""}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground font-medium">{item.label}</span>
+                      <item.icon className={`h-3.5 w-3.5 ${item.color}`} />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold leading-none tabular-nums">
+                        {item.used.toLocaleString()}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {isUnlimited
+                          ? "ilimitado"
+                          : `de ${total!.toLocaleString()}`
+                        }
+                        {item.extra && item.extra > 0 && !isUnlimited
+                          ? ` (+${item.extra.toLocaleString()} boost)`
+                          : ""}
+                      </p>
+                    </div>
+                    {!isUnlimited ? (
+                      <Progress
+                        value={pct}
+                        className={`h-1.5 ${isDanger ? "[&>div]:bg-red-500" : isWarn ? "[&>div]:bg-amber-500" : ""}`}
+                      />
+                    ) : (
+                      <p className="text-xs text-green-600 flex items-center gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Sin límite
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        {/* ── Paquetes de créditos adicionales ──────────────────────────────── */}
+        <section>
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+            Créditos adicionales
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+
+            {/* IA Boost */}
+            <PackCard
+              icon={<Sparkles className="h-4 w-4 text-amber-500" />}
+              title="IA Boost — Análisis de leads"
+              creditsLabel={boostCredits > 0 ? `${boostCredits.toLocaleString()} créditos disponibles` : null}
+              emptyText="Añade créditos para analizar más leads con IA cuando se agote el cupo mensual."
+              packs={IA_BOOST_PACKS}
+              purchasingBoost={purchasingBoost}
+              onBuy={buyBoost}
+            />
+
+            {/* IA Landings */}
+            <PackCard
+              icon={<Sparkles className="h-4 w-4 text-orange-500" />}
+              title="IA Landings — Páginas de aterrizaje"
+              creditsLabel={landingCredits > 0 ? `${landingCredits} créditos disponibles` : null}
+              emptyText="Cada landing nueva consume 1 crédito. Refinar existentes es gratis."
+              packs={IA_LANDINGS_PACKS}
+              purchasingBoost={purchasingBoost}
+              onBuy={buyBoost}
+            />
+
+            {/* IA Agent */}
+            {subscription.featureAiAgent && (
+              <PackCard
+                icon={<Bot className="h-4 w-4 text-violet-500" />}
+                title="Agente IA — Conversaciones extra"
+                creditsLabel={agentCredits > 0 ? `${agentCredits.toLocaleString()} conversaciones disponibles` : null}
+                emptyText="Se consumen al agotar el cupo mensual del plan para que el agente siga activo."
+                packs={IA_AGENT_PACKS}
+                purchasingBoost={purchasingBoost}
+                onBuy={buyBoost}
+              />
+            )}
+
+          </div>
+        </section>
 
       </div>
     </AppLayout>
   );
 }
 
-function UsageBar({
-  label,
-  used,
-  limit,
-  boostExtra,
+// ── PackCard ──────────────────────────────────────────────────────────────────
+function PackCard({
+  icon,
+  title,
+  creditsLabel,
+  emptyText,
+  packs,
+  purchasingBoost,
+  onBuy,
 }: {
-  label: string;
-  used: number;
-  limit: number | null;  // null = unlimited
-  boostExtra?: number;
+  icon: React.ReactNode;
+  title: string;
+  creditsLabel: string | null;
+  emptyText: string;
+  packs: ReadonlyArray<{ key: string; label: string; priceUsd: number; price_id: string }>;
+  purchasingBoost: string | null;
+  onBuy: (priceId: string, label: string) => void;
 }) {
-  const isUnlimited = limit === null;
-  const totalAllowed = isUnlimited ? Infinity : (limit + (boostExtra ?? 0));
-  const pct = isUnlimited ? 0 : Math.min(100, Math.round((used / totalAllowed) * 100));
-
   return (
-    <div className="space-y-1.5">
-      <div className="flex justify-between text-sm">
-        <span className="text-foreground">{label}</span>
-        <span className="text-muted-foreground tabular-nums">
-          {used.toLocaleString()}
-          {isUnlimited ? " usados" : ` / ${limit?.toLocaleString()}`}
-          {boostExtra && boostExtra > 0 && !isUnlimited
-            ? ` (+${boostExtra.toLocaleString()} boost)`
-            : ""}
-        </span>
+    <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center gap-2">
+        {icon}
+        <span className="text-sm font-semibold leading-tight">{title}</span>
       </div>
-      {!isUnlimited && (
-        <Progress value={pct} className={pct >= 90 ? "[&>div]:bg-red-500" : pct >= 70 ? "[&>div]:bg-amber-500" : ""} />
-      )}
-      {isUnlimited && (
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <CheckCircle2 className="h-3 w-3 text-green-500" />
-          Ilimitado
+
+      {/* Credits balance */}
+      {creditsLabel ? (
+        <p className="text-xs font-medium text-green-600 flex items-center gap-1.5">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          {creditsLabel}
         </p>
+      ) : (
+        <p className="text-xs text-muted-foreground leading-relaxed">{emptyText}</p>
       )}
+
+      {/* Buy buttons */}
+      <div className="space-y-1.5 mt-auto">
+        {packs.map((pack) => (
+          <button
+            key={pack.key}
+            onClick={() => onBuy(pack.price_id, pack.label)}
+            disabled={purchasingBoost === pack.price_id}
+            className="w-full flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            <span>{purchasingBoost === pack.price_id ? "Procesando…" : pack.label}</span>
+            <span className="text-muted-foreground font-semibold tabular-nums">${pack.priceUsd}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
