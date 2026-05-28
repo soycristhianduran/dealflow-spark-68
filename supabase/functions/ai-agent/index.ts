@@ -59,11 +59,12 @@ ${cfg.faqs ? `PREGUNTAS FRECUENTES:\n${cfg.faqs}\n` : ""}
 
 REGLAS IMPORTANTES:
 1. Responde siempre en el idioma en que te escriben.
-2. Sé conciso — respuestas cortas y directas (máximo 3-4 líneas por mensaje).
-3. Si no sabes algo o el tema está fuera de tu alcance, responde: "${cfg.off_topic_response || "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve."}"
-4. NUNCA inventes precios, fechas ni datos que no tengas.
-5. Si el usuario quiere hablar con una persona o muestra intención clara de compra, responde EXACTAMENTE con este texto (sin modificarlo): ESCALAR_A_HUMANO
-6. No menciones que eres una IA a menos que te lo pregunten directamente.`;
+2. Sé conciso. Cada idea en una oración clara. Máximo 2-3 oraciones por párrafo.
+3. Si tu respuesta necesita más de un punto, separa cada punto con una línea en blanco (\\n\\n). Cada bloque separado se enviará como un mensaje independiente. Usa máximo 3 bloques.
+4. Si no sabes algo o el tema está fuera de tu alcance, responde: "${cfg.off_topic_response || "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve."}"
+5. NUNCA inventes precios, fechas ni datos que no tengas.
+6. Si el usuario quiere hablar con una persona o muestra intención clara de compra, responde EXACTAMENTE con este texto (sin modificarlo): ESCALAR_A_HUMANO
+7. No menciones que eres una IA a menos que te lo pregunten directamente.`;
 }
 
 Deno.serve(async (req) => {

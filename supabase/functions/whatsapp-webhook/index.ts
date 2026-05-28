@@ -5,6 +5,81 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Splits an AI response into multiple short WhatsApp messages.
+ *
+ * Strategy (in order):
+ *  1. If the text fits in maxLen chars → single message.
+ *  2. Split on blank lines (\n\n) — Claude is instructed to use these as
+ *     natural message boundaries.
+ *  3. If a paragraph is still too long → split at sentence boundaries.
+ *  4. Hard-cap at maxParts messages; remaining text folded into the last.
+ */
+function splitResponse(text: string, maxParts = 3, maxLen = 320): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxLen) return [trimmed];
+
+  // Step 1: try paragraph splits
+  const paragraphs = trimmed.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+
+  if (paragraphs.length === 1) {
+    // Single long block — split at sentence boundary nearest to the midpoint
+    return splitAtSentences(trimmed, maxParts, maxLen);
+  }
+
+  // Merge paragraphs into ≤ maxParts chunks respecting maxLen
+  const chunks: string[] = [];
+  let cur = "";
+
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    const candidate = cur ? cur + "\n\n" + p : p;
+
+    if (chunks.length === maxParts - 1) {
+      // Last allowed chunk — dump everything remaining into it
+      const rest = paragraphs.slice(i).join("\n\n");
+      chunks.push((cur ? cur + "\n\n" + rest : rest).trim());
+      return chunks;
+    }
+
+    if (cur && candidate.length > maxLen) {
+      chunks.push(cur.trim());
+      cur = p;
+    } else {
+      cur = candidate;
+    }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, maxParts);
+}
+
+function splitAtSentences(text: string, maxParts: number, maxLen: number): string[] {
+  // Sentence endings: ". ", "! ", "? " or end of string
+  const sentenceRe = /[^.!?]*[.!?]+(?:\s|$)/g;
+  const sentences = text.match(sentenceRe) || [text];
+  const chunks: string[] = [];
+  let cur = "";
+
+  for (const s of sentences) {
+    const candidate = cur + s;
+    if (cur && candidate.length > maxLen && chunks.length < maxParts - 1) {
+      chunks.push(cur.trim());
+      cur = s;
+    } else {
+      cur = candidate;
+    }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, maxParts);
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 
 // Types that carry a separate media object in the payload
@@ -310,19 +385,26 @@ Deno.serve(async (req) => {
                   try {
                     if (!config.organization_id) return;
 
-                    // Fetch last 6 messages for context
+                    // Fetch last 12 messages for context (13 rows, skip index 0
+                    // which is the current message just inserted, so history
+                    // contains only PREVIOUS messages — avoids duplicate context).
                     const { data: recentMsgs } = await supabase
                       .from("whatsapp_messages")
                       .select("direction, message_text, message_type")
                       .eq("user_id", config.user_id)
                       .or(`phone_number.eq.${senderPhone},phone_number.eq.+${senderPhone}`)
                       .order("sent_at", { ascending: false })
-                      .limit(6);
+                      .limit(13);
 
-                    const history = (recentMsgs || []).reverse().map((m: any) => ({
-                      role: m.direction === "incoming" ? "user" : "assistant",
-                      content: m.message_text || `[${m.message_type}]`,
-                    }));
+                    // [0] is current message (just inserted) — skip it so Claude
+                    // doesn't see it twice (it arrives again as the `message` field).
+                    const history = (recentMsgs || [])
+                      .slice(1)           // drop current
+                      .reverse()          // oldest → newest
+                      .map((m: any) => ({
+                        role: m.direction === "incoming" ? "user" : "assistant",
+                        content: m.message_text || `[${m.message_type}]`,
+                      }));
 
                     const agentRes = await fetch(
                       `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`,
@@ -347,40 +429,50 @@ Deno.serve(async (req) => {
                     const agentData = await agentRes.json();
                     if (!agentData?.response) return;
 
-                    // Send response via WhatsApp
-                    const sendRes = await fetch(
-                      `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`,
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-                        },
-                        body: JSON.stringify({
-                          phone_number_id: phoneNumberId,
-                          to: senderPhone,
-                          message: agentData.response,
-                          user_id: config.user_id,
-                        }),
-                      }
-                    );
+                    // Split long responses into multiple short messages
+                    const parts = splitResponse(agentData.response);
 
-                    const sendData = await sendRes.json();
-                    const waOutId = sendData?.messages?.[0]?.id || null;
+                    for (let i = 0; i < parts.length; i++) {
+                      const part = parts[i];
 
-                    // Save outgoing AI message
-                    await supabase.from("whatsapp_messages").insert({
-                      user_id: config.user_id,
-                      contact_id: contact.id,
-                      wa_message_id: waOutId,
-                      phone_number: senderPhone,
-                      direction: "outgoing",
-                      message_type: "text",
-                      message_text: agentData.response,
-                      status: "sent",
-                      sent_at: new Date().toISOString(),
-                      is_ai_generated: true,
-                    });
+                      // Small pause between messages so it feels natural (skip on first)
+                      if (i > 0) await sleep(700);
+
+                      // Send this part via WhatsApp
+                      const sendRes = await fetch(
+                        `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                          },
+                          body: JSON.stringify({
+                            phone_number_id: phoneNumberId,
+                            to: senderPhone,
+                            message: part,
+                            user_id: config.user_id,
+                          }),
+                        }
+                      );
+
+                      const sendData = await sendRes.json();
+                      const waOutId = sendData?.messages?.[0]?.id || null;
+
+                      // Save this part to DB
+                      await supabase.from("whatsapp_messages").insert({
+                        user_id: config.user_id,
+                        contact_id: contact.id,
+                        wa_message_id: waOutId,
+                        phone_number: senderPhone,
+                        direction: "outgoing",
+                        message_type: "text",
+                        message_text: part,
+                        status: "sent",
+                        sent_at: new Date().toISOString(),
+                        is_ai_generated: true,
+                      });
+                    }
 
                     // If escalated: log activity to notify the vendor
                     if (agentData.escalated) {

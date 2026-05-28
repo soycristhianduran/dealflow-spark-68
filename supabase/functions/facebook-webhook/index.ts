@@ -9,6 +9,66 @@ const corsHeaders = {
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 const IG_GRAPH_API = "https://graph.instagram.com/v21.0";
 
+// ── Message splitting helpers (same logic as whatsapp-webhook) ────────────────
+
+function splitResponse(text: string, maxParts = 3, maxLen = 320): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= maxLen) return [trimmed];
+
+  const paragraphs = trimmed.split(/\n\n+/).map(p => p.trim()).filter(Boolean);
+
+  if (paragraphs.length === 1) {
+    return splitAtSentences(trimmed, maxParts, maxLen);
+  }
+
+  const chunks: string[] = [];
+  let cur = "";
+
+  for (let i = 0; i < paragraphs.length; i++) {
+    const p = paragraphs[i];
+    const candidate = cur ? cur + "\n\n" + p : p;
+
+    if (chunks.length === maxParts - 1) {
+      const rest = paragraphs.slice(i).join("\n\n");
+      chunks.push((cur ? cur + "\n\n" + rest : rest).trim());
+      return chunks;
+    }
+
+    if (cur && candidate.length > maxLen) {
+      chunks.push(cur.trim());
+      cur = p;
+    } else {
+      cur = candidate;
+    }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, maxParts);
+}
+
+function splitAtSentences(text: string, maxParts: number, maxLen: number): string[] {
+  const sentenceRe = /[^.!?]*[.!?]+(?:\s|$)/g;
+  const sentences = text.match(sentenceRe) || [text];
+  const chunks: string[] = [];
+  let cur = "";
+
+  for (const s of sentences) {
+    const candidate = cur + s;
+    if (cur && candidate.length > maxLen && chunks.length < maxParts - 1) {
+      chunks.push(cur.trim());
+      cur = s;
+    } else {
+      cur = candidate;
+    }
+  }
+  if (cur.trim()) chunks.push(cur.trim());
+  return chunks.slice(0, maxParts);
+}
+
+function sleep(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 /** IG Business Login tokens ("IGAA...") must use graph.instagram.com. */
 function graphHostForToken(token: string | undefined | null): string {
   return token && token.startsWith("IGAA") ? IG_GRAPH_API : GRAPH_API;
@@ -600,19 +660,23 @@ async function processInstagramMessenger(
 
       if (!membership?.organization_id) return;
 
-      // Fetch last 6 messages for context
+      // Fetch last 12 messages for context (13 rows, skip index 0 = current message)
       const { data: recentMsgs } = await supabase
         .from("instagram_messages")
         .select("direction, message_text, message_type")
         .eq("user_id", account.user_id)
         .eq("sender_id", senderId)
         .order("sent_at", { ascending: false })
-        .limit(6);
+        .limit(13);
 
-      const history = (recentMsgs || []).reverse().map((m: any) => ({
-        role: m.direction === "incoming" ? "user" : "assistant",
-        content: m.message_text || `[${m.message_type}]`,
-      }));
+      // Skip index 0 (current message just inserted) to avoid duplicate context
+      const history = (recentMsgs || [])
+        .slice(1)
+        .reverse()
+        .map((m: any) => ({
+          role: m.direction === "incoming" ? "user" : "assistant",
+          content: m.message_text || `[${m.message_type}]`,
+        }));
 
       const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const agentRes = await fetch(`${supabaseUrl}/functions/v1/ai-agent`, {
@@ -634,37 +698,45 @@ async function processInstagramMessenger(
       const agentData = await agentRes.json();
       if (!agentData?.response) return;
 
-      // Send reply via Instagram API
-      await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-        },
-        body: JSON.stringify({
-          action: "send_message",
-          ig_account_id: account.id,
-          recipient_id: senderId,
-          message: agentData.response,
-          user_id: account.user_id,
-        }),
-      });
+      // Split long responses into multiple short messages
+      const parts = splitResponse(agentData.response);
 
-      // Save outgoing AI message
-      await supabase.from("instagram_messages").insert({
-        user_id: account.user_id,
-        conversation_id: conversationId,
-        ig_account_id: account.id,
-        direction: "outgoing",
-        message_type: "text",
-        message_text: agentData.response,
-        sender_id: recipientId,
-        recipient_id: senderId,
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        received_at: new Date().toISOString(),
-        is_ai_generated: true,
-      });
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        if (i > 0) await sleep(700);
+
+        // Send this part via Instagram API
+        await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            action: "send_message",
+            ig_account_id: account.id,
+            recipient_id: senderId,
+            message: part,
+            user_id: account.user_id,
+          }),
+        });
+
+        // Save this part to DB
+        await supabase.from("instagram_messages").insert({
+          user_id: account.user_id,
+          conversation_id: conversationId,
+          ig_account_id: account.id,
+          direction: "outgoing",
+          message_type: "text",
+          message_text: part,
+          sender_id: recipientId,
+          recipient_id: senderId,
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          received_at: new Date().toISOString(),
+          is_ai_generated: true,
+        });
+      }
 
       if (agentData.escalated) {
         console.log(`IG AI agent escalated conversation with ${senderId}`);
