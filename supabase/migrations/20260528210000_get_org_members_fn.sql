@@ -7,10 +7,12 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-  -- Only callable by members of this org
+  -- Only callable by members of this org (use alias to avoid column ambiguity
+  -- between the RETURNS TABLE user_id and organization_members.user_id)
   IF NOT EXISTS (
-    SELECT 1 FROM organization_members
-    WHERE organization_id = p_org_id AND user_id = auth.uid()
+    SELECT 1 FROM organization_members om_check
+    WHERE om_check.organization_id = p_org_id
+      AND om_check.user_id = auth.uid()
   ) THEN
     RETURN;
   END IF;
