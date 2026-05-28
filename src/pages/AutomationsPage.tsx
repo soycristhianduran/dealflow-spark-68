@@ -1214,6 +1214,7 @@ function EmailStepEditor({ step, onChange }: {
 
   const [templates, setTemplates] = useState<{ id: string; name: string; subject: string; html: string }[]>([]);
   const [loadingTpl, setLoadingTpl] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
     setLoadingTpl(true);
@@ -1236,86 +1237,124 @@ function EmailStepEditor({ step, onChange }: {
     }});
   };
 
+  const detachTemplate = () => {
+    onChange({ ...step, config: { ...c, template_id: "", template_name: "" } });
+  };
+
+  const hasTemplate = !!c.template_id;
+
   return (
     <div className="space-y-3">
-      {/* ── Template picker ── */}
-      <div>
-        <Label className="text-xs font-semibold flex items-center gap-1.5">
-          <Mail className="h-3.5 w-3.5 text-blue-500" />
-          Plantilla del Email Builder
-        </Label>
-        {loadingTpl ? (
-          <p className="text-xs text-muted-foreground mt-1">Cargando plantillas...</p>
-        ) : templates.length === 0 ? (
-          <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
-            <p className="font-medium">No hay plantillas creadas</p>
-            <p>Ve a <strong>Marketing → Email Builder</strong> y crea una plantilla primero.</p>
-          </div>
-        ) : (
-          <>
-            <Select
-              value={c.template_id ?? ""}
-              onValueChange={handleSelectTemplate}
-            >
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Seleccionar plantilla..." />
-              </SelectTrigger>
-              <SelectContent>
-                {templates.map(t => (
-                  <SelectItem key={t.id} value={t.id}>
-                    <span className="font-medium">{t.name}</span>
-                    {t.subject && <span className="text-muted-foreground ml-2 text-xs truncate">— {t.subject}</span>}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {c.template_id && (
-              <p className="text-xs text-green-700 flex items-center gap-1 mt-1">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                Plantilla cargada — puedes editar el asunto y contenido abajo
-              </p>
-            )}
-            {!c.template_id && (
-              <p className="text-xs text-muted-foreground mt-1">
-                O déjalo en blanco para escribir el contenido manualmente.
-              </p>
-            )}
-          </>
-        )}
+      {/* ── Remitente ── */}
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">Nombre remitente</Label>
+          <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder="Mi Empresa" />
+        </div>
+        <div>
+          <Label className="text-xs">Email remitente</Label>
+          <Input value={c.from_email ?? ""} onChange={e => set("from_email", e.target.value)} placeholder="hola@empresa.com" />
+        </div>
       </div>
 
-      <div className="border-t pt-3 space-y-3">
-        {/* ── Remitente ── */}
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label className="text-xs">Nombre remitente</Label>
-            <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder="Mi Empresa" />
-          </div>
-          <div>
-            <Label className="text-xs">Email remitente</Label>
-            <Input value={c.from_email ?? ""} onChange={e => set("from_email", e.target.value)} placeholder="hola@empresa.com" />
-          </div>
-        </div>
+      {/* ── Asunto ── */}
+      <div>
+        <Label className="text-xs">Asunto</Label>
+        <Input
+          value={c.subject ?? ""}
+          onChange={e => set("subject", e.target.value)}
+          placeholder="Hola {{contact.first_name}}"
+        />
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
+        </p>
+      </div>
 
-        {/* ── Asunto ── */}
-        <div>
-          <Label className="text-xs">Asunto</Label>
-          <Input value={c.subject ?? ""} onChange={e => set("subject", e.target.value)} placeholder="Hola {{contact.first_name}}" />
-        </div>
+      {/* ── Template picker / content ── */}
+      <div className="space-y-2">
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <Mail className="h-3.5 w-3.5 text-blue-500" />
+          Contenido del email
+        </Label>
 
-        {/* ── Contenido ── */}
-        <div>
-          <Label className="text-xs">Contenido HTML</Label>
-          <Textarea
-            value={c.html_content ?? ""}
-            onChange={e => set("html_content", e.target.value)}
-            rows={6}
-            placeholder="<p>Hola {{contact.first_name}},</p>"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code> <code>{"{{contact.email}}"}</code> <code>{"{{contact.company}}"}</code>
-          </p>
-        </div>
+        {/* Template selected state */}
+        {hasTemplate ? (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-3 py-2 border-b border-blue-100">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+                <span className="text-xs font-medium text-blue-800 truncate">{c.template_name}</span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={() => setPreviewOpen(p => !p)}
+                  className="text-xs text-blue-600 hover:text-blue-800 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
+                >
+                  {previewOpen ? "Ocultar" : "Vista previa"}
+                </button>
+                <button
+                  onClick={detachTemplate}
+                  className="text-xs text-slate-500 hover:text-red-500 px-2 py-0.5 rounded hover:bg-red-50 transition-colors"
+                >
+                  Cambiar
+                </button>
+              </div>
+            </div>
+            {/* Preview iframe */}
+            {previewOpen && c.html_content && (
+              <iframe
+                srcDoc={c.html_content}
+                className="w-full border-0"
+                style={{ height: 280, background: "#fff" }}
+                sandbox="allow-same-origin"
+                title="Vista previa del email"
+              />
+            )}
+            {!previewOpen && (
+              <p className="text-xs text-blue-600 px-3 py-2">
+                Haz clic en "Vista previa" para ver el diseño del email.
+              </p>
+            )}
+          </div>
+        ) : (
+          /* No template — show picker + manual textarea */
+          <>
+            {loadingTpl ? (
+              <p className="text-xs text-muted-foreground">Cargando plantillas...</p>
+            ) : templates.length > 0 ? (
+              <Select value="" onValueChange={handleSelectTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Usar plantilla del Email Builder..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {templates.map(t => (
+                    <SelectItem key={t.id} value={t.id}>
+                      <span className="font-medium">{t.name}</span>
+                      {t.subject && <span className="text-muted-foreground ml-2 text-xs">— {t.subject}</span>}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+                <p className="font-medium">No hay plantillas</p>
+                <p>Ve a <strong>Marketing → Email Builder</strong> para crear una.</p>
+              </div>
+            )}
+
+            <div>
+              <Label className="text-xs text-muted-foreground">O escribe el HTML manualmente</Label>
+              <Textarea
+                className="mt-1 font-mono text-xs"
+                value={c.html_content ?? ""}
+                onChange={e => set("html_content", e.target.value)}
+                rows={5}
+                placeholder="<p>Hola {{contact.first_name}},</p>"
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
