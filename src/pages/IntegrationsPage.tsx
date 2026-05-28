@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -142,6 +142,9 @@ export default function IntegrationsPage() {
   const [igWizardOpen, setIgWizardOpen] = useState(false);
   const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
   const [wrongAppWarning, setWrongAppWarning] = useState<{ app_name: string } | null>(null);
+  // Label editing state per config id
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelValue, setEditingLabelValue] = useState("");
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
   const wa = useWhatsAppIntegration();
@@ -328,21 +331,100 @@ export default function IntegrationsPage() {
                     </div>
                   )}
 
-                  {/* WhatsApp status summary */}
-                  {integration.id === "whatsapp" && wa.isConnected && wa.config && (
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {wa.config.business_name && <Badge variant="outline" className="text-xs">{wa.config.business_name}</Badge>}
-                        {wa.config.display_phone && <Badge variant="outline" className="text-xs">{wa.config.display_phone}</Badge>}
-                      </div>
-                      {/* Wrong-app warning — token belongs to a different Meta app */}
+                  {/* WhatsApp multi-number list */}
+                  {integration.id === "whatsapp" && wa.isConnected && (
+                    <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                      {wa.configs.map((cfg) => (
+                        <div
+                          key={cfg.id}
+                          className="flex items-center gap-2 rounded-lg border bg-muted/30 px-2.5 py-2"
+                        >
+                          {/* Primary star */}
+                          {wa.configs.length > 1 && (
+                            <button
+                              title={cfg.is_primary ? "Número principal" : "Establecer como principal"}
+                              onClick={() => wa.setPrimary(cfg.id)}
+                              className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors"
+                            >
+                              <Star className={`h-3.5 w-3.5 ${cfg.is_primary ? "fill-amber-400 text-amber-400" : ""}`} />
+                            </button>
+                          )}
+
+                          {/* Label / phone — inline edit */}
+                          <div className="flex-1 min-w-0">
+                            {editingLabelId === cfg.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  autoFocus
+                                  value={editingLabelValue}
+                                  onChange={(e) => setEditingLabelValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      wa.updateLabel(cfg.id, editingLabelValue);
+                                      setEditingLabelId(null);
+                                    }
+                                    if (e.key === "Escape") setEditingLabelId(null);
+                                  }}
+                                  className="h-5 w-full rounded border bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                                  placeholder="Ej: Ventas"
+                                />
+                                <button onClick={() => { wa.updateLabel(cfg.id, editingLabelValue); setEditingLabelId(null); }}>
+                                  <Check className="h-3.5 w-3.5 text-green-600" />
+                                </button>
+                                <button onClick={() => setEditingLabelId(null)}>
+                                  <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1 min-w-0">
+                                <span className="text-xs font-medium truncate">
+                                  {cfg.label || cfg.display_phone || cfg.phone_number_id}
+                                </span>
+                                {cfg.label && cfg.display_phone && (
+                                  <span className="text-[10px] text-muted-foreground truncate">· {cfg.display_phone}</span>
+                                )}
+                                {cfg.is_primary && wa.configs.length > 1 && (
+                                  <span className="text-[10px] text-amber-600 font-medium shrink-0">Principal</span>
+                                )}
+                                <button
+                                  onClick={() => { setEditingLabelId(cfg.id); setEditingLabelValue(cfg.label || ""); }}
+                                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors ml-0.5"
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Disconnect this number */}
+                          <button
+                            title="Desconectar este número"
+                            onClick={() => wa.disconnect(cfg.id)}
+                            className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {/* Add another number */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5 h-7"
+                        onClick={() => { setWaWizardStartStep(1); setWaWizardOpen(true); }}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Conectar otro número
+                      </Button>
+
+                      {/* Wrong-app warning */}
                       {wrongAppWarning && (
-                        <div className="rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                        <div className="rounded-md border border-amber-400 bg-amber-50 dark:bg-amber-950/30 p-2.5 space-y-1.5">
                           <div className="flex items-start gap-1.5">
                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
                             <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
                               <span className="font-semibold">Los mensajes entrantes no llegarán.</span>{" "}
-                              Tu conexión está vinculada a <span className="font-medium">"{wrongAppWarning.app_name}"</span>, no al CRM. Desconecta y vuelve a conectar usando el botón de Meta.
+                              Tu conexión está vinculada a <span className="font-medium">"{wrongAppWarning.app_name}"</span>, no al CRM.
                             </p>
                           </div>
                           <Button
@@ -372,7 +454,7 @@ export default function IntegrationsPage() {
                     {isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
-                      <>{(integration.id === "facebook" || integration.id === "whatsapp") ? "Gestionar" : "Ver detalles"} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                      <>{integration.id === "whatsapp" ? <><Plus className="h-3.5 w-3.5 mr-1" />Conectar otro número</> : integration.id === "facebook" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
                     ) : (
                       <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}

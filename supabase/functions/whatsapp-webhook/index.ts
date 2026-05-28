@@ -332,6 +332,7 @@ Deno.serve(async (req) => {
                 contact_id: contact?.id || null,
                 wa_message_id: waMessageId,
                 phone_number: senderPhone,
+                from_phone_number_id: phoneNumberId, // which of our numbers received it
                 direction: "incoming",
                 message_type: messageType,
                 message_text: messageText,
@@ -442,26 +443,29 @@ Deno.serve(async (req) => {
                         // Small pause between messages so it feels natural (skip on first)
                         if (i > 0) await sleep(700);
 
-                        // Send this part via WhatsApp
-                        const sendRes = await fetch(
-                          `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-whatsapp`,
+                        // Send directly via Meta Graph API (no send-whatsapp function
+                        // needed — we already have the access_token from whatsapp_configs).
+                        const metaRes = await fetch(
+                          `${GRAPH_API}/${phoneNumberId}/messages`,
                           {
                             method: "POST",
                             headers: {
+                              "Authorization": `Bearer ${config.access_token}`,
                               "Content-Type": "application/json",
-                              "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
                             },
                             body: JSON.stringify({
-                              phone_number_id: phoneNumberId,
+                              messaging_product: "whatsapp",
                               to: senderPhone,
-                              message: part,
-                              user_id: config.user_id,
+                              type: "text",
+                              text: { body: part },
                             }),
                           }
                         );
-
-                        const sendData = await sendRes.json();
-                        const waOutId = sendData?.messages?.[0]?.id || null;
+                        const metaData = await metaRes.json();
+                        if (metaData.error) {
+                          console.error("[AI-AGENT] Meta send error:", JSON.stringify(metaData.error));
+                        }
+                        const waOutId = metaData?.messages?.[0]?.id || null;
 
                         // Save this part to DB
                         await supabase.from("whatsapp_messages").insert({
@@ -469,6 +473,7 @@ Deno.serve(async (req) => {
                           contact_id: contact.id,
                           wa_message_id: waOutId,
                           phone_number: senderPhone,
+                          from_phone_number_id: phoneNumberId, // which of our numbers sent it
                           direction: "outgoing",
                           message_type: "text",
                           message_text: part,

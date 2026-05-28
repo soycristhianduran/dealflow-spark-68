@@ -10,12 +10,15 @@ export interface WaConversation {
   last_message_time: string;
   last_direction: "incoming" | "outgoing";
   unread_count: number;
+  /** Which of our WhatsApp numbers this conversation came in on (for reply routing) */
+  from_phone_number_id: string | null;
 }
 
 export interface WaMessage {
   id: string;
   wa_message_id: string | null;
   phone_number: string;
+  from_phone_number_id?: string | null;
   direction: "incoming" | "outgoing";
   message_type: string;
   message_text: string | null;
@@ -39,7 +42,7 @@ export function useWhatsAppInbox() {
     try {
       const { data: msgs, error } = await supabase
         .from("whatsapp_messages")
-        .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at, read_at")
+        .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at, read_at, from_phone_number_id")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -59,6 +62,7 @@ export function useWhatsAppInbox() {
             last_message_time: msg.created_at,
             last_direction: msg.direction as "incoming" | "outgoing",
             unread_count: 0,
+            from_phone_number_id: (msg as any).from_phone_number_id || null,
           });
         }
         // Unread = incoming message where read_at is NULL (persisted in DB)
@@ -186,7 +190,7 @@ export function useWhatsAppInbox() {
   }, [selectedPhone]);
 
   const sendMessage = useCallback(
-    async (phone: string, message: string, contactId?: string | null) => {
+    async (phone: string, message: string, contactId?: string | null, phoneNumberId?: string | null) => {
       setSending(true);
       // Optimistic local add
       const tempMsg: WaMessage = {
@@ -203,7 +207,7 @@ export function useWhatsAppInbox() {
       try {
         const { data, error } = await supabase.functions.invoke(
           "send-whatsapp",
-          { body: { phone, message, contact_id: contactId || null } }
+          { body: { phone, message, contact_id: contactId || null, phone_number_id: phoneNumberId || null } }
         );
         if (error || data?.error)
           throw new Error(data?.error || error?.message);

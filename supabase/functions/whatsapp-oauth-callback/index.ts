@@ -106,22 +106,25 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     // Save token as pending — WABA selection happens in the wizard after redirect.
-    // This allows admins who manage multiple businesses with one Facebook account
-    // to choose the correct WABA for each CRM tenant instead of auto-connecting
-    // whichever happens to appear first in the API.
-    await supabase.from("whatsapp_configs").upsert(
-      {
-        user_id: userId,
-        access_token: longLivedToken,
-        phone_number_id: "pending",
-        waba_id: "pending",
-        display_phone: null,
-        business_name: null,
-        is_active: false,
-        webhook_verified: false,
-      },
-      { onConflict: "user_id" }
-    );
+    // Multi-number: delete any previous "pending" row so a second OAuth flow
+    // (adding a new number) doesn't overwrite an already-active config.
+    // Active configs (phone_number_id !== "pending") are never touched here.
+    await supabase.from("whatsapp_configs")
+      .delete()
+      .eq("user_id", userId)
+      .eq("phone_number_id", "pending");
+
+    await supabase.from("whatsapp_configs").insert({
+      user_id: userId,
+      access_token: longLivedToken,
+      phone_number_id: "pending",
+      waba_id: "pending",
+      display_phone: null,
+      business_name: null,
+      is_active: false,
+      is_primary: false,
+      webhook_verified: false,
+    });
 
     // Look up user's org slug so we redirect to the correct slug URL
     let orgSlug: string | null = null;

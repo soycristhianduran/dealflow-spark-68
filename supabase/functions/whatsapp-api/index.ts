@@ -360,33 +360,60 @@ Deno.serve(async (req) => {
     if (action === "save_phone_number") {
       const { waba_id, phone_number_id, display_phone, business_name } = body;
 
-      // If switching WABAs, delete stale templates from the previous WABA.
-      // Templates are WABA-specific and Meta will reject sends if the
-      // template doesn't exist in the currently connected WABA.
-      await supabase
-        .from("whatsapp_templates")
-        .delete()
-        .eq("user_id", user.id)
-        .neq("waba_id", waba_id);
-
-      const { error } = await supabase
+      // Find the pending row created by the OAuth callback (phone_number_id = "pending").
+      // Multi-number: we update the PENDING row specifically — never touch active configs.
+      const { data: pendingRow } = await supabase
         .from("whatsapp_configs")
-        .update({
-          waba_id,
-          phone_number_id,
-          display_phone: display_phone || null,
-          business_name: business_name || null,
-          is_active: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", user.id);
-      if (error) throw error;
+        .select("id, access_token")
+        .eq("user_id", user.id)
+        .eq("phone_number_id", "pending")
+        .maybeSingle();
 
-      // Also update channels table
-      const { data: config } = await supabase
+      // Check whether this org already has any active number (for is_primary logic)
+      const { count: activeCount } = await supabase
+        .from("whatsapp_configs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_active", true);
+
+      const isFirstNumber = (activeCount ?? 0) === 0;
+
+      if (pendingRow) {
+        const { error } = await supabase
+          .from("whatsapp_configs")
+          .update({
+            waba_id,
+            phone_number_id,
+            display_phone: display_phone || null,
+            business_name: business_name || null,
+            is_active: true,
+            is_primary: isFirstNumber,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", pendingRow.id);
+        if (error) throw error;
+
+        // Subscribe this WABA to receive webhooks
+        if (pendingRow.access_token) {
+          try {
+            const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${pendingRow.access_token}` },
+            });
+            console.log("WABA webhook subscription (save_phone_number):", JSON.stringify(await subRes.json()));
+          } catch (_) { /* non-fatal */ }
+        }
+      } else {
+        // No pending row — wizard was opened without OAuth (shouldn't happen normally)
+        throw new Error("No hay un token OAuth pendiente. Reconecta tu cuenta de Meta.");
+      }
+
+      // Sync to channels table
+      const { data: savedConfig } = await supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
+        .eq("phone_number_id", phone_number_id)
         .maybeSingle();
 
       await supabase.from("channels").upsert(
@@ -396,7 +423,7 @@ Deno.serve(async (req) => {
           provider: "meta",
           waba_id,
           phone_number_id,
-          access_token: config?.access_token || "",
+          access_token: savedConfig?.access_token || "",
           display_phone: display_phone || null,
           business_name: business_name || null,
           is_active: true,
@@ -405,18 +432,6 @@ Deno.serve(async (req) => {
         },
         { onConflict: "user_id,type,phone_number_id", ignoreDuplicates: false }
       );
-
-      // Subscribe this app to receive webhooks for this WABA (enables incoming messages)
-      if (config?.access_token) {
-        try {
-          const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${config.access_token}` },
-          });
-          const subData = await subRes.json();
-          console.log("WABA webhook subscription (save_phone_number):", JSON.stringify(subData));
-        } catch (_) { /* non-fatal */ }
-      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -431,12 +446,14 @@ Deno.serve(async (req) => {
         throw new Error("phone_number_id y waba_id son obligatorios");
       }
 
-      // If no token provided, reuse the one already saved (from a previous OAuth step)
+      // If no token provided, reuse the pending/latest OAuth token
       if (!access_token) {
         const { data: existing } = await supabase
           .from("whatsapp_configs")
           .select("access_token")
           .eq("user_id", user.id)
+          .order("updated_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
         access_token = existing?.access_token || null;
         if (!access_token) throw new Error("No hay token guardado. Conéctate primero con Facebook.");
@@ -461,14 +478,18 @@ Deno.serve(async (req) => {
         }
       } catch (_) { /* non-fatal */ }
 
-      // If switching WABAs, delete stale templates from the previous WABA.
-      // Templates are WABA-specific and become invalid after switching.
-      await supabase
-        .from("whatsapp_templates")
-        .delete()
+      // Check if this is the first active number (for is_primary)
+      const { count: activeCount } = await supabase
+        .from("whatsapp_configs")
+        .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
-        .neq("waba_id", waba_id);
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending");
 
+      const isFirstNumber = (activeCount ?? 0) === 0;
+
+      // Upsert by (user_id, phone_number_id) — updating existing config for same
+      // number is fine (token refresh), but adding a new number inserts a new row.
       const { error } = await supabase.from("whatsapp_configs").upsert(
         {
           user_id: user.id,
@@ -478,9 +499,10 @@ Deno.serve(async (req) => {
           display_phone: resolvedPhone,
           business_name: resolvedName,
           is_active: true,
+          is_primary: isFirstNumber,
           webhook_verified: false,
         },
-        { onConflict: "user_id" }
+        { onConflict: "user_id,phone_number_id" }
       );
       if (error) throw error;
 
@@ -508,9 +530,14 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Authorization": `Bearer ${access_token}` },
         });
-        const subData = await subRes.json();
-        console.log("WABA webhook subscription:", JSON.stringify(subData));
+        console.log("WABA webhook subscription:", JSON.stringify(await subRes.json()));
       } catch (_) { /* non-fatal — user can trigger manually */ }
+
+      // Remove any leftover pending row for this user
+      await supabase.from("whatsapp_configs")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("phone_number_id", "pending");
 
       return new Response(JSON.stringify({
         success: true,
@@ -521,25 +548,104 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (action === "disconnect") {
-      await supabase
+    // ── SET PRIMARY NUMBER ───────────────────────────────────────────────────
+    if (action === "set_primary") {
+      const { config_id } = body;
+      if (!config_id) throw new Error("config_id es obligatorio");
+
+      // Unset all primaries for this user, then set the requested one
+      await supabase.from("whatsapp_configs")
+        .update({ is_primary: false })
+        .eq("user_id", user.id);
+
+      await supabase.from("whatsapp_configs")
+        .update({ is_primary: true })
+        .eq("id", config_id)
+        .eq("user_id", user.id);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── UPDATE NUMBER LABEL ──────────────────────────────────────────────────
+    if (action === "update_label") {
+      const { config_id, label } = body;
+      if (!config_id) throw new Error("config_id es obligatorio");
+
+      await supabase.from("whatsapp_configs")
+        .update({ label: label || null })
+        .eq("id", config_id)
+        .eq("user_id", user.id);
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── LIST ALL ACTIVE CONFIGS ──────────────────────────────────────────────
+    if (action === "list_configs") {
+      const { data: configs } = await supabase
         .from("whatsapp_configs")
-        .update({ is_active: false })
-        .eq("user_id", user.id);
-
-      // Deactivate in channels
-      await supabase
-        .from("channels")
-        .update({ is_active: false, status: "disconnected" })
+        .select("id, phone_number_id, waba_id, display_phone, business_name, label, is_primary, is_active, webhook_verified, created_at")
         .eq("user_id", user.id)
-        .eq("type", "whatsapp");
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending")
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true });
 
-      // Delete templates — they are WABA-specific and are no longer valid
-      // after disconnecting. They will be re-synced when the user reconnects.
-      await supabase
-        .from("whatsapp_templates")
-        .delete()
-        .eq("user_id", user.id);
+      return new Response(JSON.stringify({ configs: configs || [] }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "disconnect") {
+      const { config_id } = body;
+
+      if (config_id) {
+        // Disconnect a specific number (multi-number support)
+        await supabase.from("whatsapp_configs")
+          .update({ is_active: false, is_primary: false })
+          .eq("id", config_id)
+          .eq("user_id", user.id);
+
+        // If the disconnected number was primary, promote the next active one
+        const { data: remaining } = await supabase
+          .from("whatsapp_configs")
+          .select("id")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .neq("phone_number_id", "pending")
+          .order("created_at", { ascending: true })
+          .limit(1);
+
+        if (remaining?.[0]) {
+          await supabase.from("whatsapp_configs")
+            .update({ is_primary: true })
+            .eq("id", remaining[0].id);
+        }
+
+        await supabase.from("channels")
+          .update({ is_active: false, status: "disconnected" })
+          .eq("user_id", user.id)
+          .eq("type", "whatsapp");
+      } else {
+        // Disconnect ALL numbers (original behavior — full reset)
+        await supabase.from("whatsapp_configs")
+          .update({ is_active: false })
+          .eq("user_id", user.id);
+
+        await supabase.from("channels")
+          .update({ is_active: false, status: "disconnected" })
+          .eq("user_id", user.id)
+          .eq("type", "whatsapp");
+
+        // Delete templates — they are WABA-specific and are no longer valid
+        // after disconnecting. They will be re-synced when the user reconnects.
+        await supabase.from("whatsapp_templates")
+          .delete()
+          .eq("user_id", user.id);
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

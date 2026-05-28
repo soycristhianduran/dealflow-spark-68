@@ -3,12 +3,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-interface WhatsAppConfig {
+export interface WhatsAppConfig {
   id: string;
   phone_number_id: string;
   waba_id: string;
   display_phone: string | null;
   business_name: string | null;
+  label: string | null;
+  is_primary: boolean;
   webhook_verified: boolean;
   is_active: boolean;
   created_at: string;
@@ -26,13 +28,15 @@ function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, stateToken: s
 
 export function useWhatsAppIntegration() {
   const { user } = useAuth();
-  const [config, setConfig] = useState<WhatsAppConfig | null>(null);
+  const [configs, setConfigs] = useState<WhatsAppConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
   const [pendingOAuth, setPendingOAuth] = useState(false);
 
-  const isConnected = !!config?.is_active && config?.phone_number_id !== "pending";
+  // Primary config (or first active) — kept for backward compatibility
+  const config = configs.find(c => c.is_primary) ?? configs[0] ?? null;
+  const isConnected = configs.length > 0;
 
   useEffect(() => {
     supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
@@ -47,23 +51,22 @@ export function useWhatsAppIntegration() {
     try {
       const { data, error } = await supabase
         .from("whatsapp_configs")
-        .select("id, phone_number_id, waba_id, display_phone, business_name, webhook_verified, is_active, created_at")
+        .select("id, phone_number_id, waba_id, display_phone, business_name, label, is_primary, webhook_verified, is_active, created_at")
         .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending")
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true });
       if (error) throw error;
-      if (data && data.is_active && data.phone_number_id !== "pending") {
-        setConfig(data);
-      } else {
-        setConfig(null);
-      }
+      setConfigs(data ?? []);
     } catch (e: any) {
-      console.warn("Error fetching WA config:", e);
+      console.warn("Error fetching WA configs:", e);
     } finally {
       setLoading(false);
     }
   }, [user]);
 
-  // Fetch config on mount
+  // Fetch configs on mount
   useEffect(() => {
     fetchConfig();
   }, [fetchConfig]);
@@ -73,7 +76,7 @@ export function useWhatsAppIntegration() {
   // to avoid the race condition where multiple hook instances compete to consume
   // the URL param, with the wrong instance winning.
 
-  // OAuth redirect flow
+  // OAuth redirect flow — used both for first connection and adding a new number
   const connect = useCallback(async () => {
     if (!user || !metaAppId) {
       toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
@@ -86,15 +89,11 @@ export function useWhatsAppIntegration() {
       return;
     }
 
-    // Request a single-use, server-bound nonce for the OAuth `state` param
-    // (CSRF protection — see migration 20260519000000).
     const { data: stateToken, error: stateErr } = await (supabase as any).rpc(
       "create_oauth_state",
       { p_provider: "whatsapp" },
     );
     if (stateErr || !stateToken) {
-      // Fallback: use user ID as state (less secure but functional while DB
-      // migration propagates — same pattern as useFacebookIntegration).
       console.warn("create_oauth_state failed for whatsapp, using UUID fallback:", stateErr);
       const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, user.id);
       window.location.href = oauthUrl;
@@ -131,14 +130,14 @@ export function useWhatsAppIntegration() {
       body: { action: "save_phone_number", ...params },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
-    toast.success("WhatsApp Business conectado correctamente");
+    toast.success("Número de WhatsApp conectado correctamente");
     await fetchConfig();
   }, [fetchConfig]);
 
   const saveManualConfig = useCallback(async (params: {
     phone_number_id: string;
     waba_id: string;
-    access_token?: string; // optional — backend reuses saved OAuth token if omitted
+    access_token?: string;
     display_phone?: string;
     business_name?: string;
   }) => {
@@ -146,34 +145,54 @@ export function useWhatsAppIntegration() {
       body: { action: "save_manual_config", ...params },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
-    toast.success("WhatsApp Business conectado correctamente");
+    toast.success("Número de WhatsApp conectado correctamente");
     await fetchConfig();
     return data;
   }, [fetchConfig]);
 
-  const disconnect = useCallback(async () => {
+  // Disconnect a specific number by config ID (or all numbers if no ID given)
+  const disconnect = useCallback(async (configId?: string) => {
     const { error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "disconnect" },
+      body: { action: "disconnect", config_id: configId },
     });
     if (!error) {
-      setConfig(null);
-      toast.success("WhatsApp desconectado");
+      if (configId) {
+        setConfigs(prev => prev.filter(c => c.id !== configId));
+        toast.success("Número desconectado");
+      } else {
+        setConfigs([]);
+        toast.success("WhatsApp desconectado");
+      }
     }
   }, []);
 
-  const sendMessage = async (phone: string, message: string, contactId?: string) => {
+  // Set a number as the primary sending number
+  const setPrimary = useCallback(async (configId: string) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "set_primary", config_id: configId },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    setConfigs(prev => prev.map(c => ({ ...c, is_primary: c.id === configId })));
+  }, []);
+
+  // Update the display label for a number
+  const updateLabel = useCallback(async (configId: string, label: string) => {
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "update_label", config_id: configId, label },
+    });
+    if (error || data?.error) throw new Error(data?.error || error?.message);
+    setConfigs(prev => prev.map(c => c.id === configId ? { ...c, label } : c));
+  }, []);
+
+  const sendMessage = async (phone: string, message: string, contactId?: string, phoneNumberId?: string) => {
     const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: { phone, message, contact_id: contactId },
+      body: { phone, message, contact_id: contactId, phone_number_id: phoneNumberId },
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data;
   };
 
-  // Registers (activates) a phone number in WhatsApp Cloud API with a
-  // 6-digit PIN.  Required for newly-added numbers — without this they
-  // exist in Meta but can't send/receive messages and don't appear as
-  // WhatsApp users.  The PIN also serves as the two-step verification PIN.
   const registerPhone = useCallback(async (pin: string) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: { action: "register_phone", pin },
@@ -196,11 +215,15 @@ export function useWhatsAppIntegration() {
       .from("whatsapp_configs")
       .select("phone_number_id, is_active")
       .eq("user_id", user.id)
+      .eq("phone_number_id", "pending")
       .maybeSingle();
-    return !!data && (!data.is_active || data.phone_number_id === "pending");
+    return !!data;
   }, [user]);
 
   return {
+    // Multi-number: full list
+    configs,
+    // Backward compat: primary or first config
     config,
     isConnected,
     loading,
@@ -210,6 +233,8 @@ export function useWhatsAppIntegration() {
     setPendingOAuth,
     connect,
     disconnect,
+    setPrimary,
+    updateLabel,
     getWabaAccounts,
     getPhoneNumbers,
     savePhoneNumber,

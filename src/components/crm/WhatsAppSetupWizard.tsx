@@ -8,7 +8,8 @@ import {
   CheckCircle2, Loader2, MessageCircle,
   Copy, ArrowRight, ArrowLeft, Phone, Building2,
   ChevronRight, KeyRound, Shield, Wifi, WifiOff,
-  ExternalLink, Settings, Trash2, RefreshCw, Smartphone, AlertTriangle
+  ExternalLink, Settings, Trash2, RefreshCw, Smartphone, AlertTriangle,
+  Star, Plus, Pencil, Check, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
@@ -60,6 +61,10 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   const [manualToken, setManualToken] = useState("");
 
   const webhookUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/whatsapp-webhook`;
+
+  // Multi-number label editing state
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelValue, setEditingLabelValue] = useState("");
 
   // Advanced actions (shown inside the Gestionar / connected view)
   const [resubscribing, setResubscribing] = useState(false);
@@ -264,7 +269,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   };
 
   // Connected view (step 6 when already connected)
-  if (step === 6 && wa.isConnected && wa.config) {
+  if (step === 6 && wa.isConnected) {
     return (
       <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -277,39 +282,133 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               </div>
               <div>
                 <h2 className="text-lg font-bold">WhatsApp Conectado</h2>
-                <p className="text-sm text-white/80">Tu canal está activo y recibiendo mensajes</p>
+                <p className="text-sm text-white/80">
+                  {wa.configs.length === 1
+                    ? "Tu canal está activo y recibiendo mensajes"
+                    : `${wa.configs.length} números conectados`}
+                </p>
               </div>
             </div>
           </div>
 
           <div className="p-6 space-y-5">
-            {/* Channel info */}
-            <div className="rounded-xl border p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 dark:bg-green-950/50">
-                    <Smartphone className="h-5 w-5 text-green-600" />
+            {/* Numbers list */}
+            <div className="space-y-2">
+              {wa.configs.map((cfg) => (
+                <div key={cfg.id} className="rounded-xl border p-3 flex items-center gap-2">
+                  {/* Star / Primary */}
+                  <button
+                    className={`shrink-0 transition-colors ${cfg.is_primary ? "text-amber-500" : "text-muted-foreground/30 hover:text-amber-400"}`}
+                    title={cfg.is_primary ? "Número principal" : "Establecer como principal"}
+                    onClick={async () => {
+                      if (!cfg.is_primary) {
+                        try { await wa.setPrimary(cfg.id); }
+                        catch (e: any) { toast.error("Error: " + (e as any).message); }
+                      }
+                    }}
+                  >
+                    <Star className="h-4 w-4" fill={cfg.is_primary ? "currentColor" : "none"} />
+                  </button>
+
+                  {/* Phone info / inline label editing */}
+                  <div className="flex-1 min-w-0">
+                    {editingLabelId === cfg.id ? (
+                      <div className="flex items-center gap-1">
+                        <Input
+                          className="h-6 text-xs py-0 px-1.5"
+                          value={editingLabelValue}
+                          onChange={(e) => setEditingLabelValue(e.target.value)}
+                          onKeyDown={async (e) => {
+                            if (e.key === "Enter") {
+                              try { await wa.updateLabel(cfg.id, editingLabelValue); } catch (_) {}
+                              setEditingLabelId(null);
+                            } else if (e.key === "Escape") {
+                              setEditingLabelId(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <button
+                          className="text-green-600 hover:text-green-700 shrink-0"
+                          onClick={async () => {
+                            try { await wa.updateLabel(cfg.id, editingLabelValue); } catch (_) {}
+                            setEditingLabelId(null);
+                          }}
+                        >
+                          <Check className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="text-muted-foreground hover:text-foreground shrink-0"
+                          onClick={() => setEditingLabelId(null)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="text-sm font-medium truncate">
+                        {cfg.label || cfg.display_phone || cfg.phone_number_id}
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground truncate">
+                      {cfg.display_phone && cfg.label ? cfg.display_phone : (cfg.business_name || "WhatsApp Business")}
+                    </p>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold">{wa.config.display_phone || wa.config.phone_number_id}</p>
-                    <p className="text-xs text-muted-foreground">{wa.config.business_name || "WhatsApp Business"}</p>
-                  </div>
+
+                  {/* Status badge */}
+                  <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30 shrink-0">
+                    <Wifi className="h-3 w-3" />
+                    Activo
+                  </Badge>
+
+                  {/* Edit label */}
+                  {editingLabelId !== cfg.id && (
+                    <button
+                      className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors"
+                      title="Editar nombre"
+                      onClick={() => {
+                        setEditingLabelId(cfg.id);
+                        setEditingLabelValue(cfg.label || cfg.display_phone || "");
+                      }}
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+
+                  {/* Disconnect this number */}
+                  <button
+                    className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors"
+                    title="Desconectar este número"
+                    onClick={async () => {
+                      await wa.disconnect(cfg.id);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
                 </div>
-                <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30">
-                  <Wifi className="h-3 w-3" />
-                  Activo
-                </Badge>
-              </div>
+              ))}
             </div>
 
-            {/* Advanced actions — collapsed by default to keep the view clean */}
+            {/* Add another number */}
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => {
+                setStep(1);
+                setUseManual(false);
+              }}
+            >
+              <Plus className="h-4 w-4" />
+              Conectar otro número
+            </Button>
+
+            {/* Advanced actions — collapsed by default */}
             <details className="group">
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none flex items-center gap-1.5">
                 <Settings className="h-3.5 w-3.5" />
                 Opciones avanzadas
               </summary>
               <div className="mt-3 rounded-xl border p-4 space-y-3">
-                {/* Webhook URL — for developers who need to verify it */}
+                {/* Webhook URL */}
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">URL Webhook</p>
                   <div className="flex items-center gap-2 bg-muted rounded-lg p-2">
@@ -345,34 +444,20 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 >
                   <Shield className="h-3 w-3" /> Activar número (registrar PIN)
                 </Button>
+                {/* Disconnect all */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full gap-1.5 text-xs text-destructive hover:text-destructive"
+                  onClick={async () => {
+                    await wa.disconnect();
+                    onOpenChange(false);
+                  }}
+                >
+                  <WifiOff className="h-3 w-3" /> Desconectar todos los números
+                </Button>
               </div>
             </details>
-
-            {/* Primary actions */}
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1 gap-2 text-destructive hover:text-destructive"
-                onClick={async () => {
-                  await wa.disconnect();
-                  onOpenChange(false);
-                }}
-              >
-                <WifiOff className="h-4 w-4" />
-                Desconectar
-              </Button>
-              <Button
-                variant="outline"
-                className="flex-1 gap-2"
-                onClick={() => {
-                  setStep(1);
-                  setUseManual(false);
-                }}
-              >
-                <RefreshCw className="h-4 w-4" />
-                Reconectar
-              </Button>
-            </div>
           </div>
         </DialogContent>
       </Dialog>

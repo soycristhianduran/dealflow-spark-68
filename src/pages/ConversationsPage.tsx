@@ -337,7 +337,10 @@ export default function ConversationsPage() {
     setSending(true);
     try {
       if (selected.channel === "whatsapp") {
-        await wa.sendMessage(selected.id, text, selected.contact_id);
+        // Pass which of our numbers this conversation came in on so the reply
+        // goes out from the same number (multi-number routing)
+        const waConv = wa.conversations.find((c) => c.phone_number === selected.id);
+        await wa.sendMessage(selected.id, text, selected.contact_id, waConv?.from_phone_number_id);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error("Conversación no encontrada");

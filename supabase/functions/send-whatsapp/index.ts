@@ -23,30 +23,39 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) throw new Error("Unauthorized");
 
-    const { phone, message, contact_id } = await req.json();
+    const { phone, message, contact_id, phone_number_id: requestedPhoneId } = await req.json();
     if (!phone || !message) throw new Error("phone and message are required");
 
     // Normalize phone — strip everything except digits (consistent with incoming messages)
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (!cleanPhone) throw new Error("Número de teléfono inválido");
 
-    // Get the org's shared WhatsApp config.
-    // RLS (get_org_member_ids) now exposes configs of all org members, so any
-    // agent can send using the shared number — no user_id filter needed.
-    const { data: config, error: configError } = await supabase
+    // Get the org's WhatsApp config.
+    // Multi-number: if the caller specifies a phone_number_id, use that number.
+    // Otherwise fall back to the primary number, then any active number.
+    let configQuery = supabase
       .from("whatsapp_configs")
       .select("*")
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
+      .eq("is_active", true);
+
+    if (requestedPhoneId) {
+      configQuery = configQuery.eq("phone_number_id", requestedPhoneId);
+    } else {
+      // Primary first, then any active (order: true > false)
+      configQuery = configQuery.order("is_primary", { ascending: false });
+    }
+
+    const { data: config, error: configError } = await configQuery.limit(1).maybeSingle();
 
     if (configError || !config) {
       throw new Error("WhatsApp no está configurado. El administrador debe conectar el número primero.");
     }
 
     // Send message via WhatsApp Cloud API
+    const waApiUrl = `https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`;
+    console.log("send-whatsapp: phone_number_id =", config.phone_number_id, "| to =", cleanPhone, "| url =", waApiUrl);
     const waResponse = await fetch(
-      `https://graph.facebook.com/v21.0/${config.phone_number_id}/messages`,
+      waApiUrl,
       {
         method: "POST",
         headers: {
@@ -63,7 +72,7 @@ Deno.serve(async (req) => {
     );
 
     const waData = await waResponse.json();
-    console.log("WhatsApp send response:", JSON.stringify(waData));
+    console.log("WhatsApp send response (status", waResponse.status, "):", JSON.stringify(waData));
 
     // Check error in both HTTP status and body (Meta sometimes returns 200 with error)
     if (!waResponse.ok || waData.error) {
@@ -94,7 +103,8 @@ Deno.serve(async (req) => {
       user_id: user.id,
       contact_id: contact_id || null,
       wa_message_id: waMessageId,
-      phone_number: cleanPhone,       // ← normalized, consistent with incoming
+      phone_number: cleanPhone,              // recipient (normalized)
+      from_phone_number_id: config.phone_number_id, // which of our numbers sent it
       direction: "outgoing",
       message_type: "text",
       message_text: message,
