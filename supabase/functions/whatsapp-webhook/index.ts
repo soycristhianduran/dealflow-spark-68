@@ -368,7 +368,7 @@ Deno.serve(async (req) => {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+                      "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
                     },
                     body: JSON.stringify({
                       contact_id: contact.id,
@@ -415,7 +415,7 @@ Deno.serve(async (req) => {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
-                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+                          "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
                         },
                         body: JSON.stringify({
                           channel: "whatsapp",
@@ -449,7 +449,7 @@ Deno.serve(async (req) => {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
-                              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+                              "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
                             },
                             body: JSON.stringify({
                               phone_number_id: phoneNumberId,
