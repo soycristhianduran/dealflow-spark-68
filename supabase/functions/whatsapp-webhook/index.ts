@@ -368,7 +368,7 @@ Deno.serve(async (req) => {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
                     },
                     body: JSON.stringify({
                       contact_id: contact.id,
@@ -383,8 +383,10 @@ Deno.serve(async (req) => {
                 // ── AI Agent: respond automatically if enabled ─────────────
                 // Awaited inline (not fire-and-forget) — Claude Haiku responds
                 // in ~1-2s, well within Meta's 20s webhook timeout.
+                console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact.id);
                 try {
                   if (config.organization_id) {
+                    console.log("[AI-AGENT] Organization check passed, fetching history...");
                     // Fetch last 12 messages for context (13 rows, skip index 0
                     // which is the current message just inserted, so history
                     // contains only PREVIOUS messages — avoids duplicate context).
@@ -406,13 +408,14 @@ Deno.serve(async (req) => {
                         content: m.message_text || `[${m.message_type}]`,
                       }));
 
+                    console.log("[AI-AGENT] Calling ai-agent function, history length:", history.length);
                     const agentRes = await fetch(
                       `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`,
                       {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
-                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
                         },
                         body: JSON.stringify({
                           channel: "whatsapp",
@@ -446,7 +449,7 @@ Deno.serve(async (req) => {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
-                              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
                             },
                             body: JSON.stringify({
                               phone_number_id: phoneNumberId,
@@ -488,8 +491,8 @@ Deno.serve(async (req) => {
                       }
                     }
                   }
-                } catch (e) {
-                  console.warn("AI agent error (non-fatal):", e);
+                } catch (e: any) {
+                  console.error("[AI-AGENT] CAUGHT ERROR:", e?.message, e?.stack);
                 }
               }
             }
