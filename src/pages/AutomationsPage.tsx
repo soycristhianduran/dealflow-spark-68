@@ -1039,15 +1039,37 @@ function AssignOwnerStepEditor({ step, onChange }: {
 }) {
   const { organizationId } = useOrganizationContext();
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
   useEffect(() => {
-    if (!organizationId) return;
-    supabase.rpc("get_org_members", { p_org_id: organizationId }).then(({ data, error }) => {
+    let orgId = organizationId;
+
+    const fetchMembers = async (oid: string) => {
+      const { data, error } = await supabase.rpc("get_org_members", { p_org_id: oid });
       if (error) console.warn("get_org_members error:", error.message);
-      if (data) setProfiles((data as any[]).map(m => ({
+      const members = (data as any[] | null) || [];
+      setProfiles(members.map(m => ({
         user_id: m.user_id,
         full_name: m.full_name || m.email || m.user_id,
       })));
-    });
+      setLoading(false);
+    };
+
+    if (orgId) {
+      fetchMembers(orgId);
+      return;
+    }
+
+    // organizationId not yet in context — resolve from organization_members
+    supabase
+      .from("organization_members")
+      .select("organization_id")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.organization_id) fetchMembers(data.organization_id);
+        else setLoading(false);
+      });
   }, [organizationId]);
 
   const c = step.config;
@@ -1106,11 +1128,13 @@ function AssignOwnerStepEditor({ step, onChange }: {
                 : <SelectValue placeholder="Selecciona un vendedor..." />}
             </SelectTrigger>
             <SelectContent>
-              {profiles.length === 0
-                ? <div className="px-3 py-2 text-xs text-muted-foreground">Cargando...</div>
-                : profiles.map(p => (
-                    <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
-                  ))
+              {loading
+                ? <div className="px-3 py-2 text-xs text-muted-foreground">Cargando vendedores...</div>
+                : profiles.length === 0
+                  ? <div className="px-3 py-2 text-xs text-muted-foreground">Sin vendedores en la organización</div>
+                  : profiles.map(p => (
+                      <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+                    ))
               }
             </SelectContent>
           </Select>
@@ -1126,8 +1150,11 @@ function AssignOwnerStepEditor({ step, onChange }: {
             Se asignará al vendedor con menos leads asignados recientemente.
           </p>
           <div className="rounded-lg border divide-y">
-            {profiles.length === 0 && (
+            {loading && (
               <p className="px-3 py-2 text-xs text-muted-foreground">Cargando vendedores...</p>
+            )}
+            {!loading && profiles.length === 0 && (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Sin vendedores en la organización</p>
             )}
             {profiles.map(p => (
               <label key={p.user_id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted/40">
