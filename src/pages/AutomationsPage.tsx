@@ -140,7 +140,7 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "remove_tag":          return { tag: "" };
     case "update_contact":      return { field: "", value: "" };
     case "condition":           return { field: "tags", operator: "contains", value: "" };
-    case "assign_owner":        return { owner_id: "", owner_name: "" };
+    case "assign_owner":        return { mode: "specific", owner_id: "", owner_name: "", owner_ids: [], owner_names: [] };
     case "move_pipeline_stage": return { pipeline_id: "", stage_id: "", stage_name: "" };
     case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
     case "send_webhook":        return { url: "", method: "POST", include_contact: true };
@@ -159,7 +159,9 @@ function stepSummary(step: AutomationStep): string {
     case "remove_tag":          return c.tag ? `"${c.tag}"` : "(sin tag)";
     case "update_contact":      return c.field ? `${c.field} = ${c.value}` : "(sin campo)";
     case "condition":           return `${c.field} ${c.operator} ${c.value || "?"}`;
-    case "assign_owner":        return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
+    case "assign_owner":
+      if (c.mode === "round_robin") return c.owner_names?.length ? `Round Robin (${c.owner_names.length})` : "Round Robin";
+      return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
     case "move_pipeline_stage": return c.stage_name ? `→ ${c.stage_name}` : "(sin etapa)";
     case "create_task":         return c.title ? `"${c.title}"` : "(sin título)";
     case "send_webhook":        return c.url ? c.url.replace(/^https?:\/\//, "") : "(sin URL)";
@@ -936,33 +938,117 @@ function AssignOwnerStepEditor({ step, onChange }: {
     supabase.from("profiles").select("user_id, first_name, last_name").then(({ data }) => {
       if (data) setProfiles(data.map(p => ({
         user_id: p.user_id,
-        full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || p.user_id,
+        full_name: [p.first_name, p.last_name].filter(Boolean).join(" ") || "Sin nombre",
       })));
     });
   }, []);
+
   const c = step.config;
+  const mode: "specific" | "round_robin" = c.mode ?? "specific";
+  const ownerIds: string[] = c.owner_ids ?? [];
+  const ownerNames: string[] = c.owner_names ?? [];
+
+  const setMode = (m: string) =>
+    onChange({ ...step, config: { ...c, mode: m, owner_id: "", owner_name: "", owner_ids: [], owner_names: [] } });
+
+  const toggleRRMember = (userId: string, checked: boolean) => {
+    const next = checked ? [...ownerIds, userId] : ownerIds.filter(id => id !== userId);
+    const names = next.map(id => profiles.find(p => p.user_id === id)?.full_name ?? id);
+    onChange({ ...step, config: { ...c, owner_ids: next, owner_names: names } });
+  };
+
   return (
-    <div>
-      <Label className="text-xs">Asignar lead a</Label>
-      <Select
-        value={c.owner_id ?? ""}
-        onValueChange={v => {
-          const profile = profiles.find(p => p.user_id === v);
-          onChange({ ...step, config: { ...c, owner_id: v, owner_name: profile?.full_name ?? "" } });
-        }}
-      >
-        <SelectTrigger className="mt-1">
-          <SelectValue placeholder="Selecciona un vendedor..." />
-        </SelectTrigger>
-        <SelectContent>
-          {profiles.map(p => (
-            <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground mt-1.5">
-        El lead quedará asignado a este vendedor cuando se ejecute el paso.
-      </p>
+    <div className="space-y-3">
+      {/* Mode selector */}
+      <div>
+        <Label className="text-xs font-semibold">Modo de asignación</Label>
+        <Select value={mode} onValueChange={setMode}>
+          <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="specific">
+              <div className="flex flex-col">
+                <span className="font-medium">Vendedor específico</span>
+                <span className="text-xs text-muted-foreground">Siempre asigna al mismo vendedor</span>
+              </div>
+            </SelectItem>
+            <SelectItem value="round_robin">
+              <div className="flex flex-col">
+                <span className="font-medium">Round Robin</span>
+                <span className="text-xs text-muted-foreground">Rota equitativamente entre varios vendedores</span>
+              </div>
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Specific mode */}
+      {mode === "specific" && (
+        <div>
+          <Label className="text-xs">Vendedor</Label>
+          <Select
+            value={c.owner_id ?? ""}
+            onValueChange={v => {
+              const profile = profiles.find(p => p.user_id === v);
+              onChange({ ...step, config: { ...c, owner_id: v, owner_name: profile?.full_name ?? "" } });
+            }}
+          >
+            <SelectTrigger className="mt-1">
+              {/* Show saved name while profiles load, avoiding raw UUID display */}
+              {c.owner_name
+                ? <span className="text-sm">{c.owner_name}</span>
+                : <SelectValue placeholder="Selecciona un vendedor..." />}
+            </SelectTrigger>
+            <SelectContent>
+              {profiles.length === 0
+                ? <div className="px-3 py-2 text-xs text-muted-foreground">Cargando...</div>
+                : profiles.map(p => (
+                    <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
+                  ))
+              }
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1.5">El lead siempre se asignará a este vendedor.</p>
+        </div>
+      )}
+
+      {/* Round Robin mode */}
+      {mode === "round_robin" && (
+        <div className="space-y-2">
+          <Label className="text-xs font-semibold">Vendedores en rotación</Label>
+          <p className="text-xs text-muted-foreground">
+            Se asignará al vendedor con menos leads asignados recientemente.
+          </p>
+          <div className="rounded-lg border divide-y">
+            {profiles.length === 0 && (
+              <p className="px-3 py-2 text-xs text-muted-foreground">Cargando vendedores...</p>
+            )}
+            {profiles.map(p => (
+              <label key={p.user_id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted/40">
+                <input
+                  type="checkbox"
+                  className="accent-primary h-3.5 w-3.5"
+                  checked={ownerIds.includes(p.user_id)}
+                  onChange={e => toggleRRMember(p.user_id, e.target.checked)}
+                />
+                <span className="text-sm">{p.full_name}</span>
+              </label>
+            ))}
+          </div>
+          {ownerIds.length === 0 && (
+            <p className="text-xs text-amber-600 flex items-center gap-1">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              Selecciona al menos un vendedor
+            </p>
+          )}
+          {ownerIds.length > 0 && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+              Rotación entre {ownerIds.length} vendedor{ownerIds.length !== 1 ? "es" : ""}:&nbsp;
+              <span className="font-medium">{ownerNames.join(", ")}</span>
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -458,8 +458,33 @@ async function processEnrollment(enr: any, supabase: any) {
     }
 
     else if (step.type === "assign_owner") {
-      const { owner_id, owner_name } = step.config || {};
-      if (owner_id) {
+      const { mode, owner_id, owner_name, owner_ids } = step.config || {};
+
+      if (mode === "round_robin" && Array.isArray(owner_ids) && owner_ids.length > 0) {
+        // Pick the member with the fewest contacts assigned in this org in the last 30 days
+        const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const { data: recentContacts } = await supabase
+          .from("contacts")
+          .select("owner_id")
+          .in("owner_id", owner_ids)
+          .eq("organization_id", contact.organization_id)
+          .gte("updated_at", since);
+
+        const counts: Record<string, number> = {};
+        owner_ids.forEach((id: string) => { counts[id] = 0; });
+        (recentContacts || []).forEach((r: any) => {
+          if (counts[r.owner_id] !== undefined) counts[r.owner_id]++;
+        });
+
+        // Assign to the member with the fewest assignments
+        const selectedId = (owner_ids as string[]).reduce((min: string, id: string) =>
+          counts[id] < counts[min] ? id : min
+        );
+
+        await supabase.from("contacts").update({ owner_id: selectedId }).eq("id", contact.id);
+        logs = addLog(`Lead asignado (round robin) → ${selectedId} (${counts[selectedId]} asignaciones recientes)`);
+
+      } else if (owner_id) {
         await supabase.from("contacts").update({ owner_id }).eq("id", contact.id);
         logs = addLog(`Lead asignado a ${owner_name || owner_id}`);
       }
