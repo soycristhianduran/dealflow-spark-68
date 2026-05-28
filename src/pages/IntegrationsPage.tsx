@@ -4,9 +4,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X, Webhook, Copy, Eye, EyeOff } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
@@ -16,6 +19,7 @@ import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
 import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
 import { InstagramSetupWizard } from "@/components/crm/InstagramSetupWizard";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 
 type Integration = {
   id: string;
@@ -134,6 +138,301 @@ const integrations: Integration[] = [
     docsUrl: "https://ads.tiktok.com",
   },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Webhooks section
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WEBHOOK_EVENTS = [
+  { value: "contact.created",  label: "Contacto creado",      description: "Cuando se crea un nuevo contacto" },
+  { value: "contact.updated",  label: "Contacto actualizado", description: "Cuando cambia estado, dueño, email o teléfono" },
+  { value: "form.submitted",   label: "Formulario enviado",   description: "Cuando alguien envía un formulario de landing page" },
+];
+
+type WebhookSub = {
+  id: string;
+  url: string;
+  events: string[];
+  secret: string;
+  is_active: boolean;
+  last_triggered_at: string | null;
+  failure_count: number;
+};
+
+function WebhooksSection() {
+  const { organizationId } = useOrganizationContext();
+  const [subs, setSubs] = useState<WebhookSub[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newUrl, setNewUrl] = useState("");
+  const [newEvents, setNewEvents] = useState<string[]>(["contact.created"]);
+  const [revealSecrets, setRevealSecrets] = useState<Record<string, boolean>>({});
+  const [newSecret, setNewSecret] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!organizationId) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("webhook_subscriptions")
+      .select("id, url, events, secret, is_active, last_triggered_at, failure_count")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+    setSubs(data || []);
+    setLoading(false);
+  }, [organizationId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const handleAdd = async () => {
+    if (!newUrl.trim() || !newEvents.length || !organizationId) return;
+    try { new URL(newUrl.trim()); } catch {
+      toast.error("URL inválida"); return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase
+      .from("webhook_subscriptions")
+      .insert({ organization_id: organizationId, url: newUrl.trim(), events: newEvents })
+      .select("secret")
+      .single();
+    setSaving(false);
+    if (error) { toast.error("Error al crear webhook"); return; }
+    setNewSecret(data.secret);
+    setNewUrl("");
+    setNewEvents(["contact.created"]);
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("webhook_subscriptions").delete().eq("id", id);
+    setSubs(prev => prev.filter(s => s.id !== id));
+    toast.success("Webhook eliminado");
+  };
+
+  const handleToggle = async (id: string, active: boolean) => {
+    await supabase.from("webhook_subscriptions").update({ is_active: active, failure_count: 0 }).eq("id", id);
+    setSubs(prev => prev.map(s => s.id === id ? { ...s, is_active: active, failure_count: 0 } : s));
+  };
+
+  const copyToClipboard = (text: string, label = "Copiado") => {
+    navigator.clipboard.writeText(text).then(() => toast.success(label));
+  };
+
+  const shortUrl = (url: string) => {
+    try {
+      const u = new URL(url);
+      return u.hostname + (u.pathname.length > 30 ? u.pathname.slice(0, 30) + "…" : u.pathname);
+    } catch { return url.slice(0, 50); }
+  };
+
+  return (
+    <div className="mt-8">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <h2 className="text-sm font-semibold flex items-center gap-2">
+            <Webhook className="h-4 w-4 text-muted-foreground" />
+            Webhooks
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Notifica a n8n, Zapier o Make cuando ocurra un evento en el CRM
+          </p>
+        </div>
+        <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => { setNewSecret(null); setDialogOpen(true); }}>
+          <Plus className="h-3.5 w-3.5" /> Nuevo webhook
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
+          <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+        </div>
+      ) : subs.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-8 text-center">
+          <Webhook className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Aún no tienes webhooks configurados</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Crea uno para conectar con n8n, Zapier o Make
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {subs.map(sub => (
+            <div key={sub.id} className="rounded-lg border bg-card px-4 py-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-mono font-medium truncate max-w-xs" title={sub.url}>
+                    {shortUrl(sub.url)}
+                  </span>
+                  {sub.failure_count > 0 && (
+                    <Badge variant="destructive" className="text-[10px] h-4 px-1.5">
+                      {sub.failure_count} {sub.failure_count === 1 ? "falla" : "fallas"}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  {sub.events.map(e => {
+                    const ev = WEBHOOK_EVENTS.find(x => x.value === e);
+                    return (
+                      <Badge key={e} variant="secondary" className="text-[10px] h-4 px-1.5">
+                        {ev?.label || e}
+                      </Badge>
+                    );
+                  })}
+                </div>
+                {sub.last_triggered_at && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Último envío: {new Date(sub.last_triggered_at).toLocaleString("es-CO")}
+                  </p>
+                )}
+                {/* Secret row */}
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <span className="text-[10px] text-muted-foreground">Secret:</span>
+                  <code className="text-[10px] font-mono text-muted-foreground">
+                    {revealSecrets[sub.id] ? sub.secret : "••••••••••••••••"}
+                  </code>
+                  <button
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setRevealSecrets(prev => ({ ...prev, [sub.id]: !prev[sub.id] }))}
+                  >
+                    {revealSecrets[sub.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                  </button>
+                  <button
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => copyToClipboard(sub.secret, "Secret copiado")}
+                  >
+                    <Copy className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0 mt-0.5">
+                <Switch
+                  checked={sub.is_active}
+                  onCheckedChange={(v) => handleToggle(sub.id, v)}
+                  className="scale-75"
+                />
+                <button
+                  className="text-muted-foreground hover:text-destructive transition-colors"
+                  onClick={() => handleDelete(sub.id)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Add webhook dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) setNewSecret(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Webhook className="h-4 w-4" /> Nuevo webhook
+            </DialogTitle>
+          </DialogHeader>
+
+          {newSecret ? (
+            /* Step 2: show secret after creation */
+            <div className="space-y-4">
+              <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3">
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" /> Webhook creado
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                  Guarda este secret — no lo podrás ver completo de nuevo. Úsalo para verificar
+                  la firma <code className="font-mono">X-Webhook-Signature</code> de cada entrega.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Secret (HMAC-SHA256)</Label>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <code className="flex-1 text-xs font-mono bg-muted rounded px-2 py-1.5 break-all">
+                    {newSecret}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0"
+                    onClick={() => copyToClipboard(newSecret, "Secret copiado")}
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Cómo verificar en n8n / Zapier / Make</p>
+                <p>Cada POST incluye el header:</p>
+                <code className="block font-mono">X-Webhook-Signature: sha256=…</code>
+                <p>Compútalo con <strong>HMAC-SHA256</strong> sobre el body completo usando este secret.</p>
+              </div>
+              <Button className="w-full" onClick={() => setDialogOpen(false)}>Listo</Button>
+            </div>
+          ) : (
+            /* Step 1: form */
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs" htmlFor="wh-url">URL del endpoint</Label>
+                <Input
+                  id="wh-url"
+                  className="mt-1 text-sm font-mono"
+                  placeholder="https://hooks.zapier.com/hooks/catch/…"
+                  value={newUrl}
+                  onChange={(e) => setNewUrl(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Eventos a escuchar</Label>
+                <div className="mt-2 space-y-2">
+                  {WEBHOOK_EVENTS.map(ev => (
+                    <label key={ev.value} className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5 rounded"
+                        checked={newEvents.includes(ev.value)}
+                        onChange={(e) => {
+                          setNewEvents(prev =>
+                            e.target.checked
+                              ? [...prev, ev.value]
+                              : prev.filter(x => x !== ev.value)
+                          );
+                        }}
+                      />
+                      <div>
+                        <p className="text-sm font-medium leading-none">{ev.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{ev.description}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
+                <p className="font-medium text-foreground mb-1">Payload de ejemplo</p>
+                <pre className="font-mono leading-relaxed overflow-x-auto">{`{
+  "event": "contact.created",
+  "timestamp": 1748482800,
+  "organization_id": "...",
+  "data": { "id": "...", "first_name": "Ana", ... }
+}`}</pre>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleAdd}
+                  disabled={saving || !newUrl.trim() || newEvents.length === 0}
+                >
+                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Creando…</> : "Crear webhook"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
@@ -464,6 +763,9 @@ export default function IntegrationsPage() {
             );
           })}
         </div>
+
+        {/* Webhooks */}
+        <WebhooksSection />
       </main>
 
       {/* Facebook Setup Wizard */}

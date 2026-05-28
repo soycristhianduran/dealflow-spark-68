@@ -230,6 +230,26 @@ Deno.serve(async (req) => {
       } catch (_) { /* non-critical */ }
     })();
 
+    // ── Fire outbound webhook: form.submitted (fire-and-forget) ─────────────
+    (async () => {
+      try {
+        await fetch(`${supabaseUrl}/functions/v1/webhook-dispatcher`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            event: "form.submitted",
+            organization_id: orgId,
+            data: {
+              contact_id: contactId,
+              landing_page_id: page.id,
+              landing_page_name: page.name,
+              form_data: body,
+            },
+          }),
+        });
+      } catch (_) { /* non-critical */ }
+    })();
+
     // ── Resolve redirect URL (read fresh from DB at submit time) ───────────────
     // Return form_config.redirect_url as-is (set explicitly by the builder using pages.klosify.com).
     // If empty, the browser falls back to the baked-in thankyouSlug in serve-landing's override script,

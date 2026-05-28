@@ -1,5 +1,8 @@
 project_id = "oqwcgvemrvimrdrzjzil"
 
+[functions.webhook-dispatcher]
+verify_jwt = false
+
 [functions.facebook-webhook]
 verify_jwt = false
 
