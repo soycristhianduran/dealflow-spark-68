@@ -196,7 +196,7 @@ function WebhooksSection() {
       .select("secret")
       .single();
     setSaving(false);
-    if (error) { toast.error("Error al crear webhook"); return; }
+    if (error) { toast.error(`Error al crear webhook: ${error.message}`); console.error("webhook insert error", error); return; }
     setNewSecret(data.secret);
     setNewUrl("");
     setNewEvents(["contact.created"]);
