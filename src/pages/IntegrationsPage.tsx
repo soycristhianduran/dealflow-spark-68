@@ -269,70 +269,93 @@ function WebhooksSection() {
           </p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {subs.map(sub => (
-            <div key={sub.id} className="rounded-lg border bg-card px-4 py-3 flex items-start gap-3">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-sm font-mono font-medium truncate max-w-xs" title={sub.url}>
-                    {shortUrl(sub.url)}
-                  </span>
-                  {sub.failure_count > 0 && (
-                    <Badge variant="destructive" className="text-[10px] h-4 px-1.5">
-                      {sub.failure_count} {sub.failure_count === 1 ? "falla" : "fallas"}
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  {sub.events.map(e => {
-                    const ev = WEBHOOK_EVENTS.find(x => x.value === e);
-                    return (
-                      <Badge key={e} variant="secondary" className="text-[10px] h-4 px-1.5">
-                        {ev?.label || e}
-                      </Badge>
-                    );
-                  })}
-                </div>
-                {sub.last_triggered_at && (
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    Último envío: {new Date(sub.last_triggered_at).toLocaleString("es-CO")}
-                  </p>
-                )}
-                {/* Secret row */}
-                <div className="flex items-center gap-1.5 mt-1.5">
-                  <span className="text-[10px] text-muted-foreground">Secret:</span>
-                  <code className="text-[10px] font-mono text-muted-foreground">
-                    {revealSecrets[sub.id] ? sub.secret : "••••••••••••••••"}
-                  </code>
-                  <button
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setRevealSecrets(prev => ({ ...prev, [sub.id]: !prev[sub.id] }))}
-                  >
-                    {revealSecrets[sub.id] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                  </button>
-                  <button
-                    className="text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => copyToClipboard(sub.secret, "Secret copiado")}
-                  >
-                    <Copy className="h-3 w-3" />
-                  </button>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 shrink-0 mt-0.5">
-                <Switch
-                  checked={sub.is_active}
-                  onCheckedChange={(v) => handleToggle(sub.id, v)}
-                  className="scale-75"
-                />
-                <button
-                  className="text-muted-foreground hover:text-destructive transition-colors"
-                  onClick={() => handleDelete(sub.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          ))}
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
+                <th className="text-left font-medium px-4 py-2.5">Endpoint</th>
+                <th className="text-left font-medium px-4 py-2.5">Eventos</th>
+                <th className="text-left font-medium px-4 py-2.5 hidden sm:table-cell">Último envío</th>
+                <th className="text-right font-medium px-4 py-2.5">Activo</th>
+                <th className="px-3 py-2.5"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {subs.map(sub => {
+                const visibleEvents = sub.events.slice(0, 2);
+                const extraCount = sub.events.length - 2;
+                return (
+                  <tr key={sub.id} className={`group transition-colors hover:bg-muted/30 ${!sub.is_active ? "opacity-50" : ""}`}>
+                    {/* URL + secret */}
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <span className="font-mono text-xs font-medium truncate block" title={sub.url}>
+                        {shortUrl(sub.url)}
+                      </span>
+                      {sub.failure_count > 0 && (
+                        <Badge variant="destructive" className="text-[10px] h-4 px-1.5 mt-1">
+                          {sub.failure_count} {sub.failure_count === 1 ? "falla" : "fallas"}
+                        </Badge>
+                      )}
+                      <div className="flex items-center gap-1 mt-1">
+                        <code className="text-[10px] font-mono text-muted-foreground">
+                          {revealSecrets[sub.id] ? sub.secret : "secret: ••••••••••"}
+                        </code>
+                        <button className="text-muted-foreground hover:text-foreground" onClick={() => setRevealSecrets(prev => ({ ...prev, [sub.id]: !prev[sub.id] }))}>
+                          {revealSecrets[sub.id] ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
+                        </button>
+                        <button className="text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(sub.secret, "Secret copiado")}>
+                          <Copy className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    </td>
+
+                    {/* Events — max 2 visible + "+N más" */}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {visibleEvents.map(e => {
+                          const ev = WEBHOOK_EVENTS.find(x => x.value === e);
+                          return (
+                            <Badge key={e} variant="secondary" className="text-[10px] h-4 px-1.5 whitespace-nowrap">
+                              {ev?.label || e}
+                            </Badge>
+                          );
+                        })}
+                        {extraCount > 0 && (
+                          <span
+                            className="text-[10px] text-muted-foreground cursor-default underline decoration-dotted"
+                            title={sub.events.slice(2).map(e => WEBHOOK_EVENTS.find(x => x.value === e)?.label || e).join(", ")}
+                          >
+                            +{extraCount} más
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Last triggered */}
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+                        {sub.last_triggered_at
+                          ? new Date(sub.last_triggered_at).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })
+                          : "—"}
+                      </span>
+                    </td>
+
+                    {/* Toggle */}
+                    <td className="px-4 py-3 text-right">
+                      <Switch checked={sub.is_active} onCheckedChange={(v) => handleToggle(sub.id, v)} className="scale-75" />
+                    </td>
+
+                    {/* Delete */}
+                    <td className="px-3 py-3">
+                      <button className="text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100" onClick={() => handleDelete(sub.id)}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
