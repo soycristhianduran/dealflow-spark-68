@@ -337,7 +337,7 @@ export default function ContactsPage() {
   const handleBulkStatus = async () => {
     if (!bulkStatus) return;
     setBulkWorking(true);
-    const { error } = await supabase.from("contacts").update({ status: bulkStatus }).in("id", [...selected]);
+    const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", [...selected]);
     if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
     setStatusOpen(false);
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`);
@@ -1272,11 +1272,10 @@ export default function ContactsPage() {
             <Select value={bulkStatus} onValueChange={setBulkStatus}>
               <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="new">Nuevo</SelectItem>
-                <SelectItem value="contacted">Contactado</SelectItem>
-                <SelectItem value="qualified">Calificado</SelectItem>
-                <SelectItem value="client">Cliente</SelectItem>
+                <SelectItem value="active">Activo</SelectItem>
+                <SelectItem value="won">Ganado</SelectItem>
                 <SelectItem value="lost">Perdido</SelectItem>
+                <SelectItem value="disqualified">Descalificado</SelectItem>
               </SelectContent>
             </Select>
           </div>

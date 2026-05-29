@@ -45,11 +45,13 @@ export async function closeDeal(
 
   if (error) throw error;
 
-  // If won and has contact, update contact to "customer"
-  if (newStatus === "won" && contactId) {
+  // Update contact lead_status when a deal is closed.
+  // The trigger trg_sync_status_from_lead_status keeps the legacy `status`
+  // column in sync automatically (won → client, lost → lost).
+  if (contactId) {
     await supabase
       .from("contacts")
-      .update({ status: "customer" })
+      .update({ lead_status: newStatus === "won" ? "won" : "lost" })
       .eq("id", contactId);
   }
 
