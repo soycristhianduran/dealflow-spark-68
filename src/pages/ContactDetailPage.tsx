@@ -217,22 +217,6 @@ export default function ContactDetailPage() {
     // Eagerly load pipelines so the selects work without clicking Editar
     supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
       .then(({ data }) => setPipelines(data || []));
-    // Auto-migrate any legacy string custom fields to object format with stable UUID
-    if (contact.custom_fields && typeof contact.custom_fields === "object") {
-      const fields = contact.custom_fields as Record<string, any>;
-      const hasLegacy = Object.values(fields).some(v => typeof v === "string");
-      if (hasLegacy) {
-        const migrated = Object.fromEntries(
-          Object.entries(fields).map(([k, v]) => [k, typeof v === "string"
-            ? { id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, type: "text", value: v, label: k.replace(/_/g, " ") }
-            : v
-          ])
-        );
-        supabase.from("contacts").update({ custom_fields: migrated }).eq("id", contact.id)
-          .then(() => supabase.from("contacts").select("*").eq("id", contact.id).maybeSingle()
-            .then(({ data }) => { if (data) setContact(data); }));
-      }
-    }
   }, [contact?.id]);
 
   const updatePpl = (changes: Partial<typeof ppl>) => {
