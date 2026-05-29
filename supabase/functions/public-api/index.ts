@@ -249,6 +249,16 @@ Deno.serve(async (req) => {
     // Default source to "api" if not provided
     if (!fields.source) fields.source = "api";
 
+    // full_name is NOT NULL — always compute it
+    if (!fields.full_name) {
+      const first = (fields.first_name as string) || "";
+      const last = (fields.last_name as string) || "";
+      fields.full_name = [first, last].filter(Boolean).join(" ")
+        || (fields.primary_email as string)
+        || (fields.primary_phone as string)
+        || "Sin nombre";
+    }
+
     // Upsert on email if provided (avoids duplicates)
     if (fields.primary_email) {
       const { data: existing } = await admin
