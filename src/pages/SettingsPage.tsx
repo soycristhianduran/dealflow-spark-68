@@ -1382,21 +1382,24 @@ function CustomFieldsSection() {
               {fields.map(f => (
                 <div key={f.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{f.label}</p>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <button
-                        className="flex items-center gap-1 group"
-                        title="Copiar ID interno"
-                        onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
-                      >
-                        <code className="text-xs text-muted-foreground font-mono group-hover:text-foreground transition-colors">{f.key}</code>
-                        <Copy className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </button>
-                      <span className="text-xs text-muted-foreground">·</span>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium">{f.label}</p>
                       <span className="text-xs text-muted-foreground">{typeLabel(f.field_type)}</span>
                       {f.options && f.options.length > 0 && (
                         <span className="text-xs text-muted-foreground">· {f.options.join(", ")}</span>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ID:</span>
+                      <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{f.key}</code>
+                      <Button
+                        size="sm" variant="ghost"
+                        className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                        title="Copiar ID para Zapier / n8n / Make"
+                        onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
