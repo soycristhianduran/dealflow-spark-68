@@ -391,6 +391,17 @@ Deno.serve(async (req) => {
       .single();
 
     if (error) return json({ error: error.message }, 500);
+
+    // Fire contact_created automation trigger (fire-and-forget)
+    admin.functions.invoke("automation-runner", {
+      body: {
+        action: "trigger_event",
+        trigger_type: "contact_created",
+        contact_id: data.id,
+        trigger_data: { source: fields.source ?? "api" },
+      },
+    }).catch((e: Error) => console.warn("contact_created automation trigger failed:", e.message));
+
     return json({ data, created: true }, 201);
   }
 
