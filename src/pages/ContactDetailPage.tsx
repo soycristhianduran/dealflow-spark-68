@@ -106,13 +106,11 @@ export default function ContactDetailPage() {
       notes: contact?.notes || "",
       language: contact?.language || "",
       preferred_channel: contact?.preferred_channel || "",
-      customFields: Object.fromEntries(
-        Object.entries(contact?.custom_fields && typeof contact.custom_fields === "object" ? contact.custom_fields as Record<string, any> : {})
-          .map(([k, v]) => [k, typeof v === "string"
-            ? { id: `cf_${crypto.randomUUID().replace(/-/g, "").slice(0, 12)}`, type: "text", value: v, label: k.replace(/_/g, " ") }
-            : v
-          ])
-      ),
+      // Pass custom_fields values through as flat strings (normalizeContact already
+      // guarantees they are strings by the time startEditing() is called).
+      // addCustomField() still creates full {id,type,value,label} objects for
+      // new fields — saveContactInfo() handles both formats.
+      customFields: { ...(contact?.custom_fields || {}) },
       newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
     });
     setEditingContact(true);
