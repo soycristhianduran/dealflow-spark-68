@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
@@ -450,6 +450,7 @@ export default function SettingsPage() {
             <TabsTrigger value="equipo">Equipo</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="pipeline" className="space-y-4">
@@ -960,8 +961,274 @@ export default function SettingsPage() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* ── API Keys tab ─────────────────────────────────────── */}
+          <TabsContent value="api" className="space-y-4">
+            <ApiKeysSection />
+          </TabsContent>
         </Tabs>
       </main>
     </AppLayout>
+  );
+}
+
+// ── API Keys Section ──────────────────────────────────────────────────────────
+
+type ApiKey = {
+  id: string;
+  name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  is_active: boolean;
+};
+
+function ApiKeysSection() {
+  const { organizationId } = useOrganizationContext();
+  const [keys, setKeys] = useState<ApiKey[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [revealedKey, setRevealedKey] = useState<string | null>(null);
+
+  const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-api`;
+
+  const load = async () => {
+    if (!organizationId) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("api_keys")
+      .select("id, name, key_prefix, created_at, last_used_at, is_active")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
+    setKeys(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [organizationId]);
+
+  // Generate a cryptographically random API key
+  const generateKey = (): string => {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    const hex = Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+    return `sk_live_${hex}`;
+  };
+
+  const sha256 = async (text: string): Promise<string> => {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  };
+
+  const handleCreate = async () => {
+    if (!newName.trim() || !organizationId) return;
+    setSaving(true);
+    const rawKey = generateKey();
+    const hash = await sha256(rawKey);
+    const prefix = rawKey.slice(0, 20); // "sk_live_" + 12 chars
+
+    const { error } = await supabase
+      .from("api_keys")
+      .insert({ organization_id: organizationId, name: newName.trim(), key_hash: hash, key_prefix: prefix });
+
+    setSaving(false);
+    if (error) { toast.error("Error al crear API Key"); return; }
+    setRevealedKey(rawKey);
+    setNewName("");
+    load();
+  };
+
+  const handleToggle = async (id: string, active: boolean) => {
+    await supabase.from("api_keys").update({ is_active: active }).eq("id", id);
+    setKeys(prev => prev.map(k => k.id === id ? { ...k, is_active: active } : k));
+    toast.success(active ? "API Key activada" : "API Key desactivada");
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("api_keys").delete().eq("id", id);
+    setKeys(prev => prev.filter(k => k.id !== id));
+    toast.success("API Key eliminada");
+  };
+
+  const copy = (text: string, msg: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success(msg);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header card */}
+      <Card className="border-none shadow-sm">
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Key className="h-4 w-4" /> API Keys
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Usa estas keys para enviar datos al CRM desde WordPress, Zapier, n8n, Make u otras fuentes externas.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva key
+          </Button>
+        </CardHeader>
+
+        {/* Endpoint info */}
+        <CardContent className="space-y-3">
+          <div className="rounded-lg bg-muted/50 border p-3 space-y-2">
+            <p className="text-xs font-medium">Endpoint para crear contactos</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-xs font-mono bg-background border rounded px-2 py-1.5 truncate">
+                POST {API_BASE}/contacts
+              </code>
+              <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => copy(`${API_BASE}/contacts`, "URL copiada")}>
+                <Copy className="h-3 w-3" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Header: <code className="font-mono">Authorization: Bearer sk_live_…</code>
+            </p>
+          </div>
+
+          {/* Example payload */}
+          <div className="rounded-lg bg-muted/50 border p-3">
+            <p className="text-xs font-medium mb-1.5">Body de ejemplo (JSON)</p>
+            <pre className="text-xs font-mono text-muted-foreground leading-relaxed">{`{
+  "first_name": "Ana",
+  "last_name": "García",
+  "email": "ana@ejemplo.com",
+  "phone": "+57 300 000 0000",
+  "company": "Empresa S.A.",
+  "source": "wordpress",
+  "message": "Quiero más información"
+}`}</pre>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Keys list */}
+      <Card className="border-none shadow-sm">
+        <CardContent className="pt-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : keys.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">
+              No tienes API Keys — crea una para empezar.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {keys.map(k => (
+                <div key={k.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 ${!k.is_active ? "opacity-60" : ""}`}>
+                  <Key className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{k.name}</p>
+                    <p className="text-xs text-muted-foreground font-mono">{k.key_prefix}…</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    {k.last_used_at ? (
+                      <p className="text-xs text-muted-foreground">
+                        Último uso: {new Date(k.last_used_at).toLocaleDateString("es")}
+                      </p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground">Sin usar</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      Creada: {new Date(k.created_at).toLocaleDateString("es")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0"
+                      title={k.is_active ? "Desactivar" : "Activar"}
+                      onClick={() => handleToggle(k.id, !k.is_active)}
+                    >
+                      <Power className={`h-3.5 w-3.5 ${k.is_active ? "text-green-600" : "text-muted-foreground"}`} />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      title="Eliminar"
+                      onClick={() => handleDelete(k.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create dialog */}
+      <Dialog open={dialogOpen} onOpenChange={(v) => { setDialogOpen(v); if (!v) { setRevealedKey(null); setNewName(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Key className="h-4 w-4" /> Nueva API Key
+            </DialogTitle>
+          </DialogHeader>
+
+          {revealedKey ? (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3">
+                <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4" /> API Key creada
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                  Copia esta key ahora — no la podrás ver de nuevo.
+                </p>
+              </div>
+              <div>
+                <Label className="text-xs">Tu API Key</Label>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <code className="flex-1 text-xs font-mono bg-muted rounded px-2 py-1.5 break-all select-all">
+                    {revealedKey}
+                  </code>
+                  <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => copy(revealedKey, "API Key copiada")}>
+                    <Copy className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
+                <p className="font-medium text-foreground">Cómo usarla en Zapier / n8n / Make</p>
+                <p>En el nodo HTTP Request, agrega el header:</p>
+                <code className="block font-mono">Authorization: Bearer {revealedKey.slice(0, 24)}…</code>
+                <p className="mt-1">URL del endpoint:</p>
+                <code className="block font-mono break-all">{API_BASE}/contacts</code>
+              </div>
+              <Button className="w-full" onClick={() => setDialogOpen(false)}>Listo</Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs" htmlFor="key-name">Nombre de la key</Label>
+                <Input
+                  id="key-name"
+                  className="mt-1 text-sm"
+                  placeholder="Ej: WordPress sitio principal"
+                  value={newName}
+                  onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Ponle un nombre para identificarla después.</p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button className="flex-1" onClick={handleCreate} disabled={saving || !newName.trim()}>
+                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Creando…</> : "Crear API Key"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
