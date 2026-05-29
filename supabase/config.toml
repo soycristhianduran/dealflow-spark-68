@@ -1,5 +1,8 @@
 project_id = "oqwcgvemrvimrdrzjzil"
 
+[functions.public-api]
+verify_jwt = false
+
 [functions.webhook-dispatcher]
 verify_jwt = false
 
