@@ -77,6 +77,8 @@ export interface AutomationStep {
   id: string;
   type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner";
   config: Record<string, any>;
+  // Optional free-canvas position (ignored by automation-runner)
+  position?: { x: number; y: number };
 }
 
 interface Automation {
@@ -199,40 +201,51 @@ const FlowCtx = createContext<FlowActions>({
 // ── Layout ────────────────────────────────────────────────────────────────────
 const NODE_W = 268;
 const V_GAP   = 150;
-const CX      = 0; // horizontal center for all nodes
+const CX      = 0; // default horizontal center for new nodes
 
-function buildFlow(steps: AutomationStep[]): { nodes: Node[]; edges: Edge[] } {
+type NodePositions = Record<string, { x: number; y: number }>;
+
+function buildFlow(
+  steps: AutomationStep[],
+  positions: NodePositions,
+): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = [];
   const edges: Edge[] = [];
 
-  // Trigger node
+  // Trigger node — use saved position or default
+  const triggerPos = positions["trigger"] ?? { x: CX - NODE_W / 2, y: 0 };
   nodes.push({
     id: "trigger",
     type: "triggerNode",
-    position: { x: CX - NODE_W / 2, y: 0 },
+    position: triggerPos,
     data: {},
     selectable: true,
-    draggable: false,
+    draggable: true,
   });
 
   steps.forEach((step, i) => {
-    const y = (i + 1) * V_GAP;
+    // Use saved position, or fall back to default grid layout
+    const defaultPos = { x: CX - NODE_W / 2, y: (i + 1) * V_GAP };
+    const pos = positions[step.id] ?? step.position ?? defaultPos;
     nodes.push({
       id: step.id,
       type: "stepNode",
-      position: { x: CX - NODE_W / 2, y },
+      position: pos,
       data: { step },
       selectable: true,
-      draggable: false,
+      draggable: true,
     });
 
-    // Edge from previous → this step (carries insertIndex for "+" button)
     const src = i === 0 ? "trigger" : steps[i - 1].id;
     edges.push(makeEdge(src, step.id, i));
   });
 
-  // "End" node
-  const endY = (steps.length + 1) * V_GAP;
+  // End node — always sits below the lowest node so it doesn't overlap
+  const allYs = [
+    triggerPos.y,
+    ...steps.map((s, i) => (positions[s.id] ?? s.position ?? { y: (i + 1) * V_GAP }).y),
+  ];
+  const endY = Math.max(...allYs) + V_GAP;
   nodes.push({
     id: "end",
     type: "endNode",
@@ -274,7 +287,7 @@ function TriggerNode(_: NodeProps) {
 
   return (
     <div
-      className="cursor-pointer rounded-xl border-2 bg-white shadow-md transition-all hover:shadow-lg"
+      className="cursor-grab active:cursor-grabbing rounded-xl border-2 bg-white shadow-md transition-all hover:shadow-lg"
       style={{
         width: NODE_W,
         borderColor: isSelected ? "#6366f1" : "#a5b4fc",
@@ -307,7 +320,7 @@ function StepNode({ data }: NodeProps) {
 
   return (
     <div
-      className="cursor-pointer rounded-xl border-2 bg-white shadow-md transition-all hover:shadow-lg group"
+      className="cursor-grab active:cursor-grabbing rounded-xl border-2 bg-white shadow-md transition-all hover:shadow-lg group"
       style={{
         width: NODE_W,
         borderColor: isSelected ? meta.color : meta.border,
@@ -326,7 +339,7 @@ function StepNode({ data }: NodeProps) {
         </div>
         <button
           onClick={e => { e.stopPropagation(); onDeleteStep(step.id); }}
-          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50 hover:text-red-500 text-slate-400"
+          className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-red-50 hover:text-red-500 text-slate-400 cursor-pointer nodrag"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -1829,6 +1842,20 @@ function AutomationBuilder({
   // Steps state (source of truth)
   const [steps, setSteps] = useState<AutomationStep[]>(automation?.steps ?? []);
 
+  // Free-canvas node positions (persisted alongside steps on save)
+  const [nodePositions, setNodePositions] = useState<NodePositions>(() => {
+    const pos: NodePositions = {};
+    // Restore trigger position from trigger_config._nodePos
+    if (automation?.trigger_config?._nodePos) {
+      pos["trigger"] = automation.trigger_config._nodePos;
+    }
+    // Restore each step's position
+    for (const s of (automation?.steps ?? [])) {
+      if (s.position) pos[s.id] = s.position;
+    }
+    return pos;
+  });
+
   // UI state — declared BEFORE any useEffect / useMemo that references them
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
@@ -1859,15 +1886,21 @@ function AutomationBuilder({
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
-  // Rebuild flow whenever steps change.
+  // Rebuild flow whenever steps OR positions change.
   // The "+" button callback is intentionally NOT injected into edge.data because
   // React Flow's internal diffing strips non-serializable values; instead we
   // read it from the module-level _onInsertStep ref inside AddableEdge.
   useEffect(() => {
-    const { nodes: n, edges: e } = buildFlow(steps);
+    const { nodes: n, edges: e } = buildFlow(steps, nodePositions);
     setNodes(n);
     setEdges(e);
-  }, [steps]);
+  }, [steps, nodePositions]);
+
+  // Capture final position when a node drag ends
+  const handleNodeDragStop = useCallback((_: React.MouseEvent, node: Node) => {
+    if (node.id === "end") return;
+    setNodePositions(prev => ({ ...prev, [node.id]: node.position }));
+  }, []);
 
   const ctxValue = useMemo(
     () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig }),
@@ -1899,10 +1932,20 @@ function AutomationBuilder({
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
+
+      // Embed positions into steps and trigger_config so they survive a page reload
+      const stepsWithPos = steps.map(s => ({
+        ...s,
+        position: nodePositions[s.id] ?? s.position ?? undefined,
+      }));
+      const triggerConfigWithPos = nodePositions["trigger"]
+        ? { ...triggerConfig, _nodePos: nodePositions["trigger"] }
+        : triggerConfig;
+
       const payload = {
         name, description, is_active: isActive,
-        trigger_type: triggerType, trigger_config: triggerConfig,
-        steps, user_id: user.id, updated_at: new Date().toISOString(),
+        trigger_type: triggerType, trigger_config: triggerConfigWithPos,
+        steps: stepsWithPos, user_id: user.id, updated_at: new Date().toISOString(),
       };
       let err;
       if (automation?.id) {
@@ -1965,8 +2008,9 @@ function AutomationBuilder({
             minZoom={0.3}
             maxZoom={1.8}
             proOptions={{ hideAttribution: true }}
-            nodesDraggable={false}
+            nodesDraggable={true}
             nodesConnectable={false}
+            onNodeDragStop={handleNodeDragStop}
             onNodeClick={(_, node) => { if (node.id !== "end") setSelectedId(node.id); }}
             onPaneClick={() => setSelectedId(null)}
           >
