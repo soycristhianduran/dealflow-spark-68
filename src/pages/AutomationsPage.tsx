@@ -34,10 +34,68 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
   Zap, Plus, Trash2, Edit, ArrowLeft, Save, Play, Users,
-  Clock, Mail, MessageSquare, Tag, User, X, ChevronUp, ChevronDown,
-  Info, GitBranch, Settings2, CheckCircle2, FileText, Search,
-  Bell, Webhook, SplitSquareHorizontal, UserCheck, ListTodo,
+  Clock, Tag, User, X, ChevronDown,
+  Info, Settings2, FileText, Search,
+  Bell, UserCheck, ListTodo, Timer, ArrowRightLeft,
+  KanbanSquare, CheckSquare2,
 } from "lucide-react";
+
+// ── Brand / custom SVG icons ──────────────────────────────────────────────────
+function IconWhatsApp({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+    </svg>
+  );
+}
+
+function IconEmail({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2"/>
+      <path d="m2 7 8.586 5.586a2 2 0 0 0 2.828 0L22 7"/>
+    </svg>
+  );
+}
+
+function IconWebhook({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 16.98h-5.99c-1.1 0-1.95.94-2.48 1.9A4 4 0 0 1 2 17c.01-.7.2-1.4.57-2"/>
+      <path d="m6 17 3.13-5.78c.53-.97.1-2.18-.5-3.1a4 4 0 1 1 6.89-4.06"/>
+      <path d="m12 6 3.13 5.73C15.66 12.7 16.9 13 18 13a4 4 0 0 1 0 8"/>
+    </svg>
+  );
+}
+
+function IconCondition({ className }: { className?: string }) {
+  // Diamond shape = classic decision/condition icon (like flowchart)
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2 L22 12 L12 22 L2 12 Z"/>
+      <path d="M12 8 v8M8 12 h8"/>
+    </svg>
+  );
+}
+
+function IconPipeline({ className }: { className?: string }) {
+  // Funnel/filter = pipeline stages icon
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"/>
+    </svg>
+  );
+}
+
+function IconNotify({ className }: { className?: string }) {
+  // Bell + alert dot = vendor notification
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/>
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+    </svg>
+  );
+}
 
 // ── Error boundary ────────────────────────────────────────────────────────────
 class BuilderErrorBoundary extends React.Component<
@@ -112,18 +170,18 @@ const STEP_META: Record<string, {
   label: string; description: string; icon: React.ElementType;
   color: string; bg: string; border: string; ring: string;
 }> = {
-  wait:                { label: "Esperar",            description: "Pausa el flujo por un tiempo determinado",       icon: Clock,                  color: "#78716c", bg: "#fafaf9", border: "#e7e5e4", ring: "#f5f5f4" },
-  send_email:          { label: "Enviar Email",        description: "Envía un email personalizado al contacto",        icon: Mail,                   color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", ring: "#dbeafe" },
-  send_whatsapp:       { label: "Enviar WhatsApp",     description: "Envía una plantilla aprobada de WhatsApp",        icon: MessageSquare,          color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
-  add_tag:             { label: "Añadir etiqueta",     description: "Agrega una etiqueta al contacto",                icon: Tag,                    color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
-  remove_tag:          { label: "Quitar etiqueta",     description: "Elimina una etiqueta del contacto",              icon: Tag,                    color: "#64748b", bg: "#f8fafc", border: "#e2e8f0", ring: "#f1f5f9" },
-  update_contact:      { label: "Actualizar contacto", description: "Modifica campos del perfil del contacto",        icon: User,                   color: "#0891b2", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
-  condition:           { label: "Condición If/Else",   description: "Bifurca el flujo según una condición",           icon: SplitSquareHorizontal,  color: "#d97706", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
-  assign_owner:        { label: "Asignar vendedor",    description: "Asigna un responsable al contacto",              icon: UserCheck,              color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
-  move_pipeline_stage: { label: "Mover en pipeline",   description: "Cambia la etapa del contacto en el pipeline",    icon: ChevronUp,              color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
-  create_task:         { label: "Crear tarea",          description: "Crea una tarea asignada al vendedor",            icon: ListTodo,               color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
-  send_webhook:        { label: "Webhook / HTTP",       description: "Llama a una URL externa (n8n, Zapier, Make…)",  icon: Settings2,              color: "#374151", bg: "#f9fafb", border: "#e5e7eb", ring: "#f3f4f6" },
-  notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",        icon: Bell,                   color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
+  wait:                { label: "Esperar",            description: "Pausa el flujo por un tiempo determinado",      icon: Timer,         color: "#78716c", bg: "#fafaf9", border: "#e7e5e4", ring: "#f5f5f4" },
+  send_email:          { label: "Enviar Email",        description: "Envía un email personalizado al contacto",      icon: IconEmail,     color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", ring: "#dbeafe" },
+  send_whatsapp:       { label: "Enviar WhatsApp",     description: "Envía una plantilla aprobada de WhatsApp",      icon: IconWhatsApp,  color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
+  add_tag:             { label: "Añadir etiqueta",     description: "Agrega una etiqueta al contacto",               icon: Tag,           color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
+  remove_tag:          { label: "Quitar etiqueta",     description: "Elimina una etiqueta del contacto",             icon: Tag,           color: "#64748b", bg: "#f8fafc", border: "#e2e8f0", ring: "#f1f5f9" },
+  update_contact:      { label: "Actualizar contacto", description: "Modifica campos del perfil del contacto",       icon: User,          color: "#0891b2", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
+  condition:           { label: "Condición If/Else",   description: "Bifurca el flujo según una condición",          icon: IconCondition, color: "#d97706", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
+  assign_owner:        { label: "Asignar vendedor",    description: "Asigna un responsable al contacto",             icon: UserCheck,     color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
+  move_pipeline_stage: { label: "Mover en pipeline",   description: "Cambia la etapa del contacto en el pipeline",   icon: IconPipeline,  color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
+  create_task:         { label: "Crear tarea",          description: "Crea una tarea asignada al vendedor",           icon: CheckSquare2,  color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
+  send_webhook:        { label: "Webhook / HTTP",       description: "Llama a una URL externa (n8n, Zapier, Make…)", icon: IconWebhook,   color: "#374151", bg: "#f9fafb", border: "#e5e7eb", ring: "#f3f4f6" },
+  notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",       icon: IconNotify,    color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
