@@ -718,7 +718,7 @@ export default function ContactDetailPage() {
                       <div className="pt-2 mt-1 border-t space-y-1.5">
                         {fieldDefs.map(def => {
                           const raw = (contact.custom_fields as Record<string, any>)?.[def.key];
-                          const value = raw !== undefined && raw !== null ? String(raw) : "";
+                          const value = normalizeCustomFieldValue(raw);
                           let displayValue: React.ReactNode = value || <span className="text-muted-foreground/50">—</span>;
                           if (def.field_type === "boolean") displayValue = <Switch checked={value === "true"} disabled className="scale-75 origin-right" />;
                           else if (def.field_type === "date" && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
