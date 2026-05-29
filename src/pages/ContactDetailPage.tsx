@@ -127,7 +127,15 @@ export default function ContactDetailPage() {
       primary_phone: editForm.primary_phone.trim() || null,
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
-      custom_fields: Object.keys(editForm.customFields).length > 0 ? editForm.customFields : null,
+      custom_fields: (() => {
+        // Save only non-empty values as flat key→value (new format)
+        const flat: Record<string, string> = {};
+        Object.entries(editForm.customFields).forEach(([k, v]) => {
+          const val = typeof v === "object" && v !== null ? String((v as any).value ?? "") : String(v ?? "");
+          if (val !== "") flat[k] = val;
+        });
+        return Object.keys(flat).length > 0 ? flat : null;
+      })(),
     }).eq("id", id);
     if (error) {
       toast.error("Error al guardar: " + error.message);
@@ -554,141 +562,56 @@ export default function ContactDetailPage() {
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
 
-                    {/* Custom fields */}
-                    <div className="pt-1 border-t">
-                      <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1"><Settings2 className="h-3 w-3" /> Campos personalizados</p>
-                      <div className="space-y-1.5">
-                        {Object.entries(editForm.customFields).map(([key, val]) => {
-                          const isObj = typeof val === "object" && val !== null;
-                          const type = isObj ? (val.type ?? "text") : "text";
-                          const value = isObj ? String(val.value ?? "") : String(val ?? "");
-                          const opts: string[] = isObj && Array.isArray(val.options) ? val.options : [];
-                          const setVal = (newVal: string) => setEditForm(p => ({
-                            ...p,
-                            customFields: { ...p.customFields, [key]: isObj ? { ...val, value: newVal } : newVal },
-                          }));
-                          return (
-                            <div key={key} className="flex items-center gap-1.5">
-                              <span className="text-xs text-muted-foreground w-20 truncate shrink-0">{key.replace(/_/g, " ")}</span>
-                              {type === "switch" ? (
-                                <div className="flex-1 flex items-center gap-2">
-                                  <Switch checked={value === "true"} onCheckedChange={v => setVal(v ? "true" : "false")} />
-                                  <span className="text-xs text-muted-foreground">{value === "true" ? "Sí" : "No"}</span>
-                                </div>
-                              ) : type === "select" ? (
-                                <Select value={value} onValueChange={setVal}>
-                                  <SelectTrigger className="h-7 text-xs flex-1"><SelectValue /></SelectTrigger>
-                                  <SelectContent>{opts.map((o: string) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
-                                </Select>
-                              ) : type === "multiselect" ? (
-                                <div className="flex flex-wrap gap-1 flex-1">
-                                  {opts.map((o: string) => {
-                                    const selected = value.split(",").map((s: string) => s.trim()).filter(Boolean).includes(o);
-                                    return (
-                                      <button key={o} onClick={() => {
-                                        const cur = value.split(",").map((s: string) => s.trim()).filter(Boolean);
-                                        setVal(selected ? cur.filter((s: string) => s !== o).join(", ") : [...cur, o].join(", "));
-                                      }} className={`px-2 py-0.5 rounded text-[10px] border ${selected ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"}`}>{o}</button>
-                                    );
-                                  })}
-                                </div>
-                              ) : type === "textarea" || type === "address" ? (
-                                <Textarea value={value} onChange={e => setVal(e.target.value)} className="text-xs flex-1 min-h-[56px] resize-none" />
-                              ) : (
-                                <Input
-                                  type={type === "number" ? "number" : ["date","birthday"].includes(type) ? "date" : type === "datetime" ? "datetime-local" : type === "url" ? "url" : "text"}
-                                  value={value}
-                                  onChange={e => setVal(e.target.value)}
-                                  className="h-7 text-xs flex-1"
-                                />
-                              )}
-                              {isObj && val.id && (
-                                <Button
-                                  size="sm" variant="ghost"
-                                  className="h-7 w-7 p-0 shrink-0 text-muted-foreground hover:text-foreground"
-                                  title={`Copiar ID: ${val.id}`}
-                                  onClick={() => { navigator.clipboard.writeText(val.id); toast.success(`ID copiado: ${val.id}`); }}
-                                >
-                                  <Copy className="h-3 w-3" />
-                                </Button>
-                              )}
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => removeCustomField(key)}>
-                                <X className="h-3 w-3" />
-                              </Button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Add new field — with type selector */}
-                      <div className="mt-2 space-y-1.5">
-                        <div className="flex items-center gap-1.5">
-                          <Input
-                            placeholder="Nombre del campo"
-                            value={editForm.newFieldKey}
-                            onChange={e => setEditForm(p => ({ ...p, newFieldKey: e.target.value }))}
-                            className="h-7 text-xs flex-1"
-                          />
-                          <Select value={editForm.newFieldType} onValueChange={v => setEditForm(p => ({ ...p, newFieldType: v, newFieldValue: "", newFieldOptions: "" }))}>
-                            <SelectTrigger className="h-7 w-28 text-xs shrink-0"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="text">Texto</SelectItem>
-                              <SelectItem value="textarea">Texto Largo</SelectItem>
-                              <SelectItem value="number">Número</SelectItem>
-                              <SelectItem value="switch">Interruptor</SelectItem>
-                              <SelectItem value="select">Selección</SelectItem>
-                              <SelectItem value="multiselect">Multiselección</SelectItem>
-                              <SelectItem value="date">Fecha</SelectItem>
-                              <SelectItem value="datetime">Fecha y hora</SelectItem>
-                              <SelectItem value="birthday">Cumpleaños</SelectItem>
-                              <SelectItem value="url">URL</SelectItem>
-                              <SelectItem value="address_short">Dirección corta</SelectItem>
-                              <SelectItem value="address">Dirección</SelectItem>
-                              <SelectItem value="taxid">Tax ID</SelectItem>
-                            </SelectContent>
-                          </Select>
+                    {/* Custom fields — values only, schema managed in Settings → Campos */}
+                    {fieldDefs.length > 0 && (
+                      <div className="pt-1 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
+                          <Settings2 className="h-3 w-3" /> Campos personalizados
+                        </p>
+                        <div className="space-y-1.5">
+                          {fieldDefs.map(def => {
+                            const raw = editForm.customFields?.[def.key];
+                            const value = raw !== undefined && raw !== null
+                              ? (typeof raw === "object" && raw !== null ? String((raw as any).value ?? "") : String(raw))
+                              : "";
+                            const setVal = (newVal: string) => setEditForm(p => ({
+                              ...p,
+                              customFields: { ...p.customFields, [def.key]: newVal },
+                            }));
+                            return (
+                              <div key={def.key} className="flex items-center gap-1.5">
+                                <span className="text-xs text-muted-foreground w-24 truncate shrink-0">{def.label}</span>
+                                {def.field_type === "boolean" ? (
+                                  <div className="flex-1 flex items-center gap-2">
+                                    <Switch checked={value === "true"} onCheckedChange={v => setVal(v ? "true" : "false")} />
+                                    <span className="text-xs text-muted-foreground">{value === "true" ? "Sí" : "No"}</span>
+                                  </div>
+                                ) : def.field_type === "select" ? (
+                                  <Select value={value} onValueChange={setVal}>
+                                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                                    <SelectContent>{(def.options || []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                                  </Select>
+                                ) : (
+                                  <Input
+                                    type={def.field_type === "number" ? "number" : def.field_type === "date" ? "date" : "text"}
+                                    value={value}
+                                    onChange={e => setVal(e.target.value)}
+                                    className="h-7 text-xs flex-1"
+                                    placeholder="—"
+                                  />
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                        {(editForm.newFieldType === "select" || editForm.newFieldType === "multiselect") && (
-                          <Input
-                            placeholder="Opciones separadas por coma (ej: A, B, C)"
-                            value={editForm.newFieldOptions}
-                            onChange={e => setEditForm(p => ({ ...p, newFieldOptions: e.target.value }))}
-                            className="h-7 text-xs"
-                          />
-                        )}
-                        <div className="flex items-center gap-1.5">
-                          {editForm.newFieldType === "switch" ? (
-                            <div className="flex-1 flex items-center gap-2">
-                              <Switch
-                                checked={editForm.newFieldValue === "true"}
-                                onCheckedChange={v => setEditForm(p => ({ ...p, newFieldValue: v ? "true" : "false" }))}
-                              />
-                              <span className="text-xs text-muted-foreground">{editForm.newFieldValue === "true" ? "Sí" : "No"}</span>
-                            </div>
-                          ) : editForm.newFieldType === "textarea" || editForm.newFieldType === "address" ? (
-                            <Textarea
-                              placeholder="Valor (opcional)"
-                              value={editForm.newFieldValue}
-                              onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
-                              className="text-xs flex-1 min-h-[56px] resize-none"
-                            />
-                          ) : editForm.newFieldType === "select" || editForm.newFieldType === "multiselect" ? (
-                            <Input placeholder="Valor inicial (opcional)" value={editForm.newFieldValue} onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))} className="h-7 text-xs flex-1" />
-                          ) : (
-                            <Input
-                              type={editForm.newFieldType === "number" ? "number" : ["date","birthday"].includes(editForm.newFieldType) ? "date" : editForm.newFieldType === "datetime" ? "datetime-local" : editForm.newFieldType === "url" ? "url" : "text"}
-                              placeholder="Valor (opcional)"
-                              value={editForm.newFieldValue}
-                              onChange={e => setEditForm(p => ({ ...p, newFieldValue: e.target.value }))}
-                              onKeyDown={e => e.key === "Enter" && addCustomField()}
-                              className="h-7 text-xs flex-1"
-                            />
-                          )}
-                          <Button size="sm" variant="outline" className="h-7 w-7 p-0 shrink-0" onClick={addCustomField} disabled={!editForm.newFieldKey.trim()}>
-                            <Plus className="h-3 w-3" />
-                          </Button>
-                        </div>
+                        <p className="text-[10px] text-muted-foreground mt-2">
+                          Para agregar campos ve a{" "}
+                          <a href={`/${path}/settings`} className="underline hover:text-foreground">
+                            Configuración → Campos
+                          </a>
+                        </p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-3">

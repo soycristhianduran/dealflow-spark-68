@@ -1380,7 +1380,14 @@ function CustomFieldsSection() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium">{f.label}</p>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <code className="text-xs text-muted-foreground font-mono">{f.key}</code>
+                      <button
+                        className="flex items-center gap-1 group"
+                        title="Copiar ID interno"
+                        onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
+                      >
+                        <code className="text-xs text-muted-foreground font-mono group-hover:text-foreground transition-colors">{f.key}</code>
+                        <Copy className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
                       <span className="text-xs text-muted-foreground">·</span>
                       <span className="text-xs text-muted-foreground">{typeLabel(f.field_type)}</span>
                       {f.options && f.options.length > 0 && (
