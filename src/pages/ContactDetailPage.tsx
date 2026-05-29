@@ -26,16 +26,31 @@ import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 
-// Normalize a raw custom_fields value to a plain string.
+// Normalize a single raw custom_fields value to a plain string.
 // Handles two storage formats:
 //   - Flat (current):  "some text" | 42 | true
-//   - Object (legacy): { id, type, value, label }  — used by some older imports
+//   - Object (legacy): { id, type, value, label }
 function normalizeCustomFieldValue(v: unknown): string {
   if (v === null || v === undefined) return "";
   if (typeof v === "object" && !Array.isArray(v) && "value" in (v as object)) {
     return String((v as { value?: unknown }).value ?? "");
   }
   return String(v);
+}
+
+// Normalize ALL custom_fields on a contact record to flat strings.
+// Called every time a contact is loaded into state so that all render
+// paths always receive plain strings — no renderer has to know the format.
+function normalizeContact(data: any): any {
+  if (!data) return data;
+  const cf = data.custom_fields;
+  if (!cf || typeof cf !== "object" || Array.isArray(cf)) return data;
+  const flat: Record<string, string> = {};
+  for (const [k, v] of Object.entries(cf as Record<string, unknown>)) {
+    const s = normalizeCustomFieldValue(v);
+    if (s !== "") flat[k] = s;
+  }
+  return { ...data, custom_fields: flat };
 }
 
 export default function ContactDetailPage() {
@@ -168,7 +183,7 @@ export default function ContactDetailPage() {
     } else {
       toast.success("Lead actualizado");
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-      setContact(data);
+      setContact(normalizeContact(data));
       setEditingContact(false);
     }
     setSavingContact(false);
@@ -261,7 +276,7 @@ export default function ContactDetailPage() {
       }
       toast.success("Pipeline actualizado");
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-      setContact(data);
+      setContact(normalizeContact(data));
       setPpl({
         pipeline_id: data?.pipeline_id || "",
         stage_id: data?.stage_id || "",
@@ -317,7 +332,7 @@ export default function ContactDetailPage() {
         supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
       }
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-      setContact(data);
+      setContact(normalizeContact(data));
       setPpl(p => ({ ...p, stage_id: newStageId, pipeline_id: newPipelineId }));
       setStagesForPipeline(stagesForPicker);
       toast.success(`Etapa: ${stageName}`);
@@ -329,7 +344,7 @@ export default function ContactDetailPage() {
   const refetchContact = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-    setContact(data);
+    setContact(normalizeContact(data));
   }, [id]);
 
   useEffect(() => {
@@ -906,7 +921,7 @@ export default function ContactDetailPage() {
               contactId={id!}
               notes={contact.notes}
               canEdit={canEditContacts}
-              onUpdated={() => supabase.from("contacts").select("*").eq("id", id!).maybeSingle().then(({ data }) => data && setContact(data))}
+              onUpdated={() => supabase.from("contacts").select("*").eq("id", id!).maybeSingle().then(({ data }) => data && setContact(normalizeContact(data)))}
             />
 
           </div>
@@ -1007,7 +1022,7 @@ export default function ContactDetailPage() {
                   fieldDefs={fieldDefs}
                   onUpdated={() => {
                     supabase.from("contacts").select("*").eq("id", id!).single()
-                      .then(({ data }) => { if (data) setContact(data); });
+                      .then(({ data }) => { if (data) setContact(normalizeContact(data)); });
                   }}
                 />
 
