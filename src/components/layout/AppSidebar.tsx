@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -71,15 +72,38 @@ const bottomItems = [
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const location = useLocation();
 
-  // Track which groups are open — all open by default
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(powerGroups.map((g) => [g.id, true]))
-  );
+  // Track which groups are open — closed by default, auto-open the active group
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    // Restore from localStorage if available
+    try {
+      const saved = localStorage.getItem("crm_sidebar_groups");
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    // Default: all closed
+    return Object.fromEntries(powerGroups.map((g) => [g.id, false]));
+  });
 
   const { path } = useWorkspace();
   const { waUnread, igUnread } = useUnreadCounts();
   const { canAccessSettings, canAccessPowerFeatures } = usePermissions();
+
+  // Auto-open the group that contains the current page
+  useEffect(() => {
+    const currentPath = location.pathname;
+    powerGroups.forEach((group) => {
+      const isActiveGroup = group.items.some((item) => currentPath.includes(item.url));
+      if (isActiveGroup) {
+        setOpenGroups((prev) => {
+          if (prev[group.id]) return prev; // already open, skip
+          const next = { ...prev, [group.id]: true };
+          try { localStorage.setItem("crm_sidebar_groups", JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+    });
+  }, [location.pathname]);
 
   useEffect(() => {
     const loadLogo = () => setLogoUrl(localStorage.getItem("crm_logo_url"));
@@ -89,7 +113,11 @@ export function AppSidebar() {
   }, []);
 
   const toggleGroup = (id: string) =>
-    setOpenGroups((prev) => ({ ...prev, [id]: !prev[id] }));
+    setOpenGroups((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { localStorage.setItem("crm_sidebar_groups", JSON.stringify(next)); } catch {}
+      return next;
+    });
 
   return (
     <aside
@@ -187,8 +215,11 @@ export function AppSidebar() {
                   </div>
                 )}
 
-                {/* Group items */}
-                {(collapsed || openGroups[group.id]) && (
+                {/* Group items — animated collapse */}
+                <div className={cn(
+                  "overflow-hidden transition-all duration-200",
+                  (collapsed || openGroups[group.id]) ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
+                )}>
                   <div className={cn(!collapsed && "ml-2 border-l border-sidebar-border/40 pl-1 mb-1")}>
                     {group.items.map((item) => (
                       <NavLink
@@ -206,7 +237,7 @@ export function AppSidebar() {
                       </NavLink>
                     ))}
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
