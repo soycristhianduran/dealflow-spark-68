@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,7 +31,9 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { canDeleteContacts, canEditContacts, canSeeBudget } = usePermissions();
+  const { organizationId } = useOrganizationContext();
   const [contact, setContact] = useState<any>(null);
+  const [fieldDefs, setFieldDefs] = useState<{ id: string; key: string; label: string; field_type: string; options: string[] | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [tasks, setTasks] = useState<any[]>([]);
   const [meetings, setMeetings] = useState<any[]>([]);
@@ -136,6 +139,17 @@ export default function ContactDetailPage() {
     }
     setSavingContact(false);
   };
+
+  // Load org-level custom field definitions
+  useEffect(() => {
+    if (!organizationId) return;
+    supabase
+      .from("custom_field_definitions")
+      .select("id, key, label, field_type, options")
+      .eq("organization_id", organizationId)
+      .order("position", { ascending: true })
+      .then(({ data }) => setFieldDefs(data || []));
+  }, [organizationId]);
 
   const fetchRelated = async () => {
     if (!id) return;
@@ -702,22 +716,17 @@ export default function ContactDetailPage() {
                         <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
                       </div>
                     )}
-                    {contact.custom_fields && typeof contact.custom_fields === "object" && Object.keys(contact.custom_fields).length > 0 && (
+                    {fieldDefs.length > 0 && (
                       <div className="pt-2 mt-1 border-t space-y-1.5">
-                        {Object.entries(contact.custom_fields as Record<string, any>).map(([key, val]) => {
-                          const isObj = typeof val === "object" && val !== null;
-                          const type = isObj ? (val.type ?? "text") : "text";
-                          const value = isObj ? String(val.value ?? "") : String(val ?? "");
-                          const displayLabel = isObj && val.label ? val.label : key.replace(/_/g, " ");
-                          let displayValue: React.ReactNode = value || "—";
-                          if (type === "switch") displayValue = <Switch checked={value === "true"} disabled className="scale-75 origin-right" />;
-                          else if ((type === "date" || type === "birthday") && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
-                          else if (type === "datetime" && value) displayValue = new Date(value).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-                          else if (type === "url" && value) displayValue = <a href={value} target="_blank" rel="noopener noreferrer" className="text-primary underline break-all">{value}</a>;
-                          else if (type === "multiselect" && value) displayValue = <div className="flex flex-wrap gap-1 justify-end">{value.split(",").map((s: string) => s.trim()).filter(Boolean).map((s: string) => <Badge key={s} variant="secondary" className="text-[10px] py-0">{s}</Badge>)}</div>;
+                        {fieldDefs.map(def => {
+                          const raw = (contact.custom_fields as Record<string, any>)?.[def.key];
+                          const value = raw !== undefined && raw !== null ? String(raw) : "";
+                          let displayValue: React.ReactNode = value || <span className="text-muted-foreground/50">—</span>;
+                          if (def.field_type === "boolean") displayValue = <Switch checked={value === "true"} disabled className="scale-75 origin-right" />;
+                          else if (def.field_type === "date" && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
                           return (
-                            <div key={key} className="flex items-start justify-between gap-2 text-sm">
-                              <span className="text-muted-foreground capitalize shrink-0">{displayLabel}:</span>
+                            <div key={def.key} className="flex items-start justify-between gap-2 text-sm">
+                              <span className="text-muted-foreground shrink-0">{def.label}:</span>
                               <span className="text-foreground text-right">{displayValue}</span>
                             </div>
                           );
@@ -990,6 +999,16 @@ export default function ContactDetailPage() {
                   </CardContent>
                 </Card>
 
+                <CustomFieldsCard
+                  customFields={contact.custom_fields}
+                  contactId={contact.id}
+                  fieldDefs={fieldDefs}
+                  onUpdated={() => {
+                    supabase.from("contacts").select("*").eq("id", id!).single()
+                      .then(({ data }) => { if (data) setContact(data); });
+                  }}
+                />
+
               </TabsContent>
 
               {contact.primary_phone && (
@@ -1087,63 +1106,54 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
   );
 }
 
-function CustomFieldsCard({ customFields, contactId, onUpdated }: { customFields?: Record<string, string> | null; contactId: string; onUpdated: () => void }) {
+type FieldDefMini = { id: string; key: string; label: string; field_type: string; options: string[] | null };
+
+function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
+  customFields?: Record<string, any> | null;
+  contactId: string;
+  fieldDefs: FieldDefMini[];
+  onUpdated: () => void;
+}) {
   const [editing, setEditing] = useState(false);
-  const [fields, setFields] = useState<Record<string, string>>({});
-  const [newKey, setNewKey] = useState("");
-  const [newValue, setNewValue] = useState("");
+  const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  // Initialize values from contact's custom_fields, defaulting to "" for defined fields
   useEffect(() => {
-    setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {});
-  }, [customFields]);
-
-  const hasFields = Object.keys(fields).length > 0;
+    const base: Record<string, string> = {};
+    fieldDefs.forEach(def => {
+      const v = customFields?.[def.key];
+      base[def.key] = v !== undefined && v !== null ? String(v) : "";
+    });
+    // Also keep any extra fields not in definitions (legacy/api data)
+    if (customFields && typeof customFields === "object") {
+      Object.entries(customFields).forEach(([k, v]) => {
+        if (!(k in base)) base[k] = String(v ?? "");
+      });
+    }
+    setValues(base);
+  }, [customFields, fieldDefs]);
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase.from("contacts").update({ custom_fields: fields }).eq("id", contactId);
+    // Only save non-empty values
+    const toSave: Record<string, string> = {};
+    Object.entries(values).forEach(([k, v]) => { if (v !== "") toSave[k] = v; });
+    const { error } = await supabase.from("contacts").update({ custom_fields: Object.keys(toSave).length > 0 ? toSave : null }).eq("id", contactId);
     if (error) toast.error("Error al guardar campos");
     else { toast.success("Campos guardados"); onUpdated(); }
     setSaving(false);
     setEditing(false);
   };
 
-  const handleAddField = () => {
-    if (!newKey.trim()) return;
-    const key = newKey.trim().toLowerCase().replace(/\s+/g, "_");
-    setFields(prev => ({ ...prev, [key]: newValue }));
-    setNewKey("");
-    setNewValue("");
-  };
+  const setValue = (key: string, val: string) => setValues(prev => ({ ...prev, [key]: val }));
 
-  const handleRemoveField = (key: string) => {
-    setFields(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  };
+  const allKeys = [
+    ...fieldDefs.map(d => d.key),
+    ...Object.keys(customFields || {}).filter(k => !fieldDefs.find(d => d.key === k)),
+  ];
 
-  if (!hasFields && !editing) {
-    return (
-      <Card className="border-none shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-4">
-            <p className="text-xs text-muted-foreground mb-2">Sin campos personalizados</p>
-            <Button size="sm" variant="outline" className="text-xs gap-1" onClick={() => setEditing(true)}>
-              <Plus className="h-3 w-3" /> Agregar campo
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
+  if (fieldDefs.length === 0 && !customFields) return null;
 
   return (
     <Card className="border-none shadow-sm">
@@ -1158,48 +1168,66 @@ function CustomFieldsCard({ customFields, contactId, onUpdated }: { customFields
             </Button>
           ) : (
             <div className="flex gap-1">
-              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setEditing(false); setFields(customFields && typeof customFields === 'object' ? { ...customFields } as Record<string, string> : {}); }}>
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={() => { setEditing(false); }}>
                 <X className="h-3 w-3" />
               </Button>
               <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
-                <Check className="h-3 w-3" /> Guardar
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> Guardar</>}
               </Button>
             </div>
           )}
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        {Object.entries(fields).map(([key, value]) => (
-          <div key={key} className="flex items-center gap-2">
-            {editing ? (
-              <>
-                <span className="text-xs text-muted-foreground font-mono w-28 truncate shrink-0">{key}</span>
-                <Input
-                  value={value}
-                  onChange={(e) => setFields(prev => ({ ...prev, [key]: e.target.value }))}
-                  className="h-7 text-xs flex-1"
-                />
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 shrink-0 text-destructive hover:text-destructive" onClick={() => handleRemoveField(key)}>
-                  <X className="h-3 w-3" />
-                </Button>
-              </>
-            ) : (
-              <div className="flex-1">
-                <p className="text-xs text-muted-foreground">{key.replace(/_/g, " ")}</p>
-                <p className="text-sm font-medium text-foreground mt-0.5">{value || "—"}</p>
-              </div>
-            )}
-          </div>
-        ))}
+        {allKeys.map(key => {
+          const def = fieldDefs.find(d => d.key === key);
+          const label = def?.label ?? key.replace(/_/g, " ");
+          const type = def?.field_type ?? "text";
+          const opts = def?.options ?? [];
+          const val = values[key] ?? "";
 
-        {editing && (
-          <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-            <Input placeholder="Nombre del campo" value={newKey} onChange={e => setNewKey(e.target.value)} className="h-7 text-xs flex-1" />
-            <Input placeholder="Valor" value={newValue} onChange={e => setNewValue(e.target.value)} className="h-7 text-xs flex-1" />
-            <Button size="sm" variant="outline" className="h-7 text-xs shrink-0 gap-1" onClick={handleAddField} disabled={!newKey.trim()}>
-              <Plus className="h-3 w-3" />
-            </Button>
-          </div>
+          return (
+            <div key={key} className="flex items-center gap-2">
+              {editing ? (
+                <>
+                  <span className="text-xs text-muted-foreground w-28 truncate shrink-0">{label}</span>
+                  {type === "boolean" ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Switch checked={val === "true"} onCheckedChange={v => setValue(key, v ? "true" : "false")} />
+                      <span className="text-xs text-muted-foreground">{val === "true" ? "Sí" : "No"}</span>
+                    </div>
+                  ) : type === "select" ? (
+                    <Select value={val} onValueChange={v => setValue(key, v)}>
+                      <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                      <SelectContent>{opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      type={type === "number" ? "number" : type === "date" ? "date" : "text"}
+                      value={val}
+                      onChange={e => setValue(key, e.target.value)}
+                      className="h-7 text-xs flex-1"
+                    />
+                  )}
+                </>
+              ) : (
+                <div className="flex-1 flex justify-between items-start gap-2">
+                  <p className="text-xs text-muted-foreground">{label}</p>
+                  <p className="text-sm font-medium text-foreground text-right">
+                    {type === "boolean"
+                      ? (val === "true" ? "Sí" : val === "false" ? "No" : "—")
+                      : val || <span className="text-muted-foreground/50">—</span>}
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
+
+        {fieldDefs.length === 0 && (!customFields || Object.keys(customFields).length === 0) && (
+          <p className="text-xs text-muted-foreground text-center py-2">
+            Define campos en Configuración → Campos para verlos aquí.
+          </p>
         )}
       </CardContent>
     </Card>

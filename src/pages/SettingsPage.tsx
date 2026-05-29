@@ -449,6 +449,7 @@ export default function SettingsPage() {
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="equipo">Equipo</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
+            <TabsTrigger value="campos">Campos</TabsTrigger>
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
@@ -962,6 +963,11 @@ export default function SettingsPage() {
             </Card>
           </TabsContent>
 
+          {/* ── Campos personalizados tab ────────────────────────── */}
+          <TabsContent value="campos" className="space-y-4">
+            <CustomFieldsSection />
+          </TabsContent>
+
           {/* ── API Keys tab ─────────────────────────────────────── */}
           <TabsContent value="api" className="space-y-4">
             <ApiKeysSection />
@@ -1227,6 +1233,231 @@ function ApiKeysSection() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── Custom Fields Section ─────────────────────────────────────────────────────
+
+type FieldDef = {
+  id: string;
+  key: string;
+  label: string;
+  field_type: string;
+  options: string[] | null;
+  position: number;
+};
+
+const FIELD_TYPES = [
+  { value: "text",    label: "Texto" },
+  { value: "number",  label: "Número" },
+  { value: "date",    label: "Fecha" },
+  { value: "select",  label: "Lista de opciones" },
+  { value: "boolean", label: "Sí / No" },
+];
+
+function toKey(label: string): string {
+  return label
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function CustomFieldsSection() {
+  const { organizationId } = useOrganizationContext();
+  const [fields, setFields] = useState<FieldDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<FieldDef | null>(null);
+
+  // Form state
+  const [fLabel, setFLabel] = useState("");
+  const [fType, setFType] = useState("text");
+  const [fOptions, setFOptions] = useState(""); // comma-separated
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    if (!organizationId) return;
+    setLoading(true);
+    const { data } = await supabase
+      .from("custom_field_definitions")
+      .select("id, key, label, field_type, options, position")
+      .eq("organization_id", organizationId)
+      .order("position", { ascending: true });
+    setFields(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [organizationId]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setFLabel(""); setFType("text"); setFOptions("");
+    setDialogOpen(true);
+  };
+
+  const openEdit = (f: FieldDef) => {
+    setEditing(f);
+    setFLabel(f.label);
+    setFType(f.field_type);
+    setFOptions((f.options || []).join(", "));
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!fLabel.trim() || !organizationId) return;
+    setSaving(true);
+
+    const key = editing ? editing.key : toKey(fLabel.trim());
+    const options = fType === "select"
+      ? fOptions.split(",").map(o => o.trim()).filter(Boolean)
+      : null;
+
+    if (editing) {
+      await supabase
+        .from("custom_field_definitions")
+        .update({ label: fLabel.trim(), field_type: fType, options })
+        .eq("id", editing.id);
+      toast.success("Campo actualizado");
+    } else {
+      const { error } = await supabase
+        .from("custom_field_definitions")
+        .insert({ organization_id: organizationId, key, label: fLabel.trim(), field_type: fType, options, position: fields.length });
+      if (error) {
+        toast.error(error.message.includes("unique") ? "Ya existe un campo con ese nombre" : "Error al crear campo");
+        setSaving(false); return;
+      }
+      toast.success("Campo creado");
+    }
+
+    setSaving(false);
+    setDialogOpen(false);
+    load();
+  };
+
+  const handleDelete = async (id: string) => {
+    await supabase.from("custom_field_definitions").delete().eq("id", id);
+    setFields(prev => prev.filter(f => f.id !== id));
+    toast.success("Campo eliminado");
+  };
+
+  const typeLabel = (t: string) => FIELD_TYPES.find(x => x.value === t)?.label ?? t;
+
+  return (
+    <div className="space-y-4">
+      <Card className="border-none shadow-sm">
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-semibold">Campos personalizados</CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Define campos extra que aplican a todos los contactos de tu cuenta.
+              Los valores llegan automáticamente desde formularios, Zapier, n8n, etc.
+            </p>
+          </div>
+          <Button size="sm" onClick={openCreate}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nuevo campo
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : fields.length === 0 ? (
+            <div className="text-center py-8 space-y-2">
+              <p className="text-sm text-muted-foreground">No hay campos personalizados todavía.</p>
+              <p className="text-xs text-muted-foreground">
+                Crea campos como "Tipo de proyecto", "Presupuesto", "¿Cómo nos conoció?" y aparecerán en todos tus contactos.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {fields.map(f => (
+                <div key={f.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{f.label}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <code className="text-xs text-muted-foreground font-mono">{f.key}</code>
+                      <span className="text-xs text-muted-foreground">·</span>
+                      <span className="text-xs text-muted-foreground">{typeLabel(f.field_type)}</span>
+                      {f.options && f.options.length > 0 && (
+                        <span className="text-xs text-muted-foreground">· {f.options.join(", ")}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => openEdit(f)}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDelete(f.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Create / Edit dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-semibold">
+              {editing ? "Editar campo" : "Nuevo campo personalizado"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div>
+              <Label className="text-xs">Nombre del campo</Label>
+              <Input
+                className="mt-1 text-sm"
+                placeholder="Ej: Tipo de proyecto"
+                value={fLabel}
+                onChange={e => setFLabel(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
+              />
+              {!editing && fLabel && (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Clave: <code className="font-mono">{toKey(fLabel)}</code>
+                </p>
+              )}
+            </div>
+            <div>
+              <Label className="text-xs">Tipo</Label>
+              <Select value={fType} onValueChange={setFType}>
+                <SelectTrigger className="mt-1 text-sm h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FIELD_TYPES.map(t => (
+                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {fType === "select" && (
+              <div>
+                <Label className="text-xs">Opciones (separadas por coma)</Label>
+                <Input
+                  className="mt-1 text-sm"
+                  placeholder="Ej: E-commerce, Landing page, App móvil"
+                  value={fOptions}
+                  onChange={e => setFOptions(e.target.value)}
+                />
+              </div>
+            )}
+            <div className="flex gap-2 pt-1">
+              <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button className="flex-1" onClick={handleSave} disabled={saving || !fLabel.trim()}>
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editing ? "Guardar" : "Crear campo"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

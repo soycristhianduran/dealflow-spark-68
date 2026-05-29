@@ -155,6 +155,32 @@ function mapContactFields(body: Record<string, unknown>) {
   return mapped;
 }
 
+// Auto-register new custom field keys as org-level definitions (fire-and-forget)
+async function autoRegisterFieldDefs(
+  admin: ReturnType<typeof createClient>,
+  organizationId: string,
+  customFields: Record<string, unknown>,
+): Promise<void> {
+  if (!customFields || Object.keys(customFields).length === 0) return;
+  const { data: existing } = await admin
+    .from("custom_field_definitions")
+    .select("key")
+    .eq("organization_id", organizationId);
+  const existingKeys = new Set((existing || []).map((r: { key: string }) => r.key));
+  const toInsert = Object.keys(customFields)
+    .filter(k => !existingKeys.has(k))
+    .map((k, i) => ({
+      organization_id: organizationId,
+      key: k,
+      label: k.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+      field_type: "text",
+      position: (existing?.length ?? 0) + i,
+    }));
+  if (toInsert.length > 0) {
+    await admin.from("custom_field_definitions").insert(toInsert).select();
+  }
+}
+
 // Merge incoming custom_fields with existing ones in DB (don't wipe previous fields)
 async function mergeCustomFields(
   admin: ReturnType<typeof createClient>,
@@ -280,6 +306,11 @@ Deno.serve(async (req) => {
         if (error) return json({ error: error.message }, 500);
         return json({ data, created: false }, 200);
       }
+    }
+
+    // Auto-register any unknown fields as org-level definitions
+    if (fields.custom_fields) {
+      autoRegisterFieldDefs(admin, auth.organization_id, fields.custom_fields as Record<string, unknown>);
     }
 
     // Insert new contact
