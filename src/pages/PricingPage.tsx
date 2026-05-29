@@ -53,11 +53,11 @@ export default function PricingPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from("plans")
         .select("*")
         .order("display_order");
-      if (!error && data) setPlans(data as Plan[]);
+      if (!error && data) setPlans(data as unknown as Plan[]);
       setLoading(false);
     })();
   }, []);

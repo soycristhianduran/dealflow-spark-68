@@ -61,7 +61,7 @@ export default function CompanyDetailPage() {
       supabase.from("contacts").select("id, full_name, primary_email, primary_phone, status").eq("company_id", id).order("full_name"),
       supabase.from("deals").select("id, title, value, currency, status, pipeline_stages(name, color)").eq("company_id", id).order("created_at", { ascending: false }),
     ]);
-    const c = companyRes.data as any;
+    const c = companyRes.data;
     setCompany(c);
     if (c) {
       setEditForm({
@@ -73,8 +73,8 @@ export default function CompanyDetailPage() {
         website: c.website || "",
       });
     }
-    setContacts((contactsRes.data as any) || []);
-    setDeals((dealsRes.data as any) || []);
+    setContacts((contactsRes.data as unknown as LinkedContact[]) || []);
+    setDeals((dealsRes.data as unknown as LinkedDeal[]) || []);
     setLoading(false);
   }, [id]);
 

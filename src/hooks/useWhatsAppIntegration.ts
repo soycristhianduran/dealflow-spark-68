@@ -89,7 +89,7 @@ export function useWhatsAppIntegration() {
       return;
     }
 
-    const { data: stateToken, error: stateErr } = await (supabase as any).rpc(
+    const { data: stateToken, error: stateErr } = await supabase.rpc(
       "create_oauth_state",
       { p_provider: "whatsapp" },
     );

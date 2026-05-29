@@ -303,7 +303,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     onClick={async () => {
                       if (!cfg.is_primary) {
                         try { await wa.setPrimary(cfg.id); }
-                        catch (e: any) { toast.error("Error: " + (e as any).message); }
+                        catch (e) { toast.error("Error: " + (e instanceof Error ? e.message : String(e))); }
                       }
                     }}
                   >

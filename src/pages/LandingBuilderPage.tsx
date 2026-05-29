@@ -295,7 +295,7 @@ function autoMapCrmField(name: string, label: string): string {
 }
 
 // ── Form HTML generator ───────────────────────────────────────────────────────
-const SUPABASE_SUBMIT_URL = `${(import.meta as any).env?.VITE_SUPABASE_URL || "https://oqwcgvemrvimrdrzjzil.supabase.co"}/functions/v1/landing-submit`;
+const SUPABASE_SUBMIT_URL = `${import.meta.env.VITE_SUPABASE_URL || "https://oqwcgvemrvimrdrzjzil.supabase.co"}/functions/v1/landing-submit`;
 
 function labelToName(label: string): string {
   return label.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "")
@@ -366,8 +366,8 @@ function toSlug(str: string): string {
 // ── Public URL builder ────────────────────────────────────────────────────────
 // pages.klosify.com/<slug> — served by the Cloudflare Worker
 // Fallback to Supabase function URL during development / before DNS is set up
-const PAGES_DOMAIN = (import.meta as any).env?.VITE_PAGES_DOMAIN || "pages.klosify.com";
-const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL
+const PAGES_DOMAIN = import.meta.env.VITE_PAGES_DOMAIN || "pages.klosify.com";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
   || "https://oqwcgvemrvimrdrzjzil.supabase.co";
 
 function getPublicUrl(slug: string) {

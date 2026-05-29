@@ -418,7 +418,7 @@ export default function HomePage() {
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
     (async () => {
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("plans")
         .select("id, stripe_price_id_monthly, stripe_price_id_annual");
       if (data) {
@@ -876,7 +876,7 @@ export default function HomePage() {
                           <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-700/50 border border-slate-600/30"}`}>
                             <p className="text-xs text-slate-300 leading-relaxed">{m.msg}</p>
                             <div className="flex items-center justify-end gap-1 mt-0.5">
-                              {(m as any).ai && <span className="text-[9px] text-violet-400">• IA</span>}
+                              {(m as { ai?: boolean }).ai && <span className="text-[9px] text-violet-400">• IA</span>}
                               <p className="text-[10px] text-slate-600">{m.time}</p>
                             </div>
                           </div>

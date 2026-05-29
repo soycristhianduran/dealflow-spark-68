@@ -23,10 +23,31 @@ const PERIOD_OPTIONS: { value: Period; label: string; days: number }[] = [
   { value: "year",    label: "Este año",  days: 365 },
 ];
 
+/** Partial contact row used for KPI calculations */
+interface KpiContactRow {
+  id: string;
+  lead_status: string | null;
+  budget: number | null;
+  budget_currency: string;
+  stage_id?: string | null;
+}
+
+/** Pipeline stage row with aggregated counts */
 interface StageRow {
   id: string; name: string; position: number; color: string | null;
   count: number; value: number;
 }
+
+/** Pipeline stage from DB select */
+interface StageDbRow {
+  id: string; name: string; position: number; color: string | null;
+}
+
+/** Lost reason row */
+interface LostReasonRow { lost_reason: string | null; }
+
+/** Objection row */
+interface ObjectionRow { objections: unknown; }
 interface MeetingRow {
   id: string; title: string; start_at: string;
   meeting_type: string | null; contact_name: string | null;
@@ -270,13 +291,13 @@ export default function DashboardPage() {
     ]);
 
     /* ---------- KPI calculations ---------- */
-    const cur    = (curRes.data  || []) as any[];
-    const prev   = (prevRes.data || []) as any[];
-    const active = (activeRes.data || []) as any[];
+    const cur    = (curRes.data  || []) as unknown as KpiContactRow[];
+    const prev   = (prevRes.data || []) as unknown as KpiContactRow[];
+    const active = (activeRes.data || []) as unknown as KpiContactRow[];
 
     const wonCur  = cur.filter((d) => d.lead_status === "won");
     const lostCur = cur.filter((d) => d.lead_status === "lost");
-    const wv  = wonCur.reduce((s: number, d: any) => s + Number(d.budget || 0), 0);
+    const wv  = wonCur.reduce((s, d) => s + Number(d.budget || 0), 0);
     const wc  = wonCur[0]?.budget_currency || "USD";
     setWonValue(wv);
     setWonCurrency(wc);
@@ -284,20 +305,20 @@ export default function DashboardPage() {
     setLostCount(lostCur.length);
     setAvgDeal(wonCur.length > 0 ? Math.round(wv / wonCur.length) : 0);
 
-    const wonPrev  = prev.filter((d: any) => d.lead_status === "won");
-    const lostPrev = prev.filter((d: any) => d.lead_status === "lost");
-    setPrevWonVal(wonPrev.reduce((s: number, d: any) => s + Number(d.budget || 0), 0));
+    const wonPrev  = prev.filter((d) => d.lead_status === "won");
+    const lostPrev = prev.filter((d) => d.lead_status === "lost");
+    setPrevWonVal(wonPrev.reduce((s, d) => s + Number(d.budget || 0), 0));
     setPrevWonN(wonPrev.length);
     setPrevLostN(lostPrev.length);
 
-    const pv = active.reduce((s: number, d: any) => s + Number(d.budget || 0), 0);
+    const pv = active.reduce((s, d) => s + Number(d.budget || 0), 0);
     const pc = active[0]?.budget_currency || "USD";
     setPipelineVal(pv);
     setPipelineCur(pc);
     setPipelineN(active.length);
 
     /* ---------- Funnel ---------- */
-    const stages = (stagesRes.data || []) as any[];
+    const stages = (stagesRes.data || []) as unknown as StageDbRow[];
     const sMap = new Map<string, { count: number; value: number }>();
     for (const c of active) {
       if (!c.stage_id) continue;
@@ -305,7 +326,7 @@ export default function DashboardPage() {
       sMap.set(c.stage_id, { count: p.count + 1, value: p.value + Number(c.budget || 0) });
     }
     setStageData(
-      stages.map((s: any) => ({
+      stages.map((s) => ({
         id: s.id, name: s.name, position: s.position, color: s.color,
         ...(sMap.get(s.id) || { count: 0, value: 0 }),
       }))
@@ -313,13 +334,13 @@ export default function DashboardPage() {
 
     /* ---------- Lost reasons ---------- */
     const rMap = new Map<string, number>();
-    for (const row of (lostRes.data || []) as any[])
+    for (const row of (lostRes.data || []) as unknown as LostReasonRow[])
       if (row.lost_reason) rMap.set(row.lost_reason, (rMap.get(row.lost_reason) || 0) + 1);
     setLostReasons([...rMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count })));
 
     /* ---------- Objections ---------- */
     const oMap = new Map<string, number>();
-    (objRes.data || []).forEach((row: any) => {
+    (objRes.data || []).forEach((row) => {
       const arr = Array.isArray(row.objections) ? row.objections : [];
       arr.forEach((item: unknown) => {
         if (typeof item !== "string") return;

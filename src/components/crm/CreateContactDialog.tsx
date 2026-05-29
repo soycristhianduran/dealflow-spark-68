@@ -45,7 +45,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
   useEffect(() => {
     if (open) {
       supabase.from("companies").select("id, name").order("name").then(({ data }) => {
-        setCompanies((data as any) || []);
+        setCompanies(data || []);
       });
     } else {
       setCustomFields([]);

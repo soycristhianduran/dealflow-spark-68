@@ -71,7 +71,7 @@ export default function DealDetailPage() {
       .eq("id", id)
       .single();
     if (error || !data) { setLoading(false); return; }
-    setDeal(data as any);
+    setDeal(data as unknown as DealFull);
     setEditForm({
       title: data.title,
       value: String(data.value),
@@ -95,11 +95,11 @@ export default function DealDetailPage() {
       supabase.from("tasks").select("id, title, priority, status, due_date").eq("deal_id", id).order("due_date"),
       supabase.from("meetings").select("id, title, start_at, status").eq("deal_id", id).order("start_at", { ascending: false }),
     ]);
-    setStages((stagesRes.data as any) || []);
-    setContacts((contactsRes.data as any) || []);
-    setActivities((activitiesRes.data as any) || []);
-    setTasks((tasksRes.data as any) || []);
-    setMeetings((meetingsRes.data as any) || []);
+    setStages(stagesRes.data || []);
+    setContacts(contactsRes.data || []);
+    setActivities((activitiesRes.data as unknown as Activity[]) || []);
+    setTasks(tasksRes.data || []);
+    setMeetings(meetingsRes.data || []);
   };
 
   useEffect(() => { fetchDeal(); fetchRelated(); }, [id]);

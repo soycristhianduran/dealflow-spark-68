@@ -40,7 +40,7 @@ export default function CompaniesPage() {
     let query = supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
     if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
     const { data } = await query;
-    setCompanies((data as any) || []);
+    setCompanies(data || []);
     setLoading(false);
   }, [isVendor, myUserId]);
 

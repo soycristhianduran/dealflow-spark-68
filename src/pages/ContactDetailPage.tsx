@@ -131,7 +131,7 @@ export default function ContactDetailPage() {
         // Save only non-empty values as flat key→value (new format)
         const flat: Record<string, string> = {};
         Object.entries(editForm.customFields).forEach(([k, v]) => {
-          const val = typeof v === "object" && v !== null ? String((v as any).value ?? "") : String(v ?? "");
+          const val = typeof v === "object" && v !== null ? String((v as { value?: unknown }).value ?? "") : String(v ?? "");
           if (val !== "") flat[k] = val;
         });
         return Object.keys(flat).length > 0 ? flat : null;
@@ -572,7 +572,7 @@ export default function ContactDetailPage() {
                           {fieldDefs.map(def => {
                             const raw = editForm.customFields?.[def.key];
                             const value = raw !== undefined && raw !== null
-                              ? (typeof raw === "object" && raw !== null ? String((raw as any).value ?? "") : String(raw))
+                              ? (typeof raw === "object" && raw !== null ? String((raw as { value?: unknown }).value ?? "") : String(raw))
                               : "";
                             const setVal = (newVal: string) => setEditForm(p => ({
                               ...p,

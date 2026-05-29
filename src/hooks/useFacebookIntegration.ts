@@ -61,9 +61,7 @@ export function useFacebookIntegration() {
     }
     // Pull token health alongside the existence check so the UI can show a
     // "Reconnect Facebook" banner BEFORE the user notices things broken.
-    // `as any` because the generated Supabase types don't include the new
-    // tracking columns until the next `gen types typescript` run.
-    const { data } = await (supabase as any)
+    const { data } = await supabase
       .from("facebook_tokens")
       .select("id, needs_reconnect, token_expires_at, last_refresh_error")
       .eq("user_id", user.id)
@@ -121,8 +119,7 @@ export function useFacebookIntegration() {
     // This prevents CSRF: previously we used the raw user_id, which an
     // attacker who knew the victim's UUID could spoof to plant their own
     // Facebook tokens under the victim's account.
-    // `as any` until the generated Supabase types include this new RPC.
-    const { data: stateToken, error: stateErr } = await (supabase as any).rpc(
+    const { data: stateToken, error: stateErr } = await supabase.rpc(
       "create_oauth_state",
       { p_provider: "facebook" },
     );

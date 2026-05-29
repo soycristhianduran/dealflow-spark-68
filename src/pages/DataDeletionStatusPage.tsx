@@ -54,10 +54,7 @@ const DataDeletionStatusPage = () => {
     }
 
     (async () => {
-      // `as any` — generated Supabase types don't include this RPC until the
-      // next `supabase gen types typescript` run. Matches the pattern used by
-      // `get_my_organization` elsewhere in this codebase.
-      const { data, error } = await (supabase as any).rpc(
+      const { data, error } = await supabase.rpc(
         "get_data_deletion_status",
         { p_code: code },
       );
@@ -72,7 +69,7 @@ const DataDeletionStatusPage = () => {
         setState({ kind: "not_found" });
         return;
       }
-      setState({ kind: "ok", row: row as StatusRow });
+      setState({ kind: "ok", row: row as unknown as StatusRow });
     })();
 
     return () => {

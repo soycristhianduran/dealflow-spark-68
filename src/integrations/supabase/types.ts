@@ -541,6 +541,8 @@ export type Database = {
           access_token: string
           connected_at: string
           id: string
+          last_refresh_error: string | null
+          needs_reconnect: boolean
           token_expires_at: string | null
           updated_at: string
           user_id: string
@@ -549,6 +551,8 @@ export type Database = {
           access_token: string
           connected_at?: string
           id?: string
+          last_refresh_error?: string | null
+          needs_reconnect?: boolean
           token_expires_at?: string | null
           updated_at?: string
           user_id: string
@@ -557,6 +561,8 @@ export type Database = {
           access_token?: string
           connected_at?: string
           id?: string
+          last_refresh_error?: string | null
+          needs_reconnect?: boolean
           token_expires_at?: string | null
           updated_at?: string
           user_id?: string
@@ -887,6 +893,252 @@ export type Database = {
           },
         ]
       }
+      ai_agent_configs: {
+        Row: {
+          id: string
+          organization_id: string
+          is_active: boolean
+          agent_name: string
+          business_name: string | null
+          business_description: string | null
+          products: string | null
+          faqs: string | null
+          tone: string
+          escalation_response: string
+          off_topic_response: string
+          channels: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          is_active?: boolean
+          agent_name?: string
+          business_name?: string | null
+          business_description?: string | null
+          products?: string | null
+          faqs?: string | null
+          tone?: string
+          escalation_response?: string
+          off_topic_response?: string
+          channels?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          is_active?: boolean
+          agent_name?: string
+          business_name?: string | null
+          business_description?: string | null
+          products?: string | null
+          faqs?: string | null
+          tone?: string
+          escalation_response?: string
+          off_topic_response?: string
+          channels?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_agent_paused: {
+        Row: {
+          id: string
+          organization_id: string
+          channel: string
+          session_key: string
+          paused_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string
+          channel: string
+          session_key: string
+          paused_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          channel?: string
+          session_key?: string
+          paused_at?: string
+        }
+        Relationships: []
+      }
+      ai_boost_credits: {
+        Row: {
+          id: string
+          organization_id: string
+          credits_remaining: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ia_agent_credits: {
+        Row: {
+          id: string
+          organization_id: string
+          credits_remaining: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ia_landings_credits: {
+        Row: {
+          id: string
+          organization_id: string
+          credits_remaining: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          credits_remaining?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      organization_members: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          role: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          role?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          role?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      plans: {
+        Row: {
+          id: string
+          name: string
+          display_order: number | null
+          stripe_price_id_monthly: string | null
+          stripe_price_id_annual: string | null
+          price_monthly: number | null
+          price_annual: number | null
+          features: Json | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          name: string
+          display_order?: number | null
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_annual?: string | null
+          price_monthly?: number | null
+          price_annual?: number | null
+          features?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          display_order?: number | null
+          stripe_price_id_monthly?: string | null
+          stripe_price_id_annual?: string | null
+          price_monthly?: number | null
+          price_annual?: number | null
+          features?: Json | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      usage_counters: {
+        Row: {
+          id: string
+          organization_id: string
+          period_start: string
+          ai_analyses_used: number
+          automated_messages_used: number
+          email_sends_used: number
+          ai_agent_conversations_used: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          period_start: string
+          ai_analyses_used?: number
+          automated_messages_used?: number
+          email_sends_used?: number
+          ai_agent_conversations_used?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          period_start?: string
+          ai_analyses_used?: number
+          automated_messages_used?: number
+          email_sends_used?: number
+          ai_agent_conversations_used?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       whatsapp_configs: {
         Row: {
           access_token: string
@@ -934,12 +1186,15 @@ export type Database = {
           contact_id: string | null
           created_at: string
           direction: string
+          from_phone_number_id: string | null
           id: string
           media_url: string | null
           message_text: string | null
           message_type: string
           phone_number: string
+          read_at: string | null
           sent_at: string
+          sent_by_name: string | null
           status: string | null
           user_id: string
           wa_message_id: string | null
@@ -948,12 +1203,15 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           direction?: string
+          from_phone_number_id?: string | null
           id?: string
           media_url?: string | null
           message_text?: string | null
           message_type?: string
           phone_number: string
+          read_at?: string | null
           sent_at?: string
+          sent_by_name?: string | null
           status?: string | null
           user_id: string
           wa_message_id?: string | null
@@ -962,12 +1220,15 @@ export type Database = {
           contact_id?: string | null
           created_at?: string
           direction?: string
+          from_phone_number_id?: string | null
           id?: string
           media_url?: string | null
           message_text?: string | null
           message_type?: string
           phone_number?: string
+          read_at?: string | null
           sent_at?: string
+          sent_by_name?: string | null
           status?: string | null
           user_id?: string
           wa_message_id?: string | null
@@ -987,7 +1248,81 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      create_oauth_state: {
+        Args: { p_provider: string }
+        Returns: string
+      }
+      get_active_subscription: {
+        Args: { p_org_id: string }
+        Returns: Array<{
+          subscription_id: string
+          plan_id: string
+          plan_name: string
+          status: string
+          trial_ends_at: string | null
+          current_period_end: string | null
+          cancel_at_period_end: boolean
+          is_active: boolean
+          max_users: number | null
+          max_contacts: number | null
+          max_active_deals: number | null
+          monthly_ai_analyses: number | null
+          monthly_ai_objections: number | null
+          monthly_automated_messages: number | null
+          monthly_email_sends: number | null
+          monthly_ai_agent_conversations: number | null
+          feature_meta_ads: boolean
+          feature_ai_agent: boolean
+          feature_email_campaigns: boolean
+          feature_api_access: boolean
+        }>
+      }
+      get_data_deletion_status: {
+        Args: { p_code: string }
+        Returns: Array<{
+          status: string
+          requested_at: string
+          processed_at: string | null
+          user_email: string | null
+        }>
+      }
+      get_my_organization: {
+        Args: Record<string, never>
+        Returns: Array<{
+          id: string
+          name: string
+          slug: string
+          org_slug: string
+          created_at: string
+          updated_at: string
+          email_from_name: string | null
+          email_from_email: string | null
+        }>
+      }
+      get_my_organization_ids: {
+        Args: Record<string, never>
+        Returns: string[]
+      }
+      get_org_members: {
+        Args: { p_org_id: string }
+        Returns: Array<{
+          user_id: string
+          full_name: string
+          email: string
+        }>
+      }
+      get_organization_by_slug: {
+        Args: { p_slug: string }
+        Returns: Array<{
+          id: string
+          name: string
+          slug: string
+          created_at: string
+          updated_at: string
+          email_from_name: string | null
+          email_from_email: string | null
+        }>
+      }
     }
     Enums: {
       [_ in never]: never

@@ -67,6 +67,7 @@ interface ContactRow {
   stage_id: string | null;
   pipeline_id: string | null;
   lead_status: string | null;
+  company_name?: string | null;
   pipeline_stages?: { id: string; name: string; color: string } | null;
   utm_source?: string | null;
   utm_medium?: string | null;
@@ -176,7 +177,7 @@ export default function ContactsPage() {
     const from = currentPage * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, company_name, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
       .order("created_at", { ascending: false })
       .range(from, to);
     if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
@@ -199,7 +200,7 @@ export default function ContactsPage() {
     }
     const { data, error, count } = await query;
     if (!error && data) {
-      setContacts(data as any);
+      setContacts(data as unknown as ContactRow[]);
       setTotalCount(count ?? 0);
     }
     setLoading(false);
@@ -228,7 +229,7 @@ export default function ContactsPage() {
     supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
       .then(({ data }) => {
         if (data?.members) {
-          const list = (data.members as any[]).map(m => ({
+          const list = (data.members as { user_id: string; full_name?: string; email?: string }[]).map(m => ({
             user_id: m.user_id,
             full_name: m.full_name || m.email || m.user_id,
           }));
@@ -495,7 +496,7 @@ export default function ContactsPage() {
           .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "")
           .replace(/\{\{apellido\}\}/gi, (c.full_name || "").split(" ").slice(1).join(" "))
           .replace(/\{\{email\}\}/gi, c.primary_email || "")
-          .replace(/\{\{empresa\}\}/gi, (c as any).company_name || "")
+          .replace(/\{\{empresa\}\}/gi, c.company_name || "")
           .replace(/\n/g, usingTemplate ? "\n" : "<br>");
         const subject = subjectSource
           .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");

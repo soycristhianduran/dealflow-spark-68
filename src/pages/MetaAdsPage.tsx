@@ -612,7 +612,7 @@ async function invokeApi(body: Record<string, any>) {
   const { data: res, error: err } = await supabase.functions.invoke("facebook-api", { body });
   let errMsg: string | undefined;
   if (err) {
-    try { const j = await (err as any).context?.json?.(); errMsg = j?.error || err.message; }
+    try { const j = await (err as { context?: { json?: () => Promise<{ error?: string }> } }).context?.json?.(); errMsg = j?.error || err.message; }
     catch { errMsg = err.message; }
   }
   return { res, err, errMsg };

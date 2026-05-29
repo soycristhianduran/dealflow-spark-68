@@ -75,8 +75,7 @@ export function useSubscription(): UseSubscriptionReturn {
       return;
     }
     setLoading(true);
-    // `as any` — generated Supabase types don't include this RPC yet.
-    const { data, error } = await (supabase as any).rpc(
+    const { data, error } = await supabase.rpc(
       "get_active_subscription",
       { p_org_id: organizationId },
     );

@@ -52,7 +52,7 @@ export default function DealsPage() {
       .select("id, title, value, currency, status, stage_id, contact_id, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
       .order("created_at", { ascending: false });
     if (error) { toast.error("Error cargando deals"); return; }
-    setDeals((data as any) || []);
+    setDeals((data as unknown as DealRow[]) || []);
     setLoading(false);
   };
 

@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useWhatsAppTemplates, WhatsAppTemplate, CreateTemplateParams } from "@/hooks/useWhatsAppTemplates";
+import { useWhatsAppTemplates, WhatsAppTemplate, CreateTemplateParams, WaTemplateButton } from "@/hooks/useWhatsAppTemplates";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -363,7 +363,7 @@ export default function WhatsAppTemplatesPage() {
             type: form.headerType,
             text: form.headerType === "TEXT" ? form.headerText.trim() : undefined,
             media_id: form.headerMediaId || undefined,
-          } as any
+          }
         : null,
       footer: form.footerText.trim() || undefined,
       buttons: form.buttons.length > 0 ? form.buttons : undefined,
@@ -392,7 +392,7 @@ export default function WhatsAppTemplatesPage() {
           type: editForm.headerType,
           text: editForm.headerType === "TEXT" ? editForm.headerText.trim() : undefined,
           media_id: editForm.headerMediaId || undefined,
-        } as any
+        }
       : null;
     try {
       // DRAFT templates never reached Meta — re-submit as a fresh create
@@ -559,7 +559,7 @@ export default function WhatsAppTemplatesPage() {
                   )}
                   {t.buttons && t.buttons.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {(t.buttons as any[]).map((b, i) => (
+                      {t.buttons.map((b, i) => (
                         <span key={i} className="text-xs border rounded px-2 py-0.5 text-muted-foreground">
                           {b.text}
                         </span>
@@ -625,9 +625,9 @@ export default function WhatsAppTemplatesPage() {
                   {viewTemplate.footer_text && (
                     <p className="text-xs text-gray-400 italic">{viewTemplate.footer_text}</p>
                   )}
-                  {viewTemplate.buttons && (viewTemplate.buttons as any[]).length > 0 && (
+                  {viewTemplate.buttons && viewTemplate.buttons.length > 0 && (
                     <div className="border-t pt-1.5 flex flex-wrap gap-1">
-                      {(viewTemplate.buttons as any[]).map((b, i) => (
+                      {viewTemplate.buttons.map((b, i) => (
                         <span key={i} className="text-xs text-blue-500 font-medium">{b.text}</span>
                       ))}
                     </div>

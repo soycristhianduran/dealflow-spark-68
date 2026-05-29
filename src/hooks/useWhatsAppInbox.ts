@@ -62,11 +62,11 @@ export function useWhatsAppInbox() {
             last_message_time: msg.created_at,
             last_direction: msg.direction as "incoming" | "outgoing",
             unread_count: 0,
-            from_phone_number_id: (msg as any).from_phone_number_id || null,
+            from_phone_number_id: msg.from_phone_number_id || null,
           });
         }
         // Unread = incoming message where read_at is NULL (persisted in DB)
-        if (msg.direction === "incoming" && !(msg as any).read_at) {
+        if (msg.direction === "incoming" && !msg.read_at) {
           const c = phoneMap.get(phone)!;
           c.unread_count += 1;
         }

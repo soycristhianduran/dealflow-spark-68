@@ -396,7 +396,7 @@ export default function InstagramAutomationsPage() {
                   <Label className="text-xs">Modo de coincidencia</Label>
                   <select
                     value={matchMode}
-                    onChange={(e) => setMatchMode(e.target.value as any)}
+                    onChange={(e) => setMatchMode(e.target.value as "any" | "all" | "exact")}
                     className="w-full h-9 rounded-md border bg-background px-3 text-sm"
                   >
                     <option value="any">Contiene CUALQUIERA de las palabras</option>

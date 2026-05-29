@@ -2,6 +2,13 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+export interface WaTemplateButton {
+  type: string;
+  text: string;
+  url?: string;
+  phone_number?: string;
+}
+
 export interface WhatsAppTemplate {
   id: string;
   template_id?: string | null;   // Meta's numeric template ID (null for DRAFTs)
@@ -15,20 +22,26 @@ export interface WhatsAppTemplate {
   header_text?: string | null;
   body_text: string;
   footer_text?: string | null;
-  buttons?: any[];
+  buttons?: WaTemplateButton[];
   created_at: string;
   updated_at: string;
+}
+
+export interface TemplateHeader {
+  type?: string;
+  text?: string;
+  media_id?: string;
 }
 
 export interface CreateTemplateParams {
   name: string;
   category: string;
   language: string;
-  header?: { text: string; type?: string } | null;
+  header?: TemplateHeader | null;
   body_text: string;
   variable_examples?: string[];
   footer?: string;
-  buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+  buttons?: WaTemplateButton[];
 }
 
 export function useWhatsAppTemplates() {
@@ -111,11 +124,11 @@ export function useWhatsAppTemplates() {
   const updateTemplate = useCallback(async (params: {
     template_id: string;
     name: string;
-    header?: { type: string; text?: string } | null;
+    header?: TemplateHeader | null;
     body_text: string;
     variable_examples?: string[];
     footer?: string;
-    buttons?: { type: string; text: string; url?: string; phone_number?: string }[];
+    buttons?: WaTemplateButton[];
   }) => {
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {

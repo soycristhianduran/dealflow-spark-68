@@ -68,7 +68,7 @@ export default function AIAgentPage() {
   async function loadConfig() {
     setLoading(true);
     try {
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("ai_agent_configs")
         .select("*")
         .eq("organization_id", organizationId)
@@ -100,7 +100,7 @@ export default function AIAgentPage() {
     try {
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("usage_counters")
         .select("ai_agent_conversations_used")
         .eq("organization_id", organizationId)
@@ -131,7 +131,7 @@ export default function AIAgentPage() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from("ai_agent_configs")
         .upsert(payload, { onConflict: "organization_id" });
 

@@ -78,21 +78,21 @@ export default function BillingPage() {
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
       const [usageRes, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
-        (supabase as any)
+        supabase
           .from("usage_counters")
           .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used")
           .eq("organization_id", organizationId)
           .eq("period_start", monthStart)
           .maybeSingle(),
-        (supabase as any)
+        supabase
           .from("ai_boost_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
-        (supabase as any)
+        supabase
           .from("ia_landings_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
-        (supabase as any)
+        supabase
           .from("ia_agent_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
@@ -110,9 +110,9 @@ export default function BillingPage() {
         setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0 });
       }
 
-      setBoostCredits((boosts ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
-      setLandingCredits((landings ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
-      setAgentCredits((agents ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
+      setBoostCredits((boosts ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
+      setLandingCredits((landings ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
+      setAgentCredits((agents ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
       setUsageLoading(false);
     })();
   }, [organizationId]);

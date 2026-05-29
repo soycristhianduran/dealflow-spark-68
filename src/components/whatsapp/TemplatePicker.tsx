@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Send, Loader2 } from "lucide-react";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import type { WaTemplateButton } from "@/hooks/useWhatsAppTemplates";
 import { MediaUploadZone } from "./MediaUploadZone";
 import { MEDIA_HEADER_TYPES } from "./helpers";
 
@@ -136,9 +137,9 @@ export function TemplatePicker({
                 {tpl.footer_text && (
                   <p className="text-xs text-gray-400 italic">{tpl.footer_text}</p>
                 )}
-                {tpl.buttons && (tpl.buttons as any[]).length > 0 && (
+                {tpl.buttons && (tpl.buttons as WaTemplateButton[]).length > 0 && (
                   <div className="border-t pt-1 flex flex-wrap gap-1">
-                    {(tpl.buttons as any[]).map((b, i) => (
+                    {(tpl.buttons as WaTemplateButton[]).map((b, i) => (
                       <span key={i} className="text-xs text-blue-500 font-medium">
                         {b.text}
                       </span>

@@ -286,7 +286,7 @@ export default function ConversationsPage() {
       const sessionKey = selected.channel === "whatsapp"
         ? (selected.id.startsWith("+") ? selected.id : `+${selected.id}`)
         : selected.id;
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from("ai_agent_paused")
         .select("paused_at")
         .eq("channel", selected.channel)
@@ -306,7 +306,7 @@ export default function ConversationsPage() {
 
       if (agentPaused) {
         // Resume AI agent
-        await (supabase as any)
+        await supabase
           .from("ai_agent_paused")
           .delete()
           .eq("channel", selected.channel)
@@ -315,7 +315,7 @@ export default function ConversationsPage() {
         toast.success("Agente IA reactivado para esta conversación");
       } else {
         // Pause AI agent — human taking over
-        await (supabase as any)
+        await supabase
           .from("ai_agent_paused")
           .upsert({ channel: selected.channel, session_key: sessionKey, paused_at: new Date().toISOString() },
             { onConflict: "organization_id,channel,session_key" });

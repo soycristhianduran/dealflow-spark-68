@@ -28,6 +28,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import type { WaTemplateButton } from "@/hooks/useWhatsAppTemplates";
 
 export const MEDIA_HEADER_TYPES = ["IMAGE", "VIDEO", "DOCUMENT"];
 export const MEDIA_MSG_TYPES = ["image", "audio", "voice", "video", "document", "sticker"];
@@ -331,9 +332,9 @@ export function TemplatePicker({
                 )}
                 <p className="whitespace-pre-wrap text-sm">{preview}</p>
                 {tpl.footer_text && <p className="text-xs text-gray-400 italic">{tpl.footer_text}</p>}
-                {tpl.buttons && (tpl.buttons as any[]).length > 0 && (
+                {tpl.buttons && (tpl.buttons as WaTemplateButton[]).length > 0 && (
                   <div className="border-t pt-1 flex flex-wrap gap-1">
-                    {(tpl.buttons as any[]).map((b, i) => <span key={i} className="text-xs text-blue-500 font-medium">{b.text}</span>)}
+                    {(tpl.buttons as WaTemplateButton[]).map((b, i) => <span key={i} className="text-xs text-blue-500 font-medium">{b.text}</span>)}
                   </div>
                 )}
               </div>

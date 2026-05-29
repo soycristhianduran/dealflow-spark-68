@@ -92,6 +92,18 @@ interface Automation {
   _enrollment_count?: number;
 }
 
+/** Data payload carried by a step node in the React Flow DnD data map */
+interface StepNodeData {
+  step: AutomationStep;
+  [key: string]: unknown;
+}
+
+/** Data payload carried by an addable edge in the React Flow DnD data map */
+interface EdgeNodeData {
+  insertIndex?: number;
+  [key: string]: unknown;
+}
+
 // ── Step metadata ─────────────────────────────────────────────────────────────
 const STEP_META: Record<string, {
   label: string; icon: React.ElementType;
@@ -286,7 +298,7 @@ function TriggerNode(_: NodeProps) {
 // ── Custom: Step node ─────────────────────────────────────────────────────────
 function StepNode({ data }: NodeProps) {
   const { onSelectNode, onDeleteStep, selectedId } = useContext(FlowCtx);
-  const step = (data as any).step as AutomationStep;
+  const step = (data as StepNodeData).step;
   // Defensive: fall back to "wait" metadata if type is unknown
   const meta = STEP_META[step?.type] ?? STEP_META["wait"];
   const Icon = meta.icon;
@@ -342,7 +354,7 @@ function EndNode(_: NodeProps) {
 // which AutomationBuilder keeps up-to-date on every render.
 function AddableEdge({ sourceX, sourceY, targetX, targetY, data }: EdgeProps) {
   const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY });
-  const insertIndex: number = (data as any)?.insertIndex ?? 0;
+  const insertIndex: number = (data as EdgeNodeData)?.insertIndex ?? 0;
 
   return (
     <>
@@ -1047,8 +1059,8 @@ function AssignOwnerStepEditor({ step, onChange }: {
     const fetchMembers = async (oid: string) => {
       // Try RPC first (SECURITY DEFINER, reads auth.users for emails)
       const { data: rpcData, error: rpcErr } = await supabase.rpc("get_org_members", { p_org_id: oid });
-      if (!rpcErr && rpcData && (rpcData as any[]).length > 0) {
-        setProfiles((rpcData as any[]).map(m => ({
+      if (!rpcErr && rpcData && rpcData.length > 0) {
+        setProfiles(rpcData.map(m => ({
           user_id: m.user_id,
           full_name: m.full_name || m.email || m.user_id,
         })));
@@ -1063,8 +1075,8 @@ function AssignOwnerStepEditor({ step, onChange }: {
         .select("user_id, profiles(first_name, last_name, email)")
         .eq("organization_id", oid);
 
-      setProfiles((members || []).map((m: any) => {
-        const p = m.profiles;
+      setProfiles((members || []).map((m) => {
+        const p = Array.isArray(m.profiles) ? m.profiles[0] : m.profiles;
         const name = [p?.first_name, p?.last_name].filter(Boolean).join(" ").trim();
         return { user_id: m.user_id, full_name: name || p?.email || m.user_id };
       }));

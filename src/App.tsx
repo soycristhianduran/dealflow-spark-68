@@ -71,7 +71,7 @@ function BillingRedirect() {
   useEffect(() => {
     if (loading) return;
     if (!session) { setChecking(false); return; }
-    (supabase as any).rpc("get_my_organization").then(({ data }: any) => {
+    supabase.rpc("get_my_organization").then(({ data }) => {
       const slug = data?.[0]?.org_slug || "_";
       navigate(`/w/${slug}/billing${search}`, { replace: true });
       setChecking(false);
