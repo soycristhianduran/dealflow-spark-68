@@ -26,6 +26,18 @@ import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 
+// Normalize a raw custom_fields value to a plain string.
+// Handles two storage formats:
+//   - Flat (current):  "some text" | 42 | true
+//   - Object (legacy): { id, type, value, label }  — used by some older imports
+function normalizeCustomFieldValue(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object" && !Array.isArray(v) && "value" in (v as object)) {
+    return String((v as { value?: unknown }).value ?? "");
+  }
+  return String(v);
+}
+
 export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -1176,18 +1188,6 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
       </CardContent>
     </Card>
   );
-}
-
-// Normalize a raw custom_fields value to a plain string.
-// Handles two storage formats:
-//   - Flat (current):  "some text" | 42 | true
-//   - Object (legacy): { id, type, value, label }  — used by some older imports
-function normalizeCustomFieldValue(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "object" && !Array.isArray(v) && v !== null && "value" in v) {
-    return String((v as { value?: unknown }).value ?? "");
-  }
-  return String(v);
 }
 
 function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
