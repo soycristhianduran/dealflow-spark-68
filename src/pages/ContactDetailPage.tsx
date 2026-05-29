@@ -43,12 +43,12 @@ export default function ContactDetailPage() {
   const [savingContact, setSavingContact] = useState(false);
   const [editForm, setEditForm] = useState<{
     first_name: string; last_name: string; primary_phone: string; primary_email: string;
-    birthday: string; company_name: string; notes: string; language: string; preferred_channel: string;
+    birthday: string; company_name: string; city: string; country: string; notes: string; language: string; preferred_channel: string;
     customFields: Record<string, any>; newFieldKey: string; newFieldValue: string;
     newFieldType: string; newFieldOptions: string;
   }>({
     first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "",
-    company_name: "", notes: "", language: "", preferred_channel: "",
+    company_name: "", city: "", country: "", notes: "", language: "", preferred_channel: "",
     customFields: {}, newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
   });
   // Inline pipeline state — Kommo-style, always editable without entering global edit mode
@@ -74,6 +74,8 @@ export default function ContactDetailPage() {
       primary_email: contact?.primary_email || "",
       birthday: contact?.birthday || "",
       company_name: contact?.company_name || "",
+      city: contact?.city || "",
+      country: contact?.country || "",
       notes: contact?.notes || "",
       language: contact?.language || "",
       preferred_channel: contact?.preferred_channel || "",
@@ -134,6 +136,8 @@ export default function ContactDetailPage() {
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
       company_name: editForm.company_name.trim() || null,
+      city: editForm.city.trim() || null,
+      country: editForm.country.trim() || null,
       notes: editForm.notes.trim() || null,
       language: editForm.language.trim() || null,
       preferred_channel: editForm.preferred_channel.trim() || null,
@@ -585,6 +589,16 @@ export default function ContactDetailPage() {
                     <div>
                       <label className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> Empresa</label>
                       <Input value={editForm.company_name} onChange={e => setEditForm(p => ({ ...p, company_name: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Nombre de la empresa" maxLength={120} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> Ciudad</label>
+                        <Input value={editForm.city} onChange={e => setEditForm(p => ({ ...p, city: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Ciudad" maxLength={80} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">País</label>
+                        <Input value={editForm.country} onChange={e => setEditForm(p => ({ ...p, country: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="País" maxLength={80} />
+                      </div>
                     </div>
                     <div>
                       <label className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" /> Idioma</label>
