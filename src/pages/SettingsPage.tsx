@@ -1262,27 +1262,40 @@ const FIELD_TYPES = [
   { value: "boolean", label: "Sí / No" },
 ];
 
-// Built-in CRM columns — shown as read-only in Campos for easy ID lookup
+// Built-in CRM columns — confirmed against live DB on 2026-05-29
+// Groups: identity | company | status | commercial | location | attribution | system
 const SYSTEM_FIELDS = [
-  { key: "first_name",          label: "Nombre",                field_type: "text" },
-  { key: "last_name",           label: "Apellido",              field_type: "text" },
-  { key: "primary_email",       label: "Email",                 field_type: "text" },
-  { key: "primary_phone",       label: "Teléfono",              field_type: "text" },
-  { key: "company_name",        label: "Empresa",               field_type: "text" },
-  { key: "source",              label: "Fuente",                field_type: "text" },
-  { key: "campaign",            label: "Campaña",               field_type: "text" },
-  { key: "notes",               label: "Notas",                 field_type: "text" },
-  { key: "lead_status",         label: "Estado del lead",       field_type: "select" },
-  { key: "score",               label: "Puntuación",            field_type: "number" },
-  { key: "budget",              label: "Presupuesto",           field_type: "number" },
-  { key: "budget_currency",     label: "Moneda del presupuesto", field_type: "text" },
-  { key: "city",                label: "Ciudad",                field_type: "text" },
-  { key: "country",             label: "País",                  field_type: "text" },
-  { key: "language",            label: "Idioma",                field_type: "text" },
-  { key: "preferred_channel",   label: "Canal preferido",       field_type: "text" },
-  { key: "expected_close_date", label: "Fecha de cierre",       field_type: "date" },
-  { key: "birthday",            label: "Fecha de nacimiento",   field_type: "date" },
-  { key: "tags",                label: "Tags",                  field_type: "text" },
+  // ── Identity ──────────────────────────────────────────────────────────────
+  { key: "first_name",          label: "Nombre",                 field_type: "text",   note: "" },
+  { key: "last_name",           label: "Apellido",               field_type: "text",   note: "" },
+  { key: "full_name",           label: "Nombre completo",        field_type: "text",   note: "Auto-generado de nombre + apellido" },
+  { key: "primary_email",       label: "Email",                  field_type: "text",   note: "" },
+  { key: "primary_phone",       label: "Teléfono",               field_type: "text",   note: "" },
+  { key: "birthday",            label: "Fecha de nacimiento",    field_type: "date",   note: "" },
+  // ── Company ───────────────────────────────────────────────────────────────
+  { key: "company_name",        label: "Empresa",                field_type: "text",   note: "Nombre de la empresa (texto libre)" },
+  // ── Status & pipeline ─────────────────────────────────────────────────────
+  { key: "lead_status",         label: "Estado del lead",        field_type: "select", note: "active | won | lost | disqualified" },
+  { key: "status",              label: "Estado de calificación", field_type: "select", note: "new | qualified | proposal | etc." },
+  { key: "lost_reason",         label: "Razón de pérdida",       field_type: "text",   note: "Cuando lead_status = lost" },
+  { key: "score",               label: "Puntuación",             field_type: "number", note: "0-100, auto-calculado" },
+  { key: "tags",                label: "Tags",                   field_type: "text",   note: "Array de etiquetas" },
+  // ── Commercial ────────────────────────────────────────────────────────────
+  { key: "source",              label: "Fuente",                 field_type: "text",   note: "wordpress | zapier | api | etc." },
+  { key: "budget",              label: "Presupuesto",            field_type: "number", note: "" },
+  { key: "budget_currency",     label: "Moneda",                 field_type: "text",   note: "USD, EUR, MXN…" },
+  { key: "expected_close_date", label: "Fecha de cierre",        field_type: "date",   note: "" },
+  { key: "notes",               label: "Notas",                  field_type: "text",   note: "" },
+  // ── Location ──────────────────────────────────────────────────────────────
+  { key: "city",                label: "Ciudad",                 field_type: "text",   note: "" },
+  { key: "country",             label: "País",                   field_type: "text",   note: "" },
+  { key: "language",            label: "Idioma",                 field_type: "text",   note: "" },
+  { key: "preferred_channel",   label: "Canal preferido",        field_type: "text",   note: "" },
+  // ── UTM / Attribution ─────────────────────────────────────────────────────
+  { key: "utm_source",          label: "UTM Source",             field_type: "text",   note: "Fuente de tráfico (utm_source)" },
+  { key: "utm_medium",          label: "UTM Medium",             field_type: "text",   note: "Medio (utm_medium)" },
+  { key: "utm_campaign",        label: "UTM Campaign",           field_type: "text",   note: "Campaña UTM (utm_campaign)" },
+  { key: "campaign",            label: "Campaña (texto)",        field_type: "text",   note: "Nombre libre de campaña (sin UTM)" },
 ];
 
 function toKey(label: string): string {
@@ -1394,7 +1407,7 @@ function CustomFieldsSection() {
             {SYSTEM_FIELDS.map(f => (
               <div key={f.key} className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="text-sm font-medium">{f.label}</p>
                     <span className="text-xs text-muted-foreground">
                       {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
@@ -1402,6 +1415,9 @@ function CustomFieldsSection() {
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
                       sistema
                     </Badge>
+                    {f.note && (
+                      <span className="text-[10px] text-muted-foreground italic">{f.note}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ID:</span>

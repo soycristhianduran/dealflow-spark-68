@@ -104,13 +104,17 @@ function mapContactFields(body: Record<string, unknown>) {
     comment: "notes",
   };
 
-  // CRM contact columns that can be set directly
+  // CRM contact columns that can be set directly (confirmed against live DB)
   const allowed = new Set([
-    "first_name", "last_name", "primary_email", "primary_phone",
-    "company_name", "source", "campaign", "notes", "tags",
-    "lead_status", "score", "budget", "budget_currency",
-    "city", "country", "language", "preferred_channel",
-    "expected_close_date", "lost_reason",
+    "first_name", "last_name", "full_name",
+    "primary_email", "primary_phone",
+    "company_name",                          // text field (separate from company_id FK)
+    "source", "campaign", "notes", "tags",
+    "lead_status", "status",
+    "score", "budget", "budget_currency",
+    "city", "country", "language", "timezone", "preferred_channel",
+    "expected_close_date", "birthday", "lost_reason",
+    "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
   ]);
 
   const mapped: Record<string, unknown> = {};

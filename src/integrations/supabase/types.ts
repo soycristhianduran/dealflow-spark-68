@@ -151,12 +151,16 @@ export type Database = {
           ad: string | null
           adset: string | null
           birthday: string | null
+          budget: number | null
+          budget_currency: string
           campaign: string | null
           city: string | null
           company_id: string | null
+          company_name: string | null
           country: string | null
           created_at: string
           custom_fields: Json | null
+          expected_close_date: string | null
           first_name: string | null
           full_name: string
           id: string
@@ -164,14 +168,24 @@ export type Database = {
           language: string | null
           last_contact_at: string | null
           last_name: string | null
+          lead_status: string | null
+          lost_reason: string | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
           next_action_at: string | null
           notes: string | null
+          organization_id: string | null
           owner_id: string | null
+          pipeline_id: string | null
           preferred_channel: string | null
           primary_email: string | null
           primary_phone: string | null
           score: number | null
+          score_calculated_at: string | null
+          score_tier: string | null
           source: string | null
+          stage_id: string | null
           status: string
           tags: string[] | null
           timezone: string | null
@@ -180,17 +194,22 @@ export type Database = {
           utm_content: string | null
           utm_medium: string | null
           utm_source: string | null
+          utm_term: string | null
         }
         Insert: {
           ad?: string | null
           adset?: string | null
           birthday?: string | null
+          budget?: number | null
+          budget_currency?: string
           campaign?: string | null
           city?: string | null
           company_id?: string | null
+          company_name?: string | null
           country?: string | null
           created_at?: string
           custom_fields?: Json | null
+          expected_close_date?: string | null
           first_name?: string | null
           full_name: string
           id?: string
@@ -198,14 +217,24 @@ export type Database = {
           language?: string | null
           last_contact_at?: string | null
           last_name?: string | null
+          lead_status?: string | null
+          lost_reason?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
           next_action_at?: string | null
           notes?: string | null
+          organization_id?: string | null
           owner_id?: string | null
+          pipeline_id?: string | null
           preferred_channel?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           score?: number | null
+          score_calculated_at?: string | null
+          score_tier?: string | null
           source?: string | null
+          stage_id?: string | null
           status?: string
           tags?: string[] | null
           timezone?: string | null
@@ -214,17 +243,22 @@ export type Database = {
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
         }
         Update: {
           ad?: string | null
           adset?: string | null
           birthday?: string | null
+          budget?: number | null
+          budget_currency?: string
           campaign?: string | null
           city?: string | null
           company_id?: string | null
+          company_name?: string | null
           country?: string | null
           created_at?: string
           custom_fields?: Json | null
+          expected_close_date?: string | null
           first_name?: string | null
           full_name?: string
           id?: string
@@ -232,14 +266,24 @@ export type Database = {
           language?: string | null
           last_contact_at?: string | null
           last_name?: string | null
+          lead_status?: string | null
+          lost_reason?: string | null
+          meta_ad_id?: string | null
+          meta_adset_id?: string | null
+          meta_campaign_id?: string | null
           next_action_at?: string | null
           notes?: string | null
+          organization_id?: string | null
           owner_id?: string | null
+          pipeline_id?: string | null
           preferred_channel?: string | null
           primary_email?: string | null
           primary_phone?: string | null
           score?: number | null
+          score_calculated_at?: string | null
+          score_tier?: string | null
           source?: string | null
+          stage_id?: string | null
           status?: string
           tags?: string[] | null
           timezone?: string | null
@@ -248,6 +292,7 @@ export type Database = {
           utm_content?: string | null
           utm_medium?: string | null
           utm_source?: string | null
+          utm_term?: string | null
         }
         Relationships: [
           {
