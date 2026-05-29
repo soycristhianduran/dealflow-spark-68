@@ -35,7 +35,8 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
   Zap, Plus, Trash2, Edit, ArrowLeft, Save, Play, Users,
   Clock, Mail, MessageSquare, Tag, User, X, ChevronUp, ChevronDown,
-  Info, GitBranch, Settings2, CheckCircle2, FileText,
+  Info, GitBranch, Settings2, CheckCircle2, FileText, Search,
+  Bell, Webhook, SplitSquareHorizontal, UserCheck, ListTodo,
 } from "lucide-react";
 
 // ── Error boundary ────────────────────────────────────────────────────────────
@@ -108,22 +109,30 @@ interface EdgeNodeData {
 
 // ── Step metadata ─────────────────────────────────────────────────────────────
 const STEP_META: Record<string, {
-  label: string; icon: React.ElementType;
+  label: string; description: string; icon: React.ElementType;
   color: string; bg: string; border: string; ring: string;
 }> = {
-  wait:           { label: "Esperar",           icon: Clock,         color: "#b45309", bg: "#fef9c3", border: "#fde047", ring: "#fef08a" },
-  send_email:     { label: "Enviar Email",      icon: Mail,          color: "#1d4ed8", bg: "#eff6ff", border: "#93c5fd", ring: "#bfdbfe" },
-  send_whatsapp:  { label: "Enviar WhatsApp",   icon: MessageSquare, color: "#15803d", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
-  add_tag:             { label: "Añadir Tag",          icon: Tag,           color: "#6d28d9", bg: "#f5f3ff", border: "#c4b5fd", ring: "#ddd6fe" },
-  remove_tag:          { label: "Eliminar Tag",         icon: Tag,           color: "#9f1239", bg: "#fff1f2", border: "#fda4af", ring: "#fecdd3" },
-  update_contact:      { label: "Actualizar CRM",       icon: User,          color: "#0e7490", bg: "#ecfeff", border: "#67e8f9", ring: "#a5f3fc" },
-  condition:           { label: "Condición If/Else",    icon: GitBranch,     color: "#c2410c", bg: "#fff7ed", border: "#fdba74", ring: "#fed7aa" },
-  assign_owner:        { label: "Asignar vendedor",     icon: Users,         color: "#0369a1", bg: "#f0f9ff", border: "#7dd3fc", ring: "#bae6fd" },
-  move_pipeline_stage: { label: "Mover en Pipeline",    icon: ChevronUp,     color: "#166534", bg: "#f0fdf4", border: "#86efac", ring: "#bbf7d0" },
-  create_task:         { label: "Crear Tarea",          icon: CheckCircle2,  color: "#7c3aed", bg: "#faf5ff", border: "#d8b4fe", ring: "#e9d5ff" },
-  send_webhook:        { label: "Webhook / HTTP",       icon: Settings2,     color: "#374151", bg: "#f9fafb", border: "#d1d5db", ring: "#e5e7eb" },
-  notify_owner:        { label: "Notificar vendedor",   icon: Info,          color: "#b45309", bg: "#fffbeb", border: "#fcd34d", ring: "#fde68a" },
+  wait:                { label: "Esperar",            description: "Pausa el flujo por un tiempo determinado",       icon: Clock,                  color: "#78716c", bg: "#fafaf9", border: "#e7e5e4", ring: "#f5f5f4" },
+  send_email:          { label: "Enviar Email",        description: "Envía un email personalizado al contacto",        icon: Mail,                   color: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", ring: "#dbeafe" },
+  send_whatsapp:       { label: "Enviar WhatsApp",     description: "Envía una plantilla aprobada de WhatsApp",        icon: MessageSquare,          color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
+  add_tag:             { label: "Añadir etiqueta",     description: "Agrega una etiqueta al contacto",                icon: Tag,                    color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
+  remove_tag:          { label: "Quitar etiqueta",     description: "Elimina una etiqueta del contacto",              icon: Tag,                    color: "#64748b", bg: "#f8fafc", border: "#e2e8f0", ring: "#f1f5f9" },
+  update_contact:      { label: "Actualizar contacto", description: "Modifica campos del perfil del contacto",        icon: User,                   color: "#0891b2", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
+  condition:           { label: "Condición If/Else",   description: "Bifurca el flujo según una condición",           icon: SplitSquareHorizontal,  color: "#d97706", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
+  assign_owner:        { label: "Asignar vendedor",    description: "Asigna un responsable al contacto",              icon: UserCheck,              color: "#0369a1", bg: "#f0f9ff", border: "#bae6fd", ring: "#e0f2fe" },
+  move_pipeline_stage: { label: "Mover en pipeline",   description: "Cambia la etapa del contacto en el pipeline",    icon: ChevronUp,              color: "#15803d", bg: "#f0fdf4", border: "#bbf7d0", ring: "#dcfce7" },
+  create_task:         { label: "Crear tarea",          description: "Crea una tarea asignada al vendedor",            icon: ListTodo,               color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
+  send_webhook:        { label: "Webhook / HTTP",       description: "Llama a una URL externa (n8n, Zapier, Make…)",  icon: Settings2,              color: "#374151", bg: "#f9fafb", border: "#e5e7eb", ring: "#f3f4f6" },
+  notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",        icon: Bell,                   color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
 };
+
+// ── Step groups for organized picker ──────────────────────────────────────────
+const STEP_GROUPS: { label: string; types: string[] }[] = [
+  { label: "Comunicación",  types: ["send_email", "send_whatsapp", "notify_owner"] },
+  { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
+  { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
+  { label: "Control",       types: ["wait", "condition", "send_webhook"] },
+];
 
 const TRIGGER_LABELS: Record<string, string> = {
   manual:                  "Manual",
@@ -402,30 +411,84 @@ function StepPicker({ open, onClose, onSelect }: {
   open: boolean; onClose: () => void;
   onSelect: (type: AutomationStep["type"]) => void;
 }) {
-  const types = Object.entries(STEP_META) as [AutomationStep["type"], typeof STEP_META[string]][];
+  const [query, setQuery] = useState("");
+
+  const filteredGroups = STEP_GROUPS.map(group => ({
+    ...group,
+    types: group.types.filter(t => {
+      const meta = STEP_META[t];
+      return !query || meta.label.toLowerCase().includes(query.toLowerCase())
+        || meta.description.toLowerCase().includes(query.toLowerCase());
+    }),
+  })).filter(g => g.types.length > 0);
+
   return (
-    <Dialog open={open} onOpenChange={v => !v && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Añadir paso</DialogTitle>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          {types.map(([type, meta]) => {
-            const Icon = meta.icon;
-            return (
-              <button
-                key={type}
-                onClick={() => { onSelect(type); onClose(); }}
-                className="flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-all hover:scale-[1.02] hover:shadow-md"
-                style={{ borderColor: meta.border, background: meta.bg }}
-              >
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm" style={{ color: meta.color }}>
-                  <Icon className="h-4 w-4" />
-                </div>
-                <span className="text-xs font-semibold" style={{ color: meta.color }}>{meta.label}</span>
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); setQuery(""); } }}>
+      <DialogContent className="max-w-md p-0 gap-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b">
+          <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
+          <span className="text-sm font-semibold">Añadir paso</span>
+          <button onClick={() => { onClose(); setQuery(""); }} className="ml-auto text-muted-foreground hover:text-foreground transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Search */}
+        <div className="px-4 py-2.5 border-b bg-muted/30">
+          <div className="flex items-center gap-2">
+            <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar acción…"
+              className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
+            />
+            {query && (
+              <button onClick={() => setQuery("")} className="text-muted-foreground hover:text-foreground">
+                <X className="h-3 w-3" />
               </button>
-            );
-          })}
+            )}
+          </div>
+        </div>
+
+        {/* Groups + items */}
+        <div className="overflow-y-auto max-h-[400px] py-1">
+          {filteredGroups.length === 0 && (
+            <p className="text-center text-sm text-muted-foreground py-8">Sin resultados para "{query}"</p>
+          )}
+          {filteredGroups.map(group => (
+            <div key={group.label}>
+              <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">
+                {group.label}
+              </p>
+              {group.types.map(type => {
+                const meta = STEP_META[type];
+                const Icon = meta.icon;
+                return (
+                  <button
+                    key={type}
+                    onClick={() => { onSelect(type as AutomationStep["type"]); onClose(); setQuery(""); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/60 group"
+                  >
+                    {/* Icon chip — small, subtle */}
+                    <div
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                      style={{ background: meta.bg, borderColor: meta.border, color: meta.color }}
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground leading-tight">{meta.label}</p>
+                      <p className="text-xs text-muted-foreground truncate mt-0.5 leading-tight">{meta.description}</p>
+                    </div>
+                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/40 -rotate-90 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                  </button>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </DialogContent>
     </Dialog>
