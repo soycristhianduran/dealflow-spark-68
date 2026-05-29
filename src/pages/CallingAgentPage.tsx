@@ -53,6 +53,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 import {
   Phone,
@@ -78,6 +79,7 @@ import {
   Check,
   Search,
   Settings,
+  AlertTriangle,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1462,6 +1464,44 @@ function LlamadasTab() {
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
+// ── Vapi not-configured banner ────────────────────────────────────────────────
+function VapiConfigBanner() {
+  const { organizationId } = useOrganizationContext();
+  const { path } = useWorkspace();
+  const [missing, setMissing] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    supabase
+      .from("vapi_configs")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }) => { if (!data) setMissing(true); });
+  }, [organizationId]);
+
+  if (!missing) return null;
+
+  return (
+    <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-amber-900">Vapi no está configurado</p>
+        <p className="text-xs text-amber-700 mt-0.5">
+          Necesitas conectar tu cuenta de Vapi.ai para hacer llamadas.{" "}
+        </p>
+      </div>
+      <a
+        href={path("/integrations")}
+        className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
+      >
+        Configurar
+      </a>
+    </div>
+  );
+}
+
 export default function CallingAgentPage() {
   return (
     <AppLayout>
@@ -1480,6 +1520,9 @@ export default function CallingAgentPage() {
             </div>
           </div>
         </div>
+
+        {/* Vapi config banner (shown when not configured) */}
+        <VapiConfigBanner />
 
         {/* Tabs */}
         <div className="flex-1 overflow-hidden">

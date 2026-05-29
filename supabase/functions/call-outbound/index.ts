@@ -114,12 +114,21 @@ async function callContact(
     return { success: false, error: msg };
   }
 
-  // 3. Build Vapi payload
-  const vapiPhoneNumberId = Deno.env.get("VAPI_PHONE_NUMBER_ID");
-  if (!vapiPhoneNumberId) {
-    console.error("VAPI_PHONE_NUMBER_ID env var is not set");
-    return { success: false, error: "Server misconfigured: missing VAPI_PHONE_NUMBER_ID" };
+  // 3. Fetch per-org Vapi config (BYOK)
+  const { data: vapiCfg, error: vapiCfgErr } = await supabase
+    .from("vapi_configs")
+    .select("api_key, phone_number_id")
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (vapiCfgErr || !vapiCfg) {
+    const msg = "Vapi no está configurado para esta organización. Ve a Integraciones → Vapi para configurarlo.";
+    console.error(msg, vapiCfgErr?.message);
+    return { success: false, error: msg };
   }
+
+  const vapiPhoneNumberId = vapiCfg.phone_number_id;
 
   // Personalise the first message with the contact's name when possible
   const contactName =
@@ -176,11 +185,7 @@ async function callContact(
   }
 
   // 4. POST to Vapi
-  const vapiKey = Deno.env.get("VAPI_API_KEY");
-  if (!vapiKey) {
-    console.error("VAPI_API_KEY env var is not set");
-    return { success: false, error: "Server misconfigured: missing VAPI_API_KEY" };
-  }
+  const vapiKey = vapiCfg.api_key;
 
   let vapiCallId: string | null = null;
   let vapiStatus = "initiated";

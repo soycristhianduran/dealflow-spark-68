@@ -463,6 +463,206 @@ function WebhooksSection() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Vapi section (BYOK — per-org API key + phone number)
+// ─────────────────────────────────────────────────────────────────────────────
+function VapiSection() {
+  const { organizationId } = useOrganizationContext();
+  const [apiKey, setApiKey]               = useState("");
+  const [phoneNumberId, setPhoneNumberId] = useState("");
+  const [configId, setConfigId]           = useState<string | null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [saving, setSaving]               = useState(false);
+  const [showKey, setShowKey]             = useState(false);
+
+  // Load existing config
+  useEffect(() => {
+    if (!organizationId) return;
+    setLoading(true);
+    supabase
+      .from("vapi_configs")
+      .select("id, api_key, phone_number_id")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setConfigId(data.id);
+          setApiKey(data.api_key);
+          setPhoneNumberId(data.phone_number_id);
+        }
+        setLoading(false);
+      });
+  }, [organizationId]);
+
+  const isConnected = !!configId;
+
+  const handleSave = async () => {
+    if (!organizationId || !apiKey.trim() || !phoneNumberId.trim()) return;
+    setSaving(true);
+    try {
+      if (configId) {
+        // Update existing
+        const { error } = await supabase
+          .from("vapi_configs")
+          .update({ api_key: apiKey.trim(), phone_number_id: phoneNumberId.trim(), updated_at: new Date().toISOString() })
+          .eq("id", configId);
+        if (error) throw error;
+        toast.success("Configuración de Vapi actualizada");
+      } else {
+        // Insert new
+        const { data, error } = await supabase
+          .from("vapi_configs")
+          .insert({ organization_id: organizationId, api_key: apiKey.trim(), phone_number_id: phoneNumberId.trim() })
+          .select("id")
+          .single();
+        if (error) throw error;
+        setConfigId(data.id);
+        toast.success("¡Vapi conectado correctamente!");
+      }
+    } catch (err: any) {
+      toast.error("Error al guardar: " + (err.message || "desconocido"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!configId) return;
+    setSaving(true);
+    const { error } = await supabase.from("vapi_configs").delete().eq("id", configId);
+    if (error) { toast.error("Error al desconectar"); setSaving(false); return; }
+    setConfigId(null);
+    setApiKey("");
+    setPhoneNumberId("");
+    setSaving(false);
+    toast.success("Vapi desconectado");
+  };
+
+  return (
+    <div className="mt-8">
+      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 px-0.5">
+        Proveedores de voz / IA
+      </h2>
+      <Card className="border-none shadow-sm">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-4">
+            {/* Icon */}
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/30">
+              <svg viewBox="0 0 36 36" className="h-7 w-7" fill="none">
+                <rect width="36" height="36" rx="8" fill="#0d9488"/>
+                <path d="M10 18a8 8 0 0 1 16 0M18 26V18M14 22l4-4 4 4" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-sm font-semibold">Vapi.ai</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Agente de llamadas con IA. Necesitas una cuenta en{" "}
+                    <a href="https://vapi.ai" target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline">vapi.ai</a>.
+                  </p>
+                </div>
+                <Badge
+                  variant={isConnected ? "default" : "secondary"}
+                  className={`text-xs gap-1 shrink-0 ${isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}
+                >
+                  {isConnected
+                    ? <><CheckCircle2 className="h-3 w-3" /> Conectado</>
+                    : <><Circle className="h-3 w-3" /> No conectado</>
+                  }
+                </Badge>
+              </div>
+
+              {loading ? (
+                <p className="text-xs text-muted-foreground mt-3">Cargando...</p>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  {/* API Key */}
+                  <div>
+                    <Label className="text-xs">API Key</Label>
+                    <div className="flex gap-2 mt-1">
+                      <div className="relative flex-1">
+                        <Input
+                          type={showKey ? "text" : "password"}
+                          value={apiKey}
+                          onChange={e => setApiKey(e.target.value)}
+                          placeholder="vapi_xxxxxxxxxxxxxxxx"
+                          className="pr-9 font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowKey(p => !p)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Encuéntrala en <span className="font-medium">vapi.ai → Account → API Keys</span>
+                    </p>
+                  </div>
+
+                  {/* Phone Number ID */}
+                  <div>
+                    <Label className="text-xs">Phone Number ID</Label>
+                    <Input
+                      className="mt-1 font-mono text-xs"
+                      value={phoneNumberId}
+                      onChange={e => setPhoneNumberId(e.target.value)}
+                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    />
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      En <span className="font-medium">vapi.ai → Phone Numbers → copia el ID del número</span>
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      disabled={saving || !apiKey.trim() || !phoneNumberId.trim()}
+                      onClick={handleSave}
+                    >
+                      {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Guardando…</> : isConnected ? "Actualizar" : "Conectar"}
+                    </Button>
+                    {isConnected && (
+                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving} onClick={handleDisconnect}>
+                        Desconectar
+                      </Button>
+                    )}
+                  </div>
+
+                  {/* How-to steps */}
+                  {!isConnected && (
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-muted-foreground">Cómo obtener tus credenciales</p>
+                      {[
+                        "Crea una cuenta gratis en vapi.ai",
+                        "Ve a Account → API Keys y copia tu clave secreta",
+                        "Ve a Phone Numbers, compra o importa un número y copia su ID",
+                        "Pega ambos aquí y haz clic en Conectar",
+                      ].map((step, i) => (
+                        <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold mt-0.5">{i + 1}</span>
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function IntegrationsPage() {
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
@@ -792,6 +992,9 @@ export default function IntegrationsPage() {
             );
           })}
         </div>
+
+        {/* Vapi (voice AI provider) */}
+        <VapiSection />
 
         {/* Webhooks */}
         <WebhooksSection />
