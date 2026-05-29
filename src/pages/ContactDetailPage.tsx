@@ -1194,6 +1194,18 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
   );
 }
 
+// Normalize a raw custom_fields value to a plain string.
+// Handles two storage formats:
+//   - Flat (current):  "some text" | 42 | true
+//   - Object (legacy): { id, type, value, label }  — used by some older imports
+function normalizeCustomFieldValue(v: unknown): string {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object" && !Array.isArray(v) && v !== null && "value" in v) {
+    return String((v as { value?: unknown }).value ?? "");
+  }
+  return String(v);
+}
+
 function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
   customFields?: Record<string, any> | null;
   contactId: string;
@@ -1209,12 +1221,12 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
     const base: Record<string, string> = {};
     fieldDefs.forEach(def => {
       const v = customFields?.[def.key];
-      base[def.key] = v !== undefined && v !== null ? String(v) : "";
+      base[def.key] = normalizeCustomFieldValue(v);
     });
     // Also keep any extra fields not in definitions (legacy/api data)
     if (customFields && typeof customFields === "object") {
       Object.entries(customFields).forEach(([k, v]) => {
-        if (!(k in base)) base[k] = String(v ?? "");
+        if (!(k in base)) base[k] = normalizeCustomFieldValue(v);
       });
     }
     setValues(base);
