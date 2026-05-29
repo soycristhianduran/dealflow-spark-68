@@ -321,7 +321,7 @@ async function processLeadgenChange(
         await supabase.from("automation_enrollments").insert(enrollments);
         fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}` },
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
           body: JSON.stringify({}),
         }).catch((e) => console.warn("Could not trigger automation-runner:", e));
       }
@@ -426,7 +426,7 @@ async function processLeadgenChange(
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
           },
           body: JSON.stringify({}),
         }).catch((e) => console.error("Could not trigger automation-runner:", e));
@@ -682,7 +682,7 @@ async function processInstagramMessenger(
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
         },
         body: JSON.stringify({
           channel: "instagram",
@@ -710,7 +710,7 @@ async function processInstagramMessenger(
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
             },
             body: JSON.stringify({
               action: "send_message",

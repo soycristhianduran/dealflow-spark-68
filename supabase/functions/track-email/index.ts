@@ -103,11 +103,7 @@ Deno.serve(async (req) => {
           .eq("id", sendId);
 
         if (send.campaign_id) {
-          await supabase
-            .from("email_campaigns")
-            .update({ clicked_count: supabase.raw?.("clicked_count + 1") })
-            .eq("id", send.campaign_id)
-            .catch(() => null);
+          await supabase.rpc("inc_email_campaign_clicked", { p_campaign_id: send.campaign_id }).catch(() => null);
         }
 
         // Fire automation trigger: email_clicked

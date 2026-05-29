@@ -1254,7 +1254,7 @@ function MovePipelineStepEditor({ step, onChange }: {
           </Select>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Mueve el deal activo del contacto a esta etapa. Si no tiene deal, se crea uno.</p>
+      <p className="text-[11px] text-muted-foreground">Mueve al contacto a esta etapa del pipeline. Solo funciona si el contacto ya tiene un pipeline asignado.</p>
     </div>
   );
 }
@@ -1704,9 +1704,25 @@ function StepConfigEditor({ step, onChange }: {
           <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)} />
         </div>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">Pasos a omitir si se cumple (true)</Label>
+          <Input type="number" min={0} className="mt-1"
+            value={c.true_next_index !== undefined ? c.true_next_index : 0}
+            onChange={e => set("true_next_index", parseInt(e.target.value) || 0)}
+            placeholder="0 = siguiente paso" />
+        </div>
+        <div>
+          <Label className="text-xs">Pasos a omitir si NO se cumple (false)</Label>
+          <Input type="number" min={1} className="mt-1"
+            value={c.false_skip_count ?? 1}
+            onChange={e => set("false_skip_count", parseInt(e.target.value) || 1)}
+            placeholder="1 = saltar 1 paso" />
+        </div>
+      </div>
       <p className="text-xs text-muted-foreground flex items-start gap-1">
         <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-        Si la condición se cumple, continúa al siguiente paso. Si no se cumple, ese paso se omite.
+        Si se cumple, salta N pasos hacia adelante (0 = siguiente). Si no se cumple, omite N pasos (por defecto 1).
       </p>
     </div>
   );
@@ -1717,6 +1733,7 @@ function StepConfigEditor({ step, onChange }: {
 // ── Enroll Dialog ─────────────────────────────────────────────────────────────
 function EnrollDialog({ automationId, open, onClose }: { automationId: string; open: boolean; onClose: () => void }) {
   const { toast } = useToast();
+  const { organizationId } = useOrganizationContext();
   const [contacts, setContacts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -1724,12 +1741,13 @@ function EnrollDialog({ automationId, open, onClose }: { automationId: string; o
   const [enrolling, setEnrolling] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !organizationId) return;
     setLoading(true);
     supabase.from("contacts").select("id, first_name, last_name, primary_email, company_name")
+      .eq("organization_id", organizationId)
       .order("first_name").limit(500)
       .then(({ data }) => { setContacts(data || []); setLoading(false); });
-  }, [open]);
+  }, [open, organizationId]);
 
   const filtered = contacts.filter(c => {
     const q = search.toLowerCase();

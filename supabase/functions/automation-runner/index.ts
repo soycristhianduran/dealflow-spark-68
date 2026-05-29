@@ -263,7 +263,7 @@ Deno.serve(async (req) => {
       .select("*, automations(*), contacts(*)")
       .in("status", ["active", "waiting"])
       .lte("next_run_at", now)
-      .limit(50);
+      .limit(200);
 
     if (enrErr) throw enrErr;
 
@@ -395,7 +395,8 @@ async function processEnrollment(enr: any, supabase: any) {
 
   // Execute the step
   let logs = enr.logs || [];
-  let extraSkip = 0; // set to 1 by condition step when condition is FALSE (skip next step)
+  let extraSkip = 0;       // steps to skip when condition is FALSE
+  let jumpToIndex: number | null = null; // absolute index to jump to (condition true/false_next_index)
   try {
     if (step.type === "wait") {
       // We already waited — just advance
@@ -475,7 +476,7 @@ async function processEnrollment(enr: any, supabase: any) {
         const { data: tplMeta } = await supabase
           .from("whatsapp_templates")
           .select("body_text, header_type, header_media_handle")
-          .eq("user_id", enr.user_id)
+          .eq("organization_id", contact.organization_id)
           .eq("name", cfg.template_name)
           .maybeSingle();
 
@@ -563,9 +564,20 @@ async function processEnrollment(enr: any, supabase: any) {
 
     else if (step.type === "update_contact") {
       const { field, value } = step.config || {};
+      const UPDATE_CONTACT_ALLOWLIST = new Set([
+        "first_name", "last_name", "primary_email", "primary_phone", "company_name",
+        "city", "country", "notes", "source", "campaign", "language",
+        "preferred_channel", "lead_status", "score", "budget", "budget_currency",
+        "expected_close_date", "lost_reason", "tags",
+      ]);
       if (field && value !== undefined) {
-        await supabase.from("contacts").update({ [field]: renderVars(String(value), ctx) }).eq("id", contact.id);
-        logs = addLog(`Campo ${field} actualizado`);
+        if (!UPDATE_CONTACT_ALLOWLIST.has(field)) {
+          console.warn(`update_contact: field "${field}" is not in the allowlist — skipping`);
+          logs = addLog(`Campo "${field}" no permitido — paso omitido`);
+        } else {
+          await supabase.from("contacts").update({ [field]: renderVars(String(value), ctx) }).eq("id", contact.id);
+          logs = addLog(`Campo ${field} actualizado`);
+        }
       }
     }
 
@@ -643,12 +655,23 @@ async function processEnrollment(enr: any, supabase: any) {
     }
 
     else if (step.type === "condition") {
-      const passed = evaluateCondition(step.config || {}, contact);
+      const cfg = step.config || {};
+      const passed = evaluateCondition(cfg, contact);
       if (passed) {
-        logs = addLog(`Condición "${step.config?.field} ${step.config?.operator} ${step.config?.value}" → VERDADERA, continúa al siguiente paso`);
+        if (cfg.true_next_index != null) {
+          jumpToIndex = Number(cfg.true_next_index);
+          logs = addLog(`Condición "${cfg.field} ${cfg.operator} ${cfg.value}" → VERDADERA, saltando al índice ${jumpToIndex}`);
+        } else {
+          logs = addLog(`Condición "${cfg.field} ${cfg.operator} ${cfg.value}" → VERDADERA, continúa al siguiente paso`);
+        }
       } else {
-        extraSkip = 1;
-        logs = addLog(`Condición "${step.config?.field} ${step.config?.operator} ${step.config?.value}" → FALSA, se omite el siguiente paso`);
+        if (cfg.false_next_index != null) {
+          jumpToIndex = Number(cfg.false_next_index);
+          logs = addLog(`Condición "${cfg.field} ${cfg.operator} ${cfg.value}" → FALSA, saltando al índice ${jumpToIndex}`);
+        } else {
+          extraSkip = cfg.false_skip_count ?? 1;
+          logs = addLog(`Condición "${cfg.field} ${cfg.operator} ${cfg.value}" → FALSA, se omiten ${extraSkip} paso(s)`);
+        }
       }
     }
 
@@ -667,6 +690,7 @@ async function processEnrollment(enr: any, supabase: any) {
           method,
           headers: { "Content-Type": "application/json" },
           body: method !== "GET" ? JSON.stringify(payload) : undefined,
+          signal: AbortSignal.timeout(10_000),
         });
         logs = addLog(`Webhook enviado a ${url} — status ${res.status}`);
       }
@@ -681,7 +705,7 @@ async function processEnrollment(enr: any, supabase: any) {
         const ownerEmail = ownerUser?.email;
         const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
         if (ownerEmail && RESEND_API_KEY) {
-          await fetch(`${RESEND_API}/emails`, {
+          const notifyRes = await fetch(`${RESEND_API}/emails`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -691,6 +715,8 @@ async function processEnrollment(enr: any, supabase: any) {
               html: `<p>${message}</p><p style="color:#888;font-size:12px">Contacto: ${ctx.contact.name || ctx.contact.email}</p>`,
             }),
           });
+          const notifyData = await notifyRes.json();
+          if (notifyData.error) console.warn("notify_owner Resend error:", notifyData.error);
           logs = addLog(`Notificación enviada a ${ownerEmail}`);
         } else {
           logs = addLog("Vendedor sin email configurado — notificación omitida");
@@ -702,6 +728,7 @@ async function processEnrollment(enr: any, supabase: any) {
     await supabase.from("activities").insert({
       related_entity_type: "contact",
       related_entity_id: contact.id,
+      organization_id: contact.organization_id,
       event_type: "automation",
       event_source: "automation_runner",
       summary: `Automatización "${automation.name}" — paso ${stepIndex + 1}: ${step.type}`,
@@ -713,8 +740,8 @@ async function processEnrollment(enr: any, supabase: any) {
     // Continue to next step even on error (don't block the whole enrollment)
   }
 
-  // Advance to next step (extraSkip=1 when condition was FALSE → skip the next step)
-  const nextIndex = stepIndex + 1 + extraSkip;
+  // Advance to next step; jumpToIndex wins over extraSkip (set by condition step)
+  const nextIndex = jumpToIndex !== null ? jumpToIndex : stepIndex + 1 + extraSkip;
 
   if (nextIndex >= steps.length) {
     await supabase.from("automation_enrollments").update({

@@ -180,6 +180,21 @@ Deno.serve(async (req) => {
       if (createErr) throw createErr;
       contactId = created.id;
 
+      // Fire contact_created automation trigger (fire-and-forget)
+      fetch(`${Deno.env.get("SUPABASE_URL")!}/functions/v1/automation-runner`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          action: "trigger_event",
+          trigger_type: "contact_created",
+          contact_id: contactId,
+          trigger_data: { source: "landing_page", landing_slug: page.id },
+        }),
+      }).catch(e => console.warn("contact_created automation trigger failed:", e));
+
       // Increment leads counter on the landing page
       await supabase.rpc("inc_landing_page_leads", { p_page_id: page_id });
     }
