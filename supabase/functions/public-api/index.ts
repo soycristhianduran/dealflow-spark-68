@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
 
     let q = admin
       .from("contacts")
-      .select("id, first_name, last_name, primary_email, primary_phone, company_name, lead_status, source, created_at")
+      .select("id, first_name, last_name, full_name, primary_email, primary_phone, company_name, city, country, lead_status, source, campaign, notes, score, budget, budget_currency, expected_close_date, utm_source, utm_medium, utm_campaign, custom_fields, created_at, updated_at")
       .eq("organization_id", auth.organization_id)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -371,7 +371,7 @@ Deno.serve(async (req) => {
           .from("contacts")
           .update(updateFields)
           .eq("id", existing.id)
-          .select("id, first_name, last_name, primary_email, lead_status")
+          .select("*")
           .single();
         if (error) return json({ error: error.message }, 500);
         return json({ data, created: false }, 200);
@@ -387,7 +387,7 @@ Deno.serve(async (req) => {
     const { data, error } = await admin
       .from("contacts")
       .insert({ ...fields, organization_id: auth.organization_id })
-      .select("id, first_name, last_name, primary_email, lead_status")
+      .select("*")
       .single();
 
     if (error) return json({ error: error.message }, 500);
@@ -416,7 +416,7 @@ Deno.serve(async (req) => {
       .update(updateFields)
       .eq("id", resourceId)
       .eq("organization_id", auth.organization_id)
-      .select("id, first_name, last_name, primary_email, lead_status")
+      .select("*")
       .single();
 
     if (error) return json({ error: "Contact not found or update failed" }, 404);
