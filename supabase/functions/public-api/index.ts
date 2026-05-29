@@ -114,11 +114,23 @@ function mapContactFields(body: Record<string, unknown>) {
   ]);
 
   const mapped: Record<string, unknown> = {};
+  const customFields: Record<string, unknown> = {};
+
+  // Internal fields to skip (meta/system keys)
+  const skip = new Set(["organization_id", "id", "created_at", "updated_at"]);
 
   for (const [k, v] of Object.entries(body)) {
-    const key = aliases[k.toLowerCase()] ?? k.toLowerCase();
-    if (allowed.has(key) && v !== undefined && v !== null && v !== "") {
+    if (v === undefined || v === null || v === "") continue;
+    const normalized = k.toLowerCase().replace(/\s+/g, "_");
+    const key = aliases[normalized] ?? normalized;
+
+    if (skip.has(key)) continue;
+
+    if (allowed.has(key)) {
       mapped[key] = v;
+    } else {
+      // Unknown field → goes to custom_fields JSONB
+      customFields[k] = v;
     }
   }
 
@@ -127,14 +139,44 @@ function mapContactFields(body: Record<string, unknown>) {
     const parts = (body.full_name as string).trim().split(/\s+/);
     mapped.first_name = parts[0];
     if (parts.length > 1) mapped.last_name = parts.slice(1).join(" ");
+    delete customFields.full_name;
   }
-  if (body.name && typeof body.name === "string" && !body.first_name) {
+  if (body.name && typeof body.name === "string" && !mapped.first_name) {
     const parts = (body.name as string).trim().split(/\s+/);
     mapped.first_name = parts[0];
     if (parts.length > 1) mapped.last_name = parts.slice(1).join(" ");
+    delete customFields.name;
+  }
+
+  if (Object.keys(customFields).length > 0) {
+    mapped.custom_fields = customFields;
   }
 
   return mapped;
+}
+
+// Merge incoming custom_fields with existing ones in DB (don't wipe previous fields)
+async function mergeCustomFields(
+  admin: ReturnType<typeof createClient>,
+  contactId: string,
+  fields: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  if (!fields.custom_fields) return fields;
+
+  const { data } = await admin
+    .from("contacts")
+    .select("custom_fields")
+    .eq("id", contactId)
+    .single();
+
+  const existing = (data?.custom_fields && typeof data.custom_fields === "object")
+    ? data.custom_fields as Record<string, unknown>
+    : {};
+
+  return {
+    ...fields,
+    custom_fields: { ...existing, ...(fields.custom_fields as Record<string, unknown>) },
+  };
 }
 
 Deno.serve(async (req) => {
@@ -217,10 +259,11 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existing) {
-        // Update existing contact
+        // Merge custom_fields instead of overwriting
+        const updateFields = await mergeCustomFields(admin, existing.id, fields);
         const { data, error } = await admin
           .from("contacts")
-          .update(fields)
+          .update(updateFields)
           .eq("id", existing.id)
           .select("id, first_name, last_name, primary_email, lead_status")
           .single();
@@ -254,9 +297,12 @@ Deno.serve(async (req) => {
       return json({ error: "No valid fields to update" }, 422);
     }
 
+    // Merge custom_fields with existing ones (don't overwrite)
+    const updateFields = await mergeCustomFields(admin, resourceId, fields);
+
     const { data, error } = await admin
       .from("contacts")
-      .update(fields)
+      .update(updateFields)
       .eq("id", resourceId)
       .eq("organization_id", auth.organization_id)
       .select("id, first_name, last_name, primary_email, lead_status")
