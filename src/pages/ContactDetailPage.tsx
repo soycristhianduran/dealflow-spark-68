@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy } from "lucide-react";
+import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio } from "lucide-react";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
@@ -43,10 +43,12 @@ export default function ContactDetailPage() {
   const [savingContact, setSavingContact] = useState(false);
   const [editForm, setEditForm] = useState<{
     first_name: string; last_name: string; primary_phone: string; primary_email: string;
-    birthday: string; customFields: Record<string, any>; newFieldKey: string; newFieldValue: string;
+    birthday: string; company_name: string; notes: string; language: string; preferred_channel: string;
+    customFields: Record<string, any>; newFieldKey: string; newFieldValue: string;
     newFieldType: string; newFieldOptions: string;
   }>({
     first_name: "", last_name: "", primary_phone: "", primary_email: "", birthday: "",
+    company_name: "", notes: "", language: "", preferred_channel: "",
     customFields: {}, newFieldKey: "", newFieldValue: "", newFieldType: "text", newFieldOptions: "",
   });
   // Inline pipeline state — Kommo-style, always editable without entering global edit mode
@@ -71,6 +73,10 @@ export default function ContactDetailPage() {
       primary_phone: contact?.primary_phone || "",
       primary_email: contact?.primary_email || "",
       birthday: contact?.birthday || "",
+      company_name: contact?.company_name || "",
+      notes: contact?.notes || "",
+      language: contact?.language || "",
+      preferred_channel: contact?.preferred_channel || "",
       customFields: Object.fromEntries(
         Object.entries(contact?.custom_fields && typeof contact.custom_fields === "object" ? contact.custom_fields as Record<string, any> : {})
           .map(([k, v]) => [k, typeof v === "string"
@@ -127,6 +133,10 @@ export default function ContactDetailPage() {
       primary_phone: editForm.primary_phone.trim() || null,
       primary_email: editForm.primary_email.trim() || null,
       birthday: editForm.birthday || null,
+      company_name: editForm.company_name.trim() || null,
+      notes: editForm.notes.trim() || null,
+      language: editForm.language.trim() || null,
+      preferred_channel: editForm.preferred_channel.trim() || null,
       custom_fields: (() => {
         // Save only non-empty values as flat key→value (new format)
         const flat: Record<string, string> = {};
@@ -448,12 +458,23 @@ export default function ContactDetailPage() {
                     </Avatar>
                     <div>
                       <h2 className="text-lg font-bold text-foreground">{contact.full_name}</h2>
+                      {contact.company_name && (
+                        <p className="text-sm text-muted-foreground flex items-center gap-1 mt-0.5">
+                          <Building2 className="h-3.5 w-3.5 shrink-0" />
+                          {contact.company_name}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {contact.lead_status === "won" && (
                           <Badge className="bg-green-500 text-white border-0 gap-1"><Trophy className="h-3 w-3" /> Ganado</Badge>
                         )}
                         {contact.lead_status === "lost" && (
-                          <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Perdido</Badge>
+                          <>
+                            <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Perdido</Badge>
+                            {contact.lost_reason && (
+                              <span className="text-xs text-muted-foreground">· {contact.lost_reason}</span>
+                            )}
+                          </>
                         )}
                         {contact.pipeline_id && (
                           <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
@@ -561,6 +582,31 @@ export default function ContactDetailPage() {
                       </div>
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> Empresa</label>
+                      <Input value={editForm.company_name} onChange={e => setEditForm(p => ({ ...p, company_name: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Nombre de la empresa" maxLength={120} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" /> Idioma</label>
+                      <Input value={editForm.language} onChange={e => setEditForm(p => ({ ...p, language: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Ej: Español, English" maxLength={40} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Radio className="h-3 w-3" /> Canal preferido</label>
+                      <Select value={editForm.preferred_channel || "__none__"} onValueChange={v => setEditForm(p => ({ ...p, preferred_channel: v === "__none__" ? "" : v }))}>
+                        <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="Sin especificar" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Sin especificar</SelectItem>
+                          <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                          <SelectItem value="instagram">Instagram</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="phone">Teléfono</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3" /> Notas</label>
+                      <Textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} className="text-sm mt-0.5 min-h-[72px] resize-none" placeholder="Notas internas sobre este lead…" maxLength={2000} />
+                    </div>
 
                     {/* Custom fields — values only, schema managed in Settings → Campos */}
                     {fieldDefs.length > 0 && (
@@ -640,6 +686,18 @@ export default function ContactDetailPage() {
                       <div className="flex items-center gap-2 text-sm">
                         <Cake className="h-4 w-4 text-muted-foreground" />
                         <span className="text-foreground">{new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                      </div>
+                    )}
+                    {contact.language && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground">{contact.language}</span>
+                      </div>
+                    )}
+                    {contact.preferred_channel && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Radio className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-foreground capitalize">{contact.preferred_channel}</span>
                       </div>
                     )}
                     {fieldDefs.length > 0 && (
@@ -832,6 +890,14 @@ export default function ContactDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Notes card — always visible if has notes, otherwise click-to-add */}
+            <NotesCard
+              contactId={id!}
+              notes={contact.notes}
+              canEdit={canEditContacts}
+              onUpdated={() => supabase.from("contacts").select("*").eq("id", id!).maybeSingle().then(({ data }) => data && setContact(data))}
+            />
 
           </div>
 
@@ -1033,6 +1099,86 @@ function InfoItem({ label, value }: { label: string; value?: string | null }) {
 }
 
 type FieldDefMini = { id: string; key: string; label: string; field_type: string; options: string[] | null };
+
+// ---------------------------------------------------------------------------
+// NotesCard — inline-editable notes for a contact
+// ---------------------------------------------------------------------------
+function NotesCard({ contactId, notes, canEdit, onUpdated }: {
+  contactId: string;
+  notes?: string | null;
+  canEdit: boolean;
+  onUpdated: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(notes || "");
+  const [saving, setSaving] = useState(false);
+
+  // Sync when prop changes (e.g. after parent refresh)
+  useEffect(() => { setValue(notes || ""); }, [notes]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase
+      .from("contacts")
+      .update({ notes: value.trim() || null })
+      .eq("id", contactId);
+    if (error) toast.error("Error al guardar notas");
+    else { toast.success("Notas guardadas"); onUpdated(); }
+    setSaving(false);
+    setEditing(false);
+  };
+
+  const handleCancel = () => {
+    setValue(notes || "");
+    setEditing(false);
+  };
+
+  return (
+    <Card className="border-none shadow-sm mt-4">
+      <CardHeader className="pb-2 pt-4 px-5">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Notas
+          </CardTitle>
+          {canEdit && !editing && (
+            <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => setEditing(true)}>
+              <Pencil className="h-3 w-3" /> {notes ? "Editar" : "Añadir"}
+            </Button>
+          )}
+          {editing && (
+            <div className="flex gap-1">
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2" onClick={handleCancel}>
+                <X className="h-3 w-3" />
+              </Button>
+              <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> Guardar</>}
+              </Button>
+            </div>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="px-5 pb-4">
+        {editing ? (
+          <Textarea
+            value={value}
+            onChange={e => setValue(e.target.value)}
+            className="text-sm resize-none min-h-[96px]"
+            placeholder="Añade notas internas sobre este lead…"
+            maxLength={2000}
+            autoFocus
+          />
+        ) : notes ? (
+          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">{notes}</p>
+        ) : (
+          <p className="text-xs text-muted-foreground text-center py-3 cursor-pointer hover:text-foreground transition-colors"
+            onClick={() => canEdit && setEditing(true)}>
+            {canEdit ? "Clic para añadir notas…" : "Sin notas"}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
   customFields?: Record<string, any> | null;
