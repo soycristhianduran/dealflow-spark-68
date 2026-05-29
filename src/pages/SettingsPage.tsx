@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { defaultStages } from "@/data/mock-data";
-import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power } from "lucide-react";
+import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power, Lock } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
@@ -1262,6 +1262,29 @@ const FIELD_TYPES = [
   { value: "boolean", label: "Sí / No" },
 ];
 
+// Built-in CRM columns — shown as read-only in Campos for easy ID lookup
+const SYSTEM_FIELDS = [
+  { key: "first_name",          label: "Nombre",                field_type: "text" },
+  { key: "last_name",           label: "Apellido",              field_type: "text" },
+  { key: "primary_email",       label: "Email",                 field_type: "text" },
+  { key: "primary_phone",       label: "Teléfono",              field_type: "text" },
+  { key: "company_name",        label: "Empresa",               field_type: "text" },
+  { key: "source",              label: "Fuente",                field_type: "text" },
+  { key: "campaign",            label: "Campaña",               field_type: "text" },
+  { key: "notes",               label: "Notas",                 field_type: "text" },
+  { key: "lead_status",         label: "Estado del lead",       field_type: "select" },
+  { key: "score",               label: "Puntuación",            field_type: "number" },
+  { key: "budget",              label: "Presupuesto",           field_type: "number" },
+  { key: "budget_currency",     label: "Moneda del presupuesto", field_type: "text" },
+  { key: "city",                label: "Ciudad",                field_type: "text" },
+  { key: "country",             label: "País",                  field_type: "text" },
+  { key: "language",            label: "Idioma",                field_type: "text" },
+  { key: "preferred_channel",   label: "Canal preferido",       field_type: "text" },
+  { key: "expected_close_date", label: "Fecha de cierre",       field_type: "date" },
+  { key: "birthday",            label: "Fecha de nacimiento",   field_type: "date" },
+  { key: "tags",                label: "Tags",                  field_type: "text" },
+];
+
 function toKey(label: string): string {
   return label
     .toLowerCase()
@@ -1352,6 +1375,55 @@ function CustomFieldsSection() {
 
   return (
     <div className="space-y-4">
+
+      {/* ── System fields (read-only) ── */}
+      <Card className="border-none shadow-sm">
+        <CardHeader>
+          <div>
+            <CardTitle className="text-sm font-semibold flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+              Campos del sistema
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-1">
+              Campos predeterminados del CRM. No se pueden eliminar. Copia su ID para usarlo en Zapier, n8n, Make o tu API Key.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-1.5">
+            {SYSTEM_FIELDS.map(f => (
+              <div key={f.key} className="flex items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">{f.label}</p>
+                    <span className="text-xs text-muted-foreground">
+                      {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
+                      sistema
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ID:</span>
+                    <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{f.key}</code>
+                    <Button
+                      size="sm" variant="ghost"
+                      className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
+                      title="Copiar ID"
+                      onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" title="Campo del sistema — no se puede eliminar" />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ── Custom fields ── */}
       <Card className="border-none shadow-sm">
         <CardHeader className="flex-row items-center justify-between">
           <div>
