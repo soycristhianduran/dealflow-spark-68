@@ -41,6 +41,7 @@ import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
 import BillingPage from "./pages/BillingPage";
 import AIAgentPage from "./pages/AIAgentPage";
+import CallingAgentPage from "./pages/CallingAgentPage";
 import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
@@ -145,6 +146,7 @@ function WorkspaceRoutes() {
         <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
         <Route path="billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
         <Route path="ai-agent" element={<ProtectedRoute><AIAgentPage /></ProtectedRoute>} />
+        <Route path="calling-agent" element={<ProtectedRoute><CallingAgentPage /></ProtectedRoute>} />
         <Route path="integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
         <Route path="meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
         <Route path="whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />

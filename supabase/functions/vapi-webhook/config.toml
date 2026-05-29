@@ -1,0 +1,3 @@
+[functions.vapi-webhook]
+# Vapi does not send a Supabase JWT — must disable JWT verification.
+verify_jwt = false

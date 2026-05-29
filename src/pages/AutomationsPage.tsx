@@ -36,7 +36,7 @@ import {
   Zap, Plus, Trash2, Edit, ArrowLeft, Save, Play, Users,
   Clock, Tag, User, X, ChevronDown,
   Info, Settings2, FileText, Search,
-  Bell, UserCheck, Timer,
+  Bell, UserCheck, Timer, PhoneCall,
   CheckSquare2, CheckCircle2, Mail,
 } from "lucide-react";
 
@@ -134,7 +134,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call";
   config: Record<string, any>;
   // Optional free-canvas position (ignored by automation-runner)
   position?: { x: number; y: number };
@@ -182,11 +182,12 @@ const STEP_META: Record<string, {
   create_task:         { label: "Crear tarea",          description: "Crea una tarea asignada al vendedor",           icon: CheckSquare2,  color: "#6d28d9", bg: "#f5f3ff", border: "#ddd6fe", ring: "#ede9fe" },
   send_webhook:        { label: "Webhook / HTTP",       description: "Llama a una URL externa (n8n, Zapier, Make…)", icon: IconWebhook,   color: "#374151", bg: "#f9fafb", border: "#e5e7eb", ring: "#f3f4f6" },
   notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",       icon: IconNotify,    color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
+  make_call:           { label: "Llamar al contacto",   description: "El agente IA llama al contacto automáticamente", icon: PhoneCall,     color: "#0f766e", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
 const STEP_GROUPS: { label: string; types: string[] }[] = [
-  { label: "Comunicación",  types: ["send_email", "send_whatsapp", "notify_owner"] },
+  { label: "Comunicación",  types: ["send_email", "send_whatsapp", "notify_owner", "make_call"] },
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
@@ -226,6 +227,7 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
     case "send_webhook":        return { url: "", method: "POST", include_contact: true };
     case "notify_owner":        return { message: "Nuevo evento en contacto {{contact.name}}" };
+    case "make_call":           return { calling_agent_id: "" };
     default:                    return {};
   }
 }
@@ -247,6 +249,7 @@ function stepSummary(step: AutomationStep): string {
     case "create_task":         return c.title ? `"${c.title}"` : "(sin título)";
     case "send_webhook":        return c.url ? c.url.replace(/^https?:\/\//, "") : "(sin URL)";
     case "notify_owner":        return "Email al vendedor asignado";
+    case "make_call":           return c.calling_agent_id ? "Agente configurado" : "(sin agente)";
     default:                    return "";
   }
 }
@@ -1704,6 +1707,86 @@ function UpdateContactEditor({ step, onChange }: {
   );
 }
 
+// ── Make Call step editor ─────────────────────────────────────────────────────
+function MakeCallStepEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const c = step.config;
+  const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
+  const { organizationId } = useOrganizationContext();
+
+  const [agents, setAgents] = useState<{ id: string; name: string; voice: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId) return;
+    setLoading(true);
+    supabase
+      .from("calling_agents")
+      .select("id, name, voice")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => { setAgents(data || []); setLoading(false); });
+  }, [organizationId]);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs font-semibold flex items-center gap-1.5">
+          <PhoneCall className="h-3.5 w-3.5 text-teal-600" />
+          Agente de llamadas IA
+        </Label>
+        {loading ? (
+          <p className="text-xs text-muted-foreground mt-2">Cargando agentes...</p>
+        ) : agents.length === 0 ? (
+          <div className="mt-2 rounded-lg border border-dashed border-teal-200 bg-teal-50 p-3">
+            <p className="text-xs text-teal-700 font-medium">No hay agentes configurados</p>
+            <p className="text-xs text-teal-600 mt-0.5">
+              Crea un agente en{" "}
+              <a href="/calling-agent" className="underline hover:text-teal-800" target="_blank" rel="noreferrer">
+                Agente de Llamadas
+              </a>{" "}
+              para usar este paso.
+            </p>
+          </div>
+        ) : (
+          <Select value={c.calling_agent_id ?? ""} onValueChange={v => set("calling_agent_id", v)}>
+            <SelectTrigger className="mt-1">
+              <SelectValue placeholder="Seleccionar agente..." />
+            </SelectTrigger>
+            <SelectContent>
+              {agents.map(a => (
+                <SelectItem key={a.id} value={a.id}>
+                  <span className="font-medium">{a.name}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">· Voz: {a.voice}</span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {c.calling_agent_id && (
+        <div className="rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2">
+          <p className="text-xs text-teal-700">
+            El agente llamará al número de teléfono del contacto. El resultado de la llamada
+            (temperatura, interés, resumen) se guardará automáticamente en el CRM.
+          </p>
+        </div>
+      )}
+
+      {!c.calling_agent_id && agents.length > 0 && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Info className="h-3.5 w-3.5 shrink-0" />
+          Selecciona el agente que realizará la llamada.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -1806,6 +1889,10 @@ function StepConfigEditor({ step, onChange }: {
         <p className="text-[11px] text-muted-foreground mt-1">Se envía por email al vendedor asignado al contacto.</p>
       </div>
     </div>
+  );
+
+  if (step.type === "make_call") return (
+    <MakeCallStepEditor step={step} onChange={onChange} />
   );
 
   if (step.type === "condition") return (

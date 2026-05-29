@@ -1,0 +1,2 @@
+[functions.call-outbound]
+verify_jwt = true

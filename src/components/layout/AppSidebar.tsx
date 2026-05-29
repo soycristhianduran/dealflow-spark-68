@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Users, Building2, KanbanSquare, CalendarDays,
   CheckSquare, Settings, ChevronLeft, ChevronRight, Zap, Plug,
-  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard, Bot,
+  BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard, Bot, PhoneCall,
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
@@ -41,6 +41,7 @@ const powerGroups = [
     icon: Zap,
     items: [
       { title: "Flujos",          url: "/automations",            icon: Zap },
+      { title: "Agente de Llamadas", url: "/calling-agent",       icon: PhoneCall },
       { title: "IG Automaciones", url: "/instagram/automations",  icon: Sparkles },
       { title: "WA Plantillas",   url: "/whatsapp/templates",     icon: MessageSquare },
     ],
