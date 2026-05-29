@@ -372,6 +372,28 @@ Deno.serve(async (req) => {
                 }).catch(e => console.warn("whatsapp_incoming automation trigger failed:", e));
               }
 
+              // Fire whatsapp.message_received webhook (fire-and-forget)
+              if (config.organization_id) {
+                fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/webhook-dispatcher`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    event: "whatsapp.message_received",
+                    organization_id: config.organization_id,
+                    data: {
+                      phone: senderPhone,
+                      message_type: messageType,
+                      message_text: messageText,
+                      media_url: mediaUrl ?? null,
+                      contact_id: contact?.id ?? null,
+                      contact_name: contact?.full_name ?? null,
+                      wa_message_id: waMessageId,
+                      received_at: new Date().toISOString(),
+                    },
+                  }),
+                }).catch(e => console.warn("whatsapp.message_received webhook failed:", e));
+              }
+
               // Log activity if contact found
               if (contact?.id) {
                 const activitySummary = mediaUrl

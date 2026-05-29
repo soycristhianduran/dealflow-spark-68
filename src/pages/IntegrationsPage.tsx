@@ -144,9 +144,20 @@ const integrations: Integration[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 const WEBHOOK_EVENTS = [
-  { value: "contact.created",  label: "Contacto creado",      description: "Cuando se crea un nuevo contacto" },
-  { value: "contact.updated",  label: "Contacto actualizado", description: "Cuando cambia estado, dueño, email o teléfono" },
-  { value: "form.submitted",   label: "Formulario enviado",   description: "Cuando alguien envía un formulario de landing page" },
+  // Contactos
+  { value: "contact.created",           label: "Contacto creado",           description: "Cuando se crea un nuevo contacto" },
+  { value: "contact.updated",           label: "Contacto actualizado",      description: "Cuando cambia estado, dueño, email, teléfono, tags o score" },
+  // Deals / Pipeline
+  { value: "deal.stage_changed",        label: "Etapa de pipeline cambiada", description: "Cuando un lead se mueve a otra etapa del pipeline" },
+  { value: "deal.won",                  label: "Deal ganado",               description: "Cuando un lead es marcado como ganado" },
+  { value: "deal.lost",                 label: "Deal perdido",              description: "Cuando un lead es marcado como perdido" },
+  // Tareas y reuniones
+  { value: "task.completed",            label: "Tarea completada",          description: "Cuando una tarea es marcada como completada" },
+  { value: "meeting.scheduled",         label: "Reunión agendada",          description: "Cuando se crea una nueva reunión" },
+  // WhatsApp
+  { value: "whatsapp.message_received", label: "WhatsApp: mensaje recibido", description: "Cuando se recibe un mensaje de WhatsApp" },
+  // Formularios
+  { value: "form.submitted",            label: "Formulario enviado",        description: "Cuando alguien envía un formulario de landing page" },
 ];
 
 type WebhookSub = {
