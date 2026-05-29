@@ -203,6 +203,7 @@ Deno.serve(async (req) => {
             automation_id: automation.id,
             contact_id,
             user_id: automation.user_id,   // required NOT NULL — comes from the automation owner
+            organization_id: orgId,
             status: "active",
             current_step_index: 0,
             next_run_at: new Date().toISOString(),
@@ -226,10 +227,14 @@ Deno.serve(async (req) => {
       if (!automation_id || !contact_ids?.length || !userId) {
         return new Response(JSON.stringify({ error: "automation_id, contact_ids y autenticación son obligatorios" }), { status: 400, headers: corsHeaders });
       }
+      // Resolve org_id from the automation for the enrollment record
+      const { data: autoRow } = await supabase.from("automations").select("organization_id, user_id").eq("id", automation_id).maybeSingle();
+      const enrollOrgId = autoRow?.organization_id ?? null;
       const rows = contact_ids.map((cid: string) => ({
         automation_id,
         contact_id: cid,
         user_id: userId,
+        organization_id: enrollOrgId,
         status: "active",
         current_step_index: 0,
         next_run_at: new Date().toISOString(),
@@ -330,6 +335,7 @@ Deno.serve(async (req) => {
             automation_id: auto.id,
             contact_id: c.id,
             user_id: auto.user_id,
+            organization_id: auto.organization_id,
             status: "active",
             current_step_index: 0,
             next_run_at: nowDate.toISOString(),
