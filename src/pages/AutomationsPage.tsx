@@ -36,8 +36,8 @@ import {
   Zap, Plus, Trash2, Edit, ArrowLeft, Save, Play, Users,
   Clock, Tag, User, X, ChevronDown,
   Info, Settings2, FileText, Search,
-  Bell, UserCheck, ListTodo, Timer, ArrowRightLeft,
-  KanbanSquare, CheckSquare2,
+  Bell, UserCheck, Timer,
+  CheckSquare2, CheckCircle2, Mail,
 } from "lucide-react";
 
 // ── Brand / custom SVG icons ──────────────────────────────────────────────────
