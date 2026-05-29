@@ -606,9 +606,12 @@ export default function ContactDetailPage() {
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-2">
                           Para agregar campos ve a{" "}
-                          <a href={`/${path}/settings`} className="underline hover:text-foreground">
+                          <button
+                            className="underline hover:text-foreground"
+                            onClick={() => navigate(path("/settings") + "?tab=campos")}
+                          >
                             Configuración → Campos
-                          </a>
+                          </button>
                         </p>
                       </div>
                     )}

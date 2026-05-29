@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -440,11 +441,14 @@ export default function SettingsPage() {
     });
   };
 
+  const [searchParams] = useSearchParams();
+  const defaultTab = searchParams.get("tab") || "pipeline";
+
   return (
     <AppLayout>
       <AppHeader title="Configuración" />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
-        <Tabs defaultValue="pipeline">
+        <Tabs defaultValue={defaultTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="equipo">Equipo</TabsTrigger>
