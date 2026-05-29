@@ -17,16 +17,31 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const cors = {
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+const RATE_LIMIT_RPM = 100; // max requests per minute per API key
+
+// ── Security & CORS headers ───────────────────────────────────────────────────
+const securityHeaders = {
+  // CORS — allow any origin since this is a public REST API for external integrations
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "content-type, authorization",
   "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
+  // Prevent MIME-type sniffing
+  "X-Content-Type-Options": "nosniff",
+  // Block framing (clickjacking protection)
+  "X-Frame-Options": "DENY",
+  // No referrer leakage
+  "Referrer-Policy": "no-referrer",
+  // Strict content security
+  "Content-Security-Policy": "default-src 'none'",
 };
 
-function json(data: unknown, status = 200) {
+const cors = securityHeaders; // alias for backward compat
+
+function json(data: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...cors, "Content-Type": "application/json" },
+    headers: { ...securityHeaders, "Content-Type": "application/json", ...extra },
   });
 }
 
@@ -40,6 +55,39 @@ async function sha256(text: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+// ── Rate limiter ──────────────────────────────────────────────────────────────
+// Uses the api_rate_limits table (1-minute sliding window per API key).
+// Returns { allowed: true } or { allowed: false, retryAfter: seconds }.
+async function checkRateLimit(
+  admin: ReturnType<typeof createClient>,
+  keyId: string,
+): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const windowStart = new Date(
+    Math.floor(Date.now() / 60_000) * 60_000,
+  ).toISOString();
+
+  // Upsert: increment count for this key+window
+  const { data, error } = await admin.rpc("increment_rate_limit", {
+    p_key_id: keyId,
+    p_window_start: windowStart,
+    p_limit: RATE_LIMIT_RPM,
+  });
+
+  // If the RPC doesn't exist yet (first deploy after migration), fail open
+  if (error) return { allowed: true };
+
+  if (data === false) {
+    // Window resets at the next minute
+    const windowEndMs = Math.floor(Date.now() / 60_000) * 60_000 + 60_000;
+    const retryAfter = Math.ceil((windowEndMs - Date.now()) / 1000);
+    return { allowed: false, retryAfter };
+  }
+  return { allowed: true };
+}
+
+// ── Body size guard ───────────────────────────────────────────────────────────
+const MAX_BODY_BYTES = 100_000; // 100 KB
 
 // Resolve and validate API key → returns { organization_id, key_id }
 async function authenticate(
@@ -220,6 +268,24 @@ Deno.serve(async (req) => {
   const auth = await authenticate(req.headers.get("authorization"), admin);
   if (!auth) {
     return json({ error: "Invalid or missing API key" }, 401);
+  }
+
+  // Rate limit (100 req/min per API key)
+  const rateCheck = await checkRateLimit(admin, auth.key_id);
+  if (!rateCheck.allowed) {
+    return json(
+      { error: "Rate limit exceeded. Max 100 requests per minute." },
+      429,
+      { "Retry-After": String(rateCheck.retryAfter ?? 60) },
+    );
+  }
+
+  // Body size guard for mutation endpoints
+  if (req.method === "POST" || req.method === "PATCH") {
+    const contentLength = req.headers.get("content-length");
+    if (contentLength && parseInt(contentLength) > MAX_BODY_BYTES) {
+      return json({ error: "Request body too large (max 100 KB)" }, 413);
+    }
   }
 
   const url = new URL(req.url);
