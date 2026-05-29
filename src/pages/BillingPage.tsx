@@ -70,7 +70,7 @@ export default function BillingPage() {
 
   // Load usage counters + boost credits
   useEffect(() => {
-    if (!organizationId) return;
+    if (!organizationId) { setUsageLoading(false); return; }
     setUsageLoading(true);
     setUsageError(null);
     (async () => {

@@ -60,7 +60,7 @@ export default function AIAgentPage() {
   const [conversationsThisMonth, setConversationsThisMonth] = useState(0);
 
   useEffect(() => {
-    if (!organizationId) return;
+    if (!organizationId) { setLoading(false); return; }
     loadConfig();
     loadUsage();
   }, [organizationId]);

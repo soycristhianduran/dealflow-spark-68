@@ -171,15 +171,18 @@ function WebhooksSection() {
   const [newSecret, setNewSecret] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!organizationId) return;
+    if (!organizationId) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from("webhook_subscriptions")
-      .select("id, url, events, secret, is_active, last_triggered_at, failure_count")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false });
-    setSubs(data || []);
-    setLoading(false);
+    try {
+      const { data } = await supabase
+        .from("webhook_subscriptions")
+        .select("id, url, events, secret, is_active, last_triggered_at, failure_count")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false });
+      setSubs(data || []);
+    } finally {
+      setLoading(false);
+    }
   }, [organizationId]);
 
   useEffect(() => { load(); }, [load]);

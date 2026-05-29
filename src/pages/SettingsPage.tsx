@@ -1005,15 +1005,18 @@ function ApiKeysSection() {
   const API_BASE = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/public-api`;
 
   const load = async () => {
-    if (!organizationId) return;
+    if (!organizationId) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from("api_keys")
-      .select("id, name, key_prefix, created_at, last_used_at, is_active")
-      .eq("organization_id", organizationId)
-      .order("created_at", { ascending: false });
-    setKeys(data || []);
-    setLoading(false);
+    try {
+      const { data } = await supabase
+        .from("api_keys")
+        .select("id, name, key_prefix, created_at, last_used_at, is_active")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false });
+      setKeys(data || []);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, [organizationId]);
@@ -1320,15 +1323,18 @@ function CustomFieldsSection() {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    if (!organizationId) return;
+    if (!organizationId) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase
-      .from("custom_field_definitions")
-      .select("id, key, label, field_type, options, position")
-      .eq("organization_id", organizationId)
-      .order("position", { ascending: true });
-    setFields(data || []);
-    setLoading(false);
+    try {
+      const { data } = await supabase
+        .from("custom_field_definitions")
+        .select("id, key, label, field_type, options, position")
+        .eq("organization_id", organizationId)
+        .order("position", { ascending: true });
+      setFields(data || []);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, [organizationId]);
