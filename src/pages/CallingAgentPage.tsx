@@ -80,6 +80,7 @@ import {
   Search,
   Settings,
   AlertTriangle,
+  MessageSquare,
 } from "lucide-react";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ interface CallingAgent {
   first_message: string | null;
   system_prompt: string | null;
   objectives: string[];
-  questions: { id: string; text: string }[];
+  questions: { id: string; text: string; field_key: string }[];
   is_active: boolean;
   created_at: string;
 }
@@ -258,7 +259,7 @@ interface AgentFormData {
   first_message: string;
   system_prompt: string;
   objectives: string[];
-  questions: { id: string; text: string }[];
+  questions: { id: string; text: string; field_key: string }[];
 }
 
 const emptyAgentForm = (): AgentFormData => ({
@@ -271,6 +272,11 @@ const emptyAgentForm = (): AgentFormData => ({
   objectives: [],
   questions: [],
 });
+
+/** Sanitize a field_key: lowercase, underscored, no special chars */
+function sanitizeFieldKey(raw: string): string {
+  return raw.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+}
 
 function AgentFormDialog({
   open,
@@ -298,7 +304,11 @@ function AgentFormDialog({
         first_message: agent.first_message ?? "",
         system_prompt: agent.system_prompt ?? "",
         objectives: agent.objectives ?? [],
-        questions: (agent.questions as any) ?? [],
+        questions: (agent.questions as any[] ?? []).map((q: any) => ({
+          id: q.id ?? Math.random().toString(36).slice(2),
+          text: q.text ?? "",
+          field_key: q.field_key ?? "",
+        })),
       });
     } else {
       setForm(emptyAgentForm());
@@ -320,13 +330,17 @@ function AgentFormDialog({
   const addQuestion = () =>
     set("questions", [
       ...form.questions,
-      { id: Math.random().toString(36).slice(2), text: "" },
+      { id: Math.random().toString(36).slice(2), text: "", field_key: "" },
     ]);
 
-  const updateQuestion = (id: string, text: string) =>
+  const updateQuestion = (id: string, field: "text" | "field_key", value: string) =>
     set(
       "questions",
-      form.questions.map(q => (q.id === id ? { ...q, text } : q)),
+      form.questions.map(q =>
+        q.id === id
+          ? { ...q, [field]: field === "field_key" ? sanitizeFieldKey(value) : value }
+          : q,
+      ),
     );
 
   const removeQuestion = (id: string) =>
@@ -487,26 +501,44 @@ function AgentFormDialog({
           <div>
             <Label>Preguntas clave</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-2">
-              Preguntas que el agente debe hacerle al contacto.
+              Preguntas que el agente hace al contacto. La respuesta se guarda automáticamente en el campo personalizado indicado.
             </p>
-            <div className="space-y-2">
-              {form.questions.map(q => (
-                <div key={q.id} className="flex items-center gap-2">
-                  <Input
-                    value={q.text}
-                    onChange={e => updateQuestion(q.id, e.target.value)}
-                    placeholder="Escribe una pregunta..."
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="shrink-0 text-slate-400 hover:text-red-500"
-                    onClick={() => removeQuestion(q.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+            <div className="space-y-3">
+              {form.questions.map((q, index) => (
+                <div key={q.id} className="rounded-lg border border-slate-200 bg-slate-50/50 p-3 space-y-2">
+                  {/* Question text row */}
+                  <div className="flex items-center gap-2">
+                    <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+                      {index + 1}
+                    </span>
+                    <Input
+                      value={q.text}
+                      onChange={e => updateQuestion(q.id, "text", e.target.value)}
+                      placeholder="Escribe la pregunta que hará el agente..."
+                      className="flex-1 bg-white"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0 h-8 w-8 text-slate-400 hover:text-red-500"
+                      onClick={() => removeQuestion(q.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {/* Field key row */}
+                  <div className="flex items-center gap-2 pl-7">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">Guardar respuesta en:</span>
+                    <div className="relative flex-1">
+                      <Input
+                        value={q.field_key}
+                        onChange={e => updateQuestion(q.id, "field_key", e.target.value)}
+                        placeholder="campo_personalizado (opcional)"
+                        className="h-7 text-xs font-mono bg-white pr-2"
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
               <Button
@@ -846,6 +878,28 @@ function CallDetailSheet({
               </CardHeader>
               <CardContent className="pb-4">
                 <p className="text-sm text-slate-700 leading-relaxed">{log.ai_summary}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Question answers extracted by AI */}
+          {analysis.question_answers &&
+           typeof analysis.question_answers === "object" &&
+           Object.keys(analysis.question_answers).length > 0 && (
+            <Card>
+              <CardHeader className="pb-2 pt-4">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-indigo-500" />
+                  Respuestas de preguntas clave
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pb-4 space-y-2">
+                {Object.entries(analysis.question_answers as Record<string, string>).map(([question, answer]) => (
+                  <div key={question} className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-2.5">
+                    <p className="text-xs font-medium text-indigo-700 mb-0.5">{question}</p>
+                    <p className="text-sm text-slate-800">{answer || <span className="text-slate-400 italic">Sin respuesta</span>}</p>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}

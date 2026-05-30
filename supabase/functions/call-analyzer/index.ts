@@ -41,7 +41,7 @@ Deno.serve(async (req: Request) => {
     // ── 2. Fetch call_log ────────────────────────────────────────────────────
     const { data: callLog, error: callLogError } = await supabase
       .from("call_logs")
-      .select("id, organization_id, contact_id, campaign_id, transcript, structured_data")
+      .select("id, organization_id, contact_id, campaign_id, calling_agent_id, transcript, structured_data")
       .eq("id", call_log_id)
       .maybeSingle();
 
@@ -87,10 +87,40 @@ Deno.serve(async (req: Request) => {
     const currentStatus = contact?.lead_status ?? "new";
     const currentTags: string[] = Array.isArray(contact?.tags) ? contact.tags : [];
 
+    // ── 4.5. Fetch calling agent questions (for field mapping) ────────────────
+    interface AgentQuestion { id: string; text: string; field_key: string }
+    let agentQuestions: AgentQuestion[] = [];
+
+    if (callLog.calling_agent_id) {
+      const { data: agentRow } = await supabase
+        .from("calling_agents")
+        .select("questions")
+        .eq("id", callLog.calling_agent_id)
+        .maybeSingle();
+
+      if (agentRow?.questions && Array.isArray(agentRow.questions)) {
+        agentQuestions = (agentRow.questions as unknown[])
+          .filter((q): q is AgentQuestion => typeof q === "object" && q !== null && "text" in q)
+          .map((q: AgentQuestion) => ({
+            id: q.id ?? "",
+            text: q.text ?? "",
+            field_key: q.field_key ?? "",
+          }))
+          .filter(q => q.text.trim());
+      }
+    }
+
     // ── 5. Build Claude prompt ───────────────────────────────────────────────
     const structuredDataStr = callLog.structured_data
       ? JSON.stringify(callLog.structured_data, null, 2)
       : "None";
+
+    // Build questions block for the prompt
+    const questionsBlock = agentQuestions.length > 0
+      ? `\n\nKey questions the agent was supposed to ask (extract the contact's answers from the transcript):\n${
+          agentQuestions.map((q, i) => `  ${i + 1}. "${q.text}"`).join("\n")
+        }\n\nFor each question, extract the contact's answer verbatim or as a short summary. Include them in "question_answers" as an object mapping question text → answer string (or null if not answered).`
+      : "";
 
     const systemPrompt =
       "You are a sales intelligence AI. Analyze this call transcript and extract structured data.";
@@ -101,7 +131,7 @@ ${transcript}
 Already extracted by call system:
 ${structuredDataStr}
 
-Contact info: ${contactName}, current score: ${currentScore}, current status: ${currentStatus}
+Contact info: ${contactName}, current score: ${currentScore}, current status: ${currentStatus}${questionsBlock}
 
 Respond ONLY with valid JSON (no markdown) in this exact format:
 {
@@ -117,11 +147,13 @@ Respond ONLY with valid JSON (no markdown) in this exact format:
   "score_delta": 0,
   "suggested_lead_status": "new|active|qualified|won|lost|null",
   "crm_updates": {},
-  "tags_to_add": []
+  "tags_to_add": [],
+  "question_answers": {}
 }
 
 score_delta must be a number between -20 and 30.
-suggested_lead_status must be one of: new, active, qualified, won, lost, or null.`;
+suggested_lead_status must be one of: new, active, qualified, won, lost, or null.
+question_answers must map each question text to the contact's answer (string), or null if the question was not answered.`;
 
     // ── 6. Call Claude API ───────────────────────────────────────────────────
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -187,6 +219,10 @@ suggested_lead_status must be one of: new, active, qualified, won, lost, or null
       analysis.crm_updates && typeof analysis.crm_updates === "object"
         ? (analysis.crm_updates as Record<string, unknown>)
         : {};
+    const question_answers: Record<string, string | null> =
+      analysis.question_answers && typeof analysis.question_answers === "object"
+        ? (analysis.question_answers as Record<string, string | null>)
+        : {};
 
     // ── 8. Update call_logs ──────────────────────────────────────────────────
     const { error: updateCallLogError } = await supabase
@@ -240,16 +276,104 @@ suggested_lead_status must be one of: new, active, qualified, won, lost, or null
       }
     }
 
+    // ── 9.5. Write question answers → contact.custom_fields ─────────────────
+    // Map question text → field_key for all questions that have a field_key set
+    if (callLog.contact_id && callLog.organization_id && agentQuestions.length > 0) {
+      const customFieldsUpdate: Record<string, string> = {};
+      const fieldDefsToUpsert: { organization_id: string; key: string; label: string; field_type: string }[] = [];
+
+      for (const question of agentQuestions) {
+        if (!question.field_key) continue;
+
+        const answer = question_answers[question.text];
+        if (answer == null) continue;
+
+        const cleanAnswer = String(answer).trim();
+        if (!cleanAnswer) continue;
+
+        customFieldsUpdate[question.field_key] = cleanAnswer;
+
+        // Auto-register the field definition (upsert so existing defs are preserved)
+        fieldDefsToUpsert.push({
+          organization_id: callLog.organization_id,
+          key: question.field_key,
+          label: question.text,
+          field_type: "text",
+        });
+      }
+
+      if (Object.keys(customFieldsUpdate).length > 0) {
+        // Fetch current custom_fields, merge, then write back
+        const { data: currentContact } = await supabase
+          .from("contacts")
+          .select("custom_fields")
+          .eq("id", callLog.contact_id)
+          .maybeSingle();
+
+        const existing =
+          currentContact?.custom_fields &&
+          typeof currentContact.custom_fields === "object" &&
+          !Array.isArray(currentContact.custom_fields)
+            ? (currentContact.custom_fields as Record<string, unknown>)
+            : {};
+
+        const merged = { ...existing, ...customFieldsUpdate };
+
+        const { error: cfError } = await supabase
+          .from("contacts")
+          .update({ custom_fields: merged })
+          .eq("id", callLog.contact_id);
+
+        if (cfError) {
+          console.error("Error writing custom fields:", cfError.message);
+        }
+
+        // Upsert custom_field_definitions so the fields show up in SettingsPage
+        if (fieldDefsToUpsert.length > 0) {
+          const { error: defError } = await supabase
+            .from("custom_field_definitions")
+            .upsert(fieldDefsToUpsert, { onConflict: "organization_id,key", ignoreDuplicates: true });
+
+          if (defError) {
+            console.error("Error upserting custom_field_definitions:", defError.message);
+          }
+        }
+      }
+    }
+
     // ── 10. Insert activity ──────────────────────────────────────────────────
     if (callLog.contact_id && callLog.organization_id) {
+      // Build Q&A section for the activity note
+      const qaLines: string[] = [];
+      for (const question of agentQuestions) {
+        const answer = question_answers[question.text];
+        if (answer) {
+          qaLines.push(`• ${question.text}: ${String(answer).trim()}`);
+        }
+      }
+
+      const qaBlock = qaLines.length > 0
+        ? `\n\n❓ Respuestas clave:\n${qaLines.join("\n")}`
+        : "";
+
+      const painBlock = Array.isArray(analysis.pain_points) && (analysis.pain_points as string[]).length > 0
+        ? `\n\n🔥 Puntos de dolor: ${(analysis.pain_points as string[]).join(", ")}`
+        : "";
+
+      const objectionsBlock = Array.isArray(analysis.objections) && (analysis.objections as string[]).length > 0
+        ? `\n\n⚠️ Objeciones: ${(analysis.objections as string[]).join(", ")}`
+        : "";
+
+      const nextStepBlock = next_step ? `\n\n➡️ Próximo paso: ${next_step}` : "";
+
       const activityDescription =
-        ai_summary + "\n\nResumen completo: " + JSON.stringify(analysis);
+        `📞 Llamada de IA analizada\n\n${ai_summary}${qaBlock}${painBlock}${objectionsBlock}${nextStepBlock}`;
 
       const { error: activityError } = await supabase.from("activities").insert({
         organization_id: callLog.organization_id,
         contact_id: callLog.contact_id,
         type: "call",
-        title: `Llamada IA analizada — ${temperature} / ${interest_level}`,
+        title: `Llamada IA — ${temperature === "hot" ? "🔥 Hot" : temperature === "warm" ? "🌡 Warm" : "❄️ Cold"} / Interés ${interest_level}`,
         description: activityDescription,
       });
 
