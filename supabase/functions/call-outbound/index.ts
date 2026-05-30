@@ -199,16 +199,21 @@ async function callContact(
     }
   }
 
-  // Map our friendly voice names → real Azure Neural voice IDs
-  // Azure voices: https://learn.microsoft.com/azure/ai-services/speech-service/language-support
-  const AZURE_VOICE_MAP: Record<string, string> = {
-    "Paola":     "es-MX-DaliaNeural",
-    "Isabella":  "es-ES-ElviraNeural",
-    "Valentina": "es-AR-ElenaNeural",
-    "David":     "en-US-GuyNeural",
-    "Brian":     "en-US-BrianNeural",
+  // Map our voice names → OpenAI TTS voice IDs (much more natural than Azure)
+  // OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
+  const OPENAI_VOICE_MAP: Record<string, string> = {
+    "Paola":     "nova",      // female, natural Spanish
+    "Isabella":  "shimmer",   // female, softer
+    "Valentina": "nova",      // female
+    "David":     "onyx",      // male, deep
+    "Brian":     "echo",      // male
   };
-  const resolvedVoiceId = AZURE_VOICE_MAP[agent.voice] ?? agent.voice ?? "es-MX-DaliaNeural";
+  const resolvedVoiceId = OPENAI_VOICE_MAP[agent.voice] ?? "nova";
+
+  // Transcriber language — critical: without this Deepgram defaults to English
+  // and won't understand Spanish speech at all
+  const transcriberLanguage = (agent.language === "en") ? "en-US" : "es";
+  const transcriberModel = (agent.language === "en") ? "nova-2" : "nova-2";
 
   // Ensure firstMessage is never empty — a silent agent hangs up immediately
   const safeFirstMessage = (firstMessage || "").trim() ||
@@ -219,8 +224,13 @@ async function callContact(
     customer: { number: contact.primary_phone },
     assistant: {
       voice: {
-        provider: "azure",
+        provider: "openai",
         voiceId: resolvedVoiceId,
+      },
+      transcriber: {
+        provider: "deepgram",
+        model: transcriberModel,
+        language: transcriberLanguage,
       },
       model: {
         provider: "openai",
