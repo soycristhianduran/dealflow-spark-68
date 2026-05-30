@@ -69,6 +69,22 @@ function normalizePhone(raw: string): string {
   return `+${digits}`;
 }
 
+/**
+ * Map Vapi call status values to our DB-allowed enum values.
+ * Vapi uses: queued, ringing, in-progress, forwarding, ended
+ * Our DB allows: initiated, ringing, in_progress, completed, no_answer, voicemail, failed, cancelled
+ */
+function normalizeVapiStatus(vapiStatus: string): string {
+  switch (vapiStatus) {
+    case "queued":      return "initiated";
+    case "ringing":     return "ringing";
+    case "in-progress": return "in_progress";
+    case "forwarding":  return "in_progress";
+    case "ended":       return "completed";
+    default:            return "initiated"; // safe fallback always in the allowed set
+  }
+}
+
 /** Increment a numeric counter column on a campaign row via RPC.
  *  Falls back to a direct UPDATE if the RPC does not exist yet. */
 async function incCampaignCounter(
@@ -285,8 +301,8 @@ async function callContact(
     }
 
     vapiCallId = vapiData.id || vapiData.callId || null;
-    vapiStatus = vapiData.status || "initiated";
-    console.log(`Vapi call initiated: ${vapiCallId} for contact ${contactId}`);
+    vapiStatus = normalizeVapiStatus(vapiData.status || "queued");
+    console.log(`Vapi call initiated: ${vapiCallId} (status: ${vapiData.status} → ${vapiStatus}) for contact ${contactId}`);
   } catch (fetchErr) {
     const msg = `Failed to reach Vapi API: ${fetchErr}`;
     console.error(msg);
@@ -314,8 +330,9 @@ async function callContact(
     .single();
 
   if (insertErr) {
-    // Non-fatal: call was initiated but we couldn't log it
-    console.error("Could not insert call_log:", insertErr.message);
+    // Non-fatal: call was initiated but we couldn't log it.
+    // Surface the error in the return value so the caller can report it.
+    console.error("Could not insert call_log:", insertErr.message, insertErr.details ?? "");
   }
 
   // 6. Increment campaign counter if applicable
@@ -327,6 +344,7 @@ async function callContact(
     success: true,
     callLogId: callLog?.id,
     vapiCallId: vapiCallId ?? undefined,
+    ...(insertErr ? { callLogWarning: insertErr.message } : {}),
   };
 }
 
