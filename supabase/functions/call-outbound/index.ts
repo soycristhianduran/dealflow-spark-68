@@ -161,7 +161,7 @@ async function callContact(
   const { data: agent, error: agentErr } = await supabase
     .from("calling_agents")
     .select(
-      "id, name, voice, language, first_message, system_prompt, objectives, questions, structured_data_schema, vapi_assistant_id",
+      "id, name, voice, voice_provider, language, first_message, system_prompt, objectives, questions, structured_data_schema, vapi_assistant_id",
     )
     .eq("id", callingAgentId)
     .eq("organization_id", organizationId)
@@ -215,16 +215,26 @@ async function callContact(
     }
   }
 
-  // Map our voice names → OpenAI TTS voice IDs (much more natural than Azure)
-  // OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
+  // ── Voice config ────────────────────────────────────────────────────────────
+  // Map friendly OpenAI voice names → real OpenAI TTS IDs
   const OPENAI_VOICE_MAP: Record<string, string> = {
-    "Paola":     "nova",      // female, natural Spanish
-    "Isabella":  "shimmer",   // female, softer
-    "Valentina": "nova",      // female
-    "David":     "onyx",      // male, deep
-    "Brian":     "echo",      // male
+    "Paola":     "nova",
+    "Isabella":  "shimmer",
+    "Valentina": "nova",
+    "David":     "onyx",
+    "Brian":     "echo",
   };
-  const resolvedVoiceId = OPENAI_VOICE_MAP[agent.voice] ?? "nova";
+
+  const voiceProvider: string = (agent as any).voice_provider ?? "openai";
+  let resolvedVoiceConfig: Record<string, string>;
+
+  if (voiceProvider === "elevenlabs") {
+    // agent.voice already holds the raw ElevenLabs voice ID
+    resolvedVoiceConfig = { provider: "11labs", voiceId: agent.voice };
+  } else {
+    // OpenAI TTS — map friendly name to real ID
+    resolvedVoiceConfig = { provider: "openai", voiceId: OPENAI_VOICE_MAP[agent.voice] ?? "nova" };
+  }
 
   // Transcriber language — critical: without this Deepgram defaults to English
   // and won't understand Spanish speech at all
@@ -239,10 +249,7 @@ async function callContact(
     phoneNumberId: vapiPhoneNumberId,
     customer: { number: contact.primary_phone },
     assistant: {
-      voice: {
-        provider: "openai",
-        voiceId: resolvedVoiceId,
-      },
+      voice: resolvedVoiceConfig,
       transcriber: {
         provider: "deepgram",
         model: transcriberModel,

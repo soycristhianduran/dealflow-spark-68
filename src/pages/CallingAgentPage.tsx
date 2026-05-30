@@ -91,6 +91,7 @@ interface CallingAgent {
   name: string;
   description: string | null;
   voice: string;
+  voice_provider: string;
   language: string;
   first_message: string | null;
   system_prompt: string | null;
@@ -151,12 +152,27 @@ interface Contact {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const VOICE_OPTIONS = [
-  { value: "Paola", label: "Paola (es)" },
-  { value: "Isabella", label: "Isabella (es)" },
-  { value: "Valentina", label: "Valentina (es)" },
-  { value: "David", label: "David (en)" },
-  { value: "Brian", label: "Brian (en)" },
+// OpenAI TTS voices (built-in, no extra cost)
+const OPENAI_VOICE_OPTIONS = [
+  { value: "Paola",     label: "Paola — femenina natural (es)" },
+  { value: "Isabella",  label: "Isabella — femenina suave (es)" },
+  { value: "Valentina", label: "Valentina — femenina cálida (es)" },
+  { value: "David",     label: "David — masculino (en)" },
+  { value: "Brian",     label: "Brian — masculino grave (en)" },
+];
+
+// ElevenLabs curated Spanish voices (users can also paste any custom ID)
+const ELEVENLABS_VOICE_PRESETS = [
+  { value: "cgSgspJ2msm6clMCkdW9", label: "Jessica — femenina, castellano" },
+  { value: "EXAVITQu4vr4xnSDxMaL", label: "Bella — femenina, cálida" },
+  { value: "onwK4e9ZLuTAKqWW03F9", label: "Daniel — masculino, profesional" },
+  { value: "N2lVS1w4EtoT3dr4eOWO", label: "Callum — masculino, serio" },
+  { value: "custom", label: "✏️ Pegar ID personalizado..." },
+];
+
+const VOICE_PROVIDER_OPTIONS = [
+  { value: "openai",      label: "OpenAI TTS (incluido)" },
+  { value: "elevenlabs",  label: "ElevenLabs (requiere API key en Vapi)" },
 ];
 
 const LANGUAGE_OPTIONS = [
@@ -255,6 +271,7 @@ interface AgentFormData {
   name: string;
   description: string;
   voice: string;
+  voice_provider: string;
   language: string;
   first_message: string;
   system_prompt: string;
@@ -266,6 +283,7 @@ const emptyAgentForm = (): AgentFormData => ({
   name: "",
   description: "",
   voice: "Paola",
+  voice_provider: "openai",
   language: "es",
   first_message: "",
   system_prompt: "",
@@ -300,6 +318,7 @@ function AgentFormDialog({
         name: agent.name,
         description: agent.description ?? "",
         voice: agent.voice,
+        voice_provider: (agent as any).voice_provider ?? "openai",
         language: agent.language,
         first_message: agent.first_message ?? "",
         system_prompt: agent.system_prompt ?? "",
@@ -361,6 +380,7 @@ function AgentFormDialog({
         name: form.name.trim(),
         description: form.description || null,
         voice: form.voice,
+        voice_provider: form.voice_provider,
         language: form.language,
         first_message: form.first_message || null,
         system_prompt: form.system_prompt || null,
@@ -424,15 +444,20 @@ function AgentFormDialog({
             />
           </div>
 
-          {/* Voice + Language */}
+          {/* Voice Provider + Language */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Voz</Label>
-              <Select value={form.voice} onValueChange={v => set("voice", v)}>
+              <Label>Proveedor de voz</Label>
+              <Select value={form.voice_provider} onValueChange={v => {
+                set("voice_provider", v);
+                // Reset voice to sensible default when switching provider
+                if (v === "openai") set("voice", "Paola");
+                else set("voice", ELEVENLABS_VOICE_PRESETS[0].value);
+              }}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {VOICE_OPTIONS.map(v => (
-                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                  {VOICE_PROVIDER_OPTIONS.map(p => (
+                    <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -448,6 +473,50 @@ function AgentFormDialog({
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Voice selection — depends on provider */}
+          <div>
+            <Label>Voz</Label>
+            {form.voice_provider === "openai" ? (
+              <Select value={form.voice} onValueChange={v => set("voice", v)}>
+                <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {OPENAI_VOICE_OPTIONS.map(v => (
+                    <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="space-y-2 mt-1">
+                <Select
+                  value={ELEVENLABS_VOICE_PRESETS.some(p => p.value === form.voice && p.value !== "custom") ? form.voice : "custom"}
+                  onValueChange={v => { if (v !== "custom") set("voice", v); else set("voice", ""); }}
+                >
+                  <SelectTrigger><SelectValue placeholder="Selecciona una voz..." /></SelectTrigger>
+                  <SelectContent>
+                    {ELEVENLABS_VOICE_PRESETS.map(v => (
+                      <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {/* Show custom ID input when "custom" selected or if pasted ID doesn't match presets */}
+                {(!ELEVENLABS_VOICE_PRESETS.some(p => p.value === form.voice && p.value !== "custom") || form.voice === "") && (
+                  <Input
+                    value={form.voice}
+                    onChange={e => set("voice", e.target.value.trim())}
+                    placeholder="Pega aquí el Voice ID de ElevenLabs"
+                    className="font-mono text-xs"
+                  />
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Encuentra más voces en{" "}
+                  <a href="https://elevenlabs.io/voice-library" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                    ElevenLabs Voice Library
+                  </a>. Requiere conectar tu API key en Vapi → Settings → Integrations → ElevenLabs.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* First message */}
@@ -1127,7 +1196,10 @@ function AgentesTab() {
                     <div className="min-w-0">
                       <p className="font-semibold text-slate-900 truncate">{agent.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {VOICE_OPTIONS.find(v => v.value === agent.voice)?.label ?? agent.voice}
+                        {(agent as any).voice_provider === "elevenlabs"
+                          ? `🎙️ ElevenLabs · ${ELEVENLABS_VOICE_PRESETS.find(v => v.value === agent.voice)?.label?.split(" —")[0] ?? agent.voice}`
+                          : OPENAI_VOICE_OPTIONS.find(v => v.value === agent.voice)?.label?.split(" —")[0] ?? agent.voice
+                        }
                       </p>
                     </div>
                   </div>
