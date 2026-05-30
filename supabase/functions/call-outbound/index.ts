@@ -213,11 +213,15 @@ async function callContact(
         systemPrompt: systemPrompt,
       },
       firstMessage: firstMessage,
-      // Only include analysisPlan fields that are actually set —
-      // Vapi rejects null/undefined values for structuredDataSchema
+      // Only include structuredDataSchema when it's a non-empty object with a
+      // valid "type" field — Vapi rejects null, undefined, and empty objects.
       analysisPlan: {
         summaryPrompt: "Summarize this call in 2-3 sentences in Spanish. Focus on whether the contact was interested, any objections raised, and the agreed next step.",
-        ...(agent.structured_data_schema
+        ...(agent.structured_data_schema &&
+           typeof agent.structured_data_schema === "object" &&
+           !Array.isArray(agent.structured_data_schema) &&
+           Object.keys(agent.structured_data_schema).length > 0 &&
+           "type" in agent.structured_data_schema
           ? { structuredDataSchema: agent.structured_data_schema }
           : {}),
       },
