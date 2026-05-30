@@ -263,7 +263,7 @@ async function handleCallEnded(
     `call-ended: call_log ${existingLog.id} → status=${finalStatus}, duration=${duration}s, vapi_call_id=${vapiCallId}`,
   );
 
-  // Increment campaign counter
+  // Increment campaign counter + auto-complete when all calls are done
   if (existingLog.campaign_id) {
     const counterColumn = finalStatus === "completed" ? "calls_completed" : "calls_failed";
     const { error: rpcErr } = await supabase.rpc("inc_campaign_counter", {
@@ -284,6 +284,24 @@ async function handleCallEnded(
           .from("calling_campaigns")
           .update({ [counterColumn]: cur + 1 })
           .eq("id", existingLog.campaign_id);
+      }
+    }
+
+    // Auto-complete campaign when calls_completed + calls_failed >= calls_initiated
+    const { data: campStats } = await supabase
+      .from("calling_campaigns")
+      .select("calls_initiated, calls_completed, calls_failed, status")
+      .eq("id", existingLog.campaign_id)
+      .maybeSingle();
+
+    if (campStats && campStats.status !== "completed") {
+      const done = (campStats.calls_completed ?? 0) + (campStats.calls_failed ?? 0) + 1; // +1 for the current call
+      if (done >= (campStats.calls_initiated ?? 0)) {
+        await supabase
+          .from("calling_campaigns")
+          .update({ status: "completed" })
+          .eq("id", existingLog.campaign_id);
+        console.log(`Campaign ${existingLog.campaign_id} auto-completed: ${done}/${campStats.calls_initiated} calls done`);
       }
     }
   }

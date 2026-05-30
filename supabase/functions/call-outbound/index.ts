@@ -443,13 +443,18 @@ async function launchCampaign(
     }
   }
 
-  // 5. Update campaign total_contacts with the real count (in case it differs)
+  // 5. Update campaign: set total_contacts and mark as completed now that
+  //    all calls have been placed (results will come in via vapi-webhook).
+  //    If nothing was initiated (all skipped or all failed), mark as completed too.
   await supabase
     .from("calling_campaigns")
-    .update({ total_contacts: contactIds.length })
+    .update({
+      total_contacts: contactIds.length,
+      status: "completed",
+    })
     .eq("id", campaignId);
 
-  console.log(`Campaign ${campaignId} launched: ${initiated} initiated, ${skippedCount} skipped, ${errors.length} errors`);
+  console.log(`Campaign ${campaignId} launched: ${initiated} initiated, ${skippedCount} skipped, ${errors.length} errors — marked completed`);
 
   return { success: true, initiated, skipped: skippedCount, errors };
 }
