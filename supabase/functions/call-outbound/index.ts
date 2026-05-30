@@ -226,14 +226,25 @@ async function callContact(
   };
 
   const voiceProvider: string = (agent as any).voice_provider ?? "openai";
-  let resolvedVoiceConfig: Record<string, string>;
+  let resolvedVoiceConfig: Record<string, unknown>;
 
   if (voiceProvider === "elevenlabs") {
-    // agent.voice already holds the raw ElevenLabs voice ID
-    resolvedVoiceConfig = { provider: "11labs", voiceId: agent.voice };
+    // ElevenLabs via Vapi. The voice must be imported in Vapi's Voice Library first.
+    // eleven_turbo_v2_5 = lowest latency model, best for real-time calls.
+    resolvedVoiceConfig = {
+      provider: "11labs",
+      voiceId: agent.voice,
+      model: "eleven_turbo_v2_5",
+      stability: 0.5,
+      similarityBoost: 0.75,
+      style: 0,
+      useSpeakerBoost: true,
+    };
+    console.log(`Using ElevenLabs voice: ${agent.voice}`);
   } else {
     // OpenAI TTS — map friendly name to real ID
     resolvedVoiceConfig = { provider: "openai", voiceId: OPENAI_VOICE_MAP[agent.voice] ?? "nova" };
+    console.log(`Using OpenAI TTS voice: ${OPENAI_VOICE_MAP[agent.voice] ?? "nova"}`);
   }
 
   // Transcriber language — critical: without this Deepgram defaults to English
