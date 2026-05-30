@@ -20,11 +20,19 @@ const navItems = [
   { title: "Calendario",     url: "/calendar",     icon: CalendarDays },
   { title: "Tareas",         url: "/tasks",        icon: CheckSquare },
   { title: "Conversaciones", url: "/conversations",icon: MessageSquare },
-  { title: "Agente IA",      url: "/ai-agent",     icon: Bot },
 ];
 
 // ── Grupos de sección "Avanzado" (admin / owner) ──────────────────────────────
 const powerGroups = [
+  {
+    id: "agentes",
+    label: "Agentes IA",
+    icon: Bot,
+    items: [
+      { title: "Agente de Chat", url: "/ai-agent",      icon: MessageSquare },
+      { title: "Agente de Voz",  url: "/calling-agent", icon: PhoneCall },
+    ],
+  },
   {
     id: "marketing",
     label: "Marketing",
@@ -41,7 +49,6 @@ const powerGroups = [
     icon: Zap,
     items: [
       { title: "Flujos",          url: "/automations",            icon: Zap },
-      { title: "Agente de Llamadas", url: "/calling-agent",       icon: PhoneCall },
       { title: "IG Automaciones", url: "/instagram/automations",  icon: Sparkles },
       { title: "WA Plantillas",   url: "/whatsapp/templates",     icon: MessageSquare },
     ],
