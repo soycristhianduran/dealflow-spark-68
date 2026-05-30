@@ -1226,11 +1226,34 @@ function CampañasTab() {
 
   const launchCampaign = async (campaign: CallingCampaign) => {
     try {
-      const { error } = await supabase.functions.invoke("call-outbound", {
+      const { data, error } = await supabase.functions.invoke("call-outbound", {
         body: { action: "launch_campaign", campaign_id: campaign.id },
       });
       if (error) throw error;
-      toast({ title: "Campaña lanzada", description: "Las llamadas se están iniciando." });
+
+      const initiated: number = data?.initiated ?? 0;
+      const errors: string[] = data?.errors ?? [];
+      const skipped: number = data?.skipped ?? 0;
+
+      if (initiated > 0) {
+        toast({
+          title: `${initiated} llamada${initiated !== 1 ? "s" : ""} iniciada${initiated !== 1 ? "s" : ""}`,
+          description: skipped > 0 ? `${skipped} contacto(s) sin teléfono omitidos.` : undefined,
+        });
+      } else if (errors.length > 0) {
+        // Show the first error — usually reveals phone format, Vapi key, etc.
+        toast({
+          title: "No se pudo iniciar la llamada",
+          description: errors[0],
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Sin llamadas",
+          description: skipped > 0 ? `${skipped} contacto(s) no tienen número de teléfono.` : "No hay contactos para llamar.",
+          variant: "destructive",
+        });
+      }
       load();
     } catch (err: any) {
       toast({ title: "Error al lanzar", description: err.message, variant: "destructive" });
@@ -1311,28 +1334,42 @@ function CampañasTab() {
                     {new Date(campaign.created_at).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })}
                   </TableCell>
                   <TableCell className="text-right">
-                    {(campaign.status === "draft" || campaign.status === "paused") && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-200 hover:bg-green-50"
-                        onClick={() => launchCampaign(campaign)}
-                      >
-                        <Play className="h-3.5 w-3.5 mr-1.5" />
-                        Lanzar
-                      </Button>
-                    )}
-                    {campaign.status === "active" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-amber-600 border-amber-200 hover:bg-amber-50"
-                        onClick={() => pauseCampaign(campaign)}
-                      >
-                        <Pause className="h-3.5 w-3.5 mr-1.5" />
-                        Pausar
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      {(campaign.status === "draft" || campaign.status === "paused") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={() => launchCampaign(campaign)}
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1.5" />
+                          Lanzar
+                        </Button>
+                      )}
+                      {campaign.status === "active" && campaign.calls_initiated === 0 && (
+                        // Active but 0 calls fired — allow retry without having to pause first
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-200 hover:bg-green-50"
+                          onClick={() => launchCampaign(campaign)}
+                        >
+                          <Play className="h-3.5 w-3.5 mr-1.5" />
+                          Relanzar
+                        </Button>
+                      )}
+                      {campaign.status === "active" && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-600 border-amber-200 hover:bg-amber-50"
+                          onClick={() => pauseCampaign(campaign)}
+                        >
+                          <Pause className="h-3.5 w-3.5 mr-1.5" />
+                          Pausar
+                        </Button>
+                      )}
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

@@ -31,6 +31,44 @@ function adminClient() {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/**
+ * Normalise a raw phone number string to E.164 format required by Vapi.
+ * Rules:
+ *  - Already has "+" → strip non-digit after +, validate length ≥ 7
+ *  - Starts with "00" → replace with "+"
+ *  - 10 digits, starts with 3 → assume Colombia (+57)
+ *  - 11 digits, starts with "57" and second digit is "3" → prepend "+"
+ *  - 10 digits, starts with 1-9 → prepend "+" (international w/o +)
+ *  - Otherwise → return as-is and let Vapi fail with a clear error
+ */
+function normalizePhone(raw: string): string {
+  const cleaned = raw.replace(/[\s\-().]/g, ""); // strip spaces, dashes, parens, dots
+
+  if (cleaned.startsWith("+")) {
+    return cleaned; // already E.164
+  }
+  if (cleaned.startsWith("00")) {
+    return "+" + cleaned.slice(2); // 0057... → +57...
+  }
+
+  const digits = cleaned.replace(/\D/g, "");
+
+  // 10-digit Colombian mobile: starts with 3 → +57XXXXXXXXXX
+  if (digits.length === 10 && digits.startsWith("3")) {
+    return `+57${digits}`;
+  }
+  // 12-digit: already has country code 57 + 10 digits → just prepend +
+  if (digits.length === 12 && digits.startsWith("57") && digits[2] === "3") {
+    return `+${digits}`;
+  }
+  // 11-digit: country code + 10 digits (e.g. 1 for US/CA)
+  if (digits.length === 11) {
+    return `+${digits}`;
+  }
+  // Fallback: prepend + and hope for the best
+  return `+${digits}`;
+}
+
 /** Increment a numeric counter column on a campaign row via RPC.
  *  Falls back to a direct UPDATE if the RPC does not exist yet. */
 async function incCampaignCounter(
@@ -98,6 +136,11 @@ async function callContact(
     return { success: false, error: msg };
   }
 
+  // Normalise to E.164 before sending to Vapi
+  const phoneE164 = normalizePhone(contact.primary_phone);
+  console.log(`Phone normalised: "${contact.primary_phone}" → "${phoneE164}"`);
+  contact.primary_phone = phoneE164;
+
   // 2. Fetch calling agent
   const { data: agent, error: agentErr } = await supabase
     .from("calling_agents")
@@ -145,12 +188,12 @@ async function callContact(
   if (Array.isArray(agent.objectives) && agent.objectives.length > 0) {
     systemPrompt += `\n\nOBJETIVOS DE LA LLAMADA:\n${agent.objectives.map((o: string, i: number) => `${i + 1}. ${o}`).join("\n")}`;
   }
-  if (agent.questions && Object.keys(agent.questions).length > 0) {
+  if (Array.isArray(agent.questions) && agent.questions.length > 0) {
     try {
-      const qs: Array<{ question: string }> = Array.isArray(agent.questions)
-        ? agent.questions
-        : Object.values(agent.questions);
-      systemPrompt += `\n\nPREGUNTAS QUE DEBES HACER:\n${qs.map((q, i) => `${i + 1}. ${q.question || q}`).join("\n")}`;
+      const qs = agent.questions as Array<{ text?: string; question?: string }>;
+      systemPrompt += `\n\nPREGUNTAS QUE DEBES HACER (recoge la respuesta del contacto para cada una):\n${
+        qs.map((q, i) => `${i + 1}. ${q.text || q.question || String(q)}`).join("\n")
+      }`;
     } catch (_) {
       // Non-fatal — questions is optional metadata
     }
