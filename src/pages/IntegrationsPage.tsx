@@ -744,7 +744,9 @@ export default function IntegrationsPage() {
 
   const isIntegrationLoading = (id: string) => {
     if (id === "google-calendar") return gcal.connecting;
-    if (id === "facebook") return fb.connecting;
+    // Also show loading while the Meta App ID is being fetched (prevents the
+    // "configuración de Meta no está lista" error toast on fast clicks)
+    if (id === "facebook") return fb.connecting || fb.metaAppIdLoading;
     if (id === "whatsapp") return wa.connecting;
     if (id === "instagram") return ig.connecting;
     return false;

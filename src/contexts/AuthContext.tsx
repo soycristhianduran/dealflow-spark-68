@@ -28,21 +28,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") {
-        // Before clearing the session, verify it's really gone.
-        // Transient DB errors (e.g. RLS infinite recursion) can fire
-        // SIGNED_OUT even when the token is still valid in localStorage.
-        const { data } = await supabase.auth.getSession();
-        if (data.session) {
-          // Token still valid — ignore the spurious sign-out event
-          setSession(data.session);
-        } else {
-          setSession(null);
-        }
-      } else {
-        setSession(session);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      // Straightforward: keep React in sync with whatever Supabase reports.
+      // The old SIGNED_OUT re-check was a workaround for an RLS recursion bug
+      // (fixed in 20260514 + 20260528 migrations). Keeping it caused a race
+      // condition where getSession() still saw the stale token in localStorage
+      // for a brief window, re-authenticating the user and making logout appear
+      // stuck until a manual refresh.
+      setSession(session);
       setLoading(false);
     });
 
@@ -50,7 +43,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // scope:'local' clears localStorage instantly (no network round-trip needed).
+    // The server-side session expires on its own (Supabase default: 1 hour).
+    // This makes logout instant and reliable even on slow connections.
+    await supabase.auth.signOut({ scope: "local" });
     window.location.href = "/auth";
   };
 

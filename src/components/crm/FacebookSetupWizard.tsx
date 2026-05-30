@@ -9,6 +9,7 @@ import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, Ar
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { cn } from "@/lib/utils";
 
 interface FacebookSetupWizardProps {
@@ -47,6 +48,7 @@ const STANDARD_CONTACT_FIELDS = [
 export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardProps) {
   const fb = useFacebookIntegration();
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const [step, setStep] = useState<Step>("pages");
   const [loading, setLoading] = useState(false);
   const [pipelines, setPipelines] = useState<PipelineOption[]>([]);
@@ -84,16 +86,17 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     if (open) {
       setStep("pages");
       loadPages();
-      // Fetch pipelines for the form→pipeline selector
-      if (user) {
+      // Fetch pipelines scoped to the current org
+      if (user && organizationId) {
         supabase
           .from("pipelines")
           .select("id, name")
+          .eq("organization_id", organizationId)
           .order("created_at", { ascending: true })
           .then(({ data }) => setPipelines((data || []).map(p => ({ id: p.id, name: p.name }))));
       }
     }
-  }, [open, user]);
+  }, [open, user, organizationId]);
 
   const loadPages = async () => {
     setLoading(true);

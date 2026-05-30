@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 interface FbPage {
@@ -39,19 +40,33 @@ interface FbTokenHealth {
 
 export function useFacebookIntegration() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [status, setStatus] = useState<FbStatus | null>(null);
   const [tokenHealth, setTokenHealth] = useState<FbTokenHealth | null>(null);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
+  const [metaAppIdLoading, setMetaAppIdLoading] = useState(true);
 
-  // Fetch META_APP_ID from an edge function on mount
-  useEffect(() => {
-    supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
-      if (data?.app_id) setMetaAppId(data.app_id);
-    });
+  // Fetch META_APP_ID from an edge function on mount; retry once on failure
+  const fetchMetaAppId = useCallback(async () => {
+    setMetaAppIdLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("facebook-get-app-id");
+      if (data?.app_id) {
+        setMetaAppId(data.app_id);
+      } else {
+        console.warn("facebook-get-app-id returned no app_id:", error || data);
+      }
+    } catch (err) {
+      console.warn("facebook-get-app-id failed:", err);
+    } finally {
+      setMetaAppIdLoading(false);
+    }
   }, []);
+
+  useEffect(() => { fetchMetaAppId(); }, [fetchMetaAppId]);
 
   const checkConnection = useCallback(async () => {
     if (!user) {
@@ -61,11 +76,15 @@ export function useFacebookIntegration() {
     }
     // Pull token health alongside the existence check so the UI can show a
     // "Reconnect Facebook" banner BEFORE the user notices things broken.
-    const { data } = await supabase
+    // Scope by both org (SaaS multi-tenant) and user_id for backward compat.
+    let query = supabase
       .from("facebook_tokens")
       .select("id, needs_reconnect, token_expires_at, last_refresh_error")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      .eq("user_id", user.id);
+    if (organizationId) {
+      query = query.eq("organization_id", organizationId);
+    }
+    const { data } = await query.maybeSingle();
     setIsConnected(!!data);
 
     if (data) {
@@ -109,8 +128,15 @@ export function useFacebookIntegration() {
 
 
   const connect = useCallback(async () => {
-    if (!user || !metaAppId) {
-      toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
+    if (!user) return;
+    if (metaAppIdLoading) {
+      toast.info("Cargando configuración de Meta, intenta en un momento...");
+      return;
+    }
+    if (!metaAppId) {
+      // Retry fetching app id before giving up
+      await fetchMetaAppId();
+      toast.error("No se pudo cargar la configuración de Meta. Verifica la conexión e intenta de nuevo.");
       return;
     }
     setConnecting(true);
@@ -171,7 +197,7 @@ export function useFacebookIntegration() {
 
     // Use direct redirect instead of popup (cross-origin popup doesn't work)
     window.location.href = oauthUrl;
-  }, [user, metaAppId]);
+  }, [user, metaAppId, metaAppIdLoading, fetchMetaAppId]);
 
   const disconnect = useCallback(async () => {
     const { error } = await supabase.functions.invoke("facebook-api", {
@@ -326,6 +352,7 @@ export function useFacebookIntegration() {
 
   return {
     isConnected, loading, connecting, status, tokenHealth,
+    metaAppIdLoading,
     connect, disconnect, checkConnection,
     getPages, savePages,
     getLeadForms, saveLeadForms, saveFieldMappings,
