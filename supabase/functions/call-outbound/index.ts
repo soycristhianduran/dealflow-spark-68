@@ -199,20 +199,35 @@ async function callContact(
     }
   }
 
+  // Map our friendly voice names → real Azure Neural voice IDs
+  // Azure voices: https://learn.microsoft.com/azure/ai-services/speech-service/language-support
+  const AZURE_VOICE_MAP: Record<string, string> = {
+    "Paola":     "es-MX-DaliaNeural",
+    "Isabella":  "es-ES-ElviraNeural",
+    "Valentina": "es-AR-ElenaNeural",
+    "David":     "en-US-GuyNeural",
+    "Brian":     "en-US-BrianNeural",
+  };
+  const resolvedVoiceId = AZURE_VOICE_MAP[agent.voice] ?? agent.voice ?? "es-MX-DaliaNeural";
+
+  // Ensure firstMessage is never empty — a silent agent hangs up immediately
+  const safeFirstMessage = (firstMessage || "").trim() ||
+    `Hola${contactName ? ` ${contactName}` : ""}, le llamo para contarle sobre nuestros servicios. ¿Tiene un momento?`;
+
   const vapiBody: Record<string, unknown> = {
     phoneNumberId: vapiPhoneNumberId,
     customer: { number: contact.primary_phone },
     assistant: {
       voice: {
         provider: "azure",
-        voiceId: agent.voice || "en-US-JennyNeural",
+        voiceId: resolvedVoiceId,
       },
       model: {
         provider: "openai",
         model: "gpt-4o-mini",
         systemPrompt: systemPrompt,
       },
-      firstMessage: firstMessage,
+      firstMessage: safeFirstMessage,
       // Only include structuredDataSchema when it's a non-empty object with a
       // valid "type" field — Vapi rejects null, undefined, and empty objects.
       analysisPlan: {
