@@ -256,9 +256,13 @@ async function callContact(
   const safeFirstMessage = (firstMessage || "").trim() ||
     `Hola${contactName ? ` ${contactName}` : ""}, le llamo para contarle sobre nuestros servicios. ¿Tiene un momento?`;
 
+  const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/vapi-webhook`;
+
   const vapiBody: Record<string, unknown> = {
     phoneNumberId: vapiPhoneNumberId,
     customer: { number: contact.primary_phone },
+    // Always inject serverUrl so Vapi sends call events regardless of org-level settings
+    serverUrl: webhookUrl,
     assistant: {
       voice: resolvedVoiceConfig,
       transcriber: {
