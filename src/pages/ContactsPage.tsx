@@ -177,7 +177,7 @@ export default function ContactsPage() {
   const [voiceCampaignName, setVoiceCampaignName] = useState("");
   const [voiceCampaignAgentId, setVoiceCampaignAgentId] = useState("");
   const [voiceCampaignLoading, setVoiceCampaignLoading] = useState(false);
-  const [callingAgents, setCallingAgents] = useState<{ id: string; name: string; phone_number: string | null }[]>([]);
+  const [callingAgents, setCallingAgents] = useState<{ id: string; name: string }[]>([]);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);
@@ -289,7 +289,7 @@ export default function ContactsPage() {
   useEffect(() => {
     if (!organizationId) return;
     supabase.from("calling_agents")
-      .select("id, name, phone_number")
+      .select("id, name")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .then(({ data }) => setCallingAgents((data || []) as { id: string; name: string; phone_number: string | null }[]));
@@ -1600,10 +1600,7 @@ export default function ContactsPage() {
                   <SelectContent>
                     {callingAgents.map(a => (
                       <SelectItem key={a.id} value={a.id}>
-                        <span className="font-medium">{a.name}</span>
-                        {a.phone_number && (
-                          <span className="text-muted-foreground ml-2 text-xs">{a.phone_number}</span>
-                        )}
+                        {a.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
