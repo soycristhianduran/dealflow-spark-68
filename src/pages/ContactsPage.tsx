@@ -558,24 +558,24 @@ export default function ContactsPage() {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const userId = authUser?.id ?? myUserId;
 
-      // Create calling_campaign record — call-outbound will pick it up
+      // Create calling_campaign record
       const { data: camp, error: campErr } = await supabase.from("calling_campaigns").insert({
         name: voiceCampaignName.trim(),
-        agent_id: voiceCampaignAgentId,
+        calling_agent_id: voiceCampaignAgentId,
+        organization_id: organizationId,
         contact_ids: contactIds,
         status: "active",
         calls_initiated: 0,
         calls_completed: 0,
         calls_failed: 0,
         total_contacts: contactIds.length,
-        user_id: userId,
       }).select("id").single();
 
       if (campErr || !camp) throw new Error(campErr?.message || "Error al crear campaña");
 
       // Trigger calls via edge function
       const { error: callErr } = await supabase.functions.invoke("call-outbound", {
-        body: { campaignId: camp.id },
+        body: { action: "launch_campaign", campaign_id: camp.id },
       });
 
       if (callErr) {
