@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
@@ -172,6 +172,13 @@ export default function ContactsPage() {
   // WhatsApp campaign name
   const [waCampaignName, setWaCampaignName] = useState("");
 
+  // Voice campaign (Llamada IA)
+  const [voiceCampaignOpen, setVoiceCampaignOpen] = useState(false);
+  const [voiceCampaignName, setVoiceCampaignName] = useState("");
+  const [voiceCampaignAgentId, setVoiceCampaignAgentId] = useState("");
+  const [voiceCampaignLoading, setVoiceCampaignLoading] = useState(false);
+  const [callingAgents, setCallingAgents] = useState<{ id: string; name: string; phone_number: string | null }[]>([]);
+
   const fetchContacts = useCallback(async () => {
     setLoading(true);
     const from = currentPage * PAGE_SIZE;
@@ -277,6 +284,14 @@ export default function ContactsPage() {
         setAllTags([...new Set(tags)].sort());
       });
   }, [organizationId]);
+
+  // Load calling agents once on mount
+  useEffect(() => {
+    supabase.from("calling_agents")
+      .select("id, name, phone_number")
+      .order("created_at", { ascending: false })
+      .then(({ data }) => setCallingAgents((data || []) as { id: string; name: string; phone_number: string | null }[]));
+  }, []);
 
   // Load saved email templates + org sender when dialog opens
   useEffect(() => {
@@ -527,6 +542,56 @@ export default function ContactsPage() {
     setPreviewHtml(null);
     toast.success(`Email enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
     setSelected(new Set());
+  };
+
+  // ── Voice campaign (Llamada IA) ───────────────────────────────────────────
+  const handleVoiceCampaign = async () => {
+    if (!voiceCampaignAgentId) { toast.error("Selecciona un agente de voz"); return; }
+    if (!voiceCampaignName.trim()) { toast.error("El nombre de la campaña es obligatorio"); return; }
+    const contactIds = [...selected];
+    if (contactIds.length === 0) { toast.error("Selecciona al menos un lead"); return; }
+
+    setVoiceCampaignLoading(true);
+    try {
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userId = authUser?.id ?? myUserId;
+
+      // Create calling_campaign record — call-outbound will pick it up
+      const { data: camp, error: campErr } = await supabase.from("calling_campaigns").insert({
+        name: voiceCampaignName.trim(),
+        agent_id: voiceCampaignAgentId,
+        contact_ids: contactIds,
+        status: "active",
+        calls_initiated: 0,
+        calls_completed: 0,
+        calls_failed: 0,
+        total_contacts: contactIds.length,
+        user_id: userId,
+      }).select("id").single();
+
+      if (campErr || !camp) throw new Error(campErr?.message || "Error al crear campaña");
+
+      // Trigger calls via edge function
+      const { error: callErr } = await supabase.functions.invoke("call-outbound", {
+        body: { campaignId: camp.id },
+      });
+
+      if (callErr) {
+        // Campaign created but calls failed to start — still show campaign link
+        toast.warning(`Campaña creada pero hubo un error al iniciar llamadas: ${callErr.message}`);
+      } else {
+        toast.success(`Campaña "${voiceCampaignName.trim()}" iniciada — ${contactIds.length} llamada${contactIds.length !== 1 ? "s" : ""} en cola`);
+      }
+
+      setVoiceCampaignOpen(false);
+      setVoiceCampaignName("");
+      setVoiceCampaignAgentId("");
+      setSelected(new Set());
+    } catch (e: any) {
+      toast.error("Error: " + e.message);
+    } finally {
+      setVoiceCampaignLoading(false);
+    }
   };
 
   const handleBulkFieldChange = async () => {
@@ -848,6 +913,10 @@ export default function ContactsPage() {
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-blue-700 dark:text-blue-400 hover:text-blue-700" onClick={() => { setEmailSubject(""); setEmailBody(""); setEmailBlastOpen(true); }} disabled={bulkWorking}>
               <Mail className="h-3.5 w-3.5" /> Email
+            </Button>
+
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-600" onClick={() => { setVoiceCampaignName(""); setVoiceCampaignAgentId(callingAgents[0]?.id ?? ""); setVoiceCampaignOpen(true); }} disabled={bulkWorking}>
+              <PhoneCall className="h-3.5 w-3.5" /> Llamada IA
             </Button>
 
             <div className="h-4 w-px bg-border" />
@@ -1489,6 +1558,85 @@ export default function ContactsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Voice Campaign (Llamada IA) ────────────────────────────── */}
+      <Dialog open={voiceCampaignOpen} onOpenChange={setVoiceCampaignOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PhoneCall className="h-5 w-5 text-orange-500" />
+              Campaña de llamadas IA
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            {/* Summary */}
+            <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-900/10 px-4 py-3">
+              <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
+                {selected.size} lead{selected.size !== 1 ? "s" : ""} seleccionado{selected.size !== 1 ? "s" : ""}
+              </p>
+              <p className="text-xs text-orange-600/80 dark:text-orange-400/70 mt-0.5">
+                El agente de voz llamará a cada lead de forma automática.
+              </p>
+            </div>
+
+            {/* Agent selector */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Agente de voz <span className="text-red-500">*</span></Label>
+              {callingAgents.length === 0 ? (
+                <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-2.5">
+                  No tienes agentes de voz configurados.{" "}
+                  <a href="/calling-agent" className="text-primary underline underline-offset-2">Crear un agente →</a>
+                </p>
+              ) : (
+                <Select value={voiceCampaignAgentId} onValueChange={setVoiceCampaignAgentId}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue placeholder="Selecciona un agente…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {callingAgents.map(a => (
+                      <SelectItem key={a.id} value={a.id}>
+                        <span className="font-medium">{a.name}</span>
+                        {a.phone_number && (
+                          <span className="text-muted-foreground ml-2 text-xs">{a.phone_number}</span>
+                        )}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            {/* Campaign name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">Nombre de la campaña <span className="text-red-500">*</span></Label>
+              <Input
+                value={voiceCampaignName}
+                onChange={e => setVoiceCampaignName(e.target.value)}
+                placeholder="Ej: Seguimiento mayo, Leads fríos Q2…"
+                className="h-9 text-sm"
+              />
+              <p className="text-[11px] text-muted-foreground">Aparecerá en Agente de Voz → Campañas para ver el progreso.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setVoiceCampaignOpen(false)} disabled={voiceCampaignLoading}>
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleVoiceCampaign}
+              disabled={voiceCampaignLoading || !voiceCampaignAgentId || !voiceCampaignName.trim() || callingAgents.length === 0}
+              className="bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              {voiceCampaignLoading
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Iniciando…</>
+                : <><PhoneCall className="h-4 w-4 mr-1" /> Iniciar campaña</>}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
