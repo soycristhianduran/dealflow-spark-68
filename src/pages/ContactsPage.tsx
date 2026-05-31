@@ -285,13 +285,15 @@ export default function ContactsPage() {
       });
   }, [organizationId]);
 
-  // Load calling agents once on mount
+  // Load calling agents (re-run when org is known)
   useEffect(() => {
+    if (!organizationId) return;
     supabase.from("calling_agents")
       .select("id, name, phone_number")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .then(({ data }) => setCallingAgents((data || []) as { id: string; name: string; phone_number: string | null }[]));
-  }, []);
+  }, [organizationId]);
 
   // Load saved email templates + org sender when dialog opens
   useEffect(() => {
