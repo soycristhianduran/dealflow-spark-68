@@ -12,7 +12,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
@@ -146,6 +146,9 @@ export default function ContactsPage() {
 
   // AI bulk analysis
   const [aiAnalysisOpen, setAiAnalysisOpen] = useState(false);
+  const [mergeOpen, setMergeOpen] = useState(false);
+  const [mergePrimaryId, setMergePrimaryId] = useState<string | null>(null);
+  const [mergeWorking, setMergeWorking] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
 
   // Bulk WhatsApp template blast
@@ -664,6 +667,29 @@ export default function ContactsPage() {
     fetchContacts();
   };
 
+  const handleMergeContacts = async () => {
+    if (!mergePrimaryId || selected.size !== 2) return;
+    const [idA, idB] = [...selected];
+    const secondaryId = mergePrimaryId === idA ? idB : idA;
+    setMergeWorking(true);
+    try {
+      const { data, error } = await supabase.rpc("merge_contacts", {
+        p_primary_id: mergePrimaryId,
+        p_secondary_id: secondaryId,
+        p_org_id: organizationId,
+      });
+      if (error) throw error;
+      toast.success("Contactos fusionados correctamente");
+      setMergeOpen(false);
+      setSelected(new Set());
+      fetchContacts();
+    } catch (err: any) {
+      toast.error("Error al fusionar: " + (err.message || String(err)));
+    } finally {
+      setMergeWorking(false);
+    }
+  };
+
   const addPendingTag = () => {
     const t = tagInput.trim().toLowerCase();
     if (!t) return;
@@ -950,6 +976,21 @@ export default function ContactsPage() {
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-primary hover:text-primary" onClick={() => setAiAnalysisOpen(true)} disabled={bulkWorking}>
               <Sparkles className="h-3.5 w-3.5" /> Score IA
             </Button>
+
+            {selected.size === 2 && (
+              <Button
+                size="sm" variant="ghost"
+                className="h-8 gap-1.5 text-xs text-amber-600 hover:text-amber-700"
+                disabled={bulkWorking}
+                onClick={() => {
+                  const [first] = [...selected];
+                  setMergePrimaryId(first);
+                  setMergeOpen(true);
+                }}
+              >
+                <GitMerge className="h-3.5 w-3.5" /> Fusionar
+              </Button>
+            )}
 
             <div className="h-4 w-px bg-border" />
             <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelected(new Set())}>
@@ -1329,6 +1370,64 @@ export default function ContactsPage() {
               </Button>
             </DialogFooter>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Fusionar contactos ───────────────────────────────────────── */}
+      <Dialog open={mergeOpen} onOpenChange={v => { if (!mergeWorking) setMergeOpen(v); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="h-4 w-4 text-amber-600" /> Fusionar contactos duplicados
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-muted-foreground">
+              Elige cuál es el contacto <strong>principal</strong>. El otro se eliminará y toda su actividad, mensajes y llamadas se transferirán al principal.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {[...selected].map(cid => {
+                const c = contacts.find(x => x.id === cid);
+                if (!c) return null;
+                const isPrimary = mergePrimaryId === cid;
+                return (
+                  <button
+                    key={cid}
+                    onClick={() => setMergePrimaryId(cid)}
+                    className={`text-left rounded-lg border-2 p-3 transition-all ${isPrimary ? "border-primary bg-primary/5" : "border-border hover:border-muted-foreground/40"}`}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                          {c.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isPrimary && <Badge className="text-[10px] h-5">Principal</Badge>}
+                    </div>
+                    <p className="text-sm font-medium truncate">{c.full_name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{c.primary_phone || c.primary_email || "—"}</p>
+                    <p className="text-xs text-muted-foreground mt-1">Origen: <span className="font-medium">{c.source || "—"}</span></p>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+              <p className="text-xs text-destructive">
+                Esta acción es <strong>irreversible</strong>. El contacto secundario se eliminará permanentemente.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeOpen(false)} disabled={mergeWorking}>Cancelar</Button>
+            <Button
+              onClick={handleMergeContacts}
+              disabled={!mergePrimaryId || mergeWorking}
+              className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white border-0"
+            >
+              {mergeWorking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
+              Fusionar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

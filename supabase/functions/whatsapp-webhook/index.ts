@@ -285,11 +285,12 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Try to find contact by phone
+              // Try to find contact by phone — search org-wide so leads from
+              // other channels (Facebook Ads, landing pages) are matched correctly.
               let { data: contact } = await supabase
                 .from("contacts")
                 .select("id")
-                .eq("owner_id", config.user_id)
+                .eq("organization_id", config.organization_id)
                 .or(`primary_phone.eq.${senderPhone},primary_phone.eq.+${senderPhone}`)
                 .maybeSingle();
 
