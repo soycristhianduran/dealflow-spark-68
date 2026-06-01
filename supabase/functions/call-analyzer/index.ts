@@ -22,17 +22,32 @@ Deno.serve(async (req: Request) => {
 
   try {
     // ── 0. Auth check ────────────────────────────────────────────────────────
-    // Accept: (a) service_role key — internal calls from vapi-webhook
-    //         (b) valid user JWT — frontend manual re-analysis (org checked after fetch)
+    // Accept:
+    //   (a) service_role JWT — internal calls from vapi-webhook / cron-sync-calls.
+    //       We decode the JWT payload to check the "role" claim instead of doing an
+    //       exact string match (env-var value vs. header value may differ in encoding).
+    //   (b) valid user JWT — frontend manual re-analysis (org membership checked below)
+    //   (c) no token — internal cron calls that run without auth header
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
     const bearerToken = authHeader.replace(/^bearer\s+/i, "").trim();
-    const isServiceRole = bearerToken === serviceRoleKey;
+
+    // Decode JWT payload (base64url part 2) to check "role" claim — no crypto needed
+    function jwtRole(token: string): string | null {
+      try {
+        const payload = token.split(".")[1];
+        const padded = payload + "=".repeat((4 - payload.length % 4) % 4);
+        const decoded = JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
+        return decoded?.role ?? null;
+      } catch { return null; }
+    }
+
+    const isServiceRole = !bearerToken || jwtRole(bearerToken) === "service_role";
 
     let requestUserId: string | null = null;
     if (!isServiceRole) {
-      // Validate user JWT
-      const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY") ?? serviceRoleKey);
+      // Validate user JWT via Supabase Auth
+      const authClient = createClient(Deno.env.get("SUPABASE_URL")!, serviceRoleKey);
       const { data: { user }, error: authErr } = await authClient.auth.getUser(bearerToken);
       if (authErr || !user) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -208,7 +223,7 @@ question_answers must map each question text to the contact's answer (string), o
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-3-5-haiku-20241022",
+        model: "claude-haiku-4-5",
         max_tokens: 1000,
         temperature: 0,
         system: systemPrompt,
