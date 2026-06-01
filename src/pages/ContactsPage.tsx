@@ -95,6 +95,8 @@ export default function ContactsPage() {
   const [tagFilter, setTagFilter] = useState("");
   const [customFieldKey, setCustomFieldKey] = useState("");
   const [customFieldValue, setCustomFieldValue] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Distinct values for UTM dropdowns
@@ -203,6 +205,8 @@ export default function ContactsPage() {
     if (customFieldKey && customFieldValue) {
       query = query.contains("custom_fields", { [customFieldKey]: customFieldValue });
     }
+    if (dateFrom) query = query.gte("created_at", dateFrom);
+    if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59.999Z");
     if (isVendor && myUserId) {
       query = query.eq("owner_id", myUserId);
     } else if (isOwnerOrAdmin && ownerFilter !== "all") {
@@ -214,7 +218,7 @@ export default function ContactsPage() {
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [currentPage, statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [currentPage, statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -231,7 +235,7 @@ export default function ContactsPage() {
   // Reset to page 0 whenever any filter changes
   useEffect(() => {
     setCurrentPage(0);
-  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue]);
+  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo]);
 
   // Fetch team members via edge function (bypasses RLS on profiles table).
   // Used for: owner filter dropdown, reassign dialog, Vendedor column display.
@@ -697,7 +701,7 @@ export default function ContactsPage() {
     setTagInput("");
   };
 
-  const advancedFilterCount = [sourceFilter !== "all", utmSourceFilter !== "all", utmMediumFilter !== "all", utmCampaignFilter !== "all", !!tagFilter, !!(customFieldKey && customFieldValue)].filter(Boolean).length;
+  const advancedFilterCount = [sourceFilter !== "all", utmSourceFilter !== "all", utmMediumFilter !== "all", utmCampaignFilter !== "all", !!tagFilter, !!(customFieldKey && customFieldValue), !!(dateFrom || dateTo)].filter(Boolean).length;
 
   const clearAdvancedFilters = () => {
     setSourceFilter("all");
@@ -707,6 +711,8 @@ export default function ContactsPage() {
     setTagFilter("");
     setCustomFieldKey("");
     setCustomFieldValue("");
+    setDateFrom("");
+    setDateTo("");
   };
 
   return (
@@ -911,6 +917,16 @@ export default function ContactsPage() {
                   />
                 </div>
               </div>
+
+              {/* Date range */}
+              <div className="space-y-1 col-span-2">
+                <Label className="text-[11px] text-muted-foreground">Fecha de ingreso</Label>
+                <div className="flex gap-1.5 items-center">
+                  <Input type="date" className="h-8 text-xs flex-1" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+                  <span className="text-xs text-muted-foreground shrink-0">hasta</span>
+                  <Input type="date" className="h-8 text-xs flex-1" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+                </div>
+              </div>
             </div>
 
             {/* Active filter chips */}
@@ -922,6 +938,7 @@ export default function ContactsPage() {
                 {utmCampaignFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">utm_campaign: {utmCampaignFilter}<button onClick={() => setUtmCampaignFilter("all")}><X className="h-3 w-3" /></button></Badge>}
                 {tagFilter && <Badge variant="secondary" className="text-xs gap-1">tag: {tagFilter}<button onClick={() => setTagFilter("")}><X className="h-3 w-3" /></button></Badge>}
                 {customFieldKey && customFieldValue && <Badge variant="secondary" className="text-xs gap-1">{customFieldKey}: {customFieldValue}<button onClick={() => { setCustomFieldKey(""); setCustomFieldValue(""); }}><X className="h-3 w-3" /></button></Badge>}
+                {(dateFrom || dateTo) && <Badge variant="secondary" className="text-xs gap-1">Ingresó: {dateFrom || "…"} – {dateTo || "…"}<button onClick={() => { setDateFrom(""); setDateTo(""); }}><X className="h-3 w-3" /></button></Badge>}
               </div>
             )}
           </div>
@@ -1067,6 +1084,9 @@ export default function ContactsPage() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{contact.full_name}</p>
                           <p className="text-xs text-muted-foreground truncate">{contact.primary_email || ''}</p>
+                          <p className="text-[10px] text-muted-foreground/60 tabular-nums">
+                            {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
                         </div>
                       </div>
                     </td>

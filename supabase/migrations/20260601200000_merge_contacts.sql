@@ -74,7 +74,9 @@ BEGIN
     company_name  = COALESCE(v_primary.company_name,  v_secondary.company_name),
     city          = COALESCE(v_primary.city,          v_secondary.city),
     country       = COALESCE(v_primary.country,       v_secondary.country),
-    score         = GREATEST(COALESCE(v_primary.score, 0), COALESCE(v_secondary.score, 0))
+    score         = GREATEST(COALESCE(v_primary.score, 0), COALESCE(v_secondary.score, 0)),
+    -- Keep the most recent creation date so the contact sorts at its latest position
+    created_at    = GREATEST(v_primary.created_at, v_secondary.created_at)
   WHERE id = p_primary_id;
 
   -- 4. Log a merge activity on the primary contact's timeline

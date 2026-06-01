@@ -523,6 +523,11 @@ export default function ContactDetailPage() {
                           {contact.company_name}
                         </p>
                       )}
+                      {contact.created_at && (
+                        <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                          Ingresó el {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {contact.lead_status === "won" && (
                           <Badge className="bg-green-500 text-white border-0 gap-1"><Trophy className="h-3 w-3" /> Ganado</Badge>
