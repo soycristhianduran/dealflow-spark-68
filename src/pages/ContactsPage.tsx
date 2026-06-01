@@ -47,7 +47,7 @@ const FIELD_OPTIONS = [
   { value: "city", label: "Ciudad" },
   { value: "country", label: "País" },
   { value: "preferred_channel", label: "Canal preferido" },
-  { value: "score", label: "Score (0–100)" },
+  { value: "score", label: "Actividad CRM" },
 ];
 
 const CHANNEL_OPTIONS = ["whatsapp", "email", "phone", "sms"];
@@ -969,7 +969,7 @@ export default function ContactsPage() {
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Score</th>
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Actividad</th>
                 {isOwnerOrAdmin && <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden xl:table-cell">Vendedor</th>}
                 <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Tags</th>
               </tr>
@@ -1046,11 +1046,8 @@ export default function ContactsPage() {
                       )}
                     </td>
                     <td className="px-4 py-3 hidden md:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                      <div className="flex items-center gap-2">
-                        <div className="h-1.5 w-12 rounded-full bg-muted overflow-hidden">
-                          <div className="h-full rounded-full bg-primary" style={{ width: `${contact.score || 0}%` }} />
-                        </div>
-                        <span className="text-xs text-muted-foreground">{contact.score || 0}</span>
+                      <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                        <div className="h-full rounded-full bg-primary/60" style={{ width: `${contact.score || 0}%` }} />
                       </div>
                     </td>
                     {isOwnerOrAdmin && (
