@@ -136,7 +136,6 @@ Deno.serve(async (req: Request) => {
     const contactName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unknown";
     const currentScore = contact?.score ?? 0;
     const currentStatus = contact?.lead_status ?? "new";
-    const currentTags: string[] = Array.isArray(contact?.tags) ? contact.tags : [];
 
     // ── 4.5. Fetch calling agent questions (for field mapping) ────────────────
     interface AgentQuestion { id: string; text: string; field_key: string }
@@ -204,13 +203,11 @@ Responde ÚNICAMENTE con JSON válido (sin markdown) en este formato exacto:
   "score_delta": 0,
   "suggested_lead_status": "new|active|qualified|won|lost|null",
   "crm_updates": {},
-  "tags_to_add": ["etiquetas_en_español_snake_case"],
   "question_answers": {}
 }
 
 score_delta debe ser un número entre -20 y 30.
 suggested_lead_status debe ser uno de: new, active, qualified, won, lost, o null.
-tags_to_add: genera etiquetas en español en snake_case (ej: "alto_volumen_leads", "usuario_excel"). Máximo 5 etiquetas relevantes.
 question_answers: objeto con clave = field_key exacto de cada pregunta, valor = respuesta del contacto (string) o null si no respondió.`;
 
     // ── 6. Call Claude API ───────────────────────────────────────────────────
@@ -272,7 +269,6 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
     const score_delta = Math.max(-20, Math.min(30, isNaN(rawDelta) ? 0 : rawDelta));
     const suggested_lead_status =
       analysis.suggested_lead_status !== "null" ? (analysis.suggested_lead_status as string | null) : null;
-    const tags_to_add: string[] = Array.isArray(analysis.tags_to_add) ? (analysis.tags_to_add as string[]) : [];
     const crm_updates: Record<string, unknown> =
       analysis.crm_updates && typeof analysis.crm_updates === "object"
         ? (analysis.crm_updates as Record<string, unknown>)
@@ -309,12 +305,6 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
 
       if (suggested_lead_status && suggested_lead_status !== "null") {
         contactUpdate.lead_status = suggested_lead_status;
-      }
-
-      // Merge tags
-      if (tags_to_add.length > 0) {
-        const mergedTags = Array.from(new Set([...currentTags, ...tags_to_add]));
-        contactUpdate.tags = mergedTags;
       }
 
       // Apply whitelisted crm_updates
