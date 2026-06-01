@@ -230,20 +230,22 @@ async function processLeadgenChange(
   }
 
   let existingContactId: string | null = null;
-  if (contactData.primary_email) {
+  if (contactData.primary_email && organizationId) {
     const { data } = await supabase
       .from("contacts")
       .select("id")
       .eq("primary_email", contactData.primary_email)
+      .eq("organization_id", organizationId)
       .limit(1)
       .maybeSingle();
     existingContactId = data?.id || null;
   }
-  if (!existingContactId && contactData.primary_phone) {
+  if (!existingContactId && contactData.primary_phone && organizationId) {
     const { data } = await supabase
       .from("contacts")
       .select("id")
       .eq("primary_phone", contactData.primary_phone)
+      .eq("organization_id", organizationId)
       .limit(1)
       .maybeSingle();
     existingContactId = data?.id || null;

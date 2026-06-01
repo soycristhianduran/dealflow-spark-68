@@ -459,7 +459,7 @@ Deno.serve(async (req) => {
                     method: "POST",
                     headers: {
                       "Content-Type": "application/json",
-                      "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                     },
                     body: JSON.stringify({
                       contact_id: contact.id,
@@ -506,7 +506,7 @@ Deno.serve(async (req) => {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
-                          "Authorization": `Bearer ${Deno.env.get("EDGE_JWT")}`,
+                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                         },
                         body: JSON.stringify({
                           channel: "whatsapp",
