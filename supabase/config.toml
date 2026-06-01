@@ -44,3 +44,9 @@ verify_jwt = false
 
 [functions.landing-submit]
 verify_jwt = false
+
+[functions.vapi-webhook]
+verify_jwt = false
+
+[functions.cron-sync-calls]
+verify_jwt = false

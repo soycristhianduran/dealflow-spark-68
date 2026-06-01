@@ -322,6 +322,14 @@ async function callContact(
       return { success: false, error: `Vapi error: ${errMsg}` };
     }
 
+    // DEBUG: log full Vapi response to verify serverUrl is accepted
+    console.log(`[call-outbound] Vapi response:`, JSON.stringify({
+      id: vapiData.id,
+      status: vapiData.status,
+      serverUrl: vapiData.assistant?.serverUrl ?? vapiData.serverUrl ?? "(not set)",
+      assistantServerUrl: vapiData.assistantOverrides?.serverUrl ?? "(not set)",
+    }));
+
     vapiCallId = vapiData.id || vapiData.callId || null;
     vapiStatus = normalizeVapiStatus(vapiData.status || "queued");
     console.log(`Vapi call initiated: ${vapiCallId} (status: ${vapiData.status} → ${vapiStatus}) for contact ${contactId}`);
