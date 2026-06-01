@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2 } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -43,11 +43,6 @@ const leadStatusFilters: { value: string; label: string; color?: string }[] = [
   { value: 'unassigned', label: 'Sin asignar',   color: 'text-muted-foreground' },
 ];
 
-const scoreFilters: { value: string; label: string; inactiveClass: string; activeClass: string; dotColor: string }[] = [
-  { value: 'hot',  label: 'Caliente', inactiveClass: 'text-orange-500 border-orange-200 hover:bg-orange-50', activeClass: 'bg-orange-500 text-white border-orange-500', dotColor: 'bg-orange-400' },
-  { value: 'warm', label: 'Tibio',    inactiveClass: 'text-amber-500  border-amber-200  hover:bg-amber-50',  activeClass: 'bg-amber-500  text-white border-amber-500',  dotColor: 'bg-amber-400'  },
-  { value: 'cold', label: 'Frío',     inactiveClass: 'text-blue-400   border-blue-200   hover:bg-blue-50',   activeClass: 'bg-blue-400   text-white border-blue-400',   dotColor: 'bg-blue-300'   },
-];
 
 const FIELD_OPTIONS = [
   { value: "source", label: "Origen" },
@@ -823,25 +818,19 @@ export default function ContactsPage() {
               </Button>
             ))}
 
-            {/* Separator */}
-            <div className="h-5 w-px bg-border/60 mx-0.5" />
-
-            {/* Score tier chips */}
-            {scoreFilters.map(f => {
-              const isActive = scoreFilter === f.value;
-              return (
-                <Button
-                  key={f.value}
-                  variant="outline"
-                  size="sm"
-                  className={`text-xs h-8 gap-1.5 border transition-colors ${isActive ? f.activeClass : f.inactiveClass}`}
-                  onClick={() => setScoreFilter(isActive ? "all" : f.value)}
-                >
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${isActive ? "bg-white/80" : f.dotColor}`} />
-                  {f.label}
-                </Button>
-              );
-            })}
+            {/* Actividad CRM dropdown */}
+            <Select value={scoreFilter} onValueChange={setScoreFilter}>
+              <SelectTrigger className="h-8 w-44 text-xs gap-1.5">
+                <BarChart2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <SelectValue placeholder="Actividad" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Toda la actividad</SelectItem>
+                <SelectItem value="hot">Alta (61–100)</SelectItem>
+                <SelectItem value="warm">Media (31–60)</SelectItem>
+                <SelectItem value="cold">Baja (0–30)</SelectItem>
+              </SelectContent>
+            </Select>
 
             {isOwnerOrAdmin && profiles.length > 0 && (
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
