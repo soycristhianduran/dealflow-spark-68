@@ -923,16 +923,14 @@ function CallDetailSheet({
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 mt-3">
-                <TemperatureBadge temp={log.temperature} />
-                <InterestBadge level={log.interest_level} />
-                {log.sentiment && (
+              {log.sentiment && (
+                <div className="flex flex-wrap gap-2 mt-3">
                   <span className="inline-flex items-center gap-1 text-xs text-slate-500">
                     <Activity className="h-3 w-3" />
                     {log.sentiment}
                   </span>
-                )}
-              </div>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -984,18 +982,6 @@ function CallDetailSheet({
               </CardHeader>
               <CardContent className="pb-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
-                  {log.temperature && (
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Temperatura</p>
-                      <TemperatureBadge temp={log.temperature} />
-                    </div>
-                  )}
-                  {log.interest_level && (
-                    <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Interés</p>
-                      <InterestBadge level={log.interest_level} />
-                    </div>
-                  )}
                   {log.sentiment && (
                     <div>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Sentimiento</p>
@@ -1555,8 +1541,6 @@ function LlamadasTab() {
                 <TableHead>Contacto</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Duración</TableHead>
-                <TableHead>Temperatura</TableHead>
-                <TableHead>Interés</TableHead>
                 <TableHead>Resumen</TableHead>
                 <TableHead>Fecha</TableHead>
                 <TableHead className="w-10" />
@@ -1585,12 +1569,6 @@ function LlamadasTab() {
                       <Clock className="h-3 w-3 text-muted-foreground" />
                       {formatDuration(log.duration_seconds)}
                     </span>
-                  </TableCell>
-                  <TableCell>
-                    <TemperatureBadge temp={log.temperature} />
-                  </TableCell>
-                  <TableCell>
-                    <InterestBadge level={log.interest_level} />
                   </TableCell>
                   <TableCell className="max-w-[200px]">
                     {log.ai_summary ? (
