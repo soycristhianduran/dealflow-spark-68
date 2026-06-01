@@ -258,43 +258,43 @@ async function callContact(
 
   const webhookUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/vapi-webhook`;
 
-  const vapiBody: Record<string, unknown> = {
-    phoneNumberId: vapiPhoneNumberId,
-    customer: { number: contact.primary_phone },
-    // Always inject serverUrl so Vapi sends call events regardless of org-level settings
+  // serverUrl must go inside assistant/assistantOverrides, NOT at root level
+  const inlineAssistant = {
     serverUrl: webhookUrl,
-    assistant: {
-      voice: resolvedVoiceConfig,
-      transcriber: {
-        provider: "deepgram",
-        model: transcriberModel,
-        language: transcriberLanguage,
-      },
-      model: {
-        provider: "openai",
-        model: "gpt-4o-mini",
-        systemPrompt: systemPrompt,
-      },
-      firstMessage: safeFirstMessage,
-      // Only include structuredDataSchema when it's a non-empty object with a
-      // valid "type" field — Vapi rejects null, undefined, and empty objects.
-      analysisPlan: {
-        summaryPrompt: "Summarize this call in 2-3 sentences in Spanish. Focus on whether the contact was interested, any objections raised, and the agreed next step.",
-        ...(agent.structured_data_schema &&
-           typeof agent.structured_data_schema === "object" &&
-           !Array.isArray(agent.structured_data_schema) &&
-           Object.keys(agent.structured_data_schema).length > 0 &&
-           "type" in agent.structured_data_schema
-          ? { structuredDataSchema: agent.structured_data_schema }
-          : {}),
-      },
+    voice: resolvedVoiceConfig,
+    transcriber: {
+      provider: "deepgram",
+      model: transcriberModel,
+      language: transcriberLanguage,
+    },
+    model: {
+      provider: "openai",
+      model: "gpt-4o-mini",
+      systemPrompt: systemPrompt,
+    },
+    firstMessage: safeFirstMessage,
+    analysisPlan: {
+      summaryPrompt: "Summarize this call in 2-3 sentences in Spanish. Focus on whether the contact was interested, any objections raised, and the agreed next step.",
+      ...(agent.structured_data_schema &&
+         typeof agent.structured_data_schema === "object" &&
+         !Array.isArray(agent.structured_data_schema) &&
+         Object.keys(agent.structured_data_schema).length > 0 &&
+         "type" in agent.structured_data_schema
+        ? { structuredDataSchema: agent.structured_data_schema }
+        : {}),
     },
   };
 
-  // If the agent already has a Vapi assistant ID, prefer using it directly
-  // (avoids re-sending the full config on every call)
+  const vapiBody: Record<string, unknown> = {
+    phoneNumberId: vapiPhoneNumberId,
+    customer: { number: contact.primary_phone },
+    assistant: inlineAssistant,
+  };
+
+  // If the agent already has a Vapi assistant ID, use it + pass serverUrl via assistantOverrides
   if (agent.vapi_assistant_id) {
     vapiBody.assistantId = agent.vapi_assistant_id;
+    vapiBody.assistantOverrides = { serverUrl: webhookUrl };
     delete vapiBody.assistant;
   }
 
