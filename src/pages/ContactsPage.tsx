@@ -173,7 +173,7 @@ export default function ContactsPage() {
     new Set(COLUMN_DEFS.filter(c => c.defaultVisible).map(c => c.key) as ColKey[])
   );
   const [colWidths, setColWidths] = useState<Record<string, number>>(
-    Object.fromEntries(COLUMN_DEFS.map(c => [c.key, c.defaultWidth]))
+    { lead: 260, ...Object.fromEntries(COLUMN_DEFS.map(c => [c.key, c.defaultWidth])) }
   );
   const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
 
@@ -1114,29 +1114,31 @@ export default function ContactsPage() {
               <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "100%", width: 40 + 260 + activeCols.reduce((s, c) => s + (colWidths[c.key] ?? c.defaultWidth), 0) }}>
                 <colgroup>
                   <col style={{ width: 40 }} />
-                  <col style={{ width: 260, minWidth: 180 }} />
+                  <col style={{ width: colWidths["lead"] ?? 260, minWidth: 160 }} />
                   {activeCols.map(col => (
                     <col key={col.key} style={{ width: colWidths[col.key] ?? col.defaultWidth }} />
                   ))}
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 w-10 border-r border-border/30">
+                    <th className="px-4 py-3 w-10 border-r-2 border-border/60">
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Seleccionar todos" />
                     </th>
-                    <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r border-border/30">
-                      <span className="truncate block">Lead</span>
+                    {/* Lead column — resizable */}
+                    <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r-2 border-border/60">
+                      <span className="truncate block pr-3">Lead</span>
+                      <div
+                        className="absolute right-0 top-0 h-full w-3 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-10"
+                        onMouseDown={e => startColResize("lead", e)}
+                      />
                     </th>
                     {activeCols.map(col => (
-                      <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r border-border/30">
-                        <span className="truncate block pr-2">{col.label}</span>
-                        {/* Resize grab zone — wider than the visible line for easy grabbing */}
+                      <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r-2 border-border/60">
+                        <span className="truncate block pr-3">{col.label}</span>
                         <div
-                          className="absolute right-0 top-0 h-full w-3 cursor-col-resize z-10 flex items-stretch justify-end"
+                          className="absolute right-0 top-0 h-full w-3 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-10"
                           onMouseDown={e => startColResize(col.key, e)}
-                        >
-                          <div className="w-px h-full bg-border/50 group-hover:bg-primary/50 transition-colors" />
-                        </div>
+                        />
                       </th>
                     ))}
                   </tr>
