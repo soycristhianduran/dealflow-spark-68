@@ -122,7 +122,7 @@ Deno.serve(async (req: Request) => {
     // ── 4. Fetch contact basic info ──────────────────────────────────────────
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
-      .select("id, first_name, last_name, score, lead_status, tags")
+      .select("id, first_name, last_name")
       .eq("id", callLog.contact_id)
       .maybeSingle();
 
@@ -134,8 +134,6 @@ Deno.serve(async (req: Request) => {
     }
 
     const contactName = [contact?.first_name, contact?.last_name].filter(Boolean).join(" ") || "Unknown";
-    const currentScore = contact?.score ?? 0;
-    const currentStatus = contact?.lead_status ?? "new";
 
     // ── 4.5. Fetch calling agent questions (for field mapping) ────────────────
     interface AgentQuestion { id: string; text: string; field_key: string }
@@ -187,7 +185,7 @@ ${transcript}
 Datos ya extraídos por el sistema:
 ${structuredDataStr}
 
-Info del contacto: ${contactName}, score actual: ${currentScore}, estado actual: ${currentStatus}${questionsBlock}
+Contacto: ${contactName}${questionsBlock}
 
 Responde ÚNICAMENTE con JSON válido (sin markdown) en este formato exacto:
 {
@@ -200,14 +198,11 @@ Responde ÚNICAMENTE con JSON válido (sin markdown) en este formato exacto:
   "objections": ["...en español..."],
   "next_step": "texto en español",
   "ai_summary": "resumen de 2-3 oraciones en español",
-  "score_delta": 0,
-  "suggested_lead_status": "new|active|qualified|won|lost|null",
   "crm_updates": {},
   "question_answers": {}
 }
 
-score_delta debe ser un número entre -20 y 30.
-suggested_lead_status debe ser uno de: new, active, qualified, won, lost, o null.
+crm_updates: objeto con campos del CRM que se mencionaron explícitamente (budget, city, country, company_name, notes). Solo incluir si hay un valor claro.
 question_answers: objeto con clave = field_key exacto de cada pregunta, valor = respuesta del contacto (string) o null si no respondió.`;
 
     // ── 6. Call Claude API ───────────────────────────────────────────────────
@@ -265,10 +260,6 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
     const sentiment = String(analysis.sentiment ?? "neutral");
     const next_step = String(analysis.next_step ?? "");
     const ai_summary = String(analysis.ai_summary ?? "");
-    const rawDelta = Number(analysis.score_delta ?? 0);
-    const score_delta = Math.max(-20, Math.min(30, isNaN(rawDelta) ? 0 : rawDelta));
-    const suggested_lead_status =
-      analysis.suggested_lead_status !== "null" ? (analysis.suggested_lead_status as string | null) : null;
     const crm_updates: Record<string, unknown> =
       analysis.crm_updates && typeof analysis.crm_updates === "object"
         ? (analysis.crm_updates as Record<string, unknown>)
@@ -296,31 +287,23 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
       console.error("Error updating call_log:", updateCallLogError.message);
     }
 
-    // ── 9. Update contact ────────────────────────────────────────────────────
+    // ── 9. Apply whitelisted CRM field updates extracted from the call ─────────
+    // Score and lead_status are NOT touched here — that's the AI lead analyzer's job.
     if (callLog.contact_id) {
-      const newScore = Math.max(0, Math.min(100, currentScore + score_delta));
-
-      // Build the contact update payload
-      const contactUpdate: Record<string, unknown> = { score: newScore };
-
-      if (suggested_lead_status && suggested_lead_status !== "null") {
-        contactUpdate.lead_status = suggested_lead_status;
-      }
-
-      // Apply whitelisted crm_updates
+      const contactUpdate: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(crm_updates)) {
         if (CONTACT_FIELD_WHITELIST.has(key)) {
           contactUpdate[key] = value;
         }
       }
-
-      const { error: updateContactError } = await supabase
-        .from("contacts")
-        .update(contactUpdate)
-        .eq("id", callLog.contact_id);
-
-      if (updateContactError) {
-        console.error("Error updating contact:", updateContactError.message);
+      if (Object.keys(contactUpdate).length > 0) {
+        const { error: updateContactError } = await supabase
+          .from("contacts")
+          .update(contactUpdate)
+          .eq("id", callLog.contact_id);
+        if (updateContactError) {
+          console.error("Error updating contact CRM fields:", updateContactError.message);
+        }
       }
     }
 
