@@ -1121,19 +1121,22 @@ export default function ContactsPage() {
                 </colgroup>
                 <thead>
                   <tr className="border-b bg-muted/50">
-                    <th className="px-4 py-3 w-10">
+                    <th className="px-4 py-3 w-10 border-r border-border/30">
                       <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Seleccionar todos" />
                     </th>
-                    <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden">
+                    <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r border-border/30">
                       <span className="truncate block">Lead</span>
                     </th>
                     {activeCols.map(col => (
-                      <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden">
+                      <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r border-border/30">
                         <span className="truncate block pr-2">{col.label}</span>
+                        {/* Resize grab zone — wider than the visible line for easy grabbing */}
                         <div
-                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/70 transition-colors z-10"
+                          className="absolute right-0 top-0 h-full w-3 cursor-col-resize z-10 flex items-stretch justify-end"
                           onMouseDown={e => startColResize(col.key, e)}
-                        />
+                        >
+                          <div className="w-px h-full bg-border/50 group-hover:bg-primary/50 transition-colors" />
+                        </div>
                       </th>
                     ))}
                   </tr>
