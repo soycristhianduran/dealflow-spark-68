@@ -189,8 +189,6 @@ Contacto: ${contactName}${questionsBlock}
 
 Responde ÚNICAMENTE con JSON válido (sin markdown) en este formato exacto:
 {
-  "temperature": "hot|warm|cold",
-  "interest_level": "high|medium|low",
   "sentiment": "positive|neutral|negative",
   "budget_mentioned": "texto o null",
   "timeline_mentioned": "texto o null",
@@ -255,8 +253,6 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
     }
 
     // Extract typed values with safe defaults
-    const temperature = String(analysis.temperature ?? "cold");
-    const interest_level = String(analysis.interest_level ?? "low");
     const sentiment = String(analysis.sentiment ?? "neutral");
     const next_step = String(analysis.next_step ?? "");
     const ai_summary = String(analysis.ai_summary ?? "");
@@ -273,8 +269,6 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
     const { error: updateCallLogError } = await supabase
       .from("call_logs")
       .update({
-        temperature,
-        interest_level,
         sentiment,
         next_step,
         ai_summary,
@@ -405,7 +399,7 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
         organization_id: callLog.organization_id,
         contact_id: callLog.contact_id,
         type: "call",
-        title: `Llamada IA — ${temperature === "hot" ? "🔥 Hot" : temperature === "warm" ? "🌡 Warm" : "❄️ Cold"} / Interés ${interest_level}`,
+        title: "Llamada IA analizada",
         description: activityDescription,
       });
 
@@ -423,11 +417,7 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
         action: "trigger_event",
         trigger_type: "call.completed",
         contact_id: callLog.contact_id,
-        trigger_data: {
-          temperature,
-          interest_level,
-          call_log_id,
-        },
+        trigger_data: { call_log_id },
       };
 
       fetch(`${supabaseUrl}/functions/v1/automation-runner`, {
@@ -444,7 +434,7 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
 
     // ── 12. Return result ────────────────────────────────────────────────────
     return new Response(
-      JSON.stringify({ success: true, temperature, interest_level, ai_summary }),
+      JSON.stringify({ success: true, ai_summary }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (err: unknown) {
