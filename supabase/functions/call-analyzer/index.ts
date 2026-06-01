@@ -21,6 +21,27 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // ── 0. Auth check ────────────────────────────────────────────────────────
+    // Accept: (a) service_role key — internal calls from vapi-webhook
+    //         (b) valid user JWT — frontend manual re-analysis (org checked after fetch)
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const authHeader = req.headers.get("authorization") ?? req.headers.get("Authorization") ?? "";
+    const bearerToken = authHeader.replace(/^bearer\s+/i, "").trim();
+    const isServiceRole = bearerToken === serviceRoleKey;
+
+    let requestUserId: string | null = null;
+    if (!isServiceRole) {
+      // Validate user JWT
+      const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY") ?? serviceRoleKey);
+      const { data: { user }, error: authErr } = await authClient.auth.getUser(bearerToken);
+      if (authErr || !user) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      requestUserId = user.id;
+    }
+
     // ── 1. Parse body ────────────────────────────────────────────────────────
     const body = await req.json().catch(() => ({}));
     const { call_log_id } = body as { call_log_id?: string };
@@ -35,7 +56,7 @@ Deno.serve(async (req: Request) => {
     // ── Supabase client (service role — bypasses RLS) ────────────────────────
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      serviceRoleKey,
     );
 
     // ── 2. Fetch call_log ────────────────────────────────────────────────────
@@ -57,6 +78,21 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({ error: "call_log not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // ── 2b. Verify org membership for user JWT callers ───────────────────────
+    if (!isServiceRole && requestUserId) {
+      const { data: member } = await supabase
+        .from("organization_members")
+        .select("id")
+        .eq("user_id", requestUserId)
+        .eq("organization_id", callLog.organization_id)
+        .maybeSingle();
+      if (!member) {
+        return new Response(JSON.stringify({ error: "Forbidden" }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     // ── 3. Skip if no transcript ─────────────────────────────────────────────

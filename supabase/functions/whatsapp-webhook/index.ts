@@ -5,6 +5,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ── HMAC-SHA256 signature verification (same as facebook-webhook) ─────────────
+async function verifyMetaSignature(rawBody: string, signatureHeader: string | null, appSecret: string): Promise<boolean> {
+  if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
+  const expected = signatureHeader.slice("sha256=".length);
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const sigBuf = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(rawBody));
+  const computed = Array.from(new Uint8Array(sigBuf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  if (computed.length !== expected.length) return false;
+  let diff = 0;
+  for (let i = 0; i < computed.length; i++) {
+    diff |= computed.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 /**
@@ -132,6 +155,20 @@ Deno.serve(async (req) => {
   if (req.method === "POST") {
     try {
       const rawBody = await req.text();
+
+      // SECURITY: verify Meta HMAC-SHA256 signature to reject forged payloads
+      const appSecret = Deno.env.get("META_APP_SECRET_WA") ?? Deno.env.get("META_APP_SECRET_IG");
+      if (appSecret) {
+        const signature = req.headers.get("x-hub-signature-256");
+        const valid = await verifyMetaSignature(rawBody, signature, appSecret);
+        if (!valid) {
+          console.warn("WhatsApp webhook: invalid signature — rejecting payload");
+          return new Response("Forbidden", { status: 403 });
+        }
+      } else {
+        console.warn("WhatsApp webhook: META_APP_SECRET_WA not set — skipping signature check");
+      }
+
       const body = JSON.parse(rawBody);
       // Log ALL webhook payloads (truncated to 2000 chars) to aid debugging
       const payloadStr = JSON.stringify(body).substring(0, 2000);

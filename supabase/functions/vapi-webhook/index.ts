@@ -38,8 +38,12 @@ function adminClient() {
 
 function verifyVapiSecret(req: Request): boolean {
   const secret = Deno.env.get("VAPI_WEBHOOK_SECRET");
-  if (!secret) return true; // Not configured — skip verification
-
+  // If secret is not configured, allow through (warn in logs)
+  // This keeps backward compatibility while encouraging secret setup
+  if (!secret) {
+    console.warn("VAPI_WEBHOOK_SECRET not set — accepting all requests. Set this secret in Supabase Secrets.");
+    return true;
+  }
   const provided = req.headers.get("x-vapi-secret") || req.headers.get("x-webhook-secret");
   return provided === secret;
 }
@@ -383,6 +387,14 @@ Deno.serve(async (req) => {
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
 
+  // DEBUG: log full payload to diagnose what Vapi is sending
+  const bodyType = body?.type ?? body?.message?.type ?? "unknown";
+  const callId = body?.call?.id ?? body?.message?.call?.id ?? body?.callId ?? "none";
+  console.log(`[vapi-webhook] received type="${bodyType}" callId="${callId}" keys=${Object.keys(body).join(",")}`);
+  if (bodyType.includes("call") || bodyType.includes("report")) {
+    console.log(`[vapi-webhook] full payload (500 chars):`, JSON.stringify(body).substring(0, 500));
+  }
+
   const event = normalisePayload(body);
 
   if (!event) {
@@ -390,6 +402,7 @@ Deno.serve(async (req) => {
     console.warn("Vapi webhook: unrecognised payload shape:", JSON.stringify(body).substring(0, 300));
     return new Response("OK", { status: 200, headers: corsHeaders });
   }
+  console.log(`[vapi-webhook] normalised event type="${event.type}" call.id="${event.call?.id}"`);
 
   const supabase = adminClient();
 

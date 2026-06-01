@@ -122,6 +122,14 @@ Deno.serve(async (req) => {
 
     if (!invitation) return new Response(JSON.stringify({ error: "Invitación inválida o expirada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // SECURITY: verify the logged-in user's email matches the invitation email
+    if ((user.email ?? "").toLowerCase() !== (invitation.email ?? "").toLowerCase()) {
+      return new Response(
+        JSON.stringify({ error: "Esta invitación fue enviada a otro email. Inicia sesión con la cuenta correcta." }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Add user to org
     const { error: memberErr } = await supabase
       .from("organization_members")

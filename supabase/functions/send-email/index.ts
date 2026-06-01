@@ -62,14 +62,16 @@ Deno.serve(async (req) => {
     if (action === "send_campaign") {
       const { campaign_id } = body;
       if (!campaign_id) throw new Error("campaign_id es obligatorio");
+      if (!orgId) throw new Error("No se pudo determinar la organización del usuario");
 
-      // Accept campaigns belonging to the caller's org (not just user_id)
+      // SECURITY: filter by organization_id to prevent IDOR (other org's campaign)
       const { data: campaign, error: campErr } = await supabase
         .from("email_campaigns")
         .select("*")
         .eq("id", campaign_id)
+        .eq("organization_id", orgId)
         .single();
-      if (campErr || !campaign) throw new Error("Campaña no encontrada");
+      if (campErr || !campaign) throw new Error("Campaña no encontrada o sin acceso");
       if (campaign.status === "sent") throw new Error("Esta campaña ya fue enviada");
 
       // Resolve recipients — org-scoped, not owner-scoped (Fix #8)
