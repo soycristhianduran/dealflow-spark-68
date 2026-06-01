@@ -234,11 +234,16 @@ export default function ContactDetailPage() {
       };
     });
 
-    // Deduplicate: if a manual activities record already exists for this call, skip it
-    const existingCallIds = new Set(
-      (a.data || []).filter((x: any) => x.event_type === "call").map((x: any) => x.id)
-    );
-    const newCallActivities = callActivities.filter((x) => !existingCallIds.has(x.id));
+    // Deduplicate: skip call_log entries that already have an activities record
+    // within 60 seconds (i.e. written by vapi-webhook or cron-sync-calls).
+    const existingCallTimestamps = (a.data || [])
+      .filter((x: any) => x.event_type === "call")
+      .map((x: any) => new Date(x.created_at).getTime());
+
+    const newCallActivities = callActivities.filter((x) => {
+      const t = new Date(x.created_at).getTime();
+      return !existingCallTimestamps.some((et) => Math.abs(et - t) < 60_000);
+    });
 
     setActivities([...(a.data || []), ...newCallActivities]);
   };

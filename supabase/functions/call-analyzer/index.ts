@@ -166,45 +166,52 @@ Deno.serve(async (req: Request) => {
       ? JSON.stringify(callLog.structured_data, null, 2)
       : "None";
 
-    // Build questions block for the prompt
+    // Build questions block — use field_key as the map key so lookup is exact
+    // Strip any leading "N. " numbering from question.text for a cleaner prompt
+    const stripNum = (s: string) => s.replace(/^\d+\.\s*/, "").trim();
+
     const questionsBlock = agentQuestions.length > 0
-      ? `\n\nKey questions the agent was supposed to ask (extract the contact's answers from the transcript):\n${
-          agentQuestions.map((q, i) => `  ${i + 1}. "${q.text}"`).join("\n")
-        }\n\nFor each question, extract the contact's answer verbatim or as a short summary. Include them in "question_answers" as an object mapping question text → answer string (or null if not answered).`
+      ? `\n\nPreguntas que el agente debía hacer (extrae las respuestas del contacto de la transcripción):\n${
+          agentQuestions
+            .filter(q => q.field_key)
+            .map((q) => `  - campo "${q.field_key}": "${stripNum(q.text)}"`)
+            .join("\n")
+        }\n\nPara cada pregunta incluye la respuesta del contacto en "question_answers" como un objeto con clave = field_key y valor = respuesta en texto (o null si no se respondió).`
       : "";
 
     const systemPrompt =
-      "You are a sales intelligence AI. Analyze this call transcript and extract structured data.";
+      "Eres una IA de inteligencia de ventas. Analiza esta transcripción de llamada y extrae datos estructurados. Responde TODO en español excepto los nombres de campos JSON.";
 
-    const userPrompt = `Transcript:
+    const userPrompt = `Transcripción:
 ${transcript}
 
-Already extracted by call system:
+Datos ya extraídos por el sistema:
 ${structuredDataStr}
 
-Contact info: ${contactName}, current score: ${currentScore}, current status: ${currentStatus}${questionsBlock}
+Info del contacto: ${contactName}, score actual: ${currentScore}, estado actual: ${currentStatus}${questionsBlock}
 
-Respond ONLY with valid JSON (no markdown) in this exact format:
+Responde ÚNICAMENTE con JSON válido (sin markdown) en este formato exacto:
 {
   "temperature": "hot|warm|cold",
   "interest_level": "high|medium|low",
   "sentiment": "positive|neutral|negative",
-  "budget_mentioned": "string or null",
-  "timeline_mentioned": "string or null",
-  "pain_points": ["..."],
-  "objections": ["..."],
-  "next_step": "string",
-  "ai_summary": "2-3 sentence summary in Spanish",
+  "budget_mentioned": "texto o null",
+  "timeline_mentioned": "texto o null",
+  "pain_points": ["...en español..."],
+  "objections": ["...en español..."],
+  "next_step": "texto en español",
+  "ai_summary": "resumen de 2-3 oraciones en español",
   "score_delta": 0,
   "suggested_lead_status": "new|active|qualified|won|lost|null",
   "crm_updates": {},
-  "tags_to_add": [],
+  "tags_to_add": ["etiquetas_en_español_snake_case"],
   "question_answers": {}
 }
 
-score_delta must be a number between -20 and 30.
-suggested_lead_status must be one of: new, active, qualified, won, lost, or null.
-question_answers must map each question text to the contact's answer (string), or null if the question was not answered.`;
+score_delta debe ser un número entre -20 y 30.
+suggested_lead_status debe ser uno de: new, active, qualified, won, lost, o null.
+tags_to_add: genera etiquetas en español en snake_case (ej: "alto_volumen_leads", "usuario_excel"). Máximo 5 etiquetas relevantes.
+question_answers: objeto con clave = field_key exacto de cada pregunta, valor = respuesta del contacto (string) o null si no respondió.`;
 
     // ── 6. Call Claude API ───────────────────────────────────────────────────
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
@@ -336,7 +343,8 @@ question_answers must map each question text to the contact's answer (string), o
       for (const question of agentQuestions) {
         if (!question.field_key) continue;
 
-        const answer = question_answers[question.text];
+        // Claude now uses field_key as the key; fall back to question text for backwards compat
+        const answer = question_answers[question.field_key] ?? question_answers[question.text] ?? null;
         if (answer == null) continue;
 
         const cleanAnswer = String(answer).trim();
