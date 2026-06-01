@@ -227,6 +227,27 @@ async function syncStuckCalls(): Promise<{ synced: number; errors: number; skipp
     );
     synced++;
 
+    // Write an activity record so the contact timeline shows the call
+    if (callLog.contact_id && callLog.organization_id) {
+      const statusLabel: Record<string, string> = {
+        completed: "Completada", no_answer: "Sin respuesta", failed: "Fallida",
+      };
+      const min = duration != null ? Math.floor(duration / 60) : null;
+      const sec = duration != null ? String(duration % 60).padStart(2, "0") : null;
+      const dur = min != null ? ` · ${min}:${sec}` : "";
+      const summaryText = summary ? ` — ${summary}` : "";
+      await supabase.from("activities").insert({
+        related_entity_type: "contact",
+        related_entity_id: callLog.contact_id,
+        event_type: "call",
+        event_source: "vapi_cron",
+        summary: `📞 Llamada IA${dur} · ${statusLabel[finalStatus] ?? finalStatus}${summaryText}`,
+        organization_id: callLog.organization_id,
+      }).then(({ error: actErr }) => {
+        if (actErr) console.warn(`cron-sync-calls: could not insert activity for call_log ${logId}:`, actErr.message);
+      });
+    }
+
     // Update campaign counters (same logic as vapi-webhook)
     if (callLog.campaign_id) {
       const counterColumn = finalStatus === "completed" ? "calls_completed" : "calls_failed";

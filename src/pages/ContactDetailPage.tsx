@@ -200,14 +200,47 @@ export default function ContactDetailPage() {
 
   const fetchRelated = async () => {
     if (!id) return;
-    const [t, m, a] = await Promise.all([
+    const [t, m, a, cl] = await Promise.all([
       supabase.from("tasks").select("*").eq("contact_id", id),
       supabase.from("meetings").select("*").eq("contact_id", id).order("start_at", { ascending: false }),
       supabase.from("activities").select("*").eq("related_entity_id", id).order("created_at", { ascending: false }),
+      supabase.from("call_logs")
+        .select("id, status, duration_seconds, ai_summary, temperature, organization_id, created_at")
+        .eq("contact_id", id)
+        .order("created_at", { ascending: false }),
     ]);
     setTasks(t.data || []);
     setMeetings(m.data || []);
-    setActivities(a.data || []);
+
+    // Merge call_logs into the activities timeline as synthetic "call" events
+    const callActivities = (cl.data || []).map((log: any) => {
+      const statusLabel: Record<string, string> = {
+        completed: "Completada", no_answer: "Sin respuesta", failed: "Fallida",
+        initiated: "Iniciada", in_progress: "En curso", cancelled: "Cancelada",
+      };
+      const status = statusLabel[log.status] ?? log.status;
+      const min = log.duration_seconds != null ? Math.floor(log.duration_seconds / 60) : null;
+      const sec = log.duration_seconds != null ? String(log.duration_seconds % 60).padStart(2, "0") : null;
+      const dur = min != null ? ` · ${min}:${sec}` : "";
+      const summary = log.ai_summary ? ` — ${log.ai_summary}` : "";
+      return {
+        id: `call-${log.id}`,
+        related_entity_type: "contact",
+        related_entity_id: id,
+        event_type: "call",
+        summary: `📞 Llamada IA${dur} · ${status}${summary}`,
+        created_at: log.created_at,
+        organization_id: log.organization_id,
+      };
+    });
+
+    // Deduplicate: if a manual activities record already exists for this call, skip it
+    const existingCallIds = new Set(
+      (a.data || []).filter((x: any) => x.event_type === "call").map((x: any) => x.id)
+    );
+    const newCallActivities = callActivities.filter((x) => !existingCallIds.has(x.id));
+
+    setActivities([...(a.data || []), ...newCallActivities]);
   };
 
   const loadPipelinesForEdit = useCallback(async (currentPipelineId?: string) => {
@@ -390,6 +423,14 @@ export default function ContactDetailPage() {
     table: "activities",
     filter: `related_entity_id=eq.${id}`,
     channelKey: `contact-activities-${id}`,
+    onChange: fetchRelated,
+    enabled: !!id,
+  });
+  // Call logs — refresh timeline when a call status changes (e.g. initiated → completed)
+  useRealtimeRefresh({
+    table: "call_logs",
+    filter: `contact_id=eq.${id}`,
+    channelKey: `contact-call-logs-${id}`,
     onChange: fetchRelated,
     enabled: !!id,
   });

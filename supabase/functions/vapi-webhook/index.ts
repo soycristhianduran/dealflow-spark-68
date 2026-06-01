@@ -267,6 +267,29 @@ async function handleCallEnded(
     `call-ended: call_log ${existingLog.id} → status=${finalStatus}, duration=${duration}s, vapi_call_id=${vapiCallId}`,
   );
 
+  // Write an activity record so the contact timeline shows the call
+  if (existingLog.contact_id && existingLog.organization_id) {
+    const statusLabel: Record<string, string> = {
+      completed: "Completada", no_answer: "Sin respuesta", failed: "Fallida",
+    };
+    const min = typeof duration === "number" ? Math.floor(duration / 60) : null;
+    const sec = typeof duration === "number" ? String(duration % 60).padStart(2, "0") : null;
+    const dur = min != null ? ` · ${min}:${sec}` : "";
+    const summaryText = updatePayload.ai_summary
+      ? ` — ${updatePayload.ai_summary}`
+      : "";
+    await supabase.from("activities").insert({
+      related_entity_type: "contact",
+      related_entity_id: existingLog.contact_id,
+      event_type: "call",
+      event_source: "vapi",
+      summary: `📞 Llamada IA${dur} · ${statusLabel[finalStatus] ?? finalStatus}${summaryText}`,
+      organization_id: existingLog.organization_id,
+    }).then(({ error: actErr }) => {
+      if (actErr) console.warn("call-ended: could not insert activity:", actErr.message);
+    });
+  }
+
   // Increment campaign counter + auto-complete when all calls are done
   if (existingLog.campaign_id) {
     const counterColumn = finalStatus === "completed" ? "calls_completed" : "calls_failed";
