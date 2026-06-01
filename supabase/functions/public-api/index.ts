@@ -378,6 +378,29 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Upsert on phone if provided and no email match found (avoids duplicates
+    // when the same person entered via WhatsApp first, then via a landing page)
+    if (fields.primary_phone) {
+      const { data: existing } = await admin
+        .from("contacts")
+        .select("id")
+        .eq("organization_id", auth.organization_id)
+        .eq("primary_phone", fields.primary_phone)
+        .maybeSingle();
+
+      if (existing) {
+        const updateFields = await mergeCustomFields(admin, existing.id, fields);
+        const { data, error } = await admin
+          .from("contacts")
+          .update(updateFields)
+          .eq("id", existing.id)
+          .select("*")
+          .single();
+        if (error) return json({ error: error.message }, 500);
+        return json({ data, created: false }, 200);
+      }
+    }
+
     // Auto-register any unknown fields as org-level definitions
     if (fields.custom_fields) {
       autoRegisterFieldDefs(admin, auth.organization_id, fields.custom_fields as Record<string, unknown>);
