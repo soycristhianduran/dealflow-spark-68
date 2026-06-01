@@ -146,11 +146,13 @@ Deno.serve(async (req) => {
     // ── Load contact + recent messages ───────────────────────────────────────
     const { data: contact } = await supabase
       .from("contacts")
-      .select("id, full_name, status, primary_phone, primary_email, owner_id")
+      .select("id, full_name, status, primary_phone, primary_email, owner_id, organization_id")
       .eq("id", contact_id)
       .maybeSingle();
     if (!contact) throw new Error("Contacto no encontrado");
-    if (contact.owner_id && contact.owner_id !== resolvedUserId) {
+    // Permission check: contact must belong to the user's organization.
+    // We do NOT restrict by owner_id — any team member can analyze org contacts.
+    if (contact.organization_id && contact.organization_id !== orgId) {
       throw new Error("No tienes permiso sobre este contacto");
     }
 
