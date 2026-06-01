@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
 
       const fromAddress = from_email
         ? `${from_name || "Equipo"} <${from_email}>`
-        : `Velocity CRM <onboarding@resend.dev>`;
+        : `Klosify CRM <onboarding@resend.dev>`;
 
       const res = await fetch(`${RESEND_API}/emails`, {
         method: "POST",

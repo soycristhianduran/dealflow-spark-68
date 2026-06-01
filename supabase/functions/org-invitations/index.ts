@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
               <h2 style="color:#1a1a1a">Tienes una invitación</h2>
-              <p><strong>${inviterName}</strong> te invitó a unirte a <strong>${orgName}</strong> en Velocity CRM.</p>
+              <p><strong>${inviterName}</strong> te invitó a unirte a <strong>${orgName}</strong> en Klosify CRM.</p>
               <a href="${inviteUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
                 Aceptar invitación
               </a>
@@ -312,7 +312,7 @@ Deno.serve(async (req) => {
           html: `
             <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
               <h2 style="color:#1a1a1a">Recordatorio de invitación</h2>
-              <p><strong>${inviterName}</strong> te recuerda que tienes una invitación pendiente para unirte a <strong>${orgName}</strong> en Velocity CRM.</p>
+              <p><strong>${inviterName}</strong> te recuerda que tienes una invitación pendiente para unirte a <strong>${orgName}</strong> en Klosify CRM.</p>
               <a href="${inviteUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
                 Aceptar invitación
               </a>

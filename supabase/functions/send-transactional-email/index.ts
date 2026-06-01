@@ -275,8 +275,8 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     const EMAIL_FROM_ADDRESS = Deno.env.get("EMAIL_FROM_ADDRESS") || "noreply@aceleradoradeventas.co";
-    const EMAIL_FROM_NAME = Deno.env.get("EMAIL_FROM_NAME") || "Velocity CRM";
-    const BRAND_NAME = Deno.env.get("BRAND_NAME") || "Velocity CRM";
+    const EMAIL_FROM_NAME = Deno.env.get("EMAIL_FROM_NAME") || "Klosify CRM";
+    const BRAND_NAME = Deno.env.get("BRAND_NAME") || "Klosify CRM";
     const APP_URL = (Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co").replace(/\/$/, "");
     const CONTACT_EMAIL = Deno.env.get("CONTACT_EMAIL") || "contacto@aceleradoradeventas.co";
 
