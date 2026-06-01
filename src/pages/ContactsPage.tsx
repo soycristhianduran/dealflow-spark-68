@@ -7,15 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -52,6 +53,19 @@ const FIELD_OPTIONS = [
 
 const CHANNEL_OPTIONS = ["whatsapp", "email", "phone", "sms"];
 const SOURCE_OPTIONS = ["Facebook Ads", "Google Ads", "WhatsApp", "Referral", "Landing Page", "Instagram", "Otro"];
+
+const COLUMN_DEFS = [
+  { key: "phone",       label: "Teléfono",  defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+  { key: "email",       label: "Email",     defaultWidth: 200, defaultVisible: false, adminOnly: false },
+  { key: "company",     label: "Empresa",   defaultWidth: 160, defaultVisible: false, adminOnly: false },
+  { key: "source",      label: "Origen",    defaultWidth: 150, defaultVisible: true,  adminOnly: false },
+  { key: "stage",       label: "Etapa",     defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+  { key: "activity",    label: "Actividad", defaultWidth: 90,  defaultVisible: true,  adminOnly: false },
+  { key: "lead_status", label: "Estado",    defaultWidth: 115, defaultVisible: false, adminOnly: false },
+  { key: "vendor",      label: "Vendedor",  defaultWidth: 155, defaultVisible: true,  adminOnly: true  },
+  { key: "tags",        label: "Tags",      defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+] as const;
+type ColKey = typeof COLUMN_DEFS[number]["key"];
 
 interface ContactRow {
   id: string;
@@ -153,6 +167,16 @@ export default function ContactsPage() {
   const [mergeWorking, setMergeWorking] = useState(false);
   const [aiProgress, setAiProgress] = useState<{ done: number; total: number } | null>(null);
 
+  // Column customization & resize
+  const [colPickerOpen, setColPickerOpen] = useState(false);
+  const [visibleCols, setVisibleCols] = useState<Set<ColKey>>(
+    new Set(COLUMN_DEFS.filter(c => c.defaultVisible).map(c => c.key) as ColKey[])
+  );
+  const [colWidths, setColWidths] = useState<Record<string, number>>(
+    Object.fromEntries(COLUMN_DEFS.map(c => [c.key, c.defaultWidth]))
+  );
+  const resizingRef = useRef<{ key: string; startX: number; startWidth: number } | null>(null);
+
   // Bulk WhatsApp template blast
   const [waBlastOpen, setWaBlastOpen] = useState(false);
   const [waBlastSending, setWaBlastSending] = useState(false);
@@ -236,6 +260,27 @@ export default function ContactsPage() {
   useEffect(() => {
     setCurrentPage(0);
   }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo]);
+
+  // Column preferences — load from localStorage per user+org
+  useEffect(() => {
+    if (!myUserId || !organizationId) return;
+    try {
+      const savedVis = localStorage.getItem(`crm-cols-${myUserId}-${organizationId}`);
+      if (savedVis) setVisibleCols(new Set(JSON.parse(savedVis) as ColKey[]));
+      const savedW = localStorage.getItem(`crm-col-w-${myUserId}-${organizationId}`);
+      if (savedW) setColWidths(prev => ({ ...prev, ...JSON.parse(savedW) }));
+    } catch {}
+  }, [myUserId, organizationId]);
+
+  useEffect(() => {
+    if (!myUserId || !organizationId) return;
+    localStorage.setItem(`crm-cols-${myUserId}-${organizationId}`, JSON.stringify([...visibleCols]));
+  }, [visibleCols, myUserId, organizationId]);
+
+  useEffect(() => {
+    if (!myUserId || !organizationId) return;
+    localStorage.setItem(`crm-col-w-${myUserId}-${organizationId}`, JSON.stringify(colWidths));
+  }, [colWidths, myUserId, organizationId]);
 
   // Fetch team members via edge function (bypasses RLS on profiles table).
   // Used for: owner filter dropdown, reassign dialog, Vendedor column display.
@@ -715,6 +760,33 @@ export default function ContactsPage() {
     setDateTo("");
   };
 
+  const toggleCol = (key: ColKey) => {
+    setVisibleCols(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) { if (next.size > 1) next.delete(key); }
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const startColResize = (key: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizingRef.current = { key, startX: e.clientX, startWidth: colWidths[key] ?? 120 };
+    const onMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return;
+      const delta = ev.clientX - resizingRef.current.startX;
+      setColWidths(prev => ({ ...prev, [resizingRef.current!.key]: Math.max(60, resizingRef.current!.startWidth + delta) }));
+    };
+    const onUp = () => {
+      resizingRef.current = null;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  };
+
   return (
     <AppLayout>
       <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
@@ -786,6 +858,24 @@ export default function ContactsPage() {
                 </SelectContent>
               </Select>
             )}
+            {/* Columnas picker */}
+            <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
+                  <Columns2 className="h-3.5 w-3.5" /> Columnas
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-52 p-2" align="end">
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Columnas visibles</p>
+                {COLUMN_DEFS.filter(c => !c.adminOnly || isOwnerOrAdmin).map(col => (
+                  <label key={col.key} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-muted cursor-pointer">
+                    <Checkbox checked={visibleCols.has(col.key)} onCheckedChange={() => toggleCol(col.key)} />
+                    <span className="text-sm">{col.label}</span>
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+
             {/* Más filtros button */}
             <Button
               variant={advancedFilterCount > 0 ? "default" : "outline"}
@@ -1016,119 +1106,172 @@ export default function ContactsPage() {
           </div>
         )}
 
-        <div className="rounded-lg border bg-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="px-4 py-3 w-10">
-                  <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Seleccionar todos" />
-                </th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Lead</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Teléfono</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Origen</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Actividad</th>
-                {isOwnerOrAdmin && <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden xl:table-cell">Vendedor</th>}
-                <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Tags</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan={7} className="px-0 py-0">
-                  <div className="p-8 space-y-3">
-                    {[...Array(4)].map((_, i) => (
-                      <div key={i} className="flex items-center gap-3 animate-pulse">
-                        <div className="h-8 w-8 rounded-full bg-muted" />
-                        <div className="flex-1 space-y-2">
-                          <div className="h-3 w-1/3 rounded bg-muted" />
-                          <div className="h-2 w-1/4 rounded bg-muted/60" />
-                        </div>
-                      </div>
+        {(() => {
+          const activeCols = COLUMN_DEFS.filter(c => visibleCols.has(c.key) && (!c.adminOnly || isOwnerOrAdmin));
+          const totalCols = 2 + activeCols.length;
+          return (
+            <div className="rounded-lg border bg-card overflow-x-auto">
+              <table className="text-sm" style={{ tableLayout: "fixed", minWidth: "100%", width: 40 + 260 + activeCols.reduce((s, c) => s + (colWidths[c.key] ?? c.defaultWidth), 0) }}>
+                <colgroup>
+                  <col style={{ width: 40 }} />
+                  <col style={{ width: 260, minWidth: 180 }} />
+                  {activeCols.map(col => (
+                    <col key={col.key} style={{ width: colWidths[col.key] ?? col.defaultWidth }} />
+                  ))}
+                </colgroup>
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="px-4 py-3 w-10">
+                      <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Seleccionar todos" />
+                    </th>
+                    <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden">
+                      <span className="truncate block">Lead</span>
+                    </th>
+                    {activeCols.map(col => (
+                      <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden">
+                        <span className="truncate block pr-2">{col.label}</span>
+                        <div
+                          className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/40 active:bg-primary/70 transition-colors z-10"
+                          onMouseDown={e => startColResize(col.key, e)}
+                        />
+                      </th>
                     ))}
-                  </div>
-                </td></tr>
-              ) : contacts.length === 0 ? (
-                <tr><td colSpan={7} className="px-0 py-0">
-                  <EmptyState
-                    variant={search || statusFilter !== "all" ? "search" : "contacts"}
-                    title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes leads"}
-                    description={
-                      search || statusFilter !== "all"
-                        ? "Prueba con otro filtro o término de búsqueda"
-                        : "Importa tus leads desde Excel/CSV o crea el primero manualmente. También llegarán automáticamente si tienes Facebook Lead Ads conectado."
-                    }
-                    action={
-                      !search && statusFilter === "all" && (
-                        <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-                          <Plus className="h-4 w-4" /> Crear mi primer lead
-                        </Button>
-                      )
-                    }
-                  />
-                </td></tr>
-              ) : contacts.map((contact) => {
-                const stage = contact.pipeline_stages as { id: string; name: string; color: string } | null;
-                const isSelected = selected.has(contact.id);
-                return (
-                  <tr key={contact.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
-                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                      <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(contact.id)} aria-label={`Seleccionar ${contact.full_name}`} />
-                    </td>
-                    <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
-                            {contact.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{contact.full_name}</p>
-                          <p className="text-xs text-muted-foreground truncate">{contact.primary_email || ''}</p>
-                          <p className="text-[10px] text-muted-foreground/60 tabular-nums">
-                            {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                          </p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-muted-foreground hidden md:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>{contact.primary_phone || '—'}</td>
-                    <td className="px-4 py-3 text-muted-foreground hidden lg:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>{contact.source || '—'}</td>
-                    <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                      {stage ? (
-                        <Badge variant="outline" className="gap-1.5 text-xs">
-                          <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
-                          {stage.name}
-                        </Badge>
-                      ) : contact.lead_status === "won" ? (
-                        <Badge className="bg-green-500 text-white border-0 text-xs">Ganado</Badge>
-                      ) : contact.lead_status === "lost" ? (
-                        <Badge variant="destructive" className="text-xs">Perdido</Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 hidden md:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                      <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-primary/60" style={{ width: `${contact.score || 0}%` }} />
-                      </div>
-                    </td>
-                    {isOwnerOrAdmin && (
-                      <td className="px-4 py-3 hidden xl:table-cell cursor-pointer text-xs text-muted-foreground" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                        {contact.owner_id ? (profileMap[contact.owner_id] || "—") : "—"}
-                      </td>
-                    )}
-                    <td className="px-4 py-3 hidden lg:table-cell cursor-pointer" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                      <div className="flex gap-1 flex-wrap">
-                        {(contact.tags || []).slice(0, 2).map(tag => (
-                          <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr><td colSpan={totalCols} className="px-0 py-0">
+                      <div className="p-8 space-y-3">
+                        {[...Array(4)].map((_, i) => (
+                          <div key={i} className="flex items-center gap-3 animate-pulse">
+                            <div className="h-8 w-8 rounded-full bg-muted" />
+                            <div className="flex-1 space-y-2">
+                              <div className="h-3 w-1/3 rounded bg-muted" />
+                              <div className="h-2 w-1/4 rounded bg-muted/60" />
+                            </div>
+                          </div>
                         ))}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                    </td></tr>
+                  ) : contacts.length === 0 ? (
+                    <tr><td colSpan={totalCols} className="px-0 py-0">
+                      <EmptyState
+                        variant={search || statusFilter !== "all" ? "search" : "contacts"}
+                        title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes leads"}
+                        description={
+                          search || statusFilter !== "all"
+                            ? "Prueba con otro filtro o término de búsqueda"
+                            : "Importa tus leads desde Excel/CSV o crea el primero manualmente. También llegarán automáticamente si tienes Facebook Lead Ads conectado."
+                        }
+                        action={
+                          !search && statusFilter === "all" && (
+                            <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
+                              <Plus className="h-4 w-4" /> Crear mi primer lead
+                            </Button>
+                          )
+                        }
+                      />
+                    </td></tr>
+                  ) : contacts.map((contact) => {
+                    const stage = contact.pipeline_stages as { id: string; name: string; color: string } | null;
+                    const isSelected = selected.has(contact.id);
+                    const nav = () => navigate(path(`/contacts/${contact.id}`));
+                    return (
+                      <tr key={contact.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(contact.id)} aria-label={`Seleccionar ${contact.full_name}`} />
+                        </td>
+                        <td className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8 shrink-0">
+                              <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
+                                {contact.full_name.split(' ').map(n => n[0]).join('').slice(0, 2)}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-foreground truncate">{contact.full_name}</p>
+                              <p className="text-xs text-muted-foreground truncate">{contact.primary_email || ''}</p>
+                              <p className="text-[10px] text-muted-foreground/60 tabular-nums">
+                                {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        {activeCols.map(col => {
+                          switch (col.key) {
+                            case "phone": return (
+                              <td key="phone" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden truncate" onClick={nav}>
+                                {contact.primary_phone || '—'}
+                              </td>
+                            );
+                            case "email": return (
+                              <td key="email" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden truncate" onClick={nav}>
+                                {contact.primary_email || '—'}
+                              </td>
+                            );
+                            case "company": return (
+                              <td key="company" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden truncate" onClick={nav}>
+                                {contact.company_name || '—'}
+                              </td>
+                            );
+                            case "source": return (
+                              <td key="source" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden truncate" onClick={nav}>
+                                {contact.source || '—'}
+                              </td>
+                            );
+                            case "stage": return (
+                              <td key="stage" className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
+                                {stage ? (
+                                  <Badge variant="outline" className="gap-1.5 text-xs">
+                                    <span className="h-1.5 w-1.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                                    {stage.name}
+                                  </Badge>
+                                ) : contact.lead_status === "won" ? (
+                                  <Badge className="bg-green-500 text-white border-0 text-xs">Ganado</Badge>
+                                ) : contact.lead_status === "lost" ? (
+                                  <Badge variant="destructive" className="text-xs">Perdido</Badge>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">—</span>
+                                )}
+                              </td>
+                            );
+                            case "activity": return (
+                              <td key="activity" className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
+                                <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary/60" style={{ width: `${contact.score || 0}%` }} />
+                                </div>
+                              </td>
+                            );
+                            case "lead_status": return (
+                              <td key="lead_status" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden" onClick={nav}>
+                                {contact.lead_status || '—'}
+                              </td>
+                            );
+                            case "vendor": return (
+                              <td key="vendor" className="px-4 py-3 text-xs text-muted-foreground cursor-pointer overflow-hidden truncate" onClick={nav}>
+                                {contact.owner_id ? (profileMap[contact.owner_id] || "—") : "—"}
+                              </td>
+                            );
+                            case "tags": return (
+                              <td key="tags" className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
+                                <div className="flex gap-1 flex-wrap">
+                                  {(contact.tags || []).slice(0, 2).map(tag => (
+                                    <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                                  ))}
+                                </div>
+                              </td>
+                            );
+                            default: return <td key={col.key} />;
+                          }
+                        })}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
 
         {/* Pagination controls */}
         {totalCount > PAGE_SIZE && (
