@@ -43,6 +43,12 @@ const leadStatusFilters: { value: string; label: string; color?: string }[] = [
   { value: 'unassigned', label: 'Sin asignar',   color: 'text-muted-foreground' },
 ];
 
+const scoreFilters: { value: string; label: string; inactiveClass: string; activeClass: string; dotColor: string }[] = [
+  { value: 'hot',  label: 'Caliente', inactiveClass: 'text-orange-500 border-orange-200 hover:bg-orange-50', activeClass: 'bg-orange-500 text-white border-orange-500', dotColor: 'bg-orange-400' },
+  { value: 'warm', label: 'Tibio',    inactiveClass: 'text-amber-500  border-amber-200  hover:bg-amber-50',  activeClass: 'bg-amber-500  text-white border-amber-500',  dotColor: 'bg-amber-400'  },
+  { value: 'cold', label: 'Frío',     inactiveClass: 'text-blue-400   border-blue-200   hover:bg-blue-50',   activeClass: 'bg-blue-400   text-white border-blue-400',   dotColor: 'bg-blue-300'   },
+];
+
 const FIELD_OPTIONS = [
   { value: "source", label: "Origen" },
   { value: "city", label: "Ciudad" },
@@ -99,6 +105,7 @@ const PAGE_SIZE = 50;
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // lead_status filter
+  const [scoreFilter, setScoreFilter] = useState("all");   // hot / warm / cold / all
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
   const [stageFilter, setStageFilter] = useState("all");
@@ -231,6 +238,9 @@ export default function ContactsPage() {
     }
     if (dateFrom) query = query.gte("created_at", dateFrom);
     if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59.999Z");
+    if (scoreFilter === "hot")  query = query.gte("score", 61);
+    if (scoreFilter === "warm") query = query.gte("score", 31).lte("score", 60);
+    if (scoreFilter === "cold") query = query.lte("score", 30);
     if (isVendor && myUserId) {
       query = query.eq("owner_id", myUserId);
     } else if (isOwnerOrAdmin && ownerFilter !== "all") {
@@ -242,7 +252,7 @@ export default function ContactsPage() {
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [currentPage, statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [currentPage, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -259,7 +269,7 @@ export default function ContactsPage() {
   // Reset to page 0 whenever any filter changes
   useEffect(() => {
     setCurrentPage(0);
-  }, [statusFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo]);
+  }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo]);
 
   // Column preferences — load from localStorage per user+org
   useEffect(() => {
@@ -812,6 +822,27 @@ export default function ContactsPage() {
                 {f.label}
               </Button>
             ))}
+
+            {/* Separator */}
+            <div className="h-5 w-px bg-border/60 mx-0.5" />
+
+            {/* Score tier chips */}
+            {scoreFilters.map(f => {
+              const isActive = scoreFilter === f.value;
+              return (
+                <Button
+                  key={f.value}
+                  variant="outline"
+                  size="sm"
+                  className={`text-xs h-8 gap-1.5 border transition-colors ${isActive ? f.activeClass : f.inactiveClass}`}
+                  onClick={() => setScoreFilter(isActive ? "all" : f.value)}
+                >
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${isActive ? "bg-white/80" : f.dotColor}`} />
+                  {f.label}
+                </Button>
+              );
+            })}
+
             {isOwnerOrAdmin && profiles.length > 0 && (
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
                 <SelectTrigger className="h-8 w-44 text-xs gap-1.5">
