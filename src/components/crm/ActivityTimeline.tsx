@@ -56,12 +56,9 @@ export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProp
   };
 
   return (
-    <div className="space-y-4">
-      {/* Add note — the channel-specific buttons (Llamada/WhatsApp/Email) used to
-          live here too but they did nothing.  Real interactions are auto-logged
-          by the integrations (WhatsApp messages, automations, etc.) and the
-          channel "actions" live in the contact sidebar's Acciones Rápidas card. */}
-      <div className="space-y-2">
+    <div className="flex flex-col gap-3 min-h-0">
+      {/* ── Note input — stays fixed at the top, never scrolls away ── */}
+      <div className="space-y-2 shrink-0">
         <Textarea
           placeholder="Agregar una nota..."
           value={note}
@@ -84,27 +81,30 @@ export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProp
         </div>
       </div>
 
-      {/* Timeline */}
-      <div className="relative space-y-0">
-        {sorted.map((activity, i) => (
-          <div key={activity.id} className="flex gap-3 pb-4">
-            <div className="relative flex flex-col items-center">
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${eventColors[activity.event_type] || 'bg-muted text-muted-foreground'}`}>
-                {eventIcons[activity.event_type] || <FileText className="h-3.5 w-3.5" />}
+      {/* ── Activity list — scrolls inside its own box ── */}
+      <div className="rounded-lg border bg-card overflow-y-auto"
+           style={{ height: "calc(100vh - 320px)", minHeight: "320px" }}>
+        <div className="p-4 space-y-0">
+          {sorted.map((activity, i) => (
+            <div key={activity.id} className="flex gap-3 pb-4">
+              <div className="relative flex flex-col items-center">
+                <div className={`flex h-7 w-7 items-center justify-center rounded-full shrink-0 ${eventColors[activity.event_type] || 'bg-muted text-muted-foreground'}`}>
+                  {eventIcons[activity.event_type] || <FileText className="h-3.5 w-3.5" />}
+                </div>
+                {i < sorted.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
               </div>
-              {i < sorted.length - 1 && <div className="w-px flex-1 bg-border mt-1" />}
+              <div className="flex-1 pb-2">
+                <p className="text-sm text-foreground">{activity.summary}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {format(new Date(activity.created_at), "d MMM yyyy, HH:mm", { locale: es })}
+                </p>
+              </div>
             </div>
-            <div className="flex-1 pb-2">
-              <p className="text-sm text-foreground">{activity.summary}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {format(new Date(activity.created_at), "d MMM yyyy, HH:mm", { locale: es })}
-              </p>
-            </div>
-          </div>
-        ))}
-        {sorted.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-8">Sin actividad registrada</p>
-        )}
+          ))}
+          {sorted.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">Sin actividad registrada</p>
+          )}
+        </div>
       </div>
     </div>
   );
