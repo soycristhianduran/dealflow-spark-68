@@ -459,6 +459,30 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
       });
     }
 
+    // ── 11.5. Fire analyze-contact-ai for updated lead score/temperature/signals
+    // Runs after the call transcript has been processed and custom_fields updated,
+    // so the AI lead analyzer has fresh call data when computing the new score.
+    if (callLog.contact_id) {
+      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+      const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+      fetch(`${supabaseUrl}/functions/v1/analyze-contact-ai`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${svcKey}`,
+        },
+        body: JSON.stringify({
+          contact_id: callLog.contact_id,
+          organization_id: callLog.organization_id,
+          auto_trigger: true,
+          source: "call_completed",
+        }),
+      }).catch((err: Error) => {
+        console.error("Error firing analyze-contact-ai:", err.message);
+      });
+    }
+
     // ── 12. Return result ────────────────────────────────────────────────────
     return new Response(
       JSON.stringify({ success: true, temperature, interest_level, ai_summary }),

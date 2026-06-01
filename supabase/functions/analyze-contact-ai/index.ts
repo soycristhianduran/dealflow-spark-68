@@ -96,32 +96,58 @@ Deno.serve(async (req) => {
 
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("No authorization header");
-    const token = authHeader.replace("Bearer ", "");
+    const token = authHeader.replace(/^bearer\s+/i, "").trim();
+
+    // Decode JWT payload to check "role" claim — more reliable than string comparison
+    function jwtRole(t: string): string | null {
+      try {
+        const payload = t.split(".")[1];
+        const padded = payload + "=".repeat((4 - payload.length % 4) % 4);
+        const decoded = JSON.parse(atob(padded.replace(/-/g, "+").replace(/_/g, "/")));
+        return decoded?.role ?? null;
+      } catch { return null; }
+    }
+
+    const isServiceRole = jwtRole(token) === "service_role";
 
     const body = await req.json();
-    const { contact_id, user_id: bodyUserId, auto_trigger } = body;
+    const { contact_id, user_id: bodyUserId, auto_trigger, organization_id: bodyOrgId } = body;
     if (!contact_id) throw new Error("contact_id es obligatorio");
 
-    // auto_trigger: called server-side (webhook) with service role key + user_id in body
-    let resolvedUserId: string;
-    if (auto_trigger && bodyUserId && token === SUPABASE_SERVICE_ROLE_KEY) {
-      resolvedUserId = bodyUserId;
+    // Resolve caller identity — service-role calls (from call-analyzer, cron) may omit user_id
+    let resolvedUserId: string | null = null;
+    if (isServiceRole) {
+      resolvedUserId = bodyUserId ?? null;
     } else {
       const { data: { user }, error: authError } = await supabase.auth.getUser(token);
       if (authError || !user) throw new Error("Unauthorized");
       resolvedUserId = user.id;
     }
 
-    // ── Billing gate: check that the user's org has AI quota left ───────────
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", resolvedUserId)
-      .maybeSingle();
-    if (!membership?.organization_id) {
-      throw new Error("No estás asociado a ninguna organización");
+    // ── Billing gate: resolve orgId and check AI quota ───────────────────────
+    let orgId: string;
+    if (resolvedUserId) {
+      // Normal user path: look up org via membership table
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", resolvedUserId)
+        .maybeSingle();
+      if (!membership?.organization_id) throw new Error("No estás asociado a ninguna organización");
+      orgId = membership.organization_id;
+    } else if (bodyOrgId) {
+      // Service-role call with explicit org in body (e.g. from call-analyzer)
+      orgId = bodyOrgId;
+    } else {
+      // Service-role call without org hint — derive from the contact row
+      const { data: contactOrg } = await supabase
+        .from("contacts")
+        .select("organization_id")
+        .eq("id", contact_id)
+        .maybeSingle();
+      if (!contactOrg?.organization_id) throw new Error("No se pudo determinar la organización del contacto");
+      orgId = contactOrg.organization_id;
     }
-    const orgId = membership.organization_id;
     const { data: hasQuota, error: quotaErr } = await supabase.rpc(
       "consume_ai_credit",
       { p_org_id: orgId, p_kind: "analyses", p_amount: 1 },
@@ -150,11 +176,13 @@ Deno.serve(async (req) => {
       .eq("id", contact_id)
       .maybeSingle();
     if (!contact) throw new Error("Contacto no encontrado");
-    // Permission check: contact must belong to the user's organization.
-    // We do NOT restrict by owner_id — any team member can analyze org contacts.
-    if (contact.organization_id && contact.organization_id !== orgId) {
+    // Permission check: skip for service_role (already trusted); for user JWTs verify org match.
+    if (!isServiceRole && contact.organization_id && contact.organization_id !== orgId) {
       throw new Error("No tienes permiso sobre este contacto");
     }
+
+    // Effective user_id for DB writes — fall back to contact owner for server-side calls
+    const effectiveUserId: string | null = resolvedUserId ?? contact.owner_id ?? null;
 
     // ── Load pipeline stages context (most recent open deal of this contact) ─
     let pipelineHint: PipelineStageHint[] | null = null;
@@ -230,6 +258,16 @@ Deno.serve(async (req) => {
       .order("created_at", { ascending: false })
       .limit(15);
 
+    // Recent AI voice call logs (transcript + analysis for richer context)
+    const { data: recentCallLogs } = await supabase
+      .from("call_logs")
+      .select("created_at, duration_seconds, status, ai_summary, transcript, temperature, interest_level")
+      .eq("contact_id", contact_id)
+      .eq("status", "completed")
+      .not("transcript", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(3);
+
     // Merge into a single chronological feed
     const merged: MsgRow[] = [];
     for (const m of waMessages || []) {
@@ -273,7 +311,7 @@ Deno.serve(async (req) => {
     // Trim to most recent N
     const trimmed = merged.slice(-MAX_MESSAGES);
 
-    if (trimmed.length === 0) {
+    if (trimmed.length === 0 && (!recentCallLogs || recentCallLogs.length === 0)) {
       // Nothing to analyze — return a neutral cold result
       const empty = {
         temperature: 10,
@@ -287,7 +325,7 @@ Deno.serve(async (req) => {
       await supabase.from("contact_ai_analyses").upsert(
         {
           contact_id,
-          user_id: resolvedUserId,
+          user_id: effectiveUserId,
           ...empty,
           messages_analyzed: 0,
           model_used: MODEL,
@@ -305,9 +343,28 @@ Deno.serve(async (req) => {
 
     const conversationText = formatMessagesForPrompt(trimmed, contact.full_name || "Lead");
 
+    // Build a block for recent AI voice calls so the model has full call context
+    let callLogsBlock = "";
+    if (recentCallLogs && recentCallLogs.length > 0) {
+      const entries = recentCallLogs.map((c: any) => {
+        const date = new Date(c.created_at).toISOString().slice(0, 16).replace("T", " ");
+        const dur = c.duration_seconds != null
+          ? `${Math.floor(c.duration_seconds / 60)}:${String(c.duration_seconds % 60).padStart(2, "0")}`
+          : "duración desconocida";
+        const tempLabel = c.temperature ? ` · ${c.temperature}` : "";
+        const intentLabel = c.interest_level ? ` / interés ${c.interest_level}` : "";
+        const summaryLine = c.ai_summary ? `\n   Resumen IA: ${c.ai_summary}` : "";
+        const transcriptLine = c.transcript
+          ? `\n   Transcripción (extracto): ${String(c.transcript).substring(0, 600)}`
+          : "";
+        return `- [${date}] Llamada IA (${dur}${tempLabel}${intentLabel}):${summaryLine}${transcriptLine}`;
+      });
+      callLogsBlock = `\n\nLLAMADAS DE VOZ RECIENTES CON IA (${recentCallLogs.length} más recientes):\n${entries.join("\n")}`;
+    }
+
     // ── Call OpenAI ───────────────────────────────────────────────────────────
     const systemPrompt = buildSystemPrompt(pipelineHint);
-    const userPrompt = `Contact name: ${contact.full_name || "(sin nombre)"}\nStage: ${contact.status || "new"}\n\nRECENT CONVERSATION (chronological, oldest first):\n${conversationText}\n\nAnalyze the above and return the JSON object as specified.`;
+    const userPrompt = `Contact name: ${contact.full_name || "(sin nombre)"}\nStage: ${contact.status || "new"}${callLogsBlock}\n\nRECENT CONVERSATION (chronological, oldest first):\n${conversationText}\n\nAnalyze the above and return the JSON object as specified.`;
 
     const openaiRes = await fetch(OPENAI_API, {
       method: "POST",
@@ -413,7 +470,7 @@ Deno.serve(async (req) => {
             priority: temperature >= 80 ? "high" : "medium",
             due_date: dueDate.toISOString().slice(0, 10),
             status: "pending",
-            owner_id: contact.owner_id || resolvedUserId,
+            owner_id: contact.owner_id || effectiveUserId,
             contact_id,
             deal_id: currentDealId,
             source: "ai_suggestion",
@@ -430,7 +487,7 @@ Deno.serve(async (req) => {
       .upsert(
         {
           contact_id,
-          user_id: resolvedUserId,
+          user_id: effectiveUserId,
           temperature,
           sentiment,
           buying_intent,
