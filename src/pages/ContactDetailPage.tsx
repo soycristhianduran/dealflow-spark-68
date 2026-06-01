@@ -959,24 +959,65 @@ export default function ContactDetailPage() {
               </TabsContent>
 
               <TabsContent value="info" className="mt-4 space-y-4">
-                {contact.source && (
-                  <Card className="border-none shadow-sm">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <Megaphone className="h-3.5 w-3.5" /> Origen y campaña
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-4">
-                        <InfoItem label="Origen" value={contact.source} />
-                        <InfoItem label="Campaña" value={contact.campaign} />
-                        <InfoItem label="Ad Set" value={contact.adset} />
-                        <InfoItem label="Anuncio" value={contact.ad} />
-                        <InfoItem label="Landing Page" value={contact.landing_page} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                {(() => {
+                  // Labels for known source values
+                  const sourceLabel = (s: string) => ({
+                    facebook_ads: "Facebook Ads",
+                    facebook_lead_ads: "Facebook Lead Ads",
+                    whatsapp: "WhatsApp",
+                    instagram: "Instagram",
+                    api: "Landing Page",
+                    web: "Web",
+                    manual: "Manual",
+                  }[s] ?? s);
+
+                  // Extract additional sources from merge activity log
+                  const mergedSources = activities
+                    .filter((a: any) => a.event_source === "merge")
+                    .map((a: any) => {
+                      const m = a.summary?.match(/origen secundario:\s*([^,]+)/i);
+                      return m ? m[1].trim() : null;
+                    })
+                    .filter(Boolean) as string[];
+
+                  const hasOriginData = contact.source || mergedSources.length > 0;
+
+                  return hasOriginData || contact.campaign || contact.adset || contact.ad || contact.landing_page ? (
+                    <Card className="border-none shadow-sm">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                          <Megaphone className="h-3.5 w-3.5" /> Origen y campaña
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Origen — primary + any merged sources */}
+                          {hasOriginData && (
+                            <div className="col-span-2 flex flex-col gap-1.5">
+                              <span className="text-[11px] font-medium text-muted-foreground">Origen</span>
+                              <div className="flex flex-wrap gap-1.5 items-center">
+                                {contact.source && (
+                                  <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
+                                    {sourceLabel(contact.source)}
+                                  </span>
+                                )}
+                                {mergedSources.map((src, i) => (
+                                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 border border-amber-100 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800">
+                                    <span className="opacity-60">+</span> {sourceLabel(src)}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <InfoItem label="Campaña" value={contact.campaign} />
+                          <InfoItem label="Ad Set" value={contact.adset} />
+                          <InfoItem label="Anuncio" value={contact.ad} />
+                          <InfoItem label="Landing Page" value={contact.landing_page} />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : null;
+                })()}
 
                 {(contact.utm_source || contact.utm_medium || contact.utm_campaign || contact.utm_term || contact.utm_content) && (
                   <Card className="border-none shadow-sm">
