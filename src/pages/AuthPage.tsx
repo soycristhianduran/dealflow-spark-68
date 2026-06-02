@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap } from "lucide-react";
+import { Zap, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -34,7 +34,8 @@ export default function AuthPage() {
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
-  const [view, setView] = useState<"tabs" | "forgot" | "forgot-sent">("tabs");
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [view, setView] = useState<"tabs" | "forgot" | "forgot-sent" | "google-onboarding">("tabs");
   const [forgotEmail, setForgotEmail] = useState("");
 
   // Detect if arriving from an invitation link
@@ -55,6 +56,20 @@ export default function AuthPage() {
   // Redirect to workspace (or back to invite page) after login
   useEffect(() => {
     if (!session) return;
+
+    // New Google user: no company_name in metadata → show onboarding
+    const isGoogle = session.user.app_metadata?.provider === "google";
+    const needsOnboarding = isGoogle && !session.user.user_metadata?.company_name;
+    if (needsOnboarding) {
+      // Pre-fill name from Google profile
+      const given = session.user.user_metadata?.given_name || "";
+      const family = session.user.user_metadata?.family_name || "";
+      if (given) setFirstName(given);
+      if (family) setLastName(family);
+      setView("google-onboarding");
+      return;
+    }
+
     if (redirectParam) {
       navigate(redirectParam, { replace: true });
     } else {
@@ -65,6 +80,47 @@ export default function AuthPage() {
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
   }, []);
+
+  const handleGoogleAuth = async () => {
+    setGoogleLoading(true);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth`,
+      },
+    });
+    if (error) {
+      toast.error("Error al conectar con Google: " + error.message);
+      setGoogleLoading(false);
+    }
+    // On success, browser redirects to Google — googleLoading stays true
+  };
+
+  const handleGoogleOnboarding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    const fullPhone = phone ? `${getDialCode(countryCode)}${phone.replace(/\s/g, "")}` : "";
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        full_name: `${firstName.trim()} ${lastName.trim()}`,
+        phone: fullPhone,
+        industry,
+        company_size: companySize,
+        job_title: jobTitle,
+        company_name: companyName.trim() || "Mi empresa",
+      },
+    });
+    if (error) {
+      toast.error("Error al guardar perfil: " + error.message);
+      setLoading(false);
+      return;
+    }
+    toast.success("¡Perfil completado!");
+    navigate("/", { replace: true });
+    setLoading(false);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -168,6 +224,62 @@ export default function AuthPage() {
             </form>
           )}
 
+          {/* ── Google onboarding ── */}
+          {view === "google-onboarding" && (
+            <form onSubmit={handleGoogleOnboarding} className="space-y-4">
+              <div className="text-center mb-2">
+                <p className="font-medium text-sm">¡Casi listo! Cuéntanos un poco más</p>
+                <p className="text-xs text-muted-foreground">Solo tarda 30 segundos</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Nombre *</Label>
+                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Apellido *</Label>
+                  <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Pérez" required />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Nombre de la empresa</Label>
+                <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
+              </div>
+              <div className="space-y-2">
+                <Label>Teléfono</Label>
+                <CountryPhoneInput value={phone} onChange={setPhone} countryCode={countryCode} onCountryChange={setCountryCode} />
+              </div>
+              <div className="space-y-2">
+                <Label>Industria</Label>
+                <Select value={industry} onValueChange={setIndustry}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona tu industria" /></SelectTrigger>
+                  <SelectContent>{industries.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tamaño de empresa</Label>
+                <Select value={companySize} onValueChange={setCompanySize}>
+                  <SelectTrigger><SelectValue placeholder="Número de empleados" /></SelectTrigger>
+                  <SelectContent>{companySizes.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Rol / Cargo</Label>
+                <Select value={jobTitle} onValueChange={setJobTitle}>
+                  <SelectTrigger><SelectValue placeholder="Selecciona tu cargo" /></SelectTrigger>
+                  <SelectContent>
+                    {["CEO / Director General","Director Comercial","Gerente de Ventas","Ejecutivo de Ventas","Director de Marketing","Gerente de Marketing","Director de Operaciones","Gerente de Proyecto","Fundador / Co-fundador","Consultor","Freelancer","Otro"].map(r => (
+                      <SelectItem key={r} value={r}>{r}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</> : "Entrar al CRM →"}
+              </Button>
+            </form>
+          )}
+
           {/* ── Normal tabs ── */}
           {view === "tabs" && <>
           {inviteToken && (
@@ -176,6 +288,35 @@ export default function AuthPage() {
               <span className="text-muted-foreground">Inicia sesión o crea tu cuenta para continuar.</span>
             </div>
           )}
+
+          {/* Google OAuth button */}
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full gap-2 mb-4"
+            onClick={handleGoogleAuth}
+            disabled={googleLoading}
+          >
+            {googleLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <svg className="h-4 w-4" viewBox="0 0 24 24">
+                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+              </svg>
+            )}
+            Continuar con Google
+          </Button>
+
+          <div className="relative mb-4">
+            <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">o</span>
+            </div>
+          </div>
+
           <Tabs defaultValue={inviteToken ? "register" : "login"}>
             <TabsList className="grid w-full grid-cols-2 mb-4">
               <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
