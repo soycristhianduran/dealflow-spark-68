@@ -1,131 +1,192 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+/**
+ * Google Calendar Event Manager
+ *
+ * Supports three actions (pass via body.action):
+ *   create  — creates a new event and returns { google_event_id, html_link }
+ *   update  — patches an existing event by body.google_event_id
+ *   delete  — deletes an event by body.google_event_id
+ *
+ * Token refresh: if the stored access token is expired (401 from Google),
+ * the function tries to refresh it using the stored refresh token.
+ * Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to be set as
+ * Supabase Function Secrets for refresh to work.
+ */
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type",
 };
 
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") ?? "";
+const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "";
+
+const GCAL_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+async function refreshAccessToken(refreshToken: string): Promise<string | null> {
+  if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return null;
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  return body.access_token ?? null;
+}
+
+// Call Google Calendar API; auto-refresh once on 401
+async function gcalFetch(
+  supabase: ReturnType<typeof createClient>,
+  userId: string,
+  url: string,
+  init: RequestInit,
+  accessToken: string,
+  refreshToken: string | null,
+): Promise<{ ok: boolean; status: number; body: unknown }> {
+  let res = await fetch(url, {
+    ...init,
+    headers: { ...(init.headers ?? {}), Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (res.status === 401 && refreshToken) {
+    const newToken = await refreshAccessToken(refreshToken);
+    if (newToken) {
+      // Persist the refreshed token
+      await supabase
+        .from("google_calendar_tokens")
+        .update({ provider_token: newToken, updated_at: new Date().toISOString() })
+        .eq("user_id", userId);
+
+      res = await fetch(url, {
+        ...init,
+        headers: { ...(init.headers ?? {}), Authorization: `Bearer ${newToken}` },
+      });
+    }
   }
+
+  let body: unknown;
+  try { body = await res.json(); } catch { body = null; }
+  return { ok: res.ok, status: res.status, body };
+}
+
+// ── Main handler ──────────────────────────────────────────────────────────────
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "No authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!authHeader) return json({ error: "No authorization header" }, 401);
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Get user from token
     const token = authHeader.replace("Bearer ", "");
     const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid user" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (userError || !user) return json({ error: "Invalid user" }, 401);
 
-    // Get stored Google token
-    const { data: tokenData, error: tokenError } = await supabase
+    const { data: tokenRow, error: tokenError } = await supabase
       .from("google_calendar_tokens")
       .select("provider_token, provider_refresh_token")
       .eq("user_id", user.id)
       .single();
 
-    if (tokenError || !tokenData) {
-      return new Response(
-        JSON.stringify({ error: "Google Calendar not connected", code: "NOT_CONNECTED" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (tokenError || !tokenRow) {
+      return json({ error: "Google Calendar not connected", code: "NOT_CONNECTED" }, 400);
     }
 
-    const { title, description, start_at, end_at, location, attendee_email } = await req.json();
+    const { provider_token: accessToken, provider_refresh_token: refreshToken } = tokenRow;
 
-    // Build Google Calendar event
-    const event: Record<string, unknown> = {
+    const body = await req.json();
+    const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email } = body;
+
+    // ── DELETE ────────────────────────────────────────────────────────────────
+    if (action === "delete") {
+      if (!google_event_id) return json({ error: "google_event_id required for delete" }, 400);
+      const result = await gcalFetch(
+        supabase, user.id,
+        `${GCAL_BASE}/${google_event_id}`,
+        { method: "DELETE" },
+        accessToken, refreshToken,
+      );
+      if (!result.ok && result.status !== 404) {
+        if (result.status === 401) {
+          await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+          return json({ error: "Token de Google expirado. Reconecta Google Calendar.", code: "TOKEN_EXPIRED" }, 401);
+        }
+        return json({ error: `Google Calendar error [${result.status}]` }, 500);
+      }
+      return json({ success: true });
+    }
+
+    // ── Build event payload (shared by create + update) ───────────────────────
+    const eventPayload: Record<string, unknown> = {
       summary: title,
       description: description || undefined,
-      start: {
-        dateTime: start_at,
-        timeZone: "America/Mexico_City",
-      },
-      end: {
-        dateTime: end_at,
-        timeZone: "America/Mexico_City",
-      },
+      start: { dateTime: start_at, timeZone: "America/Bogota" },
+      end:   { dateTime: end_at,   timeZone: "America/Bogota" },
     };
+    if (location) eventPayload.location = location;
+    if (attendee_email) eventPayload.attendees = [{ email: attendee_email }];
 
-    if (location) {
-      event.location = location;
-    }
-
-    if (attendee_email) {
-      event.attendees = [{ email: attendee_email }];
-    }
-
-    // Create event in Google Calendar
-    const gcalResponse = await fetch(
-      "https://www.googleapis.com/calendar/v3/calendars/primary/events",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenData.provider_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(event),
-      }
-    );
-
-    if (!gcalResponse.ok) {
-      const errorBody = await gcalResponse.text();
-      console.error("Google Calendar API error:", gcalResponse.status, errorBody);
-
-      // If token expired, mark as disconnected
-      if (gcalResponse.status === 401) {
-        await supabase
-          .from("google_calendar_tokens")
-          .delete()
-          .eq("user_id", user.id);
-
-        return new Response(
-          JSON.stringify({
-            error: "Token de Google expirado. Reconecta Google Calendar.",
-            code: "TOKEN_EXPIRED",
-          }),
-          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      return new Response(
-        JSON.stringify({ error: `Google Calendar error [${gcalResponse.status}]: ${errorBody}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    // ── UPDATE ────────────────────────────────────────────────────────────────
+    if (action === "update") {
+      if (!google_event_id) return json({ error: "google_event_id required for update" }, 400);
+      const result = await gcalFetch(
+        supabase, user.id,
+        `${GCAL_BASE}/${google_event_id}`,
+        { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eventPayload) },
+        accessToken, refreshToken,
       );
+      if (!result.ok) {
+        if (result.status === 401) {
+          await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+          return json({ error: "Token de Google expirado. Reconecta Google Calendar.", code: "TOKEN_EXPIRED" }, 401);
+        }
+        return json({ error: `Google Calendar error [${result.status}]` }, 500);
+      }
+      const ev = result.body as Record<string, string>;
+      return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink });
     }
 
-    const gcalEvent = await gcalResponse.json();
+    // ── CREATE (default) ──────────────────────────────────────────────────────
+    const result = await gcalFetch(
+      supabase, user.id,
+      GCAL_BASE,
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eventPayload) },
+      accessToken, refreshToken,
+    );
+    if (!result.ok) {
+      if (result.status === 401) {
+        await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+        return json({ error: "Token de Google expirado. Reconecta Google Calendar.", code: "TOKEN_EXPIRED" }, 401);
+      }
+      return json({ error: `Google Calendar error [${result.status}]: ${JSON.stringify(result.body)}` }, 500);
+    }
+    const ev = result.body as Record<string, string>;
+    return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        google_event_id: gcalEvent.id,
-        html_link: gcalEvent.htmlLink,
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
-  } catch (error) {
-    console.error("Error creating calendar event:", error);
-    return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  } catch (err) {
+    console.error("create-calendar-event error:", err);
+    return json({ error: err instanceof Error ? err.message : "Unknown error" }, 500);
   }
 });

@@ -24,6 +24,7 @@ interface EditingMeeting {
   notes: string | null;
   contact_id: string | null;
   status: string;
+  google_event_id?: string | null;
 }
 
 interface CreateMeetingDialogProps {
@@ -133,30 +134,44 @@ export function CreateMeetingDialog({
       status,
     };
 
-    let error;
+    let meetingId: string | null = isEditing ? editingMeeting!.id : null;
+    let error: { message: string } | null = null;
+
     if (isEditing) {
       ({ error } = await supabase.from("meetings").update(payload).eq("id", editingMeeting!.id));
     } else {
-      ({ error } = await supabase.from("meetings").insert({
-        ...payload,
-        advisor_id: session?.user?.id || null,
-      }));
+      const { data: inserted, error: insertErr } = await supabase
+        .from("meetings")
+        .insert({ ...payload, advisor_id: session?.user?.id || null })
+        .select("id")
+        .single();
+      error = insertErr;
+      meetingId = inserted?.id ?? null;
     }
 
-    // Sync to Google Calendar (only for new meetings, not edits)
-    if (!error && !isEditing && gcal.isConnected && syncToGcal) {
-      const gcalResult = await gcal.createEvent({
+    if (!error) {
+      const gcalParams = {
         title: title.trim(),
         start_at: `${dateStr}T${startTime}:00`,
         end_at: `${dateStr}T${endTime}:00`,
         description: notes.trim() || undefined,
         location: location.trim() || undefined,
         attendee_email: selectedContact?.primary_email || undefined,
-      });
-      if (gcalResult) {
-        toast.success("También se agregó a Google Calendar", {
-          icon: "📅",
-        });
+      };
+
+      if (!isEditing && gcal.isConnected && syncToGcal && meetingId) {
+        // Create new Google Calendar event and persist its ID on the meeting row
+        const gcalResult = await gcal.createEvent(gcalParams);
+        if (gcalResult?.google_event_id) {
+          await supabase
+            .from("meetings")
+            .update({ google_event_id: gcalResult.google_event_id })
+            .eq("id", meetingId);
+          toast.success("También se agregó a Google Calendar", { icon: "📅" });
+        }
+      } else if (isEditing && gcal.isConnected && editingMeeting?.google_event_id) {
+        // Update the existing Google Calendar event silently
+        await gcal.updateEvent(editingMeeting.google_event_id, gcalParams);
       }
     }
 
@@ -336,7 +351,16 @@ export function CreateMeetingDialog({
             <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas adicionales..." rows={2} />
           </div>
 
-          {/* Google Calendar sync toggle */}
+          {/* Google Calendar sync indicator / toggle */}
+          {isEditing && gcal.isConnected && editingMeeting?.google_event_id && (
+            <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
+              <CalendarDays className="h-5 w-5 shrink-0 text-primary" />
+              <div className="flex-1">
+                <p className="text-sm font-medium">Sincronizado con Google Calendar</p>
+                <p className="text-xs text-muted-foreground">Los cambios se actualizarán automáticamente</p>
+              </div>
+            </div>
+          )}
           {!isEditing && gcal.isConnected && (
             <div
               className={cn(

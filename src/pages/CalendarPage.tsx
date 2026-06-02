@@ -29,6 +29,7 @@ interface MeetingRow {
   notes: string | null;
   contact_id: string | null;
   contact_name: string | null;
+  google_event_id: string | null;
 }
 
 const meetingTypeIcons: Record<string, React.ReactNode> = {
@@ -60,7 +61,7 @@ export default function CalendarPage() {
     setLoading(true);
     let query = supabase
       .from("meetings")
-      .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, contacts(full_name)")
+      .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, google_event_id, contacts(full_name)")
       .order("start_at", { ascending: true });
     if (isVendor && myUserId) query = query.eq("advisor_id", myUserId);
     const { data } = await query;
@@ -68,6 +69,7 @@ export default function CalendarPage() {
       setMeetings(data.map((m: any) => ({
         ...m,
         contact_name: m.contacts?.full_name || null,
+        google_event_id: m.google_event_id || null,
       })));
     }
     setLoading(false);
