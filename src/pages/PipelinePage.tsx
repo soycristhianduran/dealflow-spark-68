@@ -274,7 +274,18 @@ export default function PipelinePage() {
       ...(organizationId ? { organization_id: organizationId } : {}),
     }).select("id").single();
     setSavingLead(false);
-    if (error) { toast.error("Error: " + error.message); return; }
+    if (error) {
+      if (error.message?.includes("contact_limit_reached")) {
+        toast.error(
+          (error as any).details ||
+          "Has alcanzado el límite de contactos de tu plan. Mejora tu suscripción.",
+          { duration: 6000 }
+        );
+      } else {
+        toast.error("Error: " + error.message);
+      }
+      return;
+    }
 
     // Fire contact_created automation trigger (fire-and-forget)
     if (newLead?.id) {

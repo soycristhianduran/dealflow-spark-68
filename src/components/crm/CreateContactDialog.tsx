@@ -110,7 +110,16 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     }).select("id").single();
 
     if (error) {
-      toast.error("Error al crear lead: " + error.message);
+      // Plan limit reached
+      if (error.message?.includes("contact_limit_reached")) {
+        toast.error(
+          (error as any).details ||
+          "Has alcanzado el límite de contactos de tu plan. Mejora tu suscripción para agregar más.",
+          { duration: 6000 }
+        );
+      } else {
+        toast.error("Error al crear lead: " + error.message);
+      }
     } else {
       const { data: pipeline } = await supabase
         .from("pipelines")

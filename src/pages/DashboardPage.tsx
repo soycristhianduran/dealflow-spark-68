@@ -2,16 +2,19 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
+import { Link } from "react-router-dom";
 import {
   DollarSign, Trophy, XCircle, ArrowUpRight, ArrowDownRight,
   CalendarDays, CheckSquare, Activity, Target, BarChart3, Loader2,
-  AlertTriangle,
+  AlertTriangle, MessageCircle, Users, GitBranch, X, CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 type Period = "week" | "month" | "quarter" | "year";
@@ -165,11 +168,132 @@ function EmptyState({ icon, text, sub }: { icon: React.ReactNode; text: string; 
   );
 }
 
+/* ─── Setup Banner ───────────────────────────────────────────────────────── */
+interface SetupStep {
+  icon: React.ReactNode;
+  title: string;
+  desc: string;
+  cta: string;
+  to: string;
+  done: boolean;
+}
+
+function SetupBanner({
+  waConnected,
+  hasContacts,
+  hasDeals,
+  onDismiss,
+}: {
+  waConnected: boolean;
+  hasContacts: boolean;
+  hasDeals: boolean;
+  onDismiss: () => void;
+}) {
+  const steps: SetupStep[] = [
+    {
+      icon: <MessageCircle className="h-5 w-5" />,
+      title: "Conecta tu canal",
+      desc: "WhatsApp, Instagram o Facebook Ads para capturar leads automáticamente.",
+      cta: "Configurar ahora",
+      to: "integrations",
+      done: waConnected,
+    },
+    {
+      icon: <Users className="h-5 w-5" />,
+      title: "Agrega tu primer lead",
+      desc: "Importa contactos o añade uno manualmente para empezar a trabajar.",
+      cta: "Ir a contactos",
+      to: "contacts",
+      done: hasContacts,
+    },
+    {
+      icon: <GitBranch className="h-5 w-5" />,
+      title: "Abre un deal en el pipeline",
+      desc: "Mueve un lead al pipeline y comienza a llevar el seguimiento comercial.",
+      cta: "Ver pipeline",
+      to: "pipeline",
+      done: hasDeals,
+    },
+  ];
+
+  const allDone = steps.every((s) => s.done);
+  if (allDone) return null;
+
+  const doneCount = steps.filter((s) => s.done).length;
+
+  return (
+    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
+        <div>
+          <h2 className="text-sm font-semibold text-foreground">Primeros pasos</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {doneCount} de {steps.length} completados — tu CRM está casi listo
+          </p>
+        </div>
+        <button
+          onClick={onDismiss}
+          className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
+          title="Ocultar"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {/* Steps */}
+      <div className="grid sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-border/60">
+        {steps.map((step, i) => (
+          <div
+            key={i}
+            className={`flex flex-col gap-3 p-5 transition-colors ${
+              step.done ? "opacity-50" : ""
+            }`}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className={`flex items-center justify-center h-9 w-9 rounded-lg shrink-0 ${
+                step.done
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-primary/10 text-primary"
+              }`}>
+                {step.done ? <CheckCircle2 className="h-5 w-5" /> : step.icon}
+              </div>
+              {step.done && (
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full shrink-0">
+                  Listo
+                </span>
+              )}
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-foreground">{step.title}</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{step.desc}</p>
+            </div>
+            {!step.done && (
+              <Button asChild variant="outline" size="sm" className="w-fit text-xs mt-auto">
+                <Link to={step.to}>{step.cta} →</Link>
+              </Button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { isVendor, myUserId } = usePermissions();
+  const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
+
+  // Setup banner state
+  const [waConnected, setWaConnected]   = useState(false);
+  const [totalContacts, setTotalContacts] = useState(0);
+  const [setupDismissed, setSetupDismissed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(`crm-setup-done-${organizationId}`) === "1";
+    } catch { return false; }
+  });
 
   // KPIs — current period
   const [wonValue,     setWonValue]     = useState(0);
@@ -282,12 +406,18 @@ export default function DashboardPage() {
       .select("objections")
       .not("objections", "is", null);
 
+    // Setup banner: total contacts + WhatsApp config
+    const totalCtQ = supabase.from("contacts").select("id", { count: "exact", head: true });
+    const waQ      = supabase.from("whatsapp_configs").select("id").limit(1);
+
     const [
       curRes, prevRes, activeRes, stagesRes,
       lostRes, meetRes, taskRes, actRes, objRes,
+      totalCtRes, waRes,
     ] = await Promise.all([
       curQ, prevQ, activeQ, stagesQ,
       lostQ, meetQ, taskQ, actQ, objQ,
+      totalCtQ, waQ,
     ]);
 
     /* ---------- KPI calculations ---------- */
@@ -369,6 +499,10 @@ export default function DashboardPage() {
     setPendingTasks((taskRes.data || []) as TaskRow[]);
     setRecentActivity((actRes.data || []) as ActivityRow[]);
 
+    /* ---------- Setup banner ---------- */
+    setTotalContacts(totalCtRes.count ?? 0);
+    setWaConnected((waRes.data?.length ?? 0) > 0);
+
     setLoading(false);
   }, [isVendor, myUserId, period]);
 
@@ -387,6 +521,11 @@ export default function DashboardPage() {
     winRate !== null && prevWinRate !== null ? winRate - prevWinRate : null;
 
   const maxStageCount = Math.max(...stageData.map((s) => s.count), 1);
+
+  const dismissSetup = useCallback(() => {
+    try { localStorage.setItem(`crm-setup-done-${organizationId}`, "1"); } catch {}
+    setSetupDismissed(true);
+  }, [organizationId]);
 
   /* ─── Render ────────────────────────────────────────────────────── */
   if (loading) {
@@ -410,6 +549,16 @@ export default function DashboardPage() {
         subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
       />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+
+        {/* ── Setup banner (shown to new workspaces) ─────────────── */}
+        {!setupDismissed && (
+          <SetupBanner
+            waConnected={waConnected}
+            hasContacts={totalContacts > 0}
+            hasDeals={pipelineN > 0}
+            onDismiss={dismissSetup}
+          />
+        )}
 
         {/* ── Header bar ─────────────────────────────────────────── */}
         <div className="flex items-center justify-between">
