@@ -57,18 +57,37 @@ export default function AuthPage() {
   useEffect(() => {
     if (!session) return;
 
-    // New Google user: no company_name in metadata → show onboarding
-    const isGoogle = session.user.app_metadata?.provider === "google";
-    const needsOnboarding = isGoogle && !session.user.user_metadata?.company_name;
+    // Detect Google users — check both `provider` (primary) and `providers` array
+    // (linked accounts may have provider="email" but providers=["email","google"])
+    const providers = session.user.app_metadata?.providers as string[] | undefined;
+    const isGoogle =
+      session.user.app_metadata?.provider === "google" ||
+      providers?.includes("google") === true;
+
+    const hasCompanyName = !!session.user.user_metadata?.company_name;
+
+    // Show onboarding when:
+    //   a) The user signed in via Google, AND
+    //   b) They don't yet have a company_name (meaning they haven't completed onboarding), AND
+    //   c) We set the google_flow flag just before the OAuth redirect — this
+    //      distinguishes "just signed up/in with Google" from "already logged in,
+    //      merely visiting /auth again".
+    const freshGoogleFlow = localStorage.getItem("klosify_google_flow") === "1";
+    const needsOnboarding = isGoogle && !hasCompanyName && freshGoogleFlow;
+
     if (needsOnboarding) {
       // Pre-fill name from Google profile
       const given = session.user.user_metadata?.given_name || "";
       const family = session.user.user_metadata?.family_name || "";
       if (given) setFirstName(given);
       if (family) setLastName(family);
+      // Keep the flag set — handleGoogleOnboarding will clear it on submit
       setView("google-onboarding");
       return;
     }
+
+    // Not a new Google signup — clean up the flag if present
+    localStorage.removeItem("klosify_google_flow");
 
     if (redirectParam) {
       navigate(redirectParam, { replace: true });
@@ -83,6 +102,9 @@ export default function AuthPage() {
 
   const handleGoogleAuth = async () => {
     setGoogleLoading(true);
+    // Mark that we started a Google auth flow so we can show onboarding on return.
+    // localStorage survives the OAuth redirect round-trip; React state does not.
+    localStorage.setItem("klosify_google_flow", "1");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -91,6 +113,7 @@ export default function AuthPage() {
     });
     if (error) {
       toast.error("Error al conectar con Google: " + error.message);
+      localStorage.removeItem("klosify_google_flow");
       setGoogleLoading(false);
     }
     // On success, browser redirects to Google — googleLoading stays true
@@ -100,6 +123,9 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
     const fullPhone = phone ? `${getDialCode(countryCode)}${phone.replace(/\s/g, "")}` : "";
+    const finalCompanyName = companyName.trim() || "Mi empresa";
+
+    // 1. Save profile to user metadata
     const { error } = await supabase.auth.updateUser({
       data: {
         first_name: firstName.trim(),
@@ -109,7 +135,7 @@ export default function AuthPage() {
         industry,
         company_size: companySize,
         job_title: jobTitle,
-        company_name: companyName.trim() || "Mi empresa",
+        company_name: finalCompanyName,
       },
     });
     if (error) {
@@ -117,7 +143,24 @@ export default function AuthPage() {
       setLoading(false);
       return;
     }
-    toast.success("¡Perfil completado!");
+
+    // 2. Rename the auto-created workspace to match the company name the user
+    //    provided. The DB trigger creates the org at signup time using the
+    //    Google profile name (e.g. "Juan Pérez Workspace"), which is wrong.
+    try {
+      const { data: orgData } = await supabase.rpc("get_my_organization");
+      const orgId = orgData?.[0]?.organization_id;
+      if (orgId) {
+        await supabase.from("organizations").update({ name: finalCompanyName }).eq("id", orgId);
+      }
+    } catch {
+      // Non-fatal: metadata was saved, org rename is best-effort
+    }
+
+    // 3. Clear the google_flow flag so the effect doesn't re-trigger onboarding
+    localStorage.removeItem("klosify_google_flow");
+
+    toast.success("¡Bienvenido a Klosify CRM!");
     navigate("/", { replace: true });
     setLoading(false);
   };
