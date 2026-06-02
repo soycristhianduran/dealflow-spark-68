@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY");
-    const APP_URL = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
+    const APP_URL = Deno.env.get("APP_URL") || "https://app.klosify.com";
 
     if (!STRIPE_SECRET_KEY) {
       return new Response(

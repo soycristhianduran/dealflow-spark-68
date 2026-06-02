@@ -22,7 +22,7 @@ const PrivacyPage = () => {
           "nosotros"), con identificación tributaria <strong>NIT 1094270110-2</strong>,
           domiciliado en Colombia, es el responsable del tratamiento de los
           datos personales recopilados a través de la aplicación
-          accesible en <code>aceleradoradeventas.co</code> y sus subdominios.
+          accesible en <code>klosify.com</code> y sus subdominios.
         </p>
         <p>
           Esta política describe cómo recopilamos, usamos, almacenamos y
@@ -144,8 +144,8 @@ const PrivacyPage = () => {
         </ul>
         <p>
           Para ejercer cualquiera de estos derechos, escríbenos a{" "}
-          <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
-            contacto@aceleradoradeventas.co
+          <a href="mailto:hola@klosify.com" className="text-primary underline">
+            hola@klosify.com
           </a>. Respondemos en un plazo máximo de <strong>15 días hábiles</strong>.
         </p>
 
@@ -193,8 +193,8 @@ const PrivacyPage = () => {
         </p>
         <ul>
           <li>Email:{" "}
-            <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
-              contacto@aceleradoradeventas.co
+            <a href="mailto:hola@klosify.com" className="text-primary underline">
+              hola@klosify.com
             </a></li>
           <li>Responsable: CRISTHIAN DURAN — NIT 1094270110-2</li>
           <li>Domicilio: Colombia</li>

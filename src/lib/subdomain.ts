@@ -2,17 +2,17 @@
  * Workspace URL routing utilities.
  *
  * Current mode (Vercel Hobby): path-based
- *   app.aceleradoradeventas.co/w/{slug}   → specific workspace
- *   app.aceleradoradeventas.co            → main app
+ *   app.klosify.com/w/{slug}   → specific workspace
+ *   app.klosify.com            → main app
  *
  * Future mode (Vercel Pro): subdomain-based
- *   {slug}.app.aceleradoradeventas.co     → specific workspace
- *   app.aceleradoradeventas.co            → main app
+ *   {slug}.app.klosify.com     → specific workspace
+ *   app.klosify.com            → main app
  *
  * To switch to Pro mode: set VITE_WORKSPACE_MODE=subdomain in Vercel env vars.
  */
 
-const ROOT_DOMAIN = "app.aceleradoradeventas.co";
+const ROOT_DOMAIN = "app.klosify.com";
 
 // Switch to "subdomain" when upgrading to Vercel Pro
 const WORKSPACE_MODE: "path" | "subdomain" =
@@ -27,8 +27,8 @@ const WORKSPACE_MODE: "path" | "subdomain" =
  *   "/dashboard"              → null
  *
  * Subdomain mode examples:
- *   "cristhian.app.aceleradoradeventas.co" → "cristhian"
- *   "app.aceleradoradeventas.co"           → null
+ *   "cristhian.app.klosify.com" → "cristhian"
+ *   "app.klosify.com"           → null
  *   "localhost"                            → null
  */
 export function getWorkspaceSlug(): string | null {
@@ -54,8 +54,8 @@ export function getWorkspaceSlug(): string | null {
 
 /**
  * Builds the full workspace URL for a given slug.
- * Path mode:      https://app.aceleradoradeventas.co/w/cristhian-duran
- * Subdomain mode: https://cristhian.app.aceleradoradeventas.co
+ * Path mode:      https://app.klosify.com/w/cristhian-duran
+ * Subdomain mode: https://cristhian.app.klosify.com
  */
 export function buildWorkspaceUrl(slug: string): string {
   if (WORKSPACE_MODE === "subdomain") {

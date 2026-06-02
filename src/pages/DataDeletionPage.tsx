@@ -50,8 +50,8 @@ const DataDeletionPage = () => {
         <h3>Opción 2 — Solicitud directa a Klosify CRM</h3>
         <p>
           Envía un correo a{" "}
-          <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
-            contacto@aceleradoradeventas.co
+          <a href="mailto:hola@klosify.com" className="text-primary underline">
+            hola@klosify.com
           </a>{" "}
           con:
         </p>
@@ -119,8 +119,8 @@ const DataDeletionPage = () => {
         </p>
         <ul>
           <li>Email:{" "}
-            <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
-              contacto@aceleradoradeventas.co
+            <a href="mailto:hola@klosify.com" className="text-primary underline">
+              hola@klosify.com
             </a></li>
           <li>Responsable: CRISTHIAN DURAN — NIT 1094270110-2</li>
         </ul>

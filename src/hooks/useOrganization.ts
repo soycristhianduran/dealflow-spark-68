@@ -60,7 +60,7 @@ export function useOrganization(): UseOrganizationResult {
 
       try {
         // ── Subdomain-based resolution ─────────────────────────────────────────
-        // If the user is on e.g. "aceleradora.app.aceleradoradeventas.co",
+        // If the user is on e.g. "aceleradora.app.klosify.com",
         // we resolve the org by slug and verify the current user is a member.
         const workspaceSlug = getWorkspaceSlug();
 

@@ -182,8 +182,8 @@ const TermsPage = () => {
         </p>
         <ul>
           <li>Email:{" "}
-            <a href="mailto:contacto@aceleradoradeventas.co" className="text-primary underline">
-              contacto@aceleradoradeventas.co
+            <a href="mailto:hola@klosify.com" className="text-primary underline">
+              hola@klosify.com
             </a></li>
           <li>Responsable: CRISTHIAN DURAN — NIT 1094270110-2</li>
           <li>Domicilio: Colombia</li>

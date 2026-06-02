@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
     if (!invitation) return new Response(JSON.stringify({ error: "No se pudo crear la invitación" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Send invite email via Resend
-    const appUrl = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
+    const appUrl = Deno.env.get("APP_URL") || "https://app.klosify.com";
     const inviteUrl = `${appUrl}/invite?token=${invitation.token}`;
     const inviterName = user.user_metadata?.full_name || user.email;
 
@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "CRM <noreply@aceleradoradeventas.co>",
+          from: "CRM <noreply@klosify.com>",
           to: [email],
           subject: `${inviterName} te invitó a unirte a ${orgName}`,
           html: `
@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
       .eq("id", invitation_id);
 
     // Resend email
-    const appUrl = Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
+    const appUrl = Deno.env.get("APP_URL") || "https://app.klosify.com";
     const inviteUrl = `${appUrl}/invite?token=${invitation.token}`;
     const inviterName = user.user_metadata?.full_name || user.email;
 
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "CRM <noreply@aceleradoradeventas.co>",
+          from: "CRM <noreply@klosify.com>",
           to: [invitation.email],
           subject: `${inviterName} te recuerda unirte a ${orgName}`,
           html: `

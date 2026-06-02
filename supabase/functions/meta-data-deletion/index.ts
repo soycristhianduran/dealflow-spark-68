@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
   // Build the public status URL. The frontend route reads the code and
   // surfaces status via the public RPC function.
   const appUrl =
-    Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co";
+    Deno.env.get("APP_URL") || "https://app.klosify.com";
   const statusUrl = `${appUrl.replace(/\/$/, "")}/data-deletion-status?code=${confirmationCode}`;
 
   // Fire-and-forget the actual deletion in the background. Meta retries if

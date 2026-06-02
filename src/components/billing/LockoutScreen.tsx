@@ -71,10 +71,10 @@ export function LockoutScreen() {
         <p className="text-xs text-muted-foreground">
           ¿Dudas? Escríbenos a{" "}
           <a
-            href="mailto:contacto@aceleradoradeventas.co"
+            href="mailto:hola@klosify.com"
             className="underline hover:text-foreground"
           >
-            contacto@aceleradoradeventas.co
+            hola@klosify.com
           </a>
         </p>
       </div>

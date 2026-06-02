@@ -767,7 +767,7 @@ export default function SettingsPage() {
                   <div className="flex items-center gap-2">
                     <div className="flex flex-1 items-center rounded-md border bg-muted/40 overflow-hidden">
                       <span className="px-3 py-2 text-sm text-muted-foreground border-r bg-muted whitespace-nowrap">
-                        app.aceleradoradeventas.co/
+                        app.klosify.com/
                       </span>
                       <Input
                         value={slugInput}
@@ -891,7 +891,7 @@ export default function SettingsPage() {
                     <Input
                       value={emailFromEmail}
                       onChange={e => setEmailFromEmail(e.target.value)}
-                      placeholder="hola@aceleradoradeventas.co"
+                      placeholder="hola@klosify.com"
                       type="email"
                     />
                   </div>

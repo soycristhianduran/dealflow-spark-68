@@ -189,7 +189,7 @@ async function dispatchPaymentSuccessEmail(
       })
     : "";
 
-  const appUrl = (Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co").replace(/\/$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://app.klosify.com").replace(/\/$/, "");
   const dashboardUrl = recipient.slug ? `${appUrl}/w/${recipient.slug}` : appUrl;
 
   await callEmailDispatcher(supabase, {
@@ -222,7 +222,7 @@ async function dispatchPaymentFailedEmail(
   const recipient = await getOrgOwnerEmail(supabase, sub.organization_id);
   if (!recipient) return;
 
-  const appUrl = (Deno.env.get("APP_URL") || "https://app.aceleradoradeventas.co").replace(/\/$/, "");
+  const appUrl = (Deno.env.get("APP_URL") || "https://app.klosify.com").replace(/\/$/, "");
   const billingUrl = recipient.slug ? `${appUrl}/w/${recipient.slug}/billing` : `${appUrl}/billing`;
 
   await callEmailDispatcher(supabase, {

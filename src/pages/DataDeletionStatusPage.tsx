@@ -101,8 +101,8 @@ const DataDeletionStatusPage = () => {
             </p>
             <p>
               Si crees que esto es un error, contáctanos en{" "}
-              <a href="mailto:contacto@aceleradoradeventas.co">
-                contacto@aceleradoradeventas.co
+              <a href="mailto:hola@klosify.com">
+                hola@klosify.com
               </a>
               .
             </p>
@@ -120,8 +120,8 @@ const DataDeletionStatusPage = () => {
             </p>
             <p>
               Si el problema persiste, contáctanos en{" "}
-              <a href="mailto:contacto@aceleradoradeventas.co">
-                contacto@aceleradoradeventas.co
+              <a href="mailto:hola@klosify.com">
+                hola@klosify.com
               </a>{" "}
               citando el código.
             </p>
@@ -135,8 +135,8 @@ const DataDeletionStatusPage = () => {
               No pudimos consultar el estado en este momento. Por favor
               vuelve a intentarlo en unos minutos. Si el problema persiste,
               contáctanos en{" "}
-              <a href="mailto:contacto@aceleradoradeventas.co">
-                contacto@aceleradoradeventas.co
+              <a href="mailto:hola@klosify.com">
+                hola@klosify.com
               </a>{" "}
               citando el código <code>{code}</code>.
             </p>
@@ -223,8 +223,8 @@ const DataDeletionStatusPage = () => {
           {" · "}
           <a href="/privacy">Política de Privacidad</a>
           {" · "}
-          <a href="mailto:contacto@aceleradoradeventas.co">
-            contacto@aceleradoradeventas.co
+          <a href="mailto:hola@klosify.com">
+            hola@klosify.com
           </a>
         </p>
       </article>
