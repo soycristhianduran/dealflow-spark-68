@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2 } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -202,6 +202,9 @@ export default function ContactsPage() {
   const [fromEmail, setFromEmail] = useState("");
   // WhatsApp campaign name
   const [waCampaignName, setWaCampaignName] = useState("");
+
+  // CSV export
+  const [exportLoading, setExportLoading] = useState(false);
 
   // Voice campaign (Llamada IA)
   const [voiceCampaignOpen, setVoiceCampaignOpen] = useState(false);
@@ -792,12 +795,126 @@ export default function ContactsPage() {
     document.addEventListener("mouseup", onUp);
   };
 
+  /* ─── CSV Export ──────────────────────────────────────────────────── */
+  const exportToCSV = useCallback(async () => {
+    setExportLoading(true);
+    try {
+      // Rebuild the same filters as fetchContacts but fetch ALL (up to 10k)
+      let query = supabase.from("contacts")
+        .select("id, full_name, primary_phone, primary_email, status, lead_status, score, source, tags, company_name, created_at, pipeline_stages(name), owner_id, utm_source, utm_medium, utm_campaign, utm_content, utm_term, city, country, budget, budget_currency, notes, custom_fields")
+        .order("created_at", { ascending: false })
+        .limit(10000);
+
+      if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
+      else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
+      if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+      if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
+      if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
+      if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
+      if (utmSourceFilter !== "all") query = query.eq("utm_source", utmSourceFilter);
+      if (utmMediumFilter !== "all") query = query.eq("utm_medium", utmMediumFilter);
+      if (utmCampaignFilter !== "all") query = query.eq("utm_campaign", utmCampaignFilter);
+      if (tagFilter) query = query.contains("tags", [tagFilter]);
+      if (customFieldKey && customFieldValue) query = query.contains("custom_fields", { [customFieldKey]: customFieldValue });
+      if (dateFrom) query = query.gte("created_at", dateFrom);
+      if (dateTo) query = query.lte("created_at", dateTo + "T23:59:59.999Z");
+      if (scoreFilter === "hot")  query = query.gte("score", 61);
+      if (scoreFilter === "warm") query = query.gte("score", 31).lte("score", 60);
+      if (scoreFilter === "cold") query = query.lte("score", 30);
+      if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
+      else if (isOwnerOrAdmin && ownerFilter !== "all") query = query.eq("owner_id", ownerFilter);
+
+      const { data, error } = await query;
+      if (error || !data) { toast.error("Error al exportar: " + (error?.message ?? "sin datos")); return; }
+
+      // Collect all custom field keys across all contacts
+      const customKeys = new Set<string>();
+      data.forEach((c: any) => {
+        if (c.custom_fields && typeof c.custom_fields === "object") {
+          Object.keys(c.custom_fields).forEach(k => customKeys.add(k));
+        }
+      });
+      const customKeyList = [...customKeys].sort();
+
+      // Build CSV
+      const escape = (v: unknown): string => {
+        if (v === null || v === undefined) return "";
+        const s = Array.isArray(v) ? v.join("; ") : String(v);
+        // Wrap in quotes if contains comma, newline, or quote; escape internal quotes
+        if (s.includes(",") || s.includes("\n") || s.includes('"')) {
+          return `"${s.replace(/"/g, '""')}"`;
+        }
+        return s;
+      };
+
+      const leadStatusLabel: Record<string, string> = {
+        active: "Activo", won: "Ganado", lost: "Perdido", new: "Nuevo",
+      };
+
+      const headers = [
+        "Nombre", "Teléfono", "Email", "Empresa", "Ciudad", "País",
+        "Estado", "Fuente", "Etapa", "Puntuación CRM",
+        "Presupuesto", "Moneda", "Notas",
+        "UTM Fuente", "UTM Medio", "UTM Campaña", "UTM Contenido", "UTM Término",
+        "Fecha de ingreso",
+        ...customKeyList.map(k => `CF: ${k}`),
+      ];
+
+      const rows = data.map((c: any) => [
+        escape(c.full_name),
+        escape(c.primary_phone),
+        escape(c.primary_email),
+        escape(c.company_name),
+        escape(c.city),
+        escape(c.country),
+        escape(leadStatusLabel[c.lead_status] ?? c.lead_status),
+        escape(c.source),
+        escape(c.pipeline_stages?.name),
+        escape(c.score),
+        escape(c.budget),
+        escape(c.budget_currency),
+        escape(c.notes),
+        escape(c.utm_source),
+        escape(c.utm_medium),
+        escape(c.utm_campaign),
+        escape(c.utm_content),
+        escape(c.utm_term),
+        escape(c.created_at ? new Date(c.created_at).toLocaleString("es-ES") : ""),
+        ...customKeyList.map(k => escape(c.custom_fields?.[k])),
+      ]);
+
+      const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0, 10);
+      a.download = `leads-${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast.success(`${data.length} leads exportados correctamente`);
+    } finally {
+      setExportLoading(false);
+    }
+  }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter,
+      utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue,
+      dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
+
   return (
     <AppLayout>
       <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" /> Nuevo lead
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={exportToCSV} disabled={exportLoading}>
+            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Exportar CSV
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+            <Plus className="h-4 w-4" /> Nuevo lead
+          </Button>
+        </div>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
