@@ -202,7 +202,7 @@ export default function AuthPage() {
     toast.success("¡Bienvenido a Klosify CRM! Confirma tu dirección de workspace.");
     // Send the user to General settings so they can review/adjust their
     // workspace URL (slug) before entering the app.
-    navigate(`/w/${workspaceSlug}/settings?tab=general`, { replace: true });
+    navigate(`/w/${workspaceSlug}/settings`, { replace: true });
     setLoading(false);
   };
 

@@ -442,7 +442,7 @@ export default function SettingsPage() {
   };
 
   const [searchParams] = useSearchParams();
-  const defaultTab = searchParams.get("tab") || "pipeline";
+  const defaultTab = searchParams.get("tab") || "general";
 
   return (
     <AppLayout>
@@ -450,11 +450,11 @@ export default function SettingsPage() {
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
         <Tabs defaultValue={defaultTab}>
           <TabsList className="mb-6">
+            <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
             <TabsTrigger value="equipo">Equipo</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="campos">Campos</TabsTrigger>
-            <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
 
