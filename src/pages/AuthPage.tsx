@@ -105,12 +105,6 @@ export default function AuthPage() {
         return;
       }
 
-      // Real fresh sign-in confirmed. Clean up stale localStorage from any
-      // previously deleted account so it doesn't pollute the new session.
-      Object.keys(localStorage)
-        .filter(k => k.startsWith("sb-") && !k.includes(session.user.id))
-        .forEach(k => localStorage.removeItem(k));
-
       if (!hasCompanyName) {
         // New Google user — show onboarding form.
         const given = session.user.user_metadata?.given_name || "";
