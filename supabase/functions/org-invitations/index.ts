@@ -402,6 +402,60 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── SETUP ORG (Google onboarding: rename workspace + set unique slug) ──────
+  // Called from AuthPage after the Google signup form is submitted.
+  // Runs as service role so it can bypass RLS on organizations.
+  if (action === "setup_org") {
+    const { name: orgName, slug: baseSlug } = body as { name?: string; slug?: string };
+    if (!orgName || !baseSlug) {
+      return new Response(JSON.stringify({ error: "name y slug son requeridos" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!/^[a-z0-9][a-z0-9-]{1,28}[a-z0-9]$/.test(baseSlug)) {
+      return new Response(JSON.stringify({ error: "Formato de slug inválido" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+
+    if (!membership) {
+      return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Find a unique slug: try baseSlug, then baseSlug-1, baseSlug-2 … baseSlug-10
+    let finalSlug = baseSlug;
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      const { data: conflict } = await supabase
+        .from("organizations")
+        .select("id")
+        .eq("slug", finalSlug)
+        .neq("id", membership.organization_id)
+        .maybeSingle();
+      if (!conflict) break;
+      finalSlug = `${baseSlug}-${attempt}`;
+    }
+
+    const { error: updateErr } = await supabase
+      .from("organizations")
+      .update({ name: orgName.trim(), slug: finalSlug })
+      .eq("id", membership.organization_id);
+
+    if (updateErr) throw updateErr;
+
+    return new Response(JSON.stringify({ success: true, slug: finalSlug }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // ── SAVE EMAIL SENDER ──────────────────────────────────────────────────────
   if (action === "save_email_sender") {
     const { email_from_name, email_from_email } = body;

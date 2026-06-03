@@ -158,39 +158,19 @@ export default function AuthPage() {
     }
 
     // 2. Rename + re-slug the auto-created workspace to match the company name.
-    //    The DB trigger creates the org at signup time using the Google profile
-    //    name (e.g. "Juan Pérez Workspace") because company_name isn't known yet.
-    //    Now we have it — update both name and slug.
+    //    Uses the edge function (service role) to bypass RLS on organizations —
+    //    direct client-side updates to that table are blocked by RLS policies.
     let workspaceSlug = "_"; // fallback if org update fails
     try {
-      const { data: orgData } = await supabase.rpc("get_my_organization");
-      const orgId = orgData?.[0]?.organization_id;
-      if (orgId) {
-        // Generate a slug from the company name, then find a unique one.
-        let baseSlug = toSlug(finalCompanyName);
-        if (baseSlug.length < 3) baseSlug = baseSlug.padEnd(3, "0");
+      let baseSlug = toSlug(finalCompanyName);
+      if (baseSlug.length < 3) baseSlug = baseSlug.padEnd(3, "0");
 
-        let finalSlug = baseSlug;
-        let attempt = 0;
-        // Try up to 10 suffixes to find a free slug (avoid infinite loop).
-        while (attempt <= 10) {
-          const { data: existing } = await supabase
-            .from("organizations")
-            .select("id")
-            .eq("slug", finalSlug)
-            .neq("id", orgId)   // don't conflict with our own current slug
-            .maybeSingle();
-          if (!existing) break; // slug is free
-          attempt++;
-          finalSlug = `${baseSlug}-${attempt}`;
-        }
-
-        await supabase
-          .from("organizations")
-          .update({ name: finalCompanyName, slug: finalSlug })
-          .eq("id", orgId);
-
-        workspaceSlug = finalSlug;
+      const { data: setupData, error: setupErr } = await supabase.functions.invoke(
+        "org-invitations",
+        { body: { action: "setup_org", name: finalCompanyName, slug: baseSlug } },
+      );
+      if (!setupErr && setupData?.slug) {
+        workspaceSlug = setupData.slug;
       }
     } catch {
       // Non-fatal: metadata was saved, org rename/re-slug is best-effort
