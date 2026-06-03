@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSlug } from "@/lib/subdomain";
 
 const industries = [
   "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
@@ -156,17 +157,40 @@ export default function AuthPage() {
       return;
     }
 
-    // 2. Rename the auto-created workspace to match the company name the user
-    //    provided. The DB trigger creates the org at signup time using the
-    //    Google profile name (e.g. "Juan Pérez Workspace"), which is wrong.
+    // 2. Rename + re-slug the auto-created workspace to match the company name.
+    //    The DB trigger creates the org at signup time using the Google profile
+    //    name (e.g. "Juan Pérez Workspace") because company_name isn't known yet.
+    //    Now we have it — update both name and slug.
     try {
       const { data: orgData } = await supabase.rpc("get_my_organization");
       const orgId = orgData?.[0]?.organization_id;
       if (orgId) {
-        await supabase.from("organizations").update({ name: finalCompanyName }).eq("id", orgId);
+        // Generate a slug from the company name, then find a unique one.
+        let baseSlug = toSlug(finalCompanyName);
+        if (baseSlug.length < 3) baseSlug = baseSlug.padEnd(3, "0");
+
+        let finalSlug = baseSlug;
+        let attempt = 0;
+        // Try up to 10 suffixes to find a free slug (avoid infinite loop).
+        while (attempt <= 10) {
+          const { data: existing } = await supabase
+            .from("organizations")
+            .select("id")
+            .eq("slug", finalSlug)
+            .neq("id", orgId)   // don't conflict with our own current slug
+            .maybeSingle();
+          if (!existing) break; // slug is free
+          attempt++;
+          finalSlug = `${baseSlug}-${attempt}`;
+        }
+
+        await supabase
+          .from("organizations")
+          .update({ name: finalCompanyName, slug: finalSlug })
+          .eq("id", orgId);
       }
     } catch {
-      // Non-fatal: metadata was saved, org rename is best-effort
+      // Non-fatal: metadata was saved, org rename/re-slug is best-effort
     }
 
     // 3. Clear the google_flow flag so the effect doesn't re-trigger onboarding
