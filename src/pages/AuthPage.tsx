@@ -161,6 +161,7 @@ export default function AuthPage() {
     //    The DB trigger creates the org at signup time using the Google profile
     //    name (e.g. "Juan Pérez Workspace") because company_name isn't known yet.
     //    Now we have it — update both name and slug.
+    let workspaceSlug = "_"; // fallback if org update fails
     try {
       const { data: orgData } = await supabase.rpc("get_my_organization");
       const orgId = orgData?.[0]?.organization_id;
@@ -188,6 +189,8 @@ export default function AuthPage() {
           .from("organizations")
           .update({ name: finalCompanyName, slug: finalSlug })
           .eq("id", orgId);
+
+        workspaceSlug = finalSlug;
       }
     } catch {
       // Non-fatal: metadata was saved, org rename/re-slug is best-effort
@@ -196,8 +199,10 @@ export default function AuthPage() {
     // 3. Clear the google_flow flag so the effect doesn't re-trigger onboarding
     localStorage.removeItem("klosify_google_flow");
 
-    toast.success("¡Bienvenido a Klosify CRM!");
-    navigate("/", { replace: true });
+    toast.success("¡Bienvenido a Klosify CRM! Confirma tu dirección de workspace.");
+    // Send the user to General settings so they can review/adjust their
+    // workspace URL (slug) before entering the app.
+    navigate(`/w/${workspaceSlug}/settings`, { replace: true });
     setLoading(false);
   };
 
