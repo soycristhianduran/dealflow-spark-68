@@ -32,7 +32,7 @@ const companySizes = [
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { session } = useAuth();
+  const { session, lastAuthEvent } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
@@ -75,16 +75,24 @@ export default function AuthPage() {
       Date.now() - parseInt(googleFlowTs) < 10 * 60 * 1000;
 
     if (freshGoogleFlow) {
+      // ── Key fix: ignore INITIAL_SESSION during a Google OAuth flow ────────
+      // When a user deletes their account and re-registers with the same Google
+      // account, Supabase fires INITIAL_SESSION with the OLD stale token from
+      // localStorage (which has company_name set from previous onboarding).
+      // Acting on that stale session skips the onboarding form entirely.
+      // Solution: only act on the real SIGNED_IN event.
+      // null = session came from getSession() before any event fired — also wait.
+      if (lastAuthEvent !== "SIGNED_IN") {
+        return; // wait for the actual SIGNED_IN from the OAuth redirect
+      }
+
       if (!isGoogle) {
-        // A stale non-Google session fired while we're waiting for the OAuth
-        // callback to complete (this happens when a previous email session is
-        // still cached in localStorage and Supabase fires INITIAL_SESSION with
-        // it before firing SIGNED_IN with the real Google session).
-        // Do NOT navigate — wait for the real Google session to arrive.
+        // SIGNED_IN fired but for a non-Google session — shouldn't normally
+        // happen in this flow, but keep waiting just in case.
         return;
       }
 
-      // It IS a Google session. Check if onboarding is needed.
+      // Confirmed real Google SIGNED_IN. Check if onboarding is needed.
       if (!hasCompanyName) {
         // New Google user — show onboarding form.
         const given = session.user.user_metadata?.given_name || "";
@@ -105,7 +113,7 @@ export default function AuthPage() {
     } else {
       navigate("/", { replace: true });
     }
-  }, [session, navigate, redirectParam]);
+  }, [session, lastAuthEvent, navigate, redirectParam]);
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());

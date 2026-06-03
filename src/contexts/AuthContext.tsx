@@ -6,6 +6,7 @@ interface AuthContextType {
   session: Session | null;
   user: User | null;
   loading: boolean;
+  lastAuthEvent: string | null;   // latest onAuthStateChange event name
   signOut: () => Promise<void>;
 }
 
@@ -13,6 +14,7 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   loading: true,
+  lastAuthEvent: null,
   signOut: async () => {},
 });
 
@@ -21,6 +23,7 @@ export const useAuth = () => useContext(AuthContext);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastAuthEvent, setLastAuthEvent] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,13 +31,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      // Straightforward: keep React in sync with whatever Supabase reports.
-      // The old SIGNED_OUT re-check was a workaround for an RLS recursion bug
-      // (fixed in 20260514 + 20260528 migrations). Keeping it caused a race
-      // condition where getSession() still saw the stale token in localStorage
-      // for a brief window, re-authenticating the user and making logout appear
-      // stuck until a manual refresh.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Track the event name so AuthPage can distinguish INITIAL_SESSION
+      // (stale cached token) from SIGNED_IN (real new login).
+      setLastAuthEvent(event);
       setSession(session);
       setLoading(false);
     });
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, loading, lastAuthEvent, signOut }}>
       {children}
     </AuthContext.Provider>
   );
