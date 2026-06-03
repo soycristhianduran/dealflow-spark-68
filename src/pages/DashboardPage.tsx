@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   DollarSign, Trophy, XCircle, ArrowUpRight, ArrowDownRight,
   CalendarDays, CheckSquare, Activity, Target, BarChart3, Loader2,
   AlertTriangle, MessageCircle, Users, GitBranch, X, CheckCircle2,
+  Zap, Mail, Sparkles,
 } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -280,7 +282,92 @@ function SetupBanner({
 }
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
+/* ─── Welcome card (first-time greeting) ────────────────────────────────── */
+function WelcomeCard({ userId, firstName }: { userId: string; firstName: string }) {
+  const key = `klosify_welcomed_${userId}`;
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Show only once; a brief delay lets the page settle first
+    if (!localStorage.getItem(key)) {
+      const t = setTimeout(() => setVisible(true), 800);
+      return () => clearTimeout(t);
+    }
+  }, [key]);
+
+  const dismiss = () => {
+    localStorage.setItem(key, "1");
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  const benefits = [
+    { icon: Users,       text: "Contactos, empresas y negocios en un solo lugar" },
+    { icon: MessageCircle, text: "Automatiza mensajes por WhatsApp e Instagram" },
+    { icon: GitBranch,   text: "Pipeline visual para cerrar más ventas" },
+    { icon: Mail,        text: "Campañas de email y landing pages integradas" },
+  ];
+
+  return (
+    <div
+      className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border bg-card shadow-2xl overflow-hidden
+                 animate-in slide-in-from-bottom-4 fade-in duration-500"
+    >
+      {/* Orange top accent bar */}
+      <div className="h-1 w-full bg-gradient-to-r from-orange-400 to-orange-500" />
+
+      <div className="p-5 space-y-4">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-500 shadow-sm">
+              <Zap className="h-5 w-5 text-white fill-white" />
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground leading-none mb-0.5">Klosify CRM</p>
+              <p className="text-sm font-bold text-foreground leading-tight">
+                ¡Bienvenido{firstName ? `, ${firstName}` : ""}! 👋
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={dismiss}
+            className="mt-0.5 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Tagline */}
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Tu espacio de trabajo está listo. Esto es lo que puedes hacer:
+        </p>
+
+        {/* Benefits */}
+        <ul className="space-y-2.5">
+          {benefits.map(({ icon: Icon, text }) => (
+            <li key={text} className="flex items-start gap-2.5">
+              <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-primary/10">
+                <Icon className="h-3 w-3 text-primary" />
+              </div>
+              <span className="text-xs text-muted-foreground leading-snug">{text}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* CTA */}
+        <Button size="sm" className="w-full font-semibold" onClick={dismiss}>
+          <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+          ¡Empezar a usar Klosify!
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { isVendor, myUserId } = usePermissions();
   const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(true);
@@ -899,6 +986,18 @@ export default function DashboardPage() {
         )}
 
       </main>
+
+      {/* First-time welcome message */}
+      {myUserId && (
+        <WelcomeCard
+          userId={myUserId}
+          firstName={
+            user?.user_metadata?.given_name ||
+            user?.user_metadata?.full_name?.split(" ")[0] ||
+            ""
+          }
+        />
+      )}
     </AppLayout>
   );
 }
