@@ -95,7 +95,7 @@ function PeriodSelector({
         <button
           key={opt.value}
           onClick={() => onChange(opt.value)}
-          className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
+          className={`px-2.5 py-2 min-h-[36px] text-xs font-medium rounded-md transition-all ${
             value === opt.value
               ? "bg-background text-foreground shadow-sm"
               : "text-muted-foreground hover:text-foreground"
@@ -311,7 +311,7 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
 
   return (
     <div
-      className="fixed bottom-6 right-6 z-50 w-80 rounded-2xl border bg-card shadow-2xl overflow-hidden
+      className="fixed bottom-20 right-4 md:bottom-6 md:right-6 z-50 w-[calc(100vw-2rem)] max-w-sm rounded-2xl border bg-card shadow-2xl overflow-hidden
                  animate-in slide-in-from-bottom-4 fade-in duration-500"
     >
       {/* Orange top accent bar */}
@@ -622,7 +622,7 @@ export default function DashboardPage() {
           title="Dashboard"
           subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
         />
-        <main className="flex-1 flex items-center justify-center">
+        <main className="flex-1 flex items-center justify-center p-4">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </main>
       </AppLayout>
@@ -635,7 +635,7 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
       />
-      <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 scrollbar-thin">
 
         {/* ── Setup banner (shown to new workspaces) ─────────────── */}
         {!setupDismissed && (
@@ -648,13 +648,13 @@ export default function DashboardPage() {
         )}
 
         {/* ── Header bar ─────────────────────────────────────────── */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm text-muted-foreground font-medium">Resumen de rendimiento</p>
           <PeriodSelector value={period} onChange={setPeriod} />
         </div>
 
         {/* ── 5 KPI cards ────────────────────────────────────────── */}
-        <div className="grid gap-4 grid-cols-2 md:grid-cols-5">
+        <div className="grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <KpiCard
             label="Revenue ganado"
             value={wonValue > 0 ? `${fmt(wonValue)} ${wonCurrency}` : "—"}
@@ -702,7 +702,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Pipeline funnel + Loss reasons ─────────────────────── */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Funnel — takes 2/3 */}
           <Card className="border-none shadow-sm lg:col-span-2">
@@ -826,7 +826,7 @@ export default function DashboardPage() {
         </div>
 
         {/* ── Activity row ───────────────────────────────────────── */}
-        <div className="grid gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Upcoming meetings */}
           <Card className="border-none shadow-sm">

@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import { toSlug } from "@/lib/subdomain";
 
 const industries = [
   "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
@@ -32,11 +31,11 @@ const companySizes = [
 
 export default function AuthPage() {
   const navigate = useNavigate();
-  const { session, lastAuthEvent } = useAuth();
+  const { session } = useAuth();
   const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [view, setView] = useState<"tabs" | "forgot" | "forgot-sent" | "google-onboarding">("tabs");
+  const [view, setView] = useState<"tabs" | "forgot" | "forgot-sent">("tabs");
   const [forgotEmail, setForgotEmail] = useState("");
 
   // Detect if arriving from an invitation link
@@ -54,88 +53,17 @@ export default function AuthPage() {
   const [jobTitle, setJobTitle] = useState("");
   const [companyName, setCompanyName] = useState("");
 
-  // Redirect to workspace (or back to invite page) after login
+  // Redirect to workspace after login.
+  // Onboarding for new Google users is handled by the global OnboardingModal
+  // (rendered in App.tsx) — it shows as a popup once the session is set.
   useEffect(() => {
     if (!session) return;
-
-    // Detect Google users — check both `provider` (primary) and `providers` array
-    // (linked accounts may have provider="email" but providers=["email","google"])
-    const providers = session.user.app_metadata?.providers as string[] | undefined;
-    const isGoogle =
-      session.user.app_metadata?.provider === "google" ||
-      providers?.includes("google") === true;
-
-    const hasCompanyName = !!session.user.user_metadata?.company_name;
-
-    // Check if we recently started a Google OAuth flow (within the last 10 minutes).
-    const googleFlowTs = localStorage.getItem("klosify_google_flow");
-    const freshGoogleFlow =
-      googleFlowTs !== null &&
-      !isNaN(parseInt(googleFlowTs)) &&
-      Date.now() - parseInt(googleFlowTs) < 10 * 60 * 1000;
-
-    if (freshGoogleFlow) {
-      if (!isGoogle) return; // not a Google session yet — wait
-
-      // ── Distinguish real sign-in from stale cached session ───────────────
-      // Problem: when a user deletes their Supabase account and re-registers
-      // with the same Google email, the OLD session token stays in localStorage.
-      // Supabase fires INITIAL_SESSION with that old token BEFORE firing SIGNED_IN
-      // with the new one.  Acting on the old token skips the onboarding form.
-      //
-      // Three independent signals — any one being true means it's a real sign-in:
-      //   a) lastAuthEvent is "SIGNED_IN" (explicit new-login event)
-      //   b) The access token JWT was issued < 5 min ago (fresh OAuth token).
-      //      NOTE: JWT uses base64url (no padding, - and _ chars) so we must
-      //      normalize before calling atob().
-      //   c) The user account was created < 5 min ago (brand-new registration).
-      //      A stale cached token from a deleted account has an old created_at.
-      //
-      // A stale old session fails ALL three checks → we wait for the real one.
-
-      // Signal b: token freshness via JWT iat claim
-      let tokenIsFresh = false;
-      try {
-        const b64url = session.access_token.split(".")[1];
-        // Convert base64url → standard base64 then add padding
-        const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
-        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
-        const payload = JSON.parse(atob(padded));
-        tokenIsFresh = Date.now() / 1000 - payload.iat < 5 * 60;
-      } catch { /* non-fatal */ }
-
-      // Signal c: account age
-      const createdMs = new Date(session.user.created_at).getTime();
-      const isJustCreated = Date.now() - createdMs < 5 * 60 * 1000;
-
-      const isRealSignIn = lastAuthEvent === "SIGNED_IN" || tokenIsFresh || isJustCreated;
-
-      if (!isRealSignIn) {
-        // Old cached token — wait for the real SIGNED_IN / fresh token.
-        return;
-      }
-
-      if (!hasCompanyName) {
-        // New Google user — show onboarding form.
-        const given = session.user.user_metadata?.given_name || "";
-        const family = session.user.user_metadata?.family_name || "";
-        if (given) setFirstName(given);
-        if (family) setLastName(family);
-        // Keep the flag set — handleGoogleOnboarding will clear it on submit.
-        setView("google-onboarding");
-        return;
-      }
-
-      // Returning Google user who already completed onboarding — clear flag.
-      localStorage.removeItem("klosify_google_flow");
-    }
-
     if (redirectParam) {
       navigate(redirectParam, { replace: true });
     } else {
       navigate("/", { replace: true });
     }
-  }, [session, lastAuthEvent, navigate, redirectParam]);
+  }, [session, navigate, redirectParam]);
 
   useEffect(() => {
     setCountryCode(detectCountryByTimezone());
@@ -143,10 +71,12 @@ export default function AuthPage() {
 
   const handleGoogleAuth = async () => {
     setGoogleLoading(true);
-    // Store a timestamp so we know a Google OAuth flow was started recently.
-    // Using a timestamp (not just "1") lets us expire the flag automatically
-    // so it doesn't interfere with future logins if the user abandoned the flow.
-    localStorage.setItem("klosify_google_flow", Date.now().toString());
+    // Clear any stale session from localStorage before starting the OAuth flow.
+    // This is critical for the "delete user → re-register same email" test scenario:
+    // without this, the old JWT (valid for up to 1 hour) stays in localStorage and
+    // Supabase fires INITIAL_SESSION with it before SIGNED_IN with the new one.
+    // scope:"local" = only clears localStorage (no network call needed).
+    await supabase.auth.signOut({ scope: "local" });
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -155,65 +85,9 @@ export default function AuthPage() {
     });
     if (error) {
       toast.error("Error al conectar con Google: " + error.message);
-      localStorage.removeItem("klosify_google_flow");
       setGoogleLoading(false);
     }
     // On success, browser redirects to Google — googleLoading stays true
-    // On success, browser redirects to Google — googleLoading stays true
-  };
-
-  const handleGoogleOnboarding = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    const fullPhone = phone ? `${getDialCode(countryCode)}${phone.replace(/\s/g, "")}` : "";
-    const finalCompanyName = companyName.trim() || "Mi empresa";
-
-    // 1. Save profile to user metadata
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        full_name: `${firstName.trim()} ${lastName.trim()}`,
-        phone: fullPhone,
-        industry,
-        company_size: companySize,
-        job_title: jobTitle,
-        company_name: finalCompanyName,
-      },
-    });
-    if (error) {
-      toast.error("Error al guardar perfil: " + error.message);
-      setLoading(false);
-      return;
-    }
-
-    // 2. Rename + re-slug the auto-created workspace to match the company name.
-    //    Uses the edge function (service role) to bypass RLS on organizations —
-    //    direct client-side updates to that table are blocked by RLS policies.
-    let workspaceSlug = "_"; // fallback if org update fails
-    try {
-      let baseSlug = toSlug(finalCompanyName);
-      if (baseSlug.length < 3) baseSlug = baseSlug.padEnd(3, "0");
-
-      const { data: setupData, error: setupErr } = await supabase.functions.invoke(
-        "org-invitations",
-        { body: { action: "setup_org", name: finalCompanyName, slug: baseSlug } },
-      );
-      if (!setupErr && setupData?.slug) {
-        workspaceSlug = setupData.slug;
-      }
-    } catch {
-      // Non-fatal: metadata was saved, org rename/re-slug is best-effort
-    }
-
-    // 3. Clear the google_flow flag so the effect doesn't re-trigger onboarding
-    localStorage.removeItem("klosify_google_flow");
-
-    toast.success("¡Bienvenido a Klosify CRM! Confirma tu dirección de workspace.");
-    // Send the user to General settings so they can review/adjust their
-    // workspace URL (slug) before entering the app.
-    navigate(`/w/${workspaceSlug}/settings`, { replace: true });
-    setLoading(false);
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -267,7 +141,7 @@ export default function AuthPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-start justify-center bg-background p-4 pt-8">
       <Card className="w-full max-w-md border-none shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-4">
@@ -314,62 +188,6 @@ export default function AuthPage() {
               </Button>
               <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setView("tabs")}>
                 ← Volver
-              </Button>
-            </form>
-          )}
-
-          {/* ── Google onboarding ── */}
-          {view === "google-onboarding" && (
-            <form onSubmit={handleGoogleOnboarding} className="space-y-4">
-              <div className="text-center mb-2">
-                <p className="font-medium text-sm">¡Casi listo! Cuéntanos un poco más</p>
-                <p className="text-xs text-muted-foreground">Solo tarda 30 segundos</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-2">
-                  <Label>Nombre *</Label>
-                  <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Apellido *</Label>
-                  <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Pérez" required />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label>Nombre de la empresa</Label>
-                <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
-              </div>
-              <div className="space-y-2">
-                <Label>Teléfono</Label>
-                <CountryPhoneInput value={phone} onChange={setPhone} countryCode={countryCode} onCountryChange={setCountryCode} />
-              </div>
-              <div className="space-y-2">
-                <Label>Industria</Label>
-                <Select value={industry} onValueChange={setIndustry}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona tu industria" /></SelectTrigger>
-                  <SelectContent>{industries.map(i => <SelectItem key={i} value={i}>{i}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Tamaño de empresa</Label>
-                <Select value={companySize} onValueChange={setCompanySize}>
-                  <SelectTrigger><SelectValue placeholder="Número de empleados" /></SelectTrigger>
-                  <SelectContent>{companySizes.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Rol / Cargo</Label>
-                <Select value={jobTitle} onValueChange={setJobTitle}>
-                  <SelectTrigger><SelectValue placeholder="Selecciona tu cargo" /></SelectTrigger>
-                  <SelectContent>
-                    {["CEO / Director General","Director Comercial","Gerente de Ventas","Ejecutivo de Ventas","Director de Marketing","Gerente de Marketing","Director de Operaciones","Gerente de Proyecto","Fundador / Co-fundador","Consultor","Freelancer","Otro"].map(r => (
-                      <SelectItem key={r} value={r}>{r}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</> : "Entrar al CRM →"}
               </Button>
             </form>
           )}
