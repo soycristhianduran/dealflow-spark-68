@@ -48,6 +48,8 @@ export default function WorkspaceEntryPage() {
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "not_found">("loading");
+  // true = user has already confirmed their workspace URL; false = must confirm first
+  const [slugConfirmed, setSlugConfirmed] = useState<boolean>(true);
 
   useEffect(() => {
     if (authLoading) return;
@@ -57,13 +59,17 @@ export default function WorkspaceEntryPage() {
       return;
     }
 
-    // Slug "_" is used internally when user has no slug yet
-    if (!slug || slug === "_") {
-      setStatus("allowed");
-      return;
-    }
-
     const check = async () => {
+      // Slug "_" is the internal fallback for users with no slug yet —
+      // still need to check slug_confirmed so we can gate them.
+      if (!slug || slug === "_") {
+        const { data: myOrgs } = await supabase.rpc("get_my_organization");
+        const myOrg = myOrgs?.[0];
+        setSlugConfirmed(myOrg?.slug_confirmed ?? true);
+        setStatus("allowed");
+        return;
+      }
+
       const { data: orgRows } = await supabase
         .rpc("get_organization_by_slug", { p_slug: slug });
 
@@ -71,8 +77,12 @@ export default function WorkspaceEntryPage() {
       if (!org) { setStatus("not_found"); return; }
 
       const { data: myOrgs } = await supabase.rpc("get_my_organization");
-      const isMember = (myOrgs || []).some((r: any) => r.organization_id === org.id);
+      const myOrg = (myOrgs || []).find((r: any) => r.organization_id === org.id);
+      const isMember = !!myOrg;
 
+      if (isMember) {
+        setSlugConfirmed(myOrg?.slug_confirmed ?? true);
+      }
       setStatus(isMember ? "allowed" : "denied");
     };
 
@@ -88,6 +98,18 @@ export default function WorkspaceEntryPage() {
   }
 
   if (status === "allowed") {
+    // ── Slug-confirmation gate ────────────────────────────────────────────────
+    // New users must confirm (save) their workspace URL before accessing the app.
+    // Only /settings is reachable; everything else redirects there with ?setup=1.
+    if (!slugConfirmed) {
+      return (
+        <Routes>
+          <Route path="settings" element={<P><SettingsPage /></P>} />
+          <Route path="*" element={<Navigate to="settings?setup=1" replace />} />
+        </Routes>
+      );
+    }
+
     return (
       <Routes>
         <Route index element={<P><DashboardPage /></P>} />

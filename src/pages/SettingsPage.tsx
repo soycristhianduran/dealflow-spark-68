@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -387,7 +387,12 @@ export default function SettingsPage() {
         return;
       }
       setOrgSlug(slugInput);
-      toast.success("¡Dirección guardada! Tu URL: " + buildWorkspaceUrl(slugInput));
+      if (isSetupMode) {
+        toast.success("¡Dirección confirmada! Bienvenido a tu espacio de trabajo.");
+        navigate(`/w/${slugInput}`, { replace: true });
+      } else {
+        toast.success("¡Dirección guardada! Tu URL: " + buildWorkspaceUrl(slugInput));
+      }
     } catch (err: any) {
       toast.error("Error al guardar: " + (err.message ?? "Error desconocido"));
     } finally {
@@ -442,7 +447,10 @@ export default function SettingsPage() {
   };
 
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const defaultTab = searchParams.get("tab") || "general";
+  // setup=1 means this is the first-time slug confirmation flow
+  const isSetupMode = searchParams.get("setup") === "1";
 
   return (
     <AppLayout>
@@ -750,6 +758,23 @@ export default function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="general" className="space-y-4">
+            {/* Setup gate banner — only shown during first-time slug confirmation */}
+            {isSetupMode && (
+              <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 flex gap-3 items-start">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Link2 className="h-4 w-4 text-primary" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-semibold text-foreground">
+                    Define la URL de tu espacio de trabajo
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Esta será la dirección única de tu empresa en el CRM. Puedes ajustarla ahora y haz clic en <strong>Guardar</strong> para continuar.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Workspace URL Card */}
             <Card className="border-none shadow-sm">
               <CardHeader>
@@ -777,11 +802,12 @@ export default function SettingsPage() {
                       />
                     </div>
                     <Button
-                      size="sm"
+                      size={isSetupMode ? "default" : "sm"}
                       onClick={handleSaveSlug}
                       disabled={slugSaving || !slugValidation.valid || !slugChanged}
+                      className={isSetupMode ? "font-semibold" : ""}
                     >
-                      {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Guardar"}
+                      {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSetupMode ? "Confirmar y entrar →" : "Guardar"}
                     </Button>
                   </div>
 

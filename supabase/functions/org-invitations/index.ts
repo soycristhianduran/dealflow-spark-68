@@ -389,10 +389,10 @@ Deno.serve(async (req) => {
 
     if (existing) return new Response(JSON.stringify({ error: "Esa dirección ya está en uso" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    // Save slug
+    // Save slug and mark it as confirmed so the setup gate is lifted
     const { error: updateErr } = await supabase
       .from("organizations")
-      .update({ slug })
+      .update({ slug, slug_confirmed: true })
       .eq("id", membership.organization_id);
 
     if (updateErr) throw updateErr;
