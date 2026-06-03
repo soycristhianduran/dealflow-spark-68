@@ -75,36 +75,41 @@ export default function AuthPage() {
       Date.now() - parseInt(googleFlowTs) < 10 * 60 * 1000;
 
     if (freshGoogleFlow) {
-      // ── Key fix: ignore INITIAL_SESSION during a Google OAuth flow ────────
-      // When a user deletes their account and re-registers with the same Google
-      // account, Supabase fires INITIAL_SESSION with the OLD stale token from
-      // localStorage (which has company_name set from previous onboarding).
-      // Acting on that stale session skips the onboarding form entirely.
-      // Solution: only act on the real SIGNED_IN event.
-      // null = session came from getSession() before any event fired — also wait.
-      if (lastAuthEvent !== "SIGNED_IN") {
-        return; // wait for the actual SIGNED_IN from the OAuth redirect
-      }
+      if (!isGoogle) return; // not a Google session yet — wait
 
-      if (!isGoogle) {
-        // SIGNED_IN fired but for a non-Google session — shouldn't normally
-        // happen in this flow, but keep waiting just in case.
+      // ── Distinguish real sign-in from stale cached session ───────────────
+      // Problem: when a user deletes their Supabase account and re-registers
+      // with the same Google email, the OLD session token stays in localStorage.
+      // Supabase fires INITIAL_SESSION with that old token BEFORE firing SIGNED_IN
+      // with the new one.  If we act on the old token we skip the onboarding form.
+      //
+      // In regular browsers: check lastAuthEvent === "SIGNED_IN".
+      // In incognito (no prior session): Supabase may fire INITIAL_SESSION with
+      // the freshly-exchanged OAuth token instead of a separate SIGNED_IN event.
+      //
+      // Solution: accept the session if EITHER:
+      //   a) lastAuthEvent is "SIGNED_IN" (explicit new login event), OR
+      //   b) the access token was issued within the last 5 minutes (fresh token).
+      //      A stale cached token from a deleted account is always older than that.
+      let tokenIsFresh = false;
+      try {
+        const payload = JSON.parse(atob(session.access_token.split(".")[1]));
+        tokenIsFresh = Date.now() / 1000 - payload.iat < 5 * 60; // iat is in seconds
+      } catch { /* non-fatal — treat as not fresh */ }
+
+      const isRealSignIn = lastAuthEvent === "SIGNED_IN" || tokenIsFresh;
+
+      if (!isRealSignIn) {
+        // Old cached token (INITIAL_SESSION before the real OAuth callback) —
+        // wait for the fresh SIGNED_IN or for the token to be replaced.
         return;
       }
 
-      // Confirmed real Google SIGNED_IN. Check if onboarding is needed.
-      //
-      // Extra safety for the "delete account + re-register same email" test
-      // workflow: if this is a brand-new user (created < 2 min ago), purge any
-      // leftover Supabase auth tokens and klosify flags from the previous account
-      // so they don't bleed into this new session.
-      const createdMs = new Date(session.user.created_at).getTime();
-      const isJustCreated = Date.now() - createdMs < 2 * 60 * 1000;
-      if (isJustCreated) {
-        Object.keys(localStorage)
-          .filter(k => k.startsWith("sb-") && k !== "sb-" + session.access_token)
-          .forEach(k => localStorage.removeItem(k));
-      }
+      // Real fresh sign-in confirmed. Clean up stale localStorage from any
+      // previously deleted account so it doesn't pollute the new session.
+      Object.keys(localStorage)
+        .filter(k => k.startsWith("sb-") && !k.includes(session.user.id))
+        .forEach(k => localStorage.removeItem(k));
 
       if (!hasCompanyName) {
         // New Google user — show onboarding form.
