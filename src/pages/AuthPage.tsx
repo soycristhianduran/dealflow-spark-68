@@ -93,6 +93,19 @@ export default function AuthPage() {
       }
 
       // Confirmed real Google SIGNED_IN. Check if onboarding is needed.
+      //
+      // Extra safety for the "delete account + re-register same email" test
+      // workflow: if this is a brand-new user (created < 2 min ago), purge any
+      // leftover Supabase auth tokens and klosify flags from the previous account
+      // so they don't bleed into this new session.
+      const createdMs = new Date(session.user.created_at).getTime();
+      const isJustCreated = Date.now() - createdMs < 2 * 60 * 1000;
+      if (isJustCreated) {
+        Object.keys(localStorage)
+          .filter(k => k.startsWith("sb-") && k !== "sb-" + session.access_token)
+          .forEach(k => localStorage.removeItem(k));
+      }
+
       if (!hasCompanyName) {
         // New Google user — show onboarding form.
         const given = session.user.user_metadata?.given_name || "";
