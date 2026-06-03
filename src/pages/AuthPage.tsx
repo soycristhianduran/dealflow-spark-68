@@ -66,28 +66,38 @@ export default function AuthPage() {
 
     const hasCompanyName = !!session.user.user_metadata?.company_name;
 
-    // Show onboarding when:
-    //   a) The user signed in via Google, AND
-    //   b) They don't yet have a company_name (meaning they haven't completed onboarding), AND
-    //   c) We set the google_flow flag just before the OAuth redirect — this
-    //      distinguishes "just signed up/in with Google" from "already logged in,
-    //      merely visiting /auth again".
-    const freshGoogleFlow = localStorage.getItem("klosify_google_flow") === "1";
-    const needsOnboarding = isGoogle && !hasCompanyName && freshGoogleFlow;
+    // Check if we recently started a Google OAuth flow (within the last 10 minutes).
+    const googleFlowTs = localStorage.getItem("klosify_google_flow");
+    const freshGoogleFlow =
+      googleFlowTs !== null &&
+      !isNaN(parseInt(googleFlowTs)) &&
+      Date.now() - parseInt(googleFlowTs) < 10 * 60 * 1000;
 
-    if (needsOnboarding) {
-      // Pre-fill name from Google profile
-      const given = session.user.user_metadata?.given_name || "";
-      const family = session.user.user_metadata?.family_name || "";
-      if (given) setFirstName(given);
-      if (family) setLastName(family);
-      // Keep the flag set — handleGoogleOnboarding will clear it on submit
-      setView("google-onboarding");
-      return;
+    if (freshGoogleFlow) {
+      if (!isGoogle) {
+        // A stale non-Google session fired while we're waiting for the OAuth
+        // callback to complete (this happens when a previous email session is
+        // still cached in localStorage and Supabase fires INITIAL_SESSION with
+        // it before firing SIGNED_IN with the real Google session).
+        // Do NOT navigate — wait for the real Google session to arrive.
+        return;
+      }
+
+      // It IS a Google session. Check if onboarding is needed.
+      if (!hasCompanyName) {
+        // New Google user — show onboarding form.
+        const given = session.user.user_metadata?.given_name || "";
+        const family = session.user.user_metadata?.family_name || "";
+        if (given) setFirstName(given);
+        if (family) setLastName(family);
+        // Keep the flag set — handleGoogleOnboarding will clear it on submit.
+        setView("google-onboarding");
+        return;
+      }
+
+      // Returning Google user who already completed onboarding — clear flag.
+      localStorage.removeItem("klosify_google_flow");
     }
-
-    // Not a new Google signup — clean up the flag if present
-    localStorage.removeItem("klosify_google_flow");
 
     if (redirectParam) {
       navigate(redirectParam, { replace: true });
@@ -102,9 +112,10 @@ export default function AuthPage() {
 
   const handleGoogleAuth = async () => {
     setGoogleLoading(true);
-    // Mark that we started a Google auth flow so we can show onboarding on return.
-    // localStorage survives the OAuth redirect round-trip; React state does not.
-    localStorage.setItem("klosify_google_flow", "1");
+    // Store a timestamp so we know a Google OAuth flow was started recently.
+    // Using a timestamp (not just "1") lets us expire the flag automatically
+    // so it doesn't interfere with future logins if the user abandoned the flow.
+    localStorage.setItem("klosify_google_flow", Date.now().toString());
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -116,6 +127,7 @@ export default function AuthPage() {
       localStorage.removeItem("klosify_google_flow");
       setGoogleLoading(false);
     }
+    // On success, browser redirects to Google — googleLoading stays true
     // On success, browser redirects to Google — googleLoading stays true
   };
 
