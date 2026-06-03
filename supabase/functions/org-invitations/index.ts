@@ -389,13 +389,24 @@ Deno.serve(async (req) => {
 
     if (existing) return new Response(JSON.stringify({ error: "Esa dirección ya está en uso" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-    // Save slug and mark it as confirmed so the setup gate is lifted
+    // Save slug and mark it as confirmed so the setup gate is lifted.
+    // Graceful fallback: if the slug_confirmed column doesn't exist yet
+    // (migration pending), retry without it so the slug still saves.
     const { error: updateErr } = await supabase
       .from("organizations")
       .update({ slug, slug_confirmed: true })
       .eq("id", membership.organization_id);
 
-    if (updateErr) throw updateErr;
+    if (updateErr) {
+      if (updateErr.message?.includes("slug_confirmed")) {
+        // Migration not yet applied — save slug only
+        const { error: retryErr } = await supabase
+          .from("organizations").update({ slug }).eq("id", membership.organization_id);
+        if (retryErr) throw retryErr;
+      } else {
+        throw updateErr;
+      }
+    }
 
     return new Response(JSON.stringify({ success: true, slug }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }

@@ -81,27 +81,37 @@ export default function AuthPage() {
       // Problem: when a user deletes their Supabase account and re-registers
       // with the same Google email, the OLD session token stays in localStorage.
       // Supabase fires INITIAL_SESSION with that old token BEFORE firing SIGNED_IN
-      // with the new one.  If we act on the old token we skip the onboarding form.
+      // with the new one.  Acting on the old token skips the onboarding form.
       //
-      // In regular browsers: check lastAuthEvent === "SIGNED_IN".
-      // In incognito (no prior session): Supabase may fire INITIAL_SESSION with
-      // the freshly-exchanged OAuth token instead of a separate SIGNED_IN event.
+      // Three independent signals — any one being true means it's a real sign-in:
+      //   a) lastAuthEvent is "SIGNED_IN" (explicit new-login event)
+      //   b) The access token JWT was issued < 5 min ago (fresh OAuth token).
+      //      NOTE: JWT uses base64url (no padding, - and _ chars) so we must
+      //      normalize before calling atob().
+      //   c) The user account was created < 5 min ago (brand-new registration).
+      //      A stale cached token from a deleted account has an old created_at.
       //
-      // Solution: accept the session if EITHER:
-      //   a) lastAuthEvent is "SIGNED_IN" (explicit new login event), OR
-      //   b) the access token was issued within the last 5 minutes (fresh token).
-      //      A stale cached token from a deleted account is always older than that.
+      // A stale old session fails ALL three checks → we wait for the real one.
+
+      // Signal b: token freshness via JWT iat claim
       let tokenIsFresh = false;
       try {
-        const payload = JSON.parse(atob(session.access_token.split(".")[1]));
-        tokenIsFresh = Date.now() / 1000 - payload.iat < 5 * 60; // iat is in seconds
-      } catch { /* non-fatal — treat as not fresh */ }
+        const b64url = session.access_token.split(".")[1];
+        // Convert base64url → standard base64 then add padding
+        const b64 = b64url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = b64 + "=".repeat((4 - (b64.length % 4)) % 4);
+        const payload = JSON.parse(atob(padded));
+        tokenIsFresh = Date.now() / 1000 - payload.iat < 5 * 60;
+      } catch { /* non-fatal */ }
 
-      const isRealSignIn = lastAuthEvent === "SIGNED_IN" || tokenIsFresh;
+      // Signal c: account age
+      const createdMs = new Date(session.user.created_at).getTime();
+      const isJustCreated = Date.now() - createdMs < 5 * 60 * 1000;
+
+      const isRealSignIn = lastAuthEvent === "SIGNED_IN" || tokenIsFresh || isJustCreated;
 
       if (!isRealSignIn) {
-        // Old cached token (INITIAL_SESSION before the real OAuth callback) —
-        // wait for the fresh SIGNED_IN or for the token to be replaced.
+        // Old cached token — wait for the real SIGNED_IN / fresh token.
         return;
       }
 
