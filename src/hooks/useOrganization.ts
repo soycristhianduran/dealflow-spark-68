@@ -64,7 +64,9 @@ export function useOrganization(): UseOrganizationResult {
         // we resolve the org by slug and verify the current user is a member.
         const workspaceSlug = getWorkspaceSlug();
 
-        if (workspaceSlug) {
+        // "_" is a URL placeholder for users with no slug yet (new users).
+        // Fall through to default resolution rather than treating it as a real slug.
+        if (workspaceSlug && workspaceSlug !== "_") {
           // Find org by slug
           const { data: orgBySlug, error: slugErr } = await supabase
             .from("organizations")
