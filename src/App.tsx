@@ -1,4 +1,3 @@
-import { OnboardingModal } from "@/components/OnboardingModal";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -47,6 +46,7 @@ import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
+import OnboardingPage from "./pages/OnboardingPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { LockoutScreen } from "@/components/billing/LockoutScreen";
@@ -96,6 +96,13 @@ function RootRoute() {
   useEffect(() => {
     if (loading) return;
     if (!session) {
+      setChecking(false);
+      return;
+    }
+    // New users without company_name need onboarding before accessing workspace
+    const hasCompanyName = !!session.user.user_metadata?.company_name;
+    if (!hasCompanyName) {
+      navigate("/onboarding", { replace: true });
       setChecking(false);
       return;
     }
@@ -185,6 +192,9 @@ function AppRoutes() {
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
 
+      {/* First-time onboarding for new users (Google OAuth + anyone missing company_name) */}
+      <Route path="/onboarding" element={<OnboardingPage />} />
+
       {/* Workspace entry point: validates slug + renders workspace */}
       <Route path="/w/:slug/*" element={<WorkspaceEntryPage />} />
 
@@ -210,7 +220,6 @@ const App = () => (
           <BrowserRouter>
             <AuthProvider>
               <OrganizationProvider>
-                <OnboardingModal />
                 <AppRoutes />
               </OrganizationProvider>
             </AuthProvider>

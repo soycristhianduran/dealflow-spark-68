@@ -98,8 +98,16 @@ export default function WorkspaceEntryPage() {
   }
 
   if (status === "allowed") {
+    // ── Onboarding gate ───────────────────────────────────────────────────────
+    // New Google users (and anyone missing company_name) must complete onboarding
+    // before touching the workspace. Redirect to /onboarding (a full page, not a modal).
+    const hasCompanyName = !!session?.user.user_metadata?.company_name;
+    if (!slugConfirmed && !hasCompanyName) {
+      return <Navigate to="/onboarding" replace />;
+    }
+
     // ── Slug-confirmation gate ────────────────────────────────────────────────
-    // New users must confirm (save) their workspace URL before accessing the app.
+    // User has company_name but hasn't confirmed their workspace URL yet.
     // Only /settings is reachable; everything else redirects there with ?setup=1.
     if (!slugConfirmed) {
       return (
