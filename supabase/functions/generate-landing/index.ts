@@ -218,15 +218,18 @@ function postProcessHtml(rawText: string, current_html: string | undefined, subm
   }
 
   // Normalize lead-form action URL
+  // Bug #16 fix: handle both attribute orders (id before action AND action before id)
   if (html) {
-    html = html.replace(
-      /(<form[^>]*id=["']lead-form["'][^>]*)\s+action=["'][^"']*["']/gi,
-      `$1 action="${submitUrl}"`,
-    );
-    html = html.replace(
-      /(<form[^>]*id=["']lead-form["'](?![^>]*\baction\s*=)[^>]*)>/gi,
-      `$1 action="${submitUrl}">`,
-    );
+    html = html.replace(/<form([^>]*)>/gi, (match, attrs) => {
+      // Only touch forms with id="lead-form"
+      if (!/\bid=["']lead-form["']/.test(attrs)) return match;
+      // Replace existing action= value
+      if (/\baction\s*=\s*["'][^"']*["']/.test(attrs)) {
+        return `<form${attrs.replace(/\baction\s*=\s*["'][^"']*["']/, `action="${submitUrl}"`)} >`.replace(/ >$/, ">");
+      }
+      // Add missing action=
+      return `<form${attrs} action="${submitUrl}">`;
+    });
   }
 
   return { html, summary };
@@ -398,27 +401,28 @@ Deno.serve(async (req) => {
       return resp;
     }
 
-    // ── Helper: deduct tokens + log + fetch balance ───────────────────────────
+    // ── Helper: deduct tokens atomically + log + fetch balance ───────────────
+    // Bug #3 fix: uses server-side UPDATE arithmetic (deduct_landing_credits RPC)
+    // instead of read-modify-write, eliminating the race condition.
     async function finalize(inputTokens: number, outputTokens: number) {
       const tokensUsed = inputTokens + outputTokens;
+      let tokensRemaining = 0;
       if (tokensUsed > 0) {
-        await supabase
+        // Atomic decrement — safe under concurrent calls
+        const { data: newRemaining } = await supabase.rpc("deduct_landing_credits", {
+          p_credit_id: creditRow.id,
+          p_tokens: tokensUsed,
+        });
+        tokensRemaining = (newRemaining as number) ?? 0;
+      } else {
+        // No tokens used — just return current balance
+        const { data: cur } = await supabase
           .from("ia_landings_credits")
-          .update({
-            credits_remaining: Math.max(0, creditRow.credits_remaining - tokensUsed),
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", creditRow.id);
+          .select("credits_remaining")
+          .eq("id", creditRow.id)
+          .maybeSingle();
+        tokensRemaining = cur?.credits_remaining ?? 0;
       }
-      const { data: updatedRow } = await supabase
-        .from("ia_landings_credits")
-        .select("credits_remaining")
-        .eq("organization_id", orgId)
-        .gt("credits_remaining", 0)
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      const tokensRemaining = updatedRow?.credits_remaining ?? 0;
       supabase.from("ia_landings_usage_log").insert({
         organization_id: orgId,
         page_id: page_id || null,
@@ -482,6 +486,11 @@ Deno.serve(async (req) => {
             emit({ type: "done", html, summary, tokensUsed, tokensRemaining });
 
           } catch (e: any) {
+            // Bug #6 fix: deduct tokens even when the stream was cut short
+            // (e.g. Supabase 150 s timeout) — Anthropic already charged them.
+            if (inputTokens > 0 || outputTokens > 0) {
+              try { await finalize(inputTokens, outputTokens); } catch { /* best-effort */ }
+            }
             emit({ type: "error", error: e.message ?? "Error desconocido" });
           } finally {
             controller.close();

@@ -800,7 +800,9 @@ export default function LandingBuilderPage() {
       const screenX = Math.min(rawX, window.innerWidth - 300);
       const screenY = Math.min(rawY, window.innerHeight - 220);
       setCtaPopover({ open: true, ctaIdx: e.data.idx, text: e.data.text, screenX, screenY });
-      setCtaPopoverUrl(""); // reset input on each click
+      // Bug #26 fix: pre-fill with the URL already assigned to this CTA (if any)
+      const existingUrl = formConfig.cta_links?.[e.data.idx]?.url ?? "";
+      setCtaPopoverUrl(existingUrl);
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
@@ -1069,36 +1071,84 @@ export default function LandingBuilderPage() {
       { id: assistantMsgId, role: "assistant", content: "", status: "loading" },
     ]);
 
+    // Bug #11 fix: use streaming fetch so the edge function picks claude-sonnet-4-5
+    // (model = Sonnet when useStream=true && !current_html).
+    // The old supabase.functions.invoke path always used Haiku (JSON/non-stream).
     try {
-      const res = await supabase.functions.invoke("generate-landing", {
-        body: {
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token ?? "";
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+      const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({
+          stream: true,
           prompt: originalPrompt,
           page_id: newPage.id,
-          funnel_reference_html: generatedHtml.slice(0, 3000), // style context from current page
+          funnel_reference_html: generatedHtml.slice(0, 3000),
           chat_history: [],
-        },
+        }),
       });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
-      const html = res.data.html as string;
+
+      if (!fetchResp.ok) throw new Error(`Error HTTP ${fetchResp.status}`);
+      const ct = fetchResp.headers.get("content-type") ?? "";
+      if (!ct.includes("text/event-stream")) {
+        const errBody = await fetchResp.json().catch(() => ({}));
+        throw new Error(errBody.error ?? "Error del servidor");
+      }
+
+      const reader = fetchResp.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = "", html = "", summary = "Página creada con estilo del funnel", tokensUsed = 0, accumulated = "";
+
+      const dispatch = (seg: string): boolean => {
+        const dl = seg.split("\n").find(l => l.startsWith("data: "));
+        if (!dl) return false;
+        let evt: any;
+        try { evt = JSON.parse(dl.slice(6)); } catch { return false; }
+        if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
+        else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); return true; }
+        else if (evt.type === "error") { throw new Error(evt.error ?? "Error generando"); }
+        return false;
+      };
+
+      outer2: while (true) {
+        const { done, value } = await reader.read();
+        if (done) { if (buf.trim()) for (const s of buf.split("\n\n")) if (dispatch(s)) break; break; }
+        buf += decoder.decode(value, { stream: true });
+        const events = buf.split("\n\n"); buf = events.pop() ?? "";
+        for (const s of events) if (dispatch(s)) break outer2;
+      }
+
+      // Delta fallback (same as handleGenerate)
+      if (!html && accumulated) {
+        let r = accumulated.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+        const di = r.indexOf("<!DOCTYPE"); if (di !== -1) r = r.slice(di);
+        if (r && !r.trimEnd().toLowerCase().endsWith("</html>")) { if (!r.toLowerCase().includes("</body>")) r += "\n</body>"; r += "\n</html>"; }
+        if (r.startsWith("<!DOCTYPE")) html = r;
+      }
       if (!html) throw new Error("La IA no devolvió HTML");
-      const summary: string = res.data.summary || "Página creada con estilo del funnel";
-      if (res.data.tokensRemaining != null) setTokensRemaining(res.data.tokensRemaining);
 
       setGeneratedHtml(html);
       setPreviewHtml(html);
       setHtmlVersion(v => v + 1);
 
-      const tokenNote = res.data.tokensUsed ? ` · ${res.data.tokensUsed.toLocaleString()} tokens` : "";
       const updatedHistory: ChatMessage[] = [
         ...initHistory,
-        { id: assistantMsgId, role: "assistant", content: summary + tokenNote, summary, status: "done" },
+        { id: assistantMsgId, role: "assistant", content: summary + (tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : ""), summary, status: "done" },
       ];
       setChatMessages(updatedHistory);
 
-      // Auto-save to DB
-      await supabase.from("landing_pages")
+      supabase.from("landing_pages")
         .update({ html, chat_history: updatedHistory })
-        .eq("id", newPage.id);
+        .eq("id", newPage.id)
+        .then(() => {});
 
       await fetchPages();
       toast.success(`Página "${capitalized}" creada en el funnel`);
@@ -1108,6 +1158,9 @@ export default function LandingBuilderPage() {
       ));
     } finally {
       setGenerating(false);
+      if (generationTimerRef.current) { clearInterval(generationTimerRef.current); generationTimerRef.current = null; }
+      setGenerationElapsed(0);
+      setStreamedTokens(0);
     }
   };
 
@@ -1512,7 +1565,7 @@ export default function LandingBuilderPage() {
     } finally {
       setSaving(false);
     }
-  }, [selectedId, mode, name, slug, status, generatedHtml, prompt, formConfig, fetchPages]);
+  }, [selectedId, mode, name, slug, status, generatedHtml, prompt, formConfig, chatMessages, fetchPages]);
 
   // ── Copy URL ────────────────────────────────────────────────────────────────
   const copyUrl = () => {
@@ -2541,6 +2594,16 @@ export default function LandingBuilderPage() {
                         setGeneratedHtml("");
                         setPreviewHtml("");
                         setEditMode(false);
+                        setShowTemplates(true);
+                        setHtmlVersion(v => v + 1);
+                        // Bug #9 fix: persist the cleared state to DB so the
+                        // next page load doesn't restore the old chat/html.
+                        if (selectedId) {
+                          supabase.from("landing_pages")
+                            .update({ html: "", chat_history: [], prompt: "" })
+                            .eq("id", selectedId)
+                            .then(() => {});
+                        }
                       }}
                     >
                       Nueva
