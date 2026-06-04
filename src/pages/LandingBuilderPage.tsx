@@ -1237,40 +1237,89 @@ export default function LandingBuilderPage() {
       let html = "";
       let summary = "✓ Aplicado";
       let tokensUsedThisCall = 0;
+      // Accumulate raw delta text as a fallback in case the "done" event is
+      // never received (e.g. edge function timeout before sending it).
+      let accumulatedText = "";
+
+      // Parse and dispatch one SSE event string.
+      // Returns true when the "done" event is found (caller should break).
+      const dispatchSseEvent = (eventStr: string): boolean => {
+        const dataLine = eventStr.split("\n").find(l => l.startsWith("data: "));
+        if (!dataLine) return false;
+        let evt: { type: string; text?: string; html?: string; summary?: string; tokensUsed?: number; tokensRemaining?: number; error?: string; code?: string };
+        try { evt = JSON.parse(dataLine.slice(6)); } catch { return false; }
+
+        if (evt.type === "delta") {
+          accumulatedText += evt.text ?? "";
+          setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4));
+        } else if (evt.type === "done") {
+          html = evt.html ?? "";
+          summary = evt.summary ?? "✓ Aplicado";
+          tokensUsedThisCall = evt.tokensUsed ?? 0;
+          if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining);
+          return true;
+        } else if (evt.type === "error") {
+          if (evt.code === "no_landing_credits") {
+            throw new Error("No tienes tokens suficientes. Compra más en Facturación.");
+          }
+          throw new Error(evt.error ?? "Error generando la landing");
+        }
+        return false;
+      };
 
       outer: while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+
+        if (done) {
+          // ── Process any buffer remaining when the stream closes ───────────
+          // The "done" SSE event can be stranded here if the last TCP packet
+          // arrived without a trailing double-newline before the connection
+          // closed (common with Supabase edge function + large PDF payloads).
+          if (buf.trim()) {
+            const leftover = buf.split("\n\n");
+            for (const seg of leftover) {
+              if (dispatchSseEvent(seg)) break;
+            }
+          }
+          break;
+        }
 
         buf += decoder.decode(value, { stream: true });
 
-        // SSE events are separated by double newlines
+        // SSE events are delimited by double newlines
         const events = buf.split("\n\n");
         buf = events.pop() ?? "";
 
         for (const eventStr of events) {
-          const dataLine = eventStr.split("\n").find(l => l.startsWith("data: "));
-          if (!dataLine) continue;
+          if (dispatchSseEvent(eventStr)) break outer;
+        }
+      }
 
-          let evt: { type: string; text?: string; html?: string; summary?: string; tokensUsed?: number; tokensRemaining?: number; error?: string; code?: string };
-          try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; }
-
-          if (evt.type === "delta") {
-            // Real-time token counter (1 token ≈ 4 chars)
-            setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4));
-          } else if (evt.type === "done") {
-            html = evt.html ?? "";
-            summary = evt.summary ?? "✓ Aplicado";
-            tokensUsedThisCall = evt.tokensUsed ?? 0;
-            if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining);
-            break outer;
-          } else if (evt.type === "error") {
-            // Surface no_credits error specially
-            if (evt.code === "no_landing_credits") {
-              throw new Error("No tienes tokens suficientes. Compra más en Facturación.");
-            }
-            throw new Error(evt.error ?? "Error generando la landing");
-          }
+      // ── Fallback: reconstruct HTML from raw delta chunks ──────────────────
+      // If the edge function timed out before it could postProcess and send the
+      // "done" event (common with large PDF inputs), we attempt to recover the
+      // HTML that Claude was streaming incrementally.
+      if (!html && accumulatedText) {
+        let recovered = accumulatedText
+          .replace(/^```html\s*/i, "")
+          .replace(/^```\s*/i, "")
+          .replace(/```\s*$/i, "")
+          .trim();
+        // REFINE_SYSTEM format: strip CAMBIOS prefix before ---HTML---
+        const delimIdx = recovered.indexOf("---HTML---");
+        if (delimIdx !== -1) recovered = recovered.slice(delimIdx + 10).trim();
+        // Find DOCTYPE start (skip any leading text)
+        const doctypeIdx = recovered.indexOf("<!DOCTYPE");
+        if (doctypeIdx !== -1) recovered = recovered.slice(doctypeIdx);
+        // Graceful truncation guard — close any open tags
+        if (recovered && !recovered.trimEnd().toLowerCase().endsWith("</html>")) {
+          if (!recovered.toLowerCase().includes("</body>")) recovered += "\n</body>";
+          recovered += "\n</html>";
+        }
+        if (recovered.startsWith("<!DOCTYPE")) {
+          html = recovered;
+          summary = "✓ Recuperado (generación interrumpida)";
+          toast.warning("La generación se interrumpió cerca del final. Se recuperó el HTML generado.");
         }
       }
 

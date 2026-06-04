@@ -351,8 +351,11 @@ Deno.serve(async (req) => {
     // ── Model selection ───────────────────────────────────────────────────────
     // Streaming mode  → Sonnet for refinements (better nuance), Haiku for fresh (speed)
     // JSON mode       → always Haiku (backward compat, no timeout risk)
-    const model = useStream
-      ? (current_html ? "claude-sonnet-4-5" : "claude-haiku-4-5")
+    // Use Haiku when a PDF is attached — PDF adds many input tokens so generation
+    // runs long. Haiku is fast enough to stay well under the edge function timeout.
+    // Sonnet is only used for text-only refinements where nuance matters most.
+    const model = useStream && current_html && !attached_pdf
+      ? "claude-sonnet-4-5"
       : "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
