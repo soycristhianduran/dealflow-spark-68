@@ -200,7 +200,7 @@ Deno.serve(async (req) => {
             error: "No tienes créditos de IA Landings disponibles. Compra un paquete en Facturación para seguir generando.",
             code: "no_landing_credits",
           }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
