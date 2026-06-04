@@ -71,9 +71,11 @@ function buildPreviewSrcDoc(html: string): string {
   );
   if (formMatch) work = work.replace(FP, formMatch[0]);
 
-  // Click-intercept script — runs inside the iframe, posts message to parent
+  // Click-intercept + height-reporter scripts — run inside the iframe
+  // Height is reported so the parent can expand the iframe to show the full page.
   const interceptScript = `<script>
 (function(){
+  // ── CTA click intercept ──────────────────────────────────────────────────
   document.addEventListener('click',function(e){
     var el=e.target.closest('[data-klosify-cta]');
     if(!el)return;
@@ -86,6 +88,23 @@ function buildPreviewSrcDoc(html: string): string {
       rect:{top:r.top,left:r.left,width:r.width,height:r.height,bottom:r.bottom}
     },'*');
   });
+  // ── Full-page height reporter ────────────────────────────────────────────
+  // Posts the scroll height so the parent can resize the iframe to the full
+  // page height (instead of showing only the first 100vh hero section).
+  function reportHeight(){
+    var h=Math.max(
+      document.body.scrollHeight,
+      document.documentElement.scrollHeight,
+      document.body.offsetHeight
+    );
+    window.parent.postMessage({type:'klosify_height',h:h},'*');
+  }
+  // Report after DOM content + after images/fonts
+  document.addEventListener('DOMContentLoaded',function(){setTimeout(reportHeight,80);});
+  window.addEventListener('load',function(){setTimeout(reportHeight,200);});
+  // Re-report if lazy images or animations change layout
+  setTimeout(reportHeight,800);
+  setTimeout(reportHeight,2000);
 })();
 <\/script>`;
 
@@ -486,6 +505,10 @@ export default function LandingBuilderPage() {
   // reliably reload in all browsers; including this in the key forces a remount.
   const [htmlVersion, setHtmlVersion] = useState(0);
 
+  // Full-page preview height — set by klosify_height postMessage from the iframe.
+  // While 0, the iframe falls back to 100% of its container.
+  const [previewContentHeight, setPreviewContentHeight] = useState(0);
+
   // UI state
   const [saving, setSaving] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
@@ -686,6 +709,9 @@ export default function LandingBuilderPage() {
     editMoRef.current = mo;
   }, []); // stable — reads only refs and stable setters
 
+  // Reset measured height whenever the iframe remounts (new HTML version)
+  useEffect(() => { setPreviewContentHeight(0); }, [htmlVersion]);
+
   // Disconnect observer when exiting edit mode or unmounting
   useEffect(() => {
     if (!editMode) {
@@ -758,6 +784,12 @@ export default function LandingBuilderPage() {
   // ── CTA inline link editor — listen for postMessage from preview iframe ───────
   useEffect(() => {
     const handler = (e: MessageEvent) => {
+      // ── Full-page height ─────────────────────────────────────────────────────
+      if (e.data?.type === "klosify_height") {
+        const h = e.data.h as number;
+        if (h && h > 0) setPreviewContentHeight(h);
+        return;
+      }
       if (e.data?.type !== "klosify_cta") return;
       const iframe = previewIframeRef.current;
       if (!iframe) return;
@@ -2153,19 +2185,21 @@ export default function LandingBuilderPage() {
                       </TooltipProvider>
                     </div>
 
-                    {/* iframe wrapper */}
+                    {/* iframe wrapper — outer div scrolls; iframe expands to full page height */}
                     <div className={cn(
-                      "flex-1 overflow-auto",
+                      "flex-1 overflow-y-auto",
                       deviceSize !== "desktop" ? "bg-muted/40 flex justify-center pt-4" : ""
                     )}>
                       <div
                         className={cn(
-                          "h-full transition-all duration-300",
+                          "transition-all duration-300",
                           deviceSize !== "desktop" && "rounded-t-xl overflow-hidden shadow-xl border border-border"
                         )}
                         style={{
                           width: DEVICE_WIDTHS[deviceSize] ?? "100%",
-                          height: deviceSize !== "desktop" ? "calc(100% - 16px)" : "100%",
+                          // In desktop mode we keep full height as minimum; in device
+                          // mode the iframe itself will grow to content height.
+                          minHeight: deviceSize === "desktop" ? "100%" : undefined,
                         }}
                       >
                         {editMode ? (
@@ -2176,17 +2210,19 @@ export default function LandingBuilderPage() {
                             key={`edit-${deviceSize}-${htmlVersion}`}
                             srcDoc={addTargetBlank(previewHtml)}
                             onLoad={setupEditMode}
-                            className="w-full h-full border-0"
+                            className="w-full border-0"
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
                             title="Editar landing"
                           />
                         ) : (
-                          /* Preview mode: htmlVersion in key forces remount on
-                             every AI generation so new content is always visible. */
+                          /* Preview mode: iframe grows to full page height so all
+                             sections are visible without showing only the hero. */
                           <iframe
                             ref={previewIframeRef}
                             key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
-                            className="w-full h-full border-0"
+                            className="w-full border-0"
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                             title="Vista previa landing"
                           />
