@@ -784,7 +784,7 @@ export default function LandingBuilderPage() {
     });
     if (formMatch) work = work.replace(FP, formMatch[0]);
     setGeneratedHtml(work);
-    setPreviewHtml(work);
+    setPreviewHtml(buildPreviewSrcDoc(work)); // preserve CTA intercept scripts
     setHtmlVersion(v => v + 1);
     setCtaPopover(p => ({ ...p, open: false }));
     if (selectedId) {
@@ -908,6 +908,7 @@ export default function LandingBuilderPage() {
     const injected = injectFormIntoHtml(generatedHtml, formHtml);
     setGeneratedHtml(injected);
     setPreviewHtml(injected);
+    setHtmlVersion(v => v + 1); // force iframe remount so injected form is visible immediately
     toast.success("Formulario inyectado en la landing");
   }, [generatedHtml, formConfig, selectedId]);
 
@@ -1245,6 +1246,24 @@ export default function LandingBuilderPage() {
 
       if (!fetchResp.ok) throw new Error(`Error HTTP ${fetchResp.status}`);
 
+      // ── Guard: edge function errors always return HTTP 200 with JSON ─────────
+      // If the Content-Type is NOT text/event-stream it means the function
+      // returned a JSON error (e.g. auth failure, parse error) before it could
+      // open the SSE stream. Read it and surface the real message.
+      const contentType = fetchResp.headers.get("content-type") ?? "";
+      if (!contentType.includes("text/event-stream")) {
+        let errMsg = "Error del servidor. Intenta de nuevo.";
+        try {
+          const errBody = await fetchResp.json();
+          if (errBody.code === "no_landing_credits") {
+            errMsg = "No tienes tokens suficientes. Compra más en Facturación.";
+          } else if (errBody.error) {
+            errMsg = errBody.error;
+          }
+        } catch { /* ignore parse failure */ }
+        throw new Error(errMsg);
+      }
+
       // ── Read SSE stream ─────────────────────────────────────────────────────
       const reader = fetchResp.body!.getReader();
       const decoder = new TextDecoder();
@@ -1360,27 +1379,25 @@ export default function LandingBuilderPage() {
           .then(() => {});
       }
 
-      // Update chat history
-      setChatMessages(prev => {
-        const withoutLoading = prev.filter(m => m.status !== "loading");
-        const updated: ChatMessage[] = [
-          ...withoutLoading,
-          {
-            id: assistantMsgId,
-            role: "assistant" as const,
-            content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""),
-            summary,
-            status: "done" as const,
-          },
-        ];
-        if (selectedId) {
-          supabase.from("landing_pages")
-            .update({ chat_history: updated })
-            .eq("id", selectedId)
-            .then(() => {});
-        }
-        return updated;
-      });
+      // Update chat history — DB write is outside setChatMessages to avoid
+      // firing twice under React 18 concurrent mode (updater fns can re-run).
+      const updatedMessages: ChatMessage[] = [
+        ...chatMessages.filter(m => m.status !== "loading"),
+        {
+          id: assistantMsgId,
+          role: "assistant" as const,
+          content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""),
+          summary,
+          status: "done" as const,
+        },
+      ];
+      setChatMessages(updatedMessages);
+      if (selectedId) {
+        supabase.from("landing_pages")
+          .update({ chat_history: updatedMessages })
+          .eq("id", selectedId)
+          .then(({ error }) => { if (error) console.error("[LandingBuilder] chat history save failed:", error); });
+      }
 
     } catch (e: any) {
       setChatMessages(prev => prev.map(m =>

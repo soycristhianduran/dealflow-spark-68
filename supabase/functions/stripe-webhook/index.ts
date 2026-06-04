@@ -494,8 +494,13 @@ Deno.serve(async (req) => {
           if (amount === 1900) credits = 1000;
           else if (amount === 4900) credits = 5000;
         } else if (kind === "ia_landings") {
-          if (amount === 900)  credits = 300000;
+          // Legacy packs
+          if (amount === 900)   credits = 300000;
           else if (amount === 3500) credits = 1100000;
+          // New token-based packs (2026)
+          else if (amount === 1200) credits = 500000;
+          else if (amount === 2200) credits = 1000000;
+          else if (amount === 5200) credits = 3000000;
         } else if (kind === "ia_agent") {
           if (amount === 900)  credits = 200;
           else if (amount === 2900) credits = 1000;

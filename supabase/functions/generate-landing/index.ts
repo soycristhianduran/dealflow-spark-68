@@ -278,7 +278,7 @@ Deno.serve(async (req) => {
       .from("ia_landings_credits")
       .select("id, credits_remaining")
       .eq("organization_id", orgId)
-      .gt("credits_remaining", 10000)
+      .gt("credits_remaining", 0)
       .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
