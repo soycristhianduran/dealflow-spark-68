@@ -284,6 +284,20 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (!creditRow) {
+      // Must match the response format the frontend expects:
+      // streaming clients expect SSE, JSON clients expect JSON.
+      if (useStream) {
+        const enc = new TextEncoder();
+        const errStream = new ReadableStream({
+          start(c) {
+            c.enqueue(enc.encode(`data: ${JSON.stringify({ type: "error", error: "No tienes tokens de IA Landings suficientes. Compra más en Facturación para seguir generando.", code: "no_landing_credits" })}\n\n`));
+            c.close();
+          },
+        });
+        return new Response(errStream, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+        });
+      }
       return new Response(
         JSON.stringify({
           error: "No tienes tokens de IA Landings suficientes. Compra más en Facturación para seguir generando.",
@@ -354,11 +368,10 @@ Deno.serve(async (req) => {
     // ── Model selection ───────────────────────────────────────────────────────
     // Streaming mode  → Sonnet for refinements (better nuance), Haiku for fresh (speed)
     // JSON mode       → always Haiku (backward compat, no timeout risk)
-    // Always use Haiku — it's 3-4× faster than Sonnet and finishes well within
-    // the Supabase edge function timeout (~150s). For HTML editing tasks the
-    // quality difference is negligible. Sonnet was causing timeouts on large
-    // HTML refinements with complex multi-part prompts.
-    const model = "claude-haiku-4-5";
+    // Sonnet for all streaming calls — better quality, handles complex multi-part
+    // prompts reliably. Timeout risk is mitigated by the streaming resilience on
+    // the frontend (buffer fix + delta fallback). Haiku for JSON/legacy path.
+    const model = useStream ? "claude-sonnet-4-5" : "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
     async function callAnthropic(streamMode: boolean) {
