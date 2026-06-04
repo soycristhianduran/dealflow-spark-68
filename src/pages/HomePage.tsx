@@ -89,7 +89,7 @@ const testimonials: Testimonial[] = [
 ];
 
 const addOns: AddOn[] = [
-  { icon: Wand2,    label: "+5 Landings IA",  price: "$9",    iconColor: "text-purple-600", iconBg: "bg-purple-100" },
+  { icon: Wand2,    label: "+500K tokens IA Landings",  price: "$12",    iconColor: "text-purple-600", iconBg: "bg-purple-100" },
   { icon: Target,   label: "+1.000 IA Boost", price: "$9",    iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
   { icon: Rocket,   label: "+5.000 IA Boost", price: "$39",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
   { icon: UserPlus, label: "Seat adicional",  price: "$9/mes",iconColor: "text-teal-600",   iconBg: "bg-teal-100"   },
