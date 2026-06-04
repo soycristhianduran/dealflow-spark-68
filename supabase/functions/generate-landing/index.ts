@@ -368,10 +368,11 @@ Deno.serve(async (req) => {
     // ── Model selection ───────────────────────────────────────────────────────
     // Streaming mode  → Sonnet for refinements (better nuance), Haiku for fresh (speed)
     // JSON mode       → always Haiku (backward compat, no timeout risk)
-    // Sonnet for all streaming calls — better quality, handles complex multi-part
-    // prompts reliably. Timeout risk is mitigated by the streaming resilience on
-    // the frontend (buffer fix + delta fallback). Haiku for JSON/legacy path.
-    const model = useStream ? "claude-sonnet-4-5" : "claude-haiku-4-5";
+    // Sonnet for fresh generation (no existing HTML) — best quality on first impression,
+    // smaller input so it stays well under the 150s timeout.
+    // Haiku for refinements (current_html adds 10K-20K tokens of input) — 3× faster,
+    // avoids timeout, quality is equivalent for surgical HTML edits.
+    const model = (useStream && !current_html) ? "claude-sonnet-4-5" : "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
     async function callAnthropic(streamMode: boolean) {
