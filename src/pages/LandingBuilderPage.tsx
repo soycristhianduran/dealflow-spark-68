@@ -2175,7 +2175,9 @@ export default function LandingBuilderPage() {
             <div className="flex-1 flex min-h-0">
 
               {/* ── Preview panel (dominant) ── */}
-              <div className="flex-1 flex flex-col min-w-0 relative">
+              {/* min-h-0: prevents this flex-1 item from expanding to iframe content height,
+                  which would make overflow-y-auto on the child never trigger a scrollbar. */}
+              <div className="flex-1 flex flex-col min-w-0 min-h-0 relative">
                 {previewHtml ? (
                   <>
                     {/* Preview toolbar */}
