@@ -9,92 +9,44 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
 // ── System prompts ────────────────────────────────────────────────────────────
 
-const FRESH_SYSTEM = `Eres un diseñador web de clase mundial especializado en landing pages de alta conversión.
-Tu trabajo es generar HTML completo, standalone y visualmente impresionante.
+// Compact FRESH_SYSTEM — ~320 tokens vs old ~3000 tokens.
+// Key insight: the user prompt already contains all content/style specs;
+// the system prompt only needs to establish technical rules + quality bar.
+const FRESH_SYSTEM = `Expert landing page designer. Generate a COMPLETE, beautiful, standalone HTML page.
 
-━━━ PASO 1: ANALIZA EL PROMPT ━━━
-Antes de diseñar, extrae del prompt del usuario:
-- INDUSTRIA / NICHO: (tech, inmobiliaria, salud, educación, servicios, e-commerce, etc.)
-- PROPUESTA DE VALOR: qué ofrece, qué problema resuelve
-- AUDIENCIA: a quién va dirigido
-- TONO: profesional / casual / urgente / premium / juvenil
-- MARCA: si menciona nombre de empresa o marca → úsala en el diseño
-- COLORES: si menciona colores → úsalos; si no, elige paleta apropiada para la industria
-- IDIOMA: responde en el idioma del prompt
+ABSOLUTE OUTPUT RULE: Return ONLY the HTML from <!DOCTYPE html> to </html>. Zero text outside HTML tags.
 
-━━━ PASO 2: DISEÑO VISUAL DE CALIDAD ━━━
+REQUIRED IN <head>:
+- <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+- Google Fonts matching the design (import 1-2 elegant fonts)
+- <script>tailwind.config={theme:{extend:{colors:{primary:'#COLOR',accent:'#COLOR'}}}}</script>
+- <script src="https://cdn.tailwindcss.com"></script>
+- <style> block with: CSS custom properties (--primary, --accent, --bg, --text), scroll-behavior:smooth, fade-in-up @keyframes + .fade-in class
 
-TIPOGRAFÍA (importa desde Google Fonts):
-- Heading font: Plus Jakarta Sans, Inter, Poppins, o similar moderna
-- Usa size hierarchy clara: 4xl-6xl para H1, 2xl-3xl para H2, lg-xl para H3
+REQUIRED LEAD FORM — copy exactly, never omit:
+<form id="lead-form" data-page-id="{{PAGE_ID}}" action="{{SUBMIT_URL}}" method="POST">
+  <!-- form fields here -->
+  <button type="submit">CTA Text</button>
+</form>
+<script>
+(function(){var f=document.getElementById('lead-form');if(!f)return;f.addEventListener('submit',async function(e){e.preventDefault();var btn=f.querySelector('[type=submit]'),o=btn.innerHTML;btn.disabled=true;btn.innerHTML='Enviando...';try{var d={page_id:f.dataset.pageId,source:location.href};new FormData(f).forEach(function(v,k){if(k)d[k]=v;});var r=await fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(r.ok){f.innerHTML='<div style="text-align:center;padding:3rem"><p style="font-size:1.5rem;font-weight:700;color:var(--primary)">¡Gracias! Te contactaremos pronto.</p></div>';}else throw 0;}catch(x){btn.disabled=false;btn.innerHTML=o;}});})();
+</script>
 
-COLORES:
-- Define CSS custom properties al inicio: --primary, --primary-dark, --accent, --bg, --text
-- Usa gradientes en hero y secciones CTA (linear-gradient o tailwind gradient)
-- Cards con fondo blanco / glass effect en fondos oscuros
+REQUIRED IntersectionObserver for fade-in (add to all section tags):
+<script>new IntersectionObserver(function(e){e.forEach(function(x){if(x.isIntersecting)x.target.classList.add('visible');});},{threshold:0.1}).observe(document.querySelectorAll('.fade-in'));</script>
+(Fix: use forEach on NodeList: document.querySelectorAll('.fade-in').forEach(el=>obs.observe(el)))
 
-COMPONENTES VISUALES:
-- Botones: rounded-full o rounded-xl, py-4 px-8, font-semibold, hover con escala y sombra
-- Cards: rounded-2xl, shadow-xl, border border-white/10 o border-gray-100
-- Badges: texto pequeño uppercase con fondo de color/gradiente para credibilidad
-- Íconos: usa emojis Unicode ✅ 🚀 💡 ⭐ o SVG inline (NO librerías externas)
-- Imágenes: usa https://placehold.co/800x500/[color]/white?text=[texto] como placeholders
+DESIGN RULES:
+- Follow ALL color, typography, style, and section specs from the user prompt exactly
+- Generate EVERY section the user requested — cover all content points
+- Use placehold.co for images: <img src="https://placehold.co/1200x600/3d6b4f/ffffff?text=Verdenzza" ...>
+  Adapt colors/text to the project
+- Buttons: hover:scale-105 hover:shadow-lg transition-all duration-200
+- Cards: rounded-2xl shadow-md hover:shadow-xl transition-shadow
+- Mobile sticky CTA bar if user requested it: fixed bottom-0 w-full z-50 (hide on desktop with hidden md:block)
+- Use semantic HTML5 sections
+- Be CONCISE in HTML — avoid redundant classes, use CSS vars instead of inline hex colors`;
 
-ANIMACIONES:
-- Añade fade-in-up con IntersectionObserver para secciones (JS vanilla simple)
-- Botones: transition-all duration-200 hover:scale-105 hover:shadow-lg
-- NO CSS animations complejas que afecten performance
-
-━━━ PASO 3: ESTRUCTURA DE SECCIONES ━━━
-Construye TODAS las secciones relevantes para el tipo de landing:
-
-1. NAVBAR: logo (texto o emoji), links de navegación anclados, CTA button
-2. HERO: H1 poderoso (≥6 palabras), subtítulo persuasivo, 2 CTAs, elemento visual
-3. SOCIAL PROOF BAR: logos fictícios o números impactantes ("500+ empresas", "4.9⭐ en Google")
-4. BENEFICIOS: grid 3 cols (mobile: 1 col) con ícono grande, título, descripción
-5. CÓMO FUNCIONA: 3-4 pasos numerados con descripción
-6. FEATURES: tabla o grid detallado de características
-7. TESTIMONIOS: 3 testimonios con foto placeholder, nombre, cargo, empresa, estrellas ⭐
-8. FAQ: 5 preguntas con acordeón JS vanilla
-9. CTA FINAL: sección de contraste alto, headline urgente + formulario
-10. FOOTER: logo, links, copyright, redes sociales
-
-━━━ PASO 4: COPY DE ALTA CONVERSIÓN ━━━
-- H1: específico, con número o resultado concreto cuando sea posible
-  ❌ MAL: "La mejor solución para tu negocio"
-  ✅ BIEN: "Cierra 3x más ventas con tu CRM inteligente en 30 días"
-- Botones CTA: verbo de acción + beneficio ("Empieza gratis hoy", "Ver demo en vivo", "Quiero resultados")
-- Testimonios: específicos, con resultado medible ("Aumentamos ventas 40% en 2 meses")
-- Urgencia/escasez si aplica: "Solo 10 lugares disponibles", "Precio especial hasta el viernes"
-
-━━━ REGLAS TÉCNICAS OBLIGATORIAS ━━━
-1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). CERO texto antes o después.
-2. Tailwind CSS CDN + configuración extendida con colores del proyecto:
-   <script>
-   tailwind.config = { theme: { extend: { colors: { primary: '#[COLOR]', ... } } } }
-   </script>
-   <script src="https://cdn.tailwindcss.com"></script>
-3. Google Fonts: <link href="https://fonts.googleapis.com/css2?family=..." rel="stylesheet">
-4. Formulario: id="lead-form", data-page-id="{{PAGE_ID}}", action="{{SUBMIT_URL}}", method="POST"
-5. El form envía via fetch JSON:
-   <script>
-   document.getElementById('lead-form').addEventListener('submit',async(e)=>{
-     e.preventDefault();
-     const form=e.target,btn=form.querySelector('button[type="submit"]');
-     const orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="animate-pulse">Enviando...</span>';
-     try{
-       const data={page_id:form.dataset.pageId,source:window.location.href};
-       new FormData(form).forEach((v,k)=>{if(k)data[k]=v;});
-       const res=await fetch(form.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-       if(res.ok){
-         form.closest('section').innerHTML='<div class="text-center py-16"><div class="text-6xl mb-4">🎉</div><h3 class="text-3xl font-bold text-green-600 mb-2">¡Gracias! Nos pondremos en contacto pronto.</h3></div>';
-       }else throw new Error();
-     }catch{btn.disabled=false;btn.innerHTML=orig;}
-   });
-   </script>
-6. Solo HTML + JS vanilla + Tailwind CDN + Google Fonts. SIN React, Vue, jQuery, Bootstrap.
-7. Meta tags completos: title, description, og:title, og:description, og:image, viewport, charset
-8. 100% responsive: mobile-first, usa grid y flex de Tailwind`;
 
 // System prompt for a NEW page within a funnel — reuses style from reference page
 const FUNNEL_PAGE_SYSTEM = `Eres un diseñador web experto en funnels de conversión de alta calidad.
@@ -254,8 +206,8 @@ Deno.serve(async (req) => {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5",
-        max_tokens: 8000,
+        model: "claude-haiku-4-5",
+        max_tokens: 16000,
         system: systemPrompt,
         messages,
       }),
@@ -310,6 +262,19 @@ Deno.serve(async (req) => {
     if (html && !html.trimStart().startsWith("<!")) {
       const docIdx = html.indexOf("<!DOCTYPE");
       if (docIdx !== -1) html = html.slice(docIdx);
+    }
+
+    // ── Graceful truncation guard ────────────────────────────────────────────
+    // If the model hit max_tokens and the HTML is cut off mid-tag, the browser
+    // renders a blank page (unclosed tags collapse). Close open tags gracefully.
+    if (html && !html.trimEnd().toLowerCase().endsWith("</html>")) {
+      // Close any open script/style tags first (safest)
+      if (/<script[^>]*>[^]*$/i.test(html) && !html.includes("</script>", html.lastIndexOf("<script"))) {
+        html += "\n</script>";
+      }
+      // Close body and html if missing
+      if (!html.toLowerCase().includes("</body>")) html += "\n</body>";
+      if (!html.toLowerCase().includes("</html>")) html += "\n</html>";
     }
 
     // Always normalize the lead-form action to the correct Supabase submit URL.
