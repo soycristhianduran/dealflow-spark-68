@@ -1816,7 +1816,7 @@ export default function LandingBuilderPage() {
             <div className="flex-1 flex min-h-0">
 
               {/* ── Preview panel (dominant) ── */}
-              <div className="flex-1 flex flex-col min-w-0">
+              <div className="flex-1 flex flex-col min-w-0 relative">
                 {previewHtml ? (
                   <>
                     {/* Preview toolbar */}
@@ -1965,6 +1965,157 @@ export default function LandingBuilderPage() {
                     )}
                   </div>
                 )}
+
+                {/* ── 3D Generation overlay ── */}
+                {generating && (
+                  <>
+                    <style>{`
+                      @keyframes lp-ring-a {
+                        from { transform: rotateX(72deg) rotateZ(0deg); }
+                        to   { transform: rotateX(72deg) rotateZ(360deg); }
+                      }
+                      @keyframes lp-ring-b {
+                        from { transform: rotateX(72deg) rotateY(55deg) rotateZ(0deg); }
+                        to   { transform: rotateX(72deg) rotateY(55deg) rotateZ(-360deg); }
+                      }
+                      @keyframes lp-ring-c {
+                        from { transform: rotateX(18deg) rotateY(90deg) rotateZ(0deg); }
+                        to   { transform: rotateX(18deg) rotateY(90deg) rotateZ(360deg); }
+                      }
+                      @keyframes lp-glow {
+                        0%,100% { box-shadow: 0 0 22px 8px rgba(249,115,22,.42), inset 0 0 18px rgba(249,115,22,.15); }
+                        50%     { box-shadow: 0 0 50px 20px rgba(249,115,22,.72), inset 0 0 30px rgba(249,115,22,.28); }
+                      }
+                      @keyframes lp-core {
+                        0%,100% { transform: scale(1); }
+                        50%     { transform: scale(1.07); }
+                      }
+                      @keyframes lp-float {
+                        0%   { opacity:0; transform:translate(0,0) scale(1); }
+                        18%  { opacity:1; }
+                        100% { opacity:0; transform:translate(var(--ptx),var(--pty)) scale(0.15); }
+                      }
+                      @keyframes lp-bg-spin {
+                        from { transform: rotate(0deg); }
+                        to   { transform: rotate(360deg); }
+                      }
+                    `}</style>
+
+                    <div
+                      className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-10 select-none"
+                      style={{ background: 'color-mix(in srgb, var(--background, #fff) 88%, transparent)', backdropFilter: 'blur(14px)' }}
+                    >
+                      {/* Ambient glow halo behind orb */}
+                      <div style={{ position: 'relative', width: 200, height: 200 }}>
+                        <div style={{
+                          position: 'absolute', inset: 0,
+                          borderRadius: '50%',
+                          background: 'radial-gradient(circle, rgba(249,115,22,.14) 0%, transparent 70%)',
+                          animation: 'lp-bg-spin 12s linear infinite',
+                        }} />
+
+                        {/* 3-ring perspective scene */}
+                        <div style={{ perspective: 560, width: '100%', height: '100%' }}>
+                          <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d' }}>
+
+                            {/* Ring A — tilt horizontal */}
+                            <div style={{
+                              position: 'absolute', inset: 0,
+                              borderRadius: '50%',
+                              border: '2px solid rgba(249,115,22,.65)',
+                              boxShadow: '0 0 8px rgba(249,115,22,.4)',
+                              animation: 'lp-ring-a 3.6s linear infinite',
+                            }} />
+
+                            {/* Ring B — tilted diagonal */}
+                            <div style={{
+                              position: 'absolute', inset: 14,
+                              borderRadius: '50%',
+                              border: '1.5px solid rgba(249,115,22,.45)',
+                              boxShadow: '0 0 6px rgba(249,115,22,.3)',
+                              animation: 'lp-ring-b 2.7s linear infinite',
+                            }} />
+
+                            {/* Ring C — near-vertical */}
+                            <div style={{
+                              position: 'absolute', inset: 26,
+                              borderRadius: '50%',
+                              border: '1px solid rgba(251,191,36,.38)',
+                              boxShadow: '0 0 4px rgba(251,191,36,.25)',
+                              animation: 'lp-ring-c 5.2s linear infinite',
+                            }} />
+
+                            {/* Core sphere */}
+                            <div style={{
+                              position: 'absolute', inset: 44,
+                              borderRadius: '50%',
+                              background: 'radial-gradient(circle at 34% 30%, hsl(24,95%,68%), hsl(18,88%,44%))',
+                              animation: 'lp-glow 2.2s ease-in-out infinite, lp-core 2.2s ease-in-out infinite',
+                            }}>
+                              <div className="w-full h-full flex items-center justify-center">
+                                <svg viewBox="0 0 24 24" width="26" height="26" fill="white">
+                                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                </svg>
+                              </div>
+                            </div>
+
+                            {/* Orbiting particles — fixed positions, no random() in render */}
+                            {([
+                              { top:'16%', left:'6%',   ptx:'-26px', pty:'-54px', delay:'0s',    dur:'2.1s', size:5 },
+                              { top:'68%', left:'10%',  ptx:'-20px', pty:'-62px', delay:'0.55s', dur:'1.9s', size:4 },
+                              { top:'10%', left:'72%',  ptx:'24px',  pty:'-50px', delay:'1.1s',  dur:'2.3s', size:5 },
+                              { top:'74%', left:'80%',  ptx:'28px',  pty:'-58px', delay:'0.3s',  dur:'1.7s', size:3 },
+                              { top:'44%', left:'90%',  ptx:'36px',  pty:'-40px', delay:'0.85s', dur:'2.5s', size:4 },
+                              { top:'84%', left:'50%',  ptx:'10px',  pty:'-68px', delay:'1.4s',  dur:'2s',   size:3 },
+                              { top:'30%', left:'3%',   ptx:'-32px', pty:'-45px', delay:'0.7s',  dur:'1.8s', size:4 },
+                              { top:'55%', left:'88%',  ptx:'30px',  pty:'-52px', delay:'1.6s',  dur:'2.2s', size:5 },
+                            ] as const).map((p, i) => (
+                              <div key={i} style={{
+                                position: 'absolute',
+                                width: p.size, height: p.size,
+                                borderRadius: '50%',
+                                background: 'hsl(24,95%,65%)',
+                                top: p.top, left: p.left,
+                                '--ptx': p.ptx, '--pty': p.pty,
+                                animationDelay: p.delay,
+                                animation: `lp-float ${p.dur} ease-out infinite`,
+                              } as React.CSSProperties} />
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Progress section */}
+                      <div className="flex flex-col items-center gap-3" style={{ width: 280 }}>
+                        <p className="text-sm font-semibold text-foreground tracking-tight text-center">
+                          {generationElapsed < 10
+                            ? "✦ Analizando tu prompt..."
+                            : generationElapsed < 28
+                            ? "✦ Diseñando secciones y layout..."
+                            : generationElapsed < 55
+                            ? "✦ Generando HTML completo..."
+                            : "✦ Puliendo los últimos detalles..."}
+                        </p>
+
+                        {/* Animated progress bar */}
+                        <div className="w-full h-1.5 rounded-full overflow-hidden bg-muted">
+                          <div
+                            className="h-full rounded-full transition-all duration-1000"
+                            style={{
+                              width: `${Math.min(94, (generationElapsed / 90) * 100)}%`,
+                              background: 'linear-gradient(90deg, hsl(24,95%,53%) 0%, hsl(18,88%,62%) 50%, hsl(36,100%,64%) 100%)',
+                              boxShadow: '0 0 8px rgba(249,115,22,0.5)',
+                            }}
+                          />
+                        </div>
+
+                        <p className="text-[11px] text-muted-foreground">
+                          {generationElapsed}s · Espera ~60–90s para la landing completa
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* ── Chat panel (collapsible, RIGHT side) ── */}
@@ -2079,21 +2230,15 @@ export default function LandingBuilderPage() {
                               : "bg-muted text-foreground"
                           )}>
                             {msg.status === "loading" ? (
-                              <span className="flex flex-col gap-1.5 text-muted-foreground">
-                                <span className="flex items-center gap-2">
-                                  <Loader2 className="animate-spin h-3 w-3 shrink-0" />
-                                  <span className="font-medium">
-                                    {generationElapsed < 10 ? "Analizando tu prompt..." :
-                                     generationElapsed < 25 ? "Diseñando secciones..." :
-                                     generationElapsed < 50 ? "Generando HTML completo..." :
-                                     "Finalizando landing page..."}
-                                  </span>
+                              <span className="flex items-center gap-2 text-muted-foreground">
+                                <Loader2 className="animate-spin h-3 w-3 shrink-0" />
+                                <span className="text-xs">
+                                  {generationElapsed < 10 ? "Analizando..." :
+                                   generationElapsed < 28 ? "Diseñando..." :
+                                   generationElapsed < 55 ? "Generando HTML..." :
+                                   "Finalizando..."}
+                                  {generationElapsed > 0 && <span className="opacity-50 ml-1">{generationElapsed}s</span>}
                                 </span>
-                                {generationElapsed > 0 && (
-                                  <span className="text-[10px] opacity-60 pl-5">
-                                    {generationElapsed}s · La IA está creando tu landing completa
-                                  </span>
-                                )}
                               </span>
                             ) : msg.status === "error" ? (
                               <span>{msg.content}</span>
