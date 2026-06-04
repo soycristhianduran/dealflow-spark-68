@@ -821,21 +821,31 @@ export default function LandingBuilderPage() {
   // ── Create new page ─────────────────────────────────────────────────────────
   const handleCreatePage = async () => {
     if (!newPageName.trim()) return;
-    const generatedSlug = toSlug(newPageName);
+    const baseSlug = toSlug(newPageName);
     const nextOrder = funnelPages.length; // append at end
-    const { data, error } = await supabase
-      .from("landing_pages")
-      .insert({
-        name: newPageName.trim(),
-        slug: generatedSlug,
-        mode: "ai",
-        funnel_id: selectedFunnelId,
-        page_order: nextOrder,
-        page_role: detectPageRole(newPageName),
-      })
-      .select()
-      .single();
-    if (error) { toast.error(`Error al crear la página: ${error.message}`); console.error("Create page error:", error); return; }
+
+    // Retry with numeric suffix if slug is already taken (unique constraint)
+    let data: LandingPage | null = null;
+    let lastError: any = null;
+    for (let attempt = 0; attempt <= 9; attempt++) {
+      const slug = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
+      const res = await supabase
+        .from("landing_pages")
+        .insert({
+          name: newPageName.trim(),
+          slug,
+          mode: "ai",
+          funnel_id: selectedFunnelId,
+          page_order: nextOrder,
+          page_role: detectPageRole(newPageName),
+        })
+        .select()
+        .single();
+      if (!res.error) { data = res.data as LandingPage; break; }
+      lastError = res.error;
+      if (res.error.code !== "23505") break; // not a uniqueness conflict — stop retrying
+    }
+    if (!data) { toast.error(`Error al crear la página: ${lastError?.message}`); console.error("Create page error:", lastError); return; }
     const newPage = data as LandingPage;
     setPages(prev => [...prev, newPage]);
     selectPage(newPage);
@@ -925,21 +935,30 @@ export default function LandingBuilderPage() {
 
     // 1. Create new landing_pages entry in the same funnel
     const detectedRole = detectPageRole(originalPrompt + " " + capitalized);
-    const { data, error } = await supabase
-      .from("landing_pages")
-      .insert({
-        name: capitalized,
-        slug: toSlug(capitalized),
-        mode: "ai",
-        funnel_id: selectedFunnelId,
-        page_order: funnelPages.length,
-        page_role: detectedRole,
-      })
-      .select()
-      .single();
-    if (error) { toast.error(`Error al crear la página: ${error.message}`); console.error("Create page from chat error:", error); return; }
+    const baseSlugChat = toSlug(capitalized);
+    let chatPageData: LandingPage | null = null;
+    let chatPageErr: any = null;
+    for (let attempt = 0; attempt <= 9; attempt++) {
+      const slug = attempt === 0 ? baseSlugChat : `${baseSlugChat}-${attempt + 1}`;
+      const res = await supabase
+        .from("landing_pages")
+        .insert({
+          name: capitalized,
+          slug,
+          mode: "ai",
+          funnel_id: selectedFunnelId,
+          page_order: funnelPages.length,
+          page_role: detectedRole,
+        })
+        .select()
+        .single();
+      if (!res.error) { chatPageData = res.data as LandingPage; break; }
+      chatPageErr = res.error;
+      if (res.error.code !== "23505") break;
+    }
+    if (!chatPageData) { toast.error(`Error al crear la página: ${chatPageErr?.message}`); console.error("Create page from chat error:", chatPageErr); return; }
 
-    const newPage = data as LandingPage;
+    const newPage = chatPageData as LandingPage;
     setPages(prev => [...prev, newPage]);
 
     // 2. Build initial chat history for the new page (inherits funnel context)
