@@ -804,7 +804,7 @@ export default function SettingsPage() {
                     <Button
                       size={isSetupMode ? "default" : "sm"}
                       onClick={handleSaveSlug}
-                      disabled={slugSaving || !slugValidation.valid || !slugChanged}
+                      disabled={slugSaving || !slugValidation.valid || (!isSetupMode && !slugChanged)}
                       className={isSetupMode ? "font-semibold" : ""}
                     >
                       {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSetupMode ? "Confirmar y entrar →" : "Guardar"}
