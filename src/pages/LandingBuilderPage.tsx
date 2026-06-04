@@ -466,6 +466,9 @@ export default function LandingBuilderPage() {
   // UI state
   const [saving, setSaving] = useState(false);
   const [newPageOpen, setNewPageOpen] = useState(false);
+
+  // Token balance
+  const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
   const [newPageName, setNewPageName] = useState("");
   const [slugEditing, setSlugEditing] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
@@ -525,6 +528,18 @@ export default function LandingBuilderPage() {
   }, []);
 
   useEffect(() => { fetchPages(); fetchFunnels(); }, [fetchPages, fetchFunnels]);
+
+  // ── Fetch token balance ──────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase
+      .from("ia_landings_credits")
+      .select("credits_remaining")
+      .gt("credits_remaining", 0)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setTokensRemaining(data?.credits_remaining ?? 0));
+  }, []);
 
   // ── Create funnel ────────────────────────────────────────────────────────────
   const handleCreateFunnel = async () => {
@@ -973,14 +988,16 @@ export default function LandingBuilderPage() {
       const html = res.data.html as string;
       if (!html) throw new Error("La IA no devolvió HTML");
       const summary: string = res.data.summary || "Página creada con estilo del funnel";
+      if (res.data.tokensRemaining != null) setTokensRemaining(res.data.tokensRemaining);
 
       setGeneratedHtml(html);
       setPreviewHtml(html);
       setHtmlVersion(v => v + 1);
 
+      const tokenNote = res.data.tokensUsed ? ` · ${res.data.tokensUsed.toLocaleString()} tokens` : "";
       const updatedHistory: ChatMessage[] = [
         ...initHistory,
-        { id: assistantMsgId, role: "assistant", content: summary, summary, status: "done" },
+        { id: assistantMsgId, role: "assistant", content: summary + tokenNote, summary, status: "done" },
       ];
       setChatMessages(updatedHistory);
 
@@ -1072,6 +1089,8 @@ export default function LandingBuilderPage() {
       const html = res.data.html as string;
       if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
       const summary: string = res.data.summary || "✓ Aplicado";
+      if (res.data.tokensRemaining != null) setTokensRemaining(res.data.tokensRemaining);
+      const tokensUsedThisCall: number = res.data.tokensUsed ?? 0;
 
       // Debug: log HTML change for diagnosis
       const prevLen = generatedHtml.length;
@@ -1096,7 +1115,7 @@ export default function LandingBuilderPage() {
         const withoutLoading = prev.filter(m => m.status !== "loading");
         const updated: ChatMessage[] = [
           ...withoutLoading,
-          { id: assistantMsgId, role: "assistant" as const, content: summary, summary, status: "done" as const },
+          { id: assistantMsgId, role: "assistant" as const, content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""), summary, status: "done" as const },
         ];
         // Auto-save chat history (fire-and-forget)
         if (selectedId) {
@@ -1915,10 +1934,24 @@ export default function LandingBuilderPage() {
               <div className="w-80 shrink-0 border-l border-border flex flex-col">
                 {/* Header */}
                 <div className="shrink-0 border-b border-border px-4 py-3 flex items-center justify-between">
-                  <span className="text-sm font-semibold flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5 text-primary" />
-                    Editar con IA
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-primary" />
+                      Editar con IA
+                    </span>
+                    {tokensRemaining !== null && (
+                      <span className={cn(
+                        "text-xs px-1.5 py-0.5 rounded-full font-medium tabular-nums",
+                        tokensRemaining > 50000
+                          ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                          : tokensRemaining > 15000
+                          ? "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"
+                          : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                      )}>
+                        {tokensRemaining.toLocaleString()} tkn
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"

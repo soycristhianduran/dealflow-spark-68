@@ -325,7 +325,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ success: true, html, summary }), {
+    // Fetch updated balance to return to client
+    const { data: updatedRow } = await supabase
+      .from("ia_landings_credits")
+      .select("credits_remaining")
+      .eq("organization_id", orgId)
+      .gt("credits_remaining", 0)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    const tokensRemaining = updatedRow?.credits_remaining ?? 0;
+
+    // Log usage (best-effort, non-blocking)
+    supabase.from("ia_landings_usage_log").insert({
+      organization_id: orgId,
+      page_id: page_id || null,
+      call_type: current_html ? "refinement" : "generation",
+      tokens_input: data.usage?.input_tokens ?? 0,
+      tokens_output: data.usage?.output_tokens ?? 0,
+      tokens_total: tokensUsed,
+    }).then(() => {}).catch(() => {});
+
+    return new Response(JSON.stringify({ success: true, html, summary, tokensUsed, tokensRemaining }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
