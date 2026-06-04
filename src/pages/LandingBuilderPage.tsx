@@ -469,6 +469,10 @@ export default function LandingBuilderPage() {
 
   // Token balance
   const [tokensRemaining, setTokensRemaining] = useState<number | null>(null);
+
+  // Generation elapsed timer (for progress feedback during ~60-90s wait)
+  const [generationElapsed, setGenerationElapsed] = useState(0);
+  const generationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [newPageName, setNewPageName] = useState("");
   const [slugEditing, setSlugEditing] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
@@ -1086,6 +1090,8 @@ export default function LandingBuilderPage() {
     setChatInput("");
     setAttachedImages([]); // clear after sending
     setGenerating(true);
+    setGenerationElapsed(0);
+    generationTimerRef.current = setInterval(() => setGenerationElapsed(s => s + 1), 1000);
 
     // Scroll to bottom
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
@@ -1127,6 +1133,14 @@ export default function LandingBuilderPage() {
       setPreviewHtml(html);
       setHtmlVersion(v => v + 1);
 
+      // Auto-save HTML to DB immediately (critical: without this, refreshing loses all work)
+      if (selectedId) {
+        supabase.from("landing_pages")
+          .update({ html })
+          .eq("id", selectedId)
+          .then(() => {});
+      }
+
       // Fix: use functional update to avoid stale chatMessages closure.
       // The closure captured chatMessages BEFORE setChatMessages added userMsg,
       // so using it directly would drop the user's message from history.
@@ -1136,7 +1150,7 @@ export default function LandingBuilderPage() {
           ...withoutLoading,
           { id: assistantMsgId, role: "assistant" as const, content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""), summary, status: "done" as const },
         ];
-        // Auto-save chat history (fire-and-forget)
+        // Auto-save chat history alongside HTML (fire-and-forget)
         if (selectedId) {
           supabase.from("landing_pages")
             .update({ chat_history: updated })
@@ -1151,6 +1165,11 @@ export default function LandingBuilderPage() {
       ));
     } finally {
       setGenerating(false);
+      if (generationTimerRef.current) {
+        clearInterval(generationTimerRef.current);
+        generationTimerRef.current = null;
+      }
+      setGenerationElapsed(0);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     }
   };
@@ -2060,9 +2079,21 @@ export default function LandingBuilderPage() {
                               : "bg-muted text-foreground"
                           )}>
                             {msg.status === "loading" ? (
-                              <span className="flex items-center gap-2 text-muted-foreground">
-                                <Loader2 className="animate-spin h-3 w-3 shrink-0" />
-                                Generando página...
+                              <span className="flex flex-col gap-1.5 text-muted-foreground">
+                                <span className="flex items-center gap-2">
+                                  <Loader2 className="animate-spin h-3 w-3 shrink-0" />
+                                  <span className="font-medium">
+                                    {generationElapsed < 10 ? "Analizando tu prompt..." :
+                                     generationElapsed < 25 ? "Diseñando secciones..." :
+                                     generationElapsed < 50 ? "Generando HTML completo..." :
+                                     "Finalizando landing page..."}
+                                  </span>
+                                </span>
+                                {generationElapsed > 0 && (
+                                  <span className="text-[10px] opacity-60 pl-5">
+                                    {generationElapsed}s · La IA está creando tu landing completa
+                                  </span>
+                                )}
                               </span>
                             ) : msg.status === "error" ? (
                               <span>{msg.content}</span>
