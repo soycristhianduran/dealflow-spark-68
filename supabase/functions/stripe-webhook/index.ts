@@ -323,7 +323,12 @@ async function resolveCreditsFromSession(
     });
     const price = lineItems.data[0]?.price as Stripe.Price | undefined;
     const kind = price?.metadata?.kind;
-    const credits = parseInt(price?.metadata?.credits ?? "0", 10);
+    let credits = parseInt(price?.metadata?.credits ?? "0", 10);
+    // Map old flat-credit values (5, 25) to current token amounts
+    if (kind === "ia_landings") {
+      if (credits === 5)  credits = 300000;
+      else if (credits === 25) credits = 1100000;
+    }
     if (kind && credits > 0) return { kind, credits };
   } catch (e) {
     console.warn("Could not fetch line items for session", sessionId, e);
@@ -488,8 +493,8 @@ Deno.serve(async (req) => {
           if (amount === 1900) credits = 1000;
           else if (amount === 4900) credits = 5000;
         } else if (kind === "ia_landings") {
-          if (amount === 900) credits = 5;
-          else if (amount === 2900) credits = 25;
+          if (amount === 900)  credits = 300000;
+          else if (amount === 3500) credits = 1100000;
         } else if (kind === "ia_agent") {
           if (amount === 900)  credits = 200;
           else if (amount === 2900) credits = 1000;

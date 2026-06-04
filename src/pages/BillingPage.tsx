@@ -335,8 +335,8 @@ export default function BillingPage() {
             <PackCard
               icon={<Sparkles className="h-4 w-4 text-orange-500" />}
               title="IA Landings — Páginas de aterrizaje"
-              creditsLabel={landingCredits > 0 ? `${landingCredits} créditos disponibles` : null}
-              emptyText="Cada landing nueva consume 1 crédito. Refinar existentes es gratis."
+              creditsLabel={landingCredits > 0 ? `${landingCredits.toLocaleString()} tokens disponibles` : null}
+              emptyText="Cada generación y refinamiento descuenta los tokens reales consumidos por la IA."
               packs={IA_LANDINGS_PACKS}
               purchasingBoost={purchasingBoost}
               onBuy={buyBoost}

@@ -37,17 +37,17 @@ export type IaBoostPackKey = typeof IA_BOOST_PACKS[number]["key"];
 export const IA_LANDINGS_PACKS = [
   {
     key: "ia_landings_5",
-    label: "IA Landings +5 créditos",
-    description: "5 créditos para generar landing pages con IA",
-    credits: 5,
+    label: "IA Landings +300,000 tokens",
+    description: "300,000 tokens para generar y refinar landing pages con IA (~18 landings)",
+    credits: 300000,
     priceUsd: 9,
     price_id: "price_1TbswgRvVDvs7cXCHxshzl0T",
   },
   {
     key: "ia_landings_25",
-    label: "IA Landings +25 créditos",
-    description: "25 créditos para generar landing pages con IA",
-    credits: 25,
+    label: "IA Landings +1,100,000 tokens",
+    description: "1,100,000 tokens para generar y refinar landing pages con IA (~68 landings)",
+    credits: 1100000,
     priceUsd: 35,
     price_id: "price_1TbswgRvVDvs7cXCTEkVOtjD",
   },
