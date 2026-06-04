@@ -324,10 +324,11 @@ async function resolveCreditsFromSession(
     const price = lineItems.data[0]?.price as Stripe.Price | undefined;
     const kind = price?.metadata?.kind;
     let credits = parseInt(price?.metadata?.credits ?? "0", 10);
-    // Map old flat-credit values (5, 25) to current token amounts
+    // Map old flat-credit values to token amounts (backward compat)
     if (kind === "ia_landings") {
       if (credits === 5)  credits = 300000;
       else if (credits === 25) credits = 1100000;
+      // New token-based packs store credits directly (500000, 1000000, 3000000)
     }
     if (kind && credits > 0) return { kind, credits };
   } catch (e) {

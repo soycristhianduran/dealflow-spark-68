@@ -99,19 +99,27 @@ const PLANS = [
 
 const CREDIT_PACKS = [
   {
-    key: "ia_landings_5",
-    name: "IA Landings +5 créditos",
-    description: "5 créditos para generar landing pages con IA",
-    price_cents: 900,   // $9
-    credits: 5,
+    key: "ia_landings_500k",
+    name: "IA Landings +500,000 tokens",
+    description: "500,000 tokens para generar y refinar landing pages con IA",
+    price_cents: 1200,  // $12
+    credits: 500000,
     kind: "ia_landings",
   },
   {
-    key: "ia_landings_25",
-    name: "IA Landings +25 créditos",
-    description: "25 créditos para generar landing pages con IA (mejor valor)",
-    price_cents: 3500,  // $35 (~$1.40 por crédito vs $1.80 en pack pequeño)
-    credits: 25,
+    key: "ia_landings_1m",
+    name: "IA Landings +1,000,000 tokens",
+    description: "1,000,000 tokens para generar y refinar landing pages con IA (mejor valor)",
+    price_cents: 2200,  // $22
+    credits: 1000000,
+    kind: "ia_landings",
+  },
+  {
+    key: "ia_landings_3m",
+    name: "IA Landings +3,000,000 tokens",
+    description: "3,000,000 tokens para generar y refinar landing pages con IA (máximo valor)",
+    price_cents: 5200,  // $52
+    credits: 3000000,
     kind: "ia_landings",
   },
   {
