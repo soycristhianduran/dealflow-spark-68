@@ -835,7 +835,7 @@ export default function LandingBuilderPage() {
       })
       .select()
       .single();
-    if (error) { toast.error("Error al crear la página"); return; }
+    if (error) { toast.error(`Error al crear la página: ${error.message}`); console.error("Create page error:", error); return; }
     const newPage = data as LandingPage;
     setPages(prev => [...prev, newPage]);
     selectPage(newPage);
@@ -937,7 +937,7 @@ export default function LandingBuilderPage() {
       })
       .select()
       .single();
-    if (error) { toast.error("Error al crear la página"); return; }
+    if (error) { toast.error(`Error al crear la página: ${error.message}`); console.error("Create page from chat error:", error); return; }
 
     const newPage = data as LandingPage;
     setPages(prev => [...prev, newPage]);
