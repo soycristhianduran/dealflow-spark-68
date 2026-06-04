@@ -369,13 +369,21 @@ Deno.serve(async (req) => {
     }
 
     // ── Model selection ───────────────────────────────────────────────────────
-    // Streaming mode  → Sonnet for refinements (better nuance), Haiku for fresh (speed)
-    // JSON mode       → always Haiku (backward compat, no timeout risk)
-    // Sonnet for fresh generation (no existing HTML) — best quality on first impression,
-    // smaller input so it stays well under the 150s timeout.
-    // Haiku for refinements (current_html adds 10K-20K tokens of input) — 3× faster,
-    // avoids timeout, quality is equivalent for surgical HTML edits.
-    const model = (useStream && !current_html) ? "claude-sonnet-4-5" : "claude-haiku-4-5";
+    // Supabase edge functions have a hard 150 s wall-clock timeout.
+    // Sonnet generates at ~80 tok/s → a 12,000-token page takes ~150 s → timeout.
+    // Haiku generates at ~250 tok/s → same page in ~50 s → safe.
+    //
+    // Rules:
+    //   JSON mode (stream:false)  → always Haiku (backward compat)
+    //   Refinement (current_html) → always Haiku (large input + edit = fast)
+    //   Fresh + short prompt      → Sonnet  (quality on first impression)
+    //   Fresh + LONG prompt       → Haiku   (prevents timeout on mega-prompts)
+    //     threshold: prompt > 3000 chars → the output HTML will be large enough
+    //     to risk the 150 s timeout with Sonnet.
+    const isLongPrompt = typeof prompt === "string" && prompt.length > 3000;
+    const model = (useStream && !current_html && !isLongPrompt)
+      ? "claude-sonnet-4-5"
+      : "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
     async function callAnthropic(streamMode: boolean) {
