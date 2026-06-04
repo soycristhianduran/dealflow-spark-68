@@ -56,15 +56,13 @@ function addTargetBlank(html: string): string {
 // The preview iframe sandbox allows scripts + postMessage, so we tag every href="#"
 // link outside the form with data-klosify-cta="N" and listen for clicks.
 //
-// Early-CSS injection: provide .hidden { display:none } BEFORE Tailwind CDN loads.
+// Early-CSS injection: provide Tailwind utility classes BEFORE the CDN loads.
 // Without this, AI-generated modal overlays that use class="hidden" are visible until
 // the CDN finishes loading (~100-500ms), causing a solid-color flash (or permanent
 // full-screen overlay if the CDN load fails / is slow).
 const PREVIEW_EARLY_CSS = `<style id="klosify-early">
 /* Provided BEFORE Tailwind CDN loads — prevents class="hidden" modal overlays from flashing */
 .hidden{display:none!important}
-/* Ensure html/body don't clip content — needed for accurate scrollHeight reporting */
-html,body{height:auto!important;min-height:100vh}
 </style>`;
 
 function buildPreviewSrcDoc(html: string): string {
@@ -2295,7 +2293,7 @@ export default function LandingBuilderPage() {
                             srcDoc={addTargetBlank(previewHtml)}
                             onLoad={setupEditMode}
                             className="w-full border-0"
-                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "8000px" }}
                             title="Editar landing"
                           />
                         ) : (
@@ -2306,7 +2304,7 @@ export default function LandingBuilderPage() {
                             key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
                             className="w-full border-0"
-                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "8000px" }}
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                             title="Vista previa landing"
                           />
