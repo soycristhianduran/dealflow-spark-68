@@ -32,6 +32,7 @@ import {
   ChevronLeft, FolderOpen, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LandingTemplates } from "@/components/landing/LandingTemplates";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
@@ -423,6 +424,9 @@ export default function LandingBuilderPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
+
+  // Templates panel — shown in empty state, hidden once HTML exists or user dismisses
+  const [showTemplates, setShowTemplates] = useState(true);
 
   // Chat interface
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -2191,20 +2195,127 @@ export default function LandingBuilderPage() {
                     </div>
                   </>
                 ) : (
-                  <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
-                    <Sparkles className="h-10 w-10 opacity-20" />
-                    <p className="text-sm">Describe tu landing page en el panel IA</p>
-                    {!chatOpen && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setChatOpen(true)}
-                        className="gap-1.5"
-                      >
-                        <Sparkles className="h-3.5 w-3.5" /> Abrir panel IA
+                  showTemplates ? (
+                    <LandingTemplates
+                      className="flex-1"
+                      onSelectTemplate={(seedPrompt, templateName) => {
+                        // Pre-fill chat input with seed prompt and auto-generate
+                        setChatInput(seedPrompt);
+                        setShowTemplates(false);
+                        setChatOpen(true);
+                        // Trigger generation after state settles
+                        setTimeout(() => {
+                          const userMsgId = Math.random().toString(36).slice(2);
+                          const assistantMsgId = Math.random().toString(36).slice(2);
+                          setChatMessages(prev => [
+                            ...prev,
+                            { id: userMsgId, role: "user" as const, content: `📋 Plantilla: ${templateName}`, status: "done" as const },
+                            { id: assistantMsgId, role: "assistant" as const, content: "", status: "loading" as const },
+                          ]);
+                          setChatInput("");
+                          setGenerating(true);
+                          setGenerationElapsed(0);
+                          setStreamedTokens(0);
+                          generationTimerRef.current = setInterval(() => setGenerationElapsed(s => s + 1), 1000);
+
+                          // Fire generation
+                          (async () => {
+                            try {
+                              const { data: { session } } = await supabase.auth.getSession();
+                              const accessToken = session?.access_token ?? "";
+                              const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+                              const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+                              const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  "Authorization": `Bearer ${accessToken}`,
+                                  "apikey": anonKey,
+                                },
+                                body: JSON.stringify({
+                                  stream: true,
+                                  prompt: seedPrompt,
+                                  page_id: selectedId || "PENDING",
+                                  current_html: undefined,
+                                  chat_history: [],
+                                }),
+                              });
+
+                              if (!fetchResp.ok) throw new Error(`Error HTTP ${fetchResp.status}`);
+                              const ct = fetchResp.headers.get("content-type") ?? "";
+                              if (!ct.includes("text/event-stream")) {
+                                const errBody = await fetchResp.json().catch(() => ({}));
+                                throw new Error(errBody.error ?? "Error del servidor");
+                              }
+
+                              const reader = fetchResp.body!.getReader();
+                              const decoder = new TextDecoder();
+                              let buf = "", html = "", summary = "✓ Plantilla generada", tokensUsed = 0, accumulated = "";
+
+                              const dispatch = (seg: string): boolean => {
+                                const dl = seg.split("\n").find(l => l.startsWith("data: "));
+                                if (!dl) return false;
+                                let evt: any;
+                                try { evt = JSON.parse(dl.slice(6)); } catch { return false; }
+                                if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
+                                else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); return true; }
+                                else if (evt.type === "error") { if (evt.code === "no_landing_credits") throw new Error("No tienes tokens suficientes. Compra más en Facturación."); throw new Error(evt.error ?? "Error generando"); }
+                                return false;
+                              };
+
+                              outer: while (true) {
+                                const { done, value } = await reader.read();
+                                if (done) { if (buf.trim()) for (const s of buf.split("\n\n")) if (dispatch(s)) break; break; }
+                                buf += decoder.decode(value, { stream: true });
+                                const events = buf.split("\n\n"); buf = events.pop() ?? "";
+                                for (const s of events) if (dispatch(s)) break outer;
+                              }
+
+                              if (!html && accumulated) {
+                                let r = accumulated.replace(/^```html\s*/i,"").replace(/^```\s*/i,"").replace(/```\s*$/i,"").trim();
+                                const di = r.indexOf("<!DOCTYPE"); if (di !== -1) r = r.slice(di);
+                                if (r && !r.trimEnd().toLowerCase().endsWith("</html>")) { if (!r.toLowerCase().includes("</body>")) r += "\n</body>"; r += "\n</html>"; }
+                                if (r.startsWith("<!DOCTYPE")) { html = r; toast.warning("Generación recuperada parcialmente."); }
+                              }
+                              if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
+
+                              setGeneratedHtml(html);
+                              setPreviewHtml(html);
+                              setHtmlVersion(v => v + 1);
+                              if (selectedId) supabase.from("landing_pages").update({ html }).eq("id", selectedId).then(() => {});
+
+                              const msgs: ChatMessage[] = [
+                                { id: userMsgId, role: "user" as const, content: `📋 Plantilla: ${templateName}`, status: "done" as const },
+                                { id: assistantMsgId, role: "assistant" as const, content: summary + (tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : ""), summary, status: "done" as const },
+                              ];
+                              setChatMessages(msgs);
+                              if (selectedId) supabase.from("landing_pages").update({ chat_history: msgs }).eq("id", selectedId).then(() => {});
+                            } catch (e: any) {
+                              setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: e.message || "Error", status: "error" as const } : m));
+                            } finally {
+                              setGenerating(false);
+                              if (generationTimerRef.current) { clearInterval(generationTimerRef.current); generationTimerRef.current = null; }
+                              setGenerationElapsed(0);
+                              setStreamedTokens(0);
+                            }
+                          })();
+                        }, 50);
+                      }}
+                      onStartFromScratch={() => {
+                        setShowTemplates(false);
+                        setChatOpen(true);
+                      }}
+                    />
+                  ) : (
+                    <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
+                      <Sparkles className="h-10 w-10 opacity-20" />
+                      <p className="text-sm">Describe tu landing page en el panel IA</p>
+                      <Button size="sm" variant="outline" onClick={() => setShowTemplates(true)} className="gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5" /> Ver plantillas
                       </Button>
-                    )}
-                  </div>
+                    </div>
+                  )
                 )}
 
                 {/* ── 3D Generation overlay ── */}
