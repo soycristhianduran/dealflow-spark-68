@@ -351,12 +351,11 @@ Deno.serve(async (req) => {
     // ── Model selection ───────────────────────────────────────────────────────
     // Streaming mode  → Sonnet for refinements (better nuance), Haiku for fresh (speed)
     // JSON mode       → always Haiku (backward compat, no timeout risk)
-    // Use Haiku when a PDF is attached — PDF adds many input tokens so generation
-    // runs long. Haiku is fast enough to stay well under the edge function timeout.
-    // Sonnet is only used for text-only refinements where nuance matters most.
-    const model = useStream && current_html && !attached_pdf
-      ? "claude-sonnet-4-5"
-      : "claude-haiku-4-5";
+    // Always use Haiku — it's 3-4× faster than Sonnet and finishes well within
+    // the Supabase edge function timeout (~150s). For HTML editing tasks the
+    // quality difference is negligible. Sonnet was causing timeouts on large
+    // HTML refinements with complex multi-part prompts.
+    const model = "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
     async function callAnthropic(streamMode: boolean) {
