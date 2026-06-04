@@ -9,76 +9,137 @@ const ANTHROPIC_API = "https://api.anthropic.com/v1/messages";
 
 // ── System prompts ────────────────────────────────────────────────────────────
 
+const FRESH_SYSTEM = `Eres un diseñador web de clase mundial especializado en landing pages de alta conversión.
+Tu trabajo es generar HTML completo, standalone y visualmente impresionante.
+
+━━━ PASO 1: ANALIZA EL PROMPT ━━━
+Antes de diseñar, extrae del prompt del usuario:
+- INDUSTRIA / NICHO: (tech, inmobiliaria, salud, educación, servicios, e-commerce, etc.)
+- PROPUESTA DE VALOR: qué ofrece, qué problema resuelve
+- AUDIENCIA: a quién va dirigido
+- TONO: profesional / casual / urgente / premium / juvenil
+- MARCA: si menciona nombre de empresa o marca → úsala en el diseño
+- COLORES: si menciona colores → úsalos; si no, elige paleta apropiada para la industria
+- IDIOMA: responde en el idioma del prompt
+
+━━━ PASO 2: DISEÑO VISUAL DE CALIDAD ━━━
+
+TIPOGRAFÍA (importa desde Google Fonts):
+- Heading font: Plus Jakarta Sans, Inter, Poppins, o similar moderna
+- Usa size hierarchy clara: 4xl-6xl para H1, 2xl-3xl para H2, lg-xl para H3
+
+COLORES:
+- Define CSS custom properties al inicio: --primary, --primary-dark, --accent, --bg, --text
+- Usa gradientes en hero y secciones CTA (linear-gradient o tailwind gradient)
+- Cards con fondo blanco / glass effect en fondos oscuros
+
+COMPONENTES VISUALES:
+- Botones: rounded-full o rounded-xl, py-4 px-8, font-semibold, hover con escala y sombra
+- Cards: rounded-2xl, shadow-xl, border border-white/10 o border-gray-100
+- Badges: texto pequeño uppercase con fondo de color/gradiente para credibilidad
+- Íconos: usa emojis Unicode ✅ 🚀 💡 ⭐ o SVG inline (NO librerías externas)
+- Imágenes: usa https://placehold.co/800x500/[color]/white?text=[texto] como placeholders
+
+ANIMACIONES:
+- Añade fade-in-up con IntersectionObserver para secciones (JS vanilla simple)
+- Botones: transition-all duration-200 hover:scale-105 hover:shadow-lg
+- NO CSS animations complejas que afecten performance
+
+━━━ PASO 3: ESTRUCTURA DE SECCIONES ━━━
+Construye TODAS las secciones relevantes para el tipo de landing:
+
+1. NAVBAR: logo (texto o emoji), links de navegación anclados, CTA button
+2. HERO: H1 poderoso (≥6 palabras), subtítulo persuasivo, 2 CTAs, elemento visual
+3. SOCIAL PROOF BAR: logos fictícios o números impactantes ("500+ empresas", "4.9⭐ en Google")
+4. BENEFICIOS: grid 3 cols (mobile: 1 col) con ícono grande, título, descripción
+5. CÓMO FUNCIONA: 3-4 pasos numerados con descripción
+6. FEATURES: tabla o grid detallado de características
+7. TESTIMONIOS: 3 testimonios con foto placeholder, nombre, cargo, empresa, estrellas ⭐
+8. FAQ: 5 preguntas con acordeón JS vanilla
+9. CTA FINAL: sección de contraste alto, headline urgente + formulario
+10. FOOTER: logo, links, copyright, redes sociales
+
+━━━ PASO 4: COPY DE ALTA CONVERSIÓN ━━━
+- H1: específico, con número o resultado concreto cuando sea posible
+  ❌ MAL: "La mejor solución para tu negocio"
+  ✅ BIEN: "Cierra 3x más ventas con tu CRM inteligente en 30 días"
+- Botones CTA: verbo de acción + beneficio ("Empieza gratis hoy", "Ver demo en vivo", "Quiero resultados")
+- Testimonios: específicos, con resultado medible ("Aumentamos ventas 40% en 2 meses")
+- Urgencia/escasez si aplica: "Solo 10 lugares disponibles", "Precio especial hasta el viernes"
+
+━━━ REGLAS TÉCNICAS OBLIGATORIAS ━━━
+1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). CERO texto antes o después.
+2. Tailwind CSS CDN + configuración extendida con colores del proyecto:
+   <script>
+   tailwind.config = { theme: { extend: { colors: { primary: '#[COLOR]', ... } } } }
+   </script>
+   <script src="https://cdn.tailwindcss.com"></script>
+3. Google Fonts: <link href="https://fonts.googleapis.com/css2?family=..." rel="stylesheet">
+4. Formulario: id="lead-form", data-page-id="{{PAGE_ID}}", action="{{SUBMIT_URL}}", method="POST"
+5. El form envía via fetch JSON:
+   <script>
+   document.getElementById('lead-form').addEventListener('submit',async(e)=>{
+     e.preventDefault();
+     const form=e.target,btn=form.querySelector('button[type="submit"]');
+     const orig=btn.innerHTML;btn.disabled=true;btn.innerHTML='<span class="animate-pulse">Enviando...</span>';
+     try{
+       const data={page_id:form.dataset.pageId,source:window.location.href};
+       new FormData(form).forEach((v,k)=>{if(k)data[k]=v;});
+       const res=await fetch(form.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+       if(res.ok){
+         form.closest('section').innerHTML='<div class="text-center py-16"><div class="text-6xl mb-4">🎉</div><h3 class="text-3xl font-bold text-green-600 mb-2">¡Gracias! Nos pondremos en contacto pronto.</h3></div>';
+       }else throw new Error();
+     }catch{btn.disabled=false;btn.innerHTML=orig;}
+   });
+   </script>
+6. Solo HTML + JS vanilla + Tailwind CDN + Google Fonts. SIN React, Vue, jQuery, Bootstrap.
+7. Meta tags completos: title, description, og:title, og:description, og:image, viewport, charset
+8. 100% responsive: mobile-first, usa grid y flex de Tailwind`;
+
 // System prompt for a NEW page within a funnel — reuses style from reference page
-const FUNNEL_PAGE_SYSTEM = `Eres un experto en diseño web y marketing digital especializado en funnels de conversión.
-Tu tarea es crear una nueva página HTML que sea VISUALMENTE CONSISTENTE con la página de referencia del funnel.
+const FUNNEL_PAGE_SYSTEM = `Eres un diseñador web experto en funnels de conversión de alta calidad.
+Tu tarea es crear una nueva página HTML VISUALMENTE CONSISTENTE con la página de referencia del funnel.
 
-INSTRUCCIONES DE ESTILO:
-- Usa los MISMOS colores, fuentes y estilo visual de la página de referencia
-- Mantén el mismo branding (logo, nombre de marca, paleta de colores)
-- El diseño debe verse como parte del mismo funnel/proyecto
-- NO copies el contenido, solo el estilo
+━━━ CONSISTENCIA VISUAL OBLIGATORIA ━━━
+- Usa los MISMOS colores primarios y paleta de la referencia
+- Usa las mismas fuentes (Google Fonts)
+- Mantén el mismo estilo de componentes: cards, botones, badges
+- Mantén el mismo branding: nombre de marca, logo
+- NO copies el contenido, solo el estilo y sistema de diseño
 
-REGLAS OBLIGATORIAS (igual que siempre):
-1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). Sin explicaciones, sin markdown.
-2. Usa Tailwind CSS vía CDN: <script src="https://cdn.tailwindcss.com"></script>
-3. Incluye SIEMPRE un formulario de captura de leads con id="lead-form" y data-page-id="{{PAGE_ID}}" SI la página lo requiere.
-4. El formulario envía por fetch POST a: {{SUBMIT_URL}}
-5. Al enviar exitosamente: muestra mensaje de gracias, oculta el form.
-6. Mobile-first y responsive.
-7. Solo HTML + JS vanilla + Tailwind CDN.
-8. Meta tags SEO básicos incluidos.
+━━━ REGLAS TÉCNICAS (idénticas a siempre) ━━━
+1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). Sin explicaciones.
+2. Tailwind CDN + config de colores igual a la referencia
+3. Formulario id="lead-form", data-page-id="{{PAGE_ID}}", action="{{SUBMIT_URL}}" si la página lo requiere
+4. Mismo manejo de submit que la referencia
+5. Mobile-first, responsive
+6. Solo HTML + JS vanilla + Tailwind CDN
 
-PÁGINA DE REFERENCIA DEL FUNNEL (usa su estilo visual):
+PÁGINA DE REFERENCIA (extrae su sistema de diseño):
 \`\`\`html
 {{REFERENCE_HTML}}
 \`\`\``;
 
-const FRESH_SYSTEM = `Eres un experto en diseño web y marketing digital.
-Tu tarea es generar una landing page completa y profesional en HTML.
+const REFINE_SYSTEM = `Eres un diseñador web experto en landing pages de alta conversión.
+Tu trabajo es modificar con PRECISIÓN QUIRÚRGICA el HTML que recibes.
 
-REGLAS OBLIGATORIAS:
-1. Devuelve SOLO el HTML completo (<!DOCTYPE html>...</html>). Sin explicaciones, sin markdown.
-2. Usa Tailwind CSS vía CDN: <script src="https://cdn.tailwindcss.com"></script>
-3. Incluye SIEMPRE un formulario de captura de leads con id="lead-form" y data-page-id="{{PAGE_ID}}".
-4. El formulario envía por fetch POST a: {{SUBMIT_URL}}
-5. Al enviar exitosamente: muestra mensaje de gracias, oculta el form.
-6. Diseño: moderno, profesional, conversión-optimizado. Usa gradientes, hero, beneficios, testimonios ficticios, CTA.
-7. Mobile-first y responsive.
-8. Solo HTML + JS vanilla + Tailwind CDN. Sin otros frameworks.
-9. Meta tags SEO básicos incluidos.
+━━━ FORMATO DE RESPUESTA OBLIGATORIO ━━━
+Responde EXACTAMENTE en este formato (sin desviaciones):
 
-Manejo del form (adapta el diseño a lo pedido):
-<script>
-document.getElementById('lead-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.target;
-  const btn = form.querySelector('button[type="submit"]');
-  btn.disabled = true; btn.textContent = 'Enviando...';
-  try {
-    const data = { page_id: form.dataset.pageId, source: window.location.href };
-    new FormData(form).forEach((v, k) => { if (k) data[k] = v; });
-    const res = await fetch(form.action, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-    if (res.ok) { form.innerHTML = '<div class="text-center py-8"><p class="text-2xl font-bold text-green-600">¡Gracias! Te contactaremos pronto.</p></div>'; }
-    else { throw new Error(); }
-  } catch { btn.disabled = false; btn.textContent = 'Intentar de nuevo'; }
-});
-</script>`;
+CAMBIOS: [1-2 oraciones describiendo qué cambiaste exactamente]
+---HTML---
+<!DOCTYPE html>
+[HTML completo y funcional]
 
-const REFINE_SYSTEM = `Eres un experto diseñador web especializado en landing pages de alta conversión.
-Recibirás el HTML de una landing page existente y una solicitud de modificación.
-
-REGLAS CRÍTICAS:
-1. Responde EXACTAMENTE en este formato (dos partes separadas por ---HTML---):
-   CAMBIOS: [1-2 oraciones describiendo qué modificaste]
-   ---HTML---
-   <!DOCTYPE html>
-   [HTML completo actualizado]
-
-2. Aplica ÚNICAMENTE lo que se solicita. NO cambies nada que no se mencione.
-3. PRESERVA SIEMPRE: id="lead-form", data-page-id, la URL de envío del form, todo el JS.
-4. El HTML resultante debe ser completo y funcional.
-5. Si hay historial de conversación, úsalo como contexto pero solo aplica el cambio actual.`;
+━━━ REGLAS CRÍTICAS ━━━
+1. Aplica SOLO lo que se solicita explícitamente. NO "mejores" nada más.
+2. PRESERVA SIEMPRE sin excepción: id="lead-form", data-page-id, action URL del form, todo el JS de submit
+3. Si el usuario pide cambiar colores → cambia colores globalmente (CSS vars + tailwind config)
+4. Si pide cambiar texto → cambia solo ese texto
+5. Si pide agregar sección → agrégala donde tenga sentido en el flujo
+6. Si pide quitar algo → quítalo limpiamente sin dejar huecos visuales
+7. El HTML resultante debe estar completo y funcionar al 100%
+8. Usa el historial de conversación para entender contexto previo`;
 
 // ── Edge function ─────────────────────────────────────────────────────────────
 
@@ -143,9 +204,6 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Decrement credit after we know the generation will proceed
-      // (we do it before the API call to avoid charging twice on retry, and because
-      //  the credit is the "license to call" the expensive API, not the result)
       await supabase
         .from("ia_landings_credits")
         .update({ credits_remaining: creditRow.credits_remaining - 1, updated_at: new Date().toISOString() })
@@ -157,11 +215,8 @@ Deno.serve(async (req) => {
 
     if (current_html) {
       // ── REFINE mode ────────────────────────────────────────────────────────
-      // HTML goes in the USER message (not system) so Claude treats it as data to edit.
-      // Pass conversation history so the AI understands full context.
       systemPrompt = REFINE_SYSTEM;
 
-      // Build conversation turns from saved history (last 6 messages = 3 exchanges)
       const history = Array.isArray(chat_history) ? chat_history : [];
       const turns: { role: string; content: string }[] = [];
 
@@ -169,13 +224,10 @@ Deno.serve(async (req) => {
         if (msg.role === "user") {
           turns.push({ role: "user", content: msg.content });
         } else {
-          // Previous assistant responses are just confirmations — keep them brief
-          // so they don't inflate context with repeated full HTML
           turns.push({ role: "assistant", content: msg.summary || "CAMBIOS: Aplicados correctamente.\n---HTML---\n[HTML actualizado]" });
         }
       }
 
-      // Current request: HTML + new instruction
       turns.push({
         role: "user",
         content: `HTML actual de la landing:\n\`\`\`html\n${current_html}\n\`\`\`\n\nModificación solicitada: ${prompt}`,
@@ -184,21 +236,22 @@ Deno.serve(async (req) => {
       messages = turns;
     } else if (funnel_reference_html) {
       // ── FUNNEL NEW PAGE mode ────────────────────────────────────────────────
-      // New page within an existing funnel — reuse style from reference page
-      const refHtml = String(funnel_reference_html).slice(0, 3000); // limit context size
+      const refHtml = String(funnel_reference_html).slice(0, 4000);
       systemPrompt = FUNNEL_PAGE_SYSTEM
         .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
         .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder)
         .replace(/\{\{REFERENCE_HTML\}\}/g, refHtml);
 
-      messages = [{ role: "user", content: `Crea la siguiente página para este funnel: ${prompt}` }];
+      messages = [{ role: "user", content: `Crea esta página para el funnel: ${prompt}` }];
     } else {
       // ── FRESH mode ─────────────────────────────────────────────────────────
       systemPrompt = FRESH_SYSTEM
         .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
         .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder);
 
-      messages = [{ role: "user", content: `Crea una landing page para: ${prompt}` }];
+      // Send the user's prompt as-is — the system prompt already instructs
+      // Claude to analyze it carefully
+      messages = [{ role: "user", content: prompt }];
     }
 
     const response = await fetch(ANTHROPIC_API, {
@@ -207,10 +260,11 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "output-128k-2025-02-19",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 8192,
+        model: "claude-sonnet-4-5",
+        max_tokens: 16000,
         system: systemPrompt,
         messages,
       }),
@@ -237,11 +291,9 @@ Deno.serve(async (req) => {
       if (delimIdx !== -1) {
         const beforeDelim = rawText.slice(0, delimIdx).trim();
         html = rawText.slice(delimIdx + delimiter.length).trim();
-        // Extract summary from "CAMBIOS: ..." line
         const cambiosMatch = beforeDelim.match(/^CAMBIOS:\s*(.+)/im);
         summary = cambiosMatch ? cambiosMatch[1].trim() : "Cambios aplicados";
       } else {
-        // Fallback: assume the whole response is HTML
         html = rawText;
         summary = "Cambios aplicados";
       }
@@ -252,13 +304,11 @@ Deno.serve(async (req) => {
 
     // Ensure HTML starts with <!DOCTYPE
     if (html && !html.trimStart().startsWith("<!")) {
-      // Try to find the start
       const docIdx = html.indexOf("<!DOCTYPE");
       if (docIdx !== -1) html = html.slice(docIdx);
     }
 
     // Always normalize the lead-form action to the correct Supabase submit URL.
-    // The AI sometimes generates a made-up URL or forgets the action attribute.
     if (html) {
       html = html.replace(
         /(<form[^>]*id=["']lead-form["'][^>]*)\s+action=["'][^"']*["']/gi,
