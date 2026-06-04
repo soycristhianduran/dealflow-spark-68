@@ -252,11 +252,10 @@ Deno.serve(async (req) => {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
-        "anthropic-beta": "output-128k-2025-02-19",
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
-        max_tokens: 16000,
+        max_tokens: 8000,
         system: systemPrompt,
         messages,
       }),
