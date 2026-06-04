@@ -419,6 +419,10 @@ export default function LandingBuilderPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  // PDF attachment (brochure / brand doc → Claude reads it directly)
+  const [attachedPdf, setAttachedPdf] = useState<{ name: string; base64: string; sizeKb: number } | null>(null);
+  const pdfInputRef = useRef<HTMLInputElement>(null);
+
   // Inline edit mode
   const [editMode, setEditMode] = useState(false);
   // Ref to the edit-mode iframe + cleanup handles
@@ -473,6 +477,7 @@ export default function LandingBuilderPage() {
   // Generation elapsed timer (for progress feedback during ~60-90s wait)
   const [generationElapsed, setGenerationElapsed] = useState(0);
   const generationTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [streamedTokens, setStreamedTokens] = useState(0);
   const [newPageName, setNewPageName] = useState("");
   const [slugEditing, setSlugEditing] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
@@ -915,6 +920,20 @@ export default function LandingBuilderPage() {
     }
   };
 
+  // ── PDF attachment ──────────────────────────────────────────────────────────
+  const handlePdfAttach = (file: File) => {
+    if (file.type !== "application/pdf") { toast.error("Solo se permiten archivos PDF"); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error("El PDF debe ser menor a 10 MB"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      // Strip "data:application/pdf;base64," prefix
+      const base64 = (reader.result as string).split(",")[1];
+      setAttachedPdf({ name: file.name, base64, sizeKb: Math.round(file.size / 1024) });
+      toast.success(`PDF adjunto: ${file.name}`);
+    };
+    reader.readAsDataURL(file);
+  };
+
   // ── Detect new-page intent from chat prompt ──────────────────────────────────
   const NEW_PAGE_PATTERNS = [
     /\bcrea?\s+(una?\s+)?(nueva?\s+)?p[aá]gina\b/i,
@@ -1079,6 +1098,85 @@ export default function LandingBuilderPage() {
       ? `\n\nImágenes adjuntas — úsalas en el diseño según la instrucción:\n${attachedImages.map(img => `- ${img.url}`).join("\n")}`
       : "";
 
+    // ── Intent-based reinforcement ──────────────────────────────────────────
+    // Detect what kind of modification the user is requesting and inject an
+    // explicit constraint so the model never bleeds one operation into another.
+    // Only activates when there's existing HTML to refine (not on fresh generation).
+    const _i = currentInput.toLowerCase();
+    let intentReinforcement = "";
+
+    if (generatedHtml) {
+      // Priority order: most specific first to avoid false matches
+
+      // 1. Full redesign — explicitly requested, no constraints needed
+      const isRedesign = [
+        "rediseña","rediseñar","desde cero","hazlo de nuevo","rehaz",
+        "cámbialo todo","cambia todo","nuevo diseño","diseño nuevo",
+      ].some(kw => _i.includes(kw));
+
+      // 2. Remove element
+      const isRemove = !isRedesign && [
+        "elimina","quita ","quítame","borra ","remueve","saca el","saca la",
+        "sin la sección","sin el ","sin la ","no quiero el","no quiero la",
+      ].some(kw => _i.includes(kw));
+
+      // 3. Add section
+      const isAdd = !isRedesign && !isRemove && [
+        "agrega","añade","incluye una","agregar","añadir","nueva sección",
+        "agrega sección","añade sección","pon una sección","pon un",
+        "agrégale","añádele","falta una","necesito una sección",
+      ].some(kw => _i.includes(kw));
+
+      // 4. Text/copy change
+      const isTextChange = !isRedesign && !isRemove && !isAdd && [
+        "cambia el texto","cambia el título","cambia el subtítulo","cambia el headline",
+        "cambia el copy","cambia la descripción","cambia el cta","cambia el botón",
+        "modifica el texto","modifica el título","modifica el copy","modifica el cta",
+        "edita el texto","reemplaza el texto","actualiza el texto","actualiza el título",
+        "cambia el párrafo","pon el texto","pon el título","escribe en vez de",
+      ].some(kw => _i.includes(kw));
+
+      // 5. Conversion improvement
+      const isCRO = !isRedesign && !isRemove && !isAdd && !isTextChange && [
+        "mejora la conversión","optimiza la","más conversiones","mejora el cta",
+        "mejora el copy","más impacto","más ventas","más leads","convierte más",
+        "mejorar conversión","más persuasivo","más convincente","mejorar el impacto",
+        "hazlo más persuasivo","hazlo más convincente",
+      ].some(kw => _i.includes(kw));
+
+      // 6. Style/aesthetic change
+      const isStyle = !isRedesign && !isRemove && !isAdd && !isTextChange && !isCRO && [
+        "luxury","premium","elegante","elegancia","minimalista","minimal",
+        "oscuro","dark mode","modo oscuro","claro","light mode","modo claro",
+        "moderno","moderna","vibrante","sofisticado","sofisticada","bold",
+        "suave","corporativo","fresco","limpio","lujoso","lujosa","refinado",
+        "refinada","más oscuro","más claro","más elegante","más moderno",
+        "más premium","más luxury","estilo oscuro","estilo claro",
+        "paleta de color","cambia los colores","tipografía","fuente diferente",
+        "otra fuente","cambiar fuente","colores más",
+      ].some(kw => _i.includes(kw));
+
+      if (isStyle) {
+        intentReinforcement = `\n\n⚠️ STYLE CHANGE ONLY: Restyle the visual design only. Preserve every single text string, every section, and the complete HTML structure. Only change: colors (CSS vars + Tailwind config), fonts, spacing, shadows, gradients, decorative elements. Do NOT rewrite, remove, or replace any text content.`;
+      } else if (isTextChange) {
+        intentReinforcement = `\n\n⚠️ TEXT CHANGE ONLY: Modify only the specific text element(s) mentioned. Preserve 100% of everything else: all other text, all sections, all visual styling, all HTML structure, and the form. Do not touch what was not mentioned.`;
+      } else if (isAdd) {
+        intentReinforcement = `\n\n⚠️ ADD ONLY: Insert only the new element/section requested. Do NOT modify, reorder, or rewrite any existing sections, text, or styles. Use the existing design system (colors, fonts, component style) for the new element.`;
+      } else if (isRemove) {
+        intentReinforcement = `\n\n⚠️ REMOVE ONLY: Remove only the specific element(s) mentioned. Do NOT touch any other content, text, section, or style. Close any visual gaps cleanly without restructuring the rest of the page.`;
+      } else if (isCRO) {
+        intentReinforcement = `\n\n⚠️ CRO IMPROVEMENT: Apply conversion optimizations (benefit-oriented headlines, strong-verb CTAs, specific social proof, objection-busting). Preserve the overall section structure, section order, and visual design system. This is NOT a full redesign.`;
+      } else if (!isRedesign) {
+        // ── Catch-all: vague/unclassified request ────────────────────────────
+        // The user wrote something short or ambiguous. Default to maximum
+        // content preservation — apply the minimum change that satisfies the
+        // request. The model's interpretation guide in REFINE_SYSTEM covers
+        // common patterns ("dale más vida", "mejóralo", "se ve soso", etc.)
+        intentReinforcement = `\n\n⚠️ CONSERVATIVE REFINEMENT: The request is short or vague — interpret it as narrowly as possible. Assume the user approves of all existing content and structure. Apply only the smallest change that satisfies the request. Preserve all text, all sections, and the overall design system. When in doubt, treat it as a STYLE change (visual polish only).`;
+      }
+      // isRedesign: no reinforcement — model has full freedom
+    }
+
     const imageUrlsSnapshot = attachedImages.map(img => img.url);
 
     // Append user bubble + loading assistant bubble
@@ -1089,8 +1187,10 @@ export default function LandingBuilderPage() {
     ]);
     setChatInput("");
     setAttachedImages([]); // clear after sending
+    setAttachedPdf(null);  // clear PDF after sending
     setGenerating(true);
     setGenerationElapsed(0);
+    setStreamedTokens(0);
     generationTimerRef.current = setInterval(() => setGenerationElapsed(s => s + 1), 1000);
 
     // Scroll to bottom
@@ -1102,38 +1202,93 @@ export default function LandingBuilderPage() {
         .filter(m => m.status === "done")
         .map(m => ({ role: m.role, content: m.content, status: m.status, summary: m.summary }));
 
-      const res = await supabase.functions.invoke("generate-landing", {
-        body: {
-          prompt: currentInput + formContext + imageContext,
+      // ── Streaming fetch (replaces supabase.functions.invoke) ────────────────
+      // Manual fetch so we can read the SSE stream as it arrives.
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token ?? "";
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
+      const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${accessToken}`,
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({
+          stream: true,
+          prompt: currentInput + formContext + imageContext + intentReinforcement,
           page_id: selectedId || "PENDING",
           current_html: generatedHtml || undefined,
           chat_history: historyForApi,
-        },
+          attached_pdf: attachedPdf
+            ? { data: attachedPdf.base64, name: attachedPdf.name }
+            : undefined,
+        }),
       });
-      if (res.error || res.data?.error) throw new Error(res.data?.error || res.error?.message);
-      const html = res.data.html as string;
-      if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
-      const summary: string = res.data.summary || "✓ Aplicado";
-      if (res.data.tokensRemaining != null) setTokensRemaining(res.data.tokensRemaining);
-      const tokensUsedThisCall: number = res.data.tokensUsed ?? 0;
 
-      // Debug: log HTML change for diagnosis
-      const prevLen = generatedHtml.length;
-      const newLen = html.length;
-      const htmlChanged = html !== generatedHtml;
-      console.log(`[LandingBuilder] AI response — prev: ${prevLen} chars, new: ${newLen} chars, changed: ${htmlChanged}`);
-      if (!htmlChanged) {
-        console.warn('[LandingBuilder] WARNING: AI returned identical HTML — no visual changes will be seen');
-        toast.warning("La IA no modificó el HTML. Intenta ser más específico en tu pedido.");
+      if (!fetchResp.ok) throw new Error(`Error HTTP ${fetchResp.status}`);
+
+      // ── Read SSE stream ─────────────────────────────────────────────────────
+      const reader = fetchResp.body!.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let html = "";
+      let summary = "✓ Aplicado";
+      let tokensUsedThisCall = 0;
+
+      outer: while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+
+        // SSE events are separated by double newlines
+        const events = buf.split("\n\n");
+        buf = events.pop() ?? "";
+
+        for (const eventStr of events) {
+          const dataLine = eventStr.split("\n").find(l => l.startsWith("data: "));
+          if (!dataLine) continue;
+
+          let evt: { type: string; text?: string; html?: string; summary?: string; tokensUsed?: number; tokensRemaining?: number; error?: string; code?: string };
+          try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; }
+
+          if (evt.type === "delta") {
+            // Real-time token counter (1 token ≈ 4 chars)
+            setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4));
+          } else if (evt.type === "done") {
+            html = evt.html ?? "";
+            summary = evt.summary ?? "✓ Aplicado";
+            tokensUsedThisCall = evt.tokensUsed ?? 0;
+            if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining);
+            break outer;
+          } else if (evt.type === "error") {
+            // Surface no_credits error specially
+            if (evt.code === "no_landing_credits") {
+              throw new Error("No tienes tokens suficientes. Compra más en Facturación.");
+            }
+            throw new Error(evt.error ?? "Error generando la landing");
+          }
+        }
       }
 
-      // Update HTML and force iframe remount (updating srcDoc on existing iframe
-      // is not always reliable — version counter in key forces a fresh mount).
+      if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
+
+      // Debug: log HTML change
+      const htmlChanged = html !== generatedHtml;
+      console.log(`[LandingBuilder] stream done — ${html.length} chars, changed: ${htmlChanged}`);
+      if (!htmlChanged) {
+        toast.warning("La IA no modificó el HTML. Intenta ser más específico.");
+      }
+
+      // Update HTML and force iframe remount
       setGeneratedHtml(html);
       setPreviewHtml(html);
       setHtmlVersion(v => v + 1);
 
-      // Auto-save HTML to DB immediately (critical: without this, refreshing loses all work)
+      // Auto-save HTML to DB immediately
       if (selectedId) {
         supabase.from("landing_pages")
           .update({ html })
@@ -1141,16 +1296,19 @@ export default function LandingBuilderPage() {
           .then(() => {});
       }
 
-      // Fix: use functional update to avoid stale chatMessages closure.
-      // The closure captured chatMessages BEFORE setChatMessages added userMsg,
-      // so using it directly would drop the user's message from history.
+      // Update chat history
       setChatMessages(prev => {
         const withoutLoading = prev.filter(m => m.status !== "loading");
         const updated: ChatMessage[] = [
           ...withoutLoading,
-          { id: assistantMsgId, role: "assistant" as const, content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""), summary, status: "done" as const },
+          {
+            id: assistantMsgId,
+            role: "assistant" as const,
+            content: summary + (tokensUsedThisCall ? ` · ${tokensUsedThisCall.toLocaleString()} tokens` : ""),
+            summary,
+            status: "done" as const,
+          },
         ];
-        // Auto-save chat history alongside HTML (fire-and-forget)
         if (selectedId) {
           supabase.from("landing_pages")
             .update({ chat_history: updated })
@@ -1159,6 +1317,7 @@ export default function LandingBuilderPage() {
         }
         return updated;
       });
+
     } catch (e: any) {
       setChatMessages(prev => prev.map(m =>
         m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
@@ -1170,6 +1329,7 @@ export default function LandingBuilderPage() {
         generationTimerRef.current = null;
       }
       setGenerationElapsed(0);
+      setStreamedTokens(0);
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     }
   };
@@ -2088,29 +2248,31 @@ export default function LandingBuilderPage() {
                       {/* Progress section */}
                       <div className="flex flex-col items-center gap-3" style={{ width: 280 }}>
                         <p className="text-sm font-semibold text-foreground tracking-tight text-center">
-                          {generationElapsed < 10
+                          {streamedTokens < 500
                             ? "✦ Analizando tu prompt..."
-                            : generationElapsed < 28
+                            : streamedTokens < 2500
                             ? "✦ Diseñando secciones y layout..."
-                            : generationElapsed < 55
+                            : streamedTokens < 8000
                             ? "✦ Generando HTML completo..."
                             : "✦ Puliendo los últimos detalles..."}
                         </p>
 
-                        {/* Animated progress bar */}
+                        {/* Real token-based progress bar */}
                         <div className="w-full h-1.5 rounded-full overflow-hidden bg-muted">
                           <div
-                            className="h-full rounded-full transition-all duration-1000"
+                            className="h-full rounded-full transition-all duration-300"
                             style={{
-                              width: `${Math.min(94, (generationElapsed / 90) * 100)}%`,
+                              width: `${Math.min(96, (streamedTokens / (generatedHtml ? 10000 : 12000)) * 100)}%`,
                               background: 'linear-gradient(90deg, hsl(24,95%,53%) 0%, hsl(18,88%,62%) 50%, hsl(36,100%,64%) 100%)',
                               boxShadow: '0 0 8px rgba(249,115,22,0.5)',
                             }}
                           />
                         </div>
 
-                        <p className="text-[11px] text-muted-foreground">
-                          {generationElapsed}s · Espera ~60–90s para la landing completa
+                        <p className="text-[11px] text-muted-foreground tabular-nums">
+                          {streamedTokens > 0
+                            ? `${streamedTokens.toLocaleString()} tokens · ${generationElapsed}s`
+                            : `${generationElapsed}s · conectando...`}
                         </p>
                       </div>
                     </div>
@@ -2232,12 +2394,14 @@ export default function LandingBuilderPage() {
                             {msg.status === "loading" ? (
                               <span className="flex items-center gap-2 text-muted-foreground">
                                 <Loader2 className="animate-spin h-3 w-3 shrink-0" />
-                                <span className="text-xs">
-                                  {generationElapsed < 10 ? "Analizando..." :
-                                   generationElapsed < 28 ? "Diseñando..." :
-                                   generationElapsed < 55 ? "Generando HTML..." :
+                                <span className="text-xs tabular-nums">
+                                  {streamedTokens < 500 ? "Analizando..." :
+                                   streamedTokens < 2500 ? "Diseñando..." :
+                                   streamedTokens < 8000 ? "Generando HTML..." :
                                    "Finalizando..."}
-                                  {generationElapsed > 0 && <span className="opacity-50 ml-1">{generationElapsed}s</span>}
+                                  {streamedTokens > 0
+                                    ? <span className="opacity-50 ml-1">{streamedTokens.toLocaleString()} tkn</span>
+                                    : generationElapsed > 0 && <span className="opacity-50 ml-1">{generationElapsed}s</span>}
                                 </span>
                               </span>
                             ) : msg.status === "error" ? (
@@ -2319,6 +2483,21 @@ export default function LandingBuilderPage() {
                     </div>
                   )}
 
+                  {/* Attached PDF chip */}
+                  {attachedPdf && (
+                    <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300 text-xs px-2.5 py-1.5 rounded-lg w-fit max-w-full">
+                      <FileText className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate max-w-[160px]">{attachedPdf.name}</span>
+                      <span className="opacity-60 shrink-0">{attachedPdf.sizeKb}KB</span>
+                      <button
+                        onClick={() => setAttachedPdf(null)}
+                        className="ml-0.5 opacity-60 hover:opacity-100 shrink-0"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  )}
+
                   <Textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
@@ -2332,7 +2511,7 @@ export default function LandingBuilderPage() {
                     }}
                   />
 
-                  {/* Hidden file input */}
+                  {/* Hidden file inputs */}
                   <input
                     ref={imageInputRef}
                     type="file"
@@ -2342,6 +2521,17 @@ export default function LandingBuilderPage() {
                     onChange={(e) => {
                       const files = Array.from(e.target.files || []);
                       files.forEach(handleImageAttach);
+                      e.target.value = "";
+                    }}
+                  />
+                  <input
+                    ref={pdfInputRef}
+                    type="file"
+                    accept="application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handlePdfAttach(file);
                       e.target.value = "";
                     }}
                   />
@@ -2368,6 +2558,26 @@ export default function LandingBuilderPage() {
                       </Tooltip>
                     </TooltipProvider>
 
+                    {/* PDF attach button */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant={attachedPdf ? "secondary" : "outline"}
+                            className="h-8 w-8 p-0 shrink-0"
+                            disabled={generating}
+                            onClick={() => pdfInputRef.current?.click()}
+                          >
+                            <FileText className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          {attachedPdf ? `PDF: ${attachedPdf.name}` : "Adjuntar brochure PDF"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
                     {generatedHtml && (
                       <span className="text-[10px] text-muted-foreground flex-1">
                         Modo refinado — mantiene el diseño
@@ -2377,7 +2587,7 @@ export default function LandingBuilderPage() {
                     <Button
                       size="sm"
                       className="gap-1.5 ml-auto"
-                      disabled={generating || (!chatInput.trim() && attachedImages.length === 0)}
+                      disabled={generating || (!chatInput.trim() && attachedImages.length === 0 && !attachedPdf)}
                       onClick={handleGenerate}
                     >
                       <Send className="h-3.5 w-3.5" />
