@@ -205,7 +205,17 @@ const DEFAULT_FORM_CONFIG: FormConfig = {
 // ── Auto-detect form fields from AI-generated HTML ────────────────────────────
 function detectFormFields(html: string): Omit<FormField, 'crm_field'>[] {
   if (!html) return [];
-  const formMatch = html.match(/<form[^>]*id=["']lead-form["'][^>]*>([\s\S]*?)<\/form>/i);
+  // 1st try: canonical lead-form ID (most reliable)
+  let formMatch = html.match(/<form[^>]*id=["']lead-form["'][^>]*>([\s\S]*?)<\/form>/i);
+  // 2nd try: any <form> in the HTML — catches popup/modal forms where the AI
+  // used a different ID (e.g. inside a hidden modal div).
+  // Exclude forms that only contain a submit button (search bars, etc.)
+  if (!formMatch) {
+    const allForms = [...html.matchAll(/<form[^>]*>([\s\S]*?)<\/form>/gi)];
+    // Pick the first form that has at least one named input/textarea
+    const realForm = allForms.find(m => /\sname=["'][^"']+["']/i.test(m[1]));
+    if (realForm) formMatch = realForm as RegExpMatchArray;
+  }
   if (!formMatch) return [];
   const formHtml = formMatch[1];
 
@@ -343,10 +353,15 @@ ${fieldsHtml}
 }
 
 function injectFormIntoHtml(html: string, formHtml: string): string {
-  // Replace existing lead-form
-  const formRe = /<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i;
-  if (formRe.test(html)) return html.replace(formRe, formHtml);
-  // Inject before </body>
+  // 1st try: replace by canonical id="lead-form"
+  const leadFormRe = /<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i;
+  if (leadFormRe.test(html)) return html.replace(leadFormRe, formHtml);
+  // 2nd try: replace the first form that has named inputs (popup form without lead-form ID)
+  const anyFormRe = /<form[^>]*>[\s\S]*?<\/form>/gi;
+  const allForms = [...html.matchAll(anyFormRe)];
+  const realForm = allForms.find(m => /\sname=["'][^"']+["']/i.test(m[0]));
+  if (realForm) return html.replace(realForm[0], formHtml);
+  // Last resort: inject before </body>
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `\n${formHtml}\n</body>`);
   return html + "\n" + formHtml;
 }

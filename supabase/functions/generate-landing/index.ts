@@ -47,6 +47,8 @@ REQUIRED LEAD FORM — copy exactly, never omit:
   <!-- form fields here -->
   <button type="submit">CTA Text</button>
 </form>
+CRITICAL: id="lead-form" is MANDATORY even when the form is inside a popup/modal/overlay.
+Never rename it to "contact-form", "registro-form", or anything else. The CRM integration depends on this exact ID.
 <script>
 (function(){var f=document.getElementById('lead-form');if(!f)return;f.addEventListener('submit',async function(e){e.preventDefault();var btn=f.querySelector('[type=submit]'),o=btn.innerHTML;btn.disabled=true;btn.innerHTML='Enviando...';try{var d={page_id:f.dataset.pageId,source:location.href};new FormData(f).forEach(function(v,k){if(k)d[k]=v;});var r=await fetch(f.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});if(r.ok){f.innerHTML='<div style="text-align:center;padding:3rem"><p style="font-size:1.5rem;font-weight:700;color:var(--primary)">¡Gracias! Te contactaremos pronto.</p></div>';}else throw 0;}catch(x){btn.disabled=false;btn.innerHTML=o;}});})();
 </script>
@@ -104,6 +106,7 @@ CAMBIOS: [1-2 sentences describing exactly what you changed]
 
 ━━━ ABSOLUTE RULES (never break these) ━━━
 - NEVER modify id="lead-form", data-page-id attribute, form action URL, or the submit JS script
+- If moving the form into a popup/modal, id="lead-form" MUST remain on the <form> element — never rename it
 - Return the COMPLETE HTML every time — not a diff, not a partial
 - Apply ONLY what was explicitly requested — do NOT "improve" anything else
 
