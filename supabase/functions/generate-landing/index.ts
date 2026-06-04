@@ -42,6 +42,15 @@ HEAD must include:
 - <script src="https://cdn.tailwindcss.com"></script>
 - <style> with: CSS vars (--primary,--accent,--bg,--text), scroll-behavior:smooth, .fade-in + fade-in-up @keyframes, .fade-in.visible{opacity:1;transform:none}
 
+MODAL/POPUP FORMS — when the prompt asks for a form inside a popup or modal:
+CRITICAL: The modal wrapper and its overlay MUST have BOTH a Tailwind class AND an inline style to start hidden:
+  <div id="modal-overlay" class="fixed inset-0 hidden ..." style="display:none">  ← REQUIRED: style="display:none"
+  <div id="modal" class="... hidden" style="display:none">                         ← REQUIRED: style="display:none"
+Reason: Tailwind CDN loads asynchronously (~200–500ms). Before it loads, class="hidden" has NO effect.
+Without inline style="display:none", the overlay is VISIBLE and covers the entire page on first load.
+JavaScript opens the modal by setting style.display='flex' (or removing the style). This overrides both.
+NEVER rely on class="hidden" alone for modal visibility — always pair it with style="display:none".
+
 REQUIRED LEAD FORM — copy exactly, never omit:
 <form id="lead-form" data-page-id="{{PAGE_ID}}" action="{{SUBMIT_URL}}" method="POST">
   <!-- form fields here -->
@@ -62,7 +71,10 @@ DESIGN RULES:
 - Buttons: hover:scale-105 hover:shadow-lg transition-all duration-200
 - Cards: rounded-2xl shadow-md hover:shadow-xl transition-shadow
 - Use semantic HTML5 (<section>, <article>, <nav>, <main>, <footer>)
-- Be CONCISE in HTML — use CSS vars, avoid repeating hex codes inline`;
+- Be CONCISE in HTML — use CSS vars, avoid repeating hex codes inline
+- HERO HEIGHT: NEVER use min-h-screen or h-screen on hero sections. Use py-24 lg:py-32 (generous padding). min-h-screen blocks the preview from showing sections below the fold.
+- STICKY MOBILE CTA: Use position:fixed + bottom:0 + z-index:100 — NOT z-50 (z-50 = z-index:50 which can be below modals)
+- html,body must NOT have height:100% — this breaks scrollHeight measurement. Use min-height:100vh only if needed.`;
 
 
 const FUNNEL_PAGE_SYSTEM = `Eres un experto en CRO (Conversion Rate Optimization) y diseño de funnels de alta conversión.

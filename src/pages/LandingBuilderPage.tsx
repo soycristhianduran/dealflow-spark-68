@@ -55,8 +55,30 @@ function addTargetBlank(html: string): string {
 // buildPreviewSrcDoc: rewrite links + inject CTA click-intercept (postMessage to parent)
 // The preview iframe sandbox allows scripts + postMessage, so we tag every href="#"
 // link outside the form with data-klosify-cta="N" and listen for clicks.
+//
+// Early-CSS injection: provide .hidden { display:none } BEFORE Tailwind CDN loads.
+// Without this, AI-generated modal overlays that use class="hidden" are visible until
+// the CDN finishes loading (~100-500ms), causing a solid-color flash (or permanent
+// full-screen overlay if the CDN load fails / is slow).
+const PREVIEW_EARLY_CSS = `<style id="klosify-early">
+/* Provided BEFORE Tailwind CDN loads — prevents class="hidden" modal overlays from flashing */
+.hidden{display:none!important}
+/* Ensure html/body don't clip content — needed for accurate scrollHeight reporting */
+html,body{height:auto!important;min-height:100vh}
+</style>`;
+
 function buildPreviewSrcDoc(html: string): string {
   let result = addTargetBlank(html);
+
+  // Inject early CSS right after <head> (or before </head>) so it beats Tailwind CDN
+  if (result.includes("<head>")) {
+    result = result.replace("<head>", "<head>\n" + PREVIEW_EARLY_CSS);
+  } else if (result.includes("</head>")) {
+    result = result.replace("</head>", PREVIEW_EARLY_CSS + "\n</head>");
+  } else {
+    // No head tag — prepend to the document
+    result = PREVIEW_EARLY_CSS + "\n" + result;
+  }
 
   // Strip form temporarily so we only number CTAs outside it
   const formMatch = result.match(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i);
@@ -71,8 +93,10 @@ function buildPreviewSrcDoc(html: string): string {
   );
   if (formMatch) work = work.replace(FP, formMatch[0]);
 
-  // Click-intercept + height-reporter scripts — run inside the iframe
-  // Height is reported so the parent can expand the iframe to show the full page.
+  // Click-intercept + height-reporter scripts — run inside the iframe.
+  // Height is reported so the parent can resize the iframe to the full page height
+  // (instead of showing only the first 100vh hero section).
+  // Uses ResizeObserver for continuous tracking + setTimeout fallbacks for CDN-loaded CSS.
   const interceptScript = `<script>
 (function(){
   // ── CTA click intercept ──────────────────────────────────────────────────
@@ -89,22 +113,29 @@ function buildPreviewSrcDoc(html: string): string {
     },'*');
   });
   // ── Full-page height reporter ────────────────────────────────────────────
-  // Posts the scroll height so the parent can resize the iframe to the full
-  // page height (instead of showing only the first 100vh hero section).
+  var lastH=0;
   function reportHeight(){
     var h=Math.max(
       document.body.scrollHeight,
       document.documentElement.scrollHeight,
-      document.body.offsetHeight
+      document.body.offsetHeight,
+      document.documentElement.offsetHeight
     );
-    window.parent.postMessage({type:'klosify_height',h:h},'*');
+    if(h>100&&h!==lastH){lastH=h;window.parent.postMessage({type:'klosify_height',h:h},'*');}
   }
-  // Report after DOM content + after images/fonts
-  document.addEventListener('DOMContentLoaded',function(){setTimeout(reportHeight,80);});
-  window.addEventListener('load',function(){setTimeout(reportHeight,200);});
-  // Re-report if lazy images or animations change layout
-  setTimeout(reportHeight,800);
-  setTimeout(reportHeight,2000);
+  // 1) Immediately on script parse (page nearly done)
+  reportHeight();
+  // 2) After DOMContentLoaded
+  document.addEventListener('DOMContentLoaded',function(){reportHeight();setTimeout(reportHeight,100);});
+  // 3) After all resources (fonts, images) load
+  window.addEventListener('load',function(){reportHeight();setTimeout(reportHeight,300);});
+  // 4) Timed fallbacks — catches Tailwind CDN applying classes after load
+  [500,1000,1500,2000,3000,5000].forEach(function(t){setTimeout(reportHeight,t);});
+  // 5) ResizeObserver — fires whenever page layout changes (font swap, lazy img, animation)
+  if(typeof ResizeObserver!=='undefined'){
+    var ro=new ResizeObserver(function(){reportHeight();});
+    ro.observe(document.documentElement);
+  }
 })();
 <\/script>`;
 
