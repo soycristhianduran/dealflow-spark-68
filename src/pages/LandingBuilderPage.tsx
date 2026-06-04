@@ -61,8 +61,18 @@ function addTargetBlank(html: string): string {
 // the CDN finishes loading (~100-500ms), causing a solid-color flash (or permanent
 // full-screen overlay if the CDN load fails / is slow).
 const PREVIEW_EARLY_CSS = `<style id="klosify-early">
-/* Provided BEFORE Tailwind CDN loads — prevents class="hidden" modal overlays from flashing */
+/* 1) Provided BEFORE Tailwind CDN loads — prevents class="hidden" modal overlays from flashing */
 .hidden{display:none!important}
+
+/* 2) CRITICAL — break the iframe-height infinite loop.
+   When the iframe height is set to a large value (e.g. 8000px), 100vh inside
+   the iframe also becomes 8000px. Any section using min-h-screen then fills
+   the entire iframe, pushing all other sections beyond the visible area.
+   Overriding min-h-screen to 0 lets sections render at their natural height,
+   so postMessage reports the correct total page height and the loop stops.
+   Visual impact in preview: hero won't be full-screen, but ALL sections visible. */
+.min-h-screen{min-height:0!important}
+.h-screen{height:auto!important}
 </style>`;
 
 function buildPreviewSrcDoc(html: string): string {
@@ -2295,7 +2305,7 @@ export default function LandingBuilderPage() {
                             srcDoc={addTargetBlank(previewHtml)}
                             onLoad={setupEditMode}
                             className="w-full border-0"
-                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "8000px" }}
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
                             title="Editar landing"
                           />
                         ) : (
@@ -2306,7 +2316,7 @@ export default function LandingBuilderPage() {
                             key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
                             className="w-full border-0"
-                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "8000px" }}
+                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                             title="Vista previa landing"
                           />
