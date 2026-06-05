@@ -388,11 +388,13 @@ Deno.serve(async (req) => {
     // Rules:
     //   JSON mode (stream:false)  → always Haiku (backward compat)
     //   Refinement (current_html) → always Haiku (large input + edit = fast)
-    //   Fresh + short prompt      → Sonnet  (quality on first impression)
-    //   Fresh + LONG prompt       → Haiku   (prevents timeout on mega-prompts)
-    //     threshold: prompt > 3000 chars → the output HTML will be large enough
-    //     to risk the 150 s timeout with Sonnet.
-    const isLongPrompt = typeof prompt === "string" && prompt.length > 3000;
+    //   Fresh + short/normal prompt → Sonnet  (quality on first impression)
+    //   Fresh + MEGA prompt       → Haiku   (prevents timeout on ultra-long prompts)
+    //     threshold: prompt > 6000 chars → only truly mega briefs (e.g. 10,000+ char
+    //     detailed specs) push total tokens high enough to risk the 150 s timeout.
+    //     Normal detailed prompts (up to ~6000 chars) are fine with Sonnet.
+    //     Raising from 3000→6000 restores Sonnet quality for most real-world prompts.
+    const isLongPrompt = typeof prompt === "string" && prompt.length > 6000;
     const model = (useStream && !current_html && !isLongPrompt)
       ? "claude-sonnet-4-5"
       : "claude-haiku-4-5";
