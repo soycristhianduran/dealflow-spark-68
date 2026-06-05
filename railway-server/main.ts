@@ -932,6 +932,12 @@ Deno.serve({ port }, async (req) => {
           const emit = (data: object) =>
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
 
+          // Keepalive: send SSE comments every 20 s so Railway / proxies don't
+          // drop the connection on idle gaps between Anthropic tokens.
+          const keepaliveInterval = setInterval(() => {
+            try { controller.enqueue(encoder.encode(": keepalive\n\n")); } catch { /* already closed */ }
+          }, 20_000);
+
           let inputTokens = 0;
           let outputTokens = 0;
           let fullText = "";
@@ -976,8 +982,14 @@ Deno.serve({ port }, async (req) => {
             if (inputTokens > 0 || outputTokens > 0) {
               try { await finalize(inputTokens, outputTokens); } catch { /* best-effort */ }
             }
-            emit({ type: "error", error: e.message ?? "Error desconocido" });
+            // Translate cryptic Deno network errors into user-friendly messages
+            const rawMsg: string = e.message ?? "Error desconocido";
+            const friendlyMsg = rawMsg.includes("error reading") || rawMsg.includes("connection")
+              ? "Error de conexión con la IA. Intenta de nuevo."
+              : rawMsg;
+            emit({ type: "error", error: friendlyMsg });
           } finally {
+            clearInterval(keepaliveInterval);
             controller.close();
           }
         },

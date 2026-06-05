@@ -1348,12 +1348,14 @@ export default function LandingBuilderPage() {
     // Scroll to bottom
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
 
-    try {
-      // Pass conversation history so the AI has full context when refining
-      const historyForApi = chatMessages
-        .filter(m => m.status === "done")
-        .map(m => ({ role: m.role, content: m.content, status: m.status, summary: m.summary }));
+    // Build history outside try so it's accessible in the catch (for retry)
+    const historyForApi = chatMessages
+      .filter(m => m.status === "done")
+      .map(m => ({ role: m.role, content: m.content, status: m.status, summary: m.summary }));
+    // Capture full prompt outside try so retry can reuse it
+    const fullPrompt = currentInput + formContext + imageContext + intentReinforcement;
 
+    try {
       // ── Streaming fetch (replaces supabase.functions.invoke) ────────────────
       // Manual fetch so we can read the SSE stream as it arrives.
       // Uses Railway URL when VITE_RAILWAY_LANDING_URL is set (no 150s timeout,
@@ -1374,7 +1376,7 @@ export default function LandingBuilderPage() {
         },
         body: JSON.stringify({
           stream: true,
-          prompt: currentInput + formContext + imageContext + intentReinforcement,
+          prompt: fullPrompt,
           page_id: selectedId || "PENDING",
           current_html: generatedHtml || undefined,
           chat_history: historyForApi,
@@ -1543,9 +1545,98 @@ export default function LandingBuilderPage() {
       }
 
     } catch (e: any) {
-      setChatMessages(prev => prev.map(m =>
-        m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
-      ));
+      const isConnectionError = (e.message ?? "").toLowerCase().includes("conexión") ||
+        (e.message ?? "").toLowerCase().includes("connection") ||
+        (e.message ?? "").toLowerCase().includes("fetch") ||
+        (e.message ?? "").toLowerCase().includes("network");
+
+      if (isConnectionError) {
+        // Auto-retry once for transient connection errors
+        try {
+          setChatMessages(prev => prev.map(m =>
+            m.id === assistantMsgId ? { ...m, content: "", status: "loading" } : m
+          ));
+          setStreamedTokens(0);
+
+          const { data: { session: session2 } } = await supabase.auth.getSession();
+          const accessToken2 = session2?.access_token ?? "";
+          const supabaseUrl2 = import.meta.env.VITE_SUPABASE_URL as string;
+          const anonKey2 = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+          const railwayUrl2 = (import.meta.env.VITE_RAILWAY_LANDING_URL as string | undefined)?.replace(/\/$/, "");
+          const genEndpoint2 = railwayUrl2 ? `${railwayUrl2}/generate-landing` : `${supabaseUrl2}/functions/v1/generate-landing`;
+          const retryResp = await fetch(genEndpoint2, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken2}`, "apikey": anonKey2 },
+            body: JSON.stringify({
+              stream: true,
+              prompt: fullPrompt,
+              page_id: selectedId || "PENDING",
+              current_html: generatedHtml || undefined,
+              chat_history: historyForApi,
+            }),
+          });
+
+          if (!retryResp.ok) throw new Error(`Error HTTP ${retryResp.status}`);
+
+          const retryReader = retryResp.body!.getReader();
+          const retryDecoder = new TextDecoder();
+          let retryBuf = "";
+          let retryHtml = "";
+          let retrySummary = "✓ Aplicado";
+          let retryAccumulated = "";
+          let retryDone = false;
+
+          outerRetry: while (true) {
+            const { done, value } = await retryReader.read();
+            if (done) break;
+            retryBuf += retryDecoder.decode(value, { stream: true });
+            const events = retryBuf.split("\n\n");
+            retryBuf = events.pop() ?? "";
+            for (const seg of events) {
+              const dataLine = seg.split("\n").find(l => l.startsWith("data: "));
+              if (!dataLine) continue;
+              try {
+                const evt = JSON.parse(dataLine.slice(6));
+                if (evt.type === "delta") { retryAccumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
+                else if (evt.type === "done") { retryHtml = evt.html ?? ""; retrySummary = evt.summary ?? "✓ Aplicado"; retryDone = true; break outerRetry; }
+                else if (evt.type === "error") throw new Error(evt.error ?? "Error");
+              } catch { continue; }
+            }
+          }
+
+          if (!retryHtml && retryAccumulated) {
+            let rec = retryAccumulated.replace(/^```html\s*/i, "").replace(/^```\s*/i, "").replace(/```\s*$/i, "").trim();
+            const di = rec.indexOf("---HTML---"); if (di !== -1) rec = rec.slice(di + 10).trim();
+            const dti = rec.indexOf("<!DOCTYPE"); if (dti !== -1) rec = rec.slice(dti);
+            if (rec && !rec.trimEnd().toLowerCase().endsWith("</html>")) { if (!rec.toLowerCase().includes("</body>")) rec += "\n</body>"; rec += "\n</html>"; }
+            if (rec.startsWith("<!DOCTYPE")) retryHtml = rec;
+          }
+
+          if (!retryHtml) throw new Error("La IA no devolvió HTML.");
+
+          setGeneratedHtml(retryHtml);
+          setPreviewHtml(retryHtml);
+          setHtmlVersion(v => v + 1);
+          if (selectedId) supabase.from("landing_pages").update({ html: retryHtml }).eq("id", selectedId).then(() => {});
+
+          const retriedMessages = [
+            ...historyForApi,
+            { id: userMsgId, role: "user" as const, content: currentInput, status: "done" as const },
+            { id: assistantMsgId, role: "assistant" as const, content: retrySummary, summary: retrySummary, status: "done" as const },
+          ];
+          setChatMessages(retriedMessages);
+          if (selectedId) supabase.from("landing_pages").update({ chat_history: retriedMessages }).eq("id", selectedId).then(() => {});
+
+        } catch (retryErr: any) {
+          setChatMessages(prev => prev.map(m =>
+            m.id === assistantMsgId ? { ...m, content: retryErr.message || "Error de conexión. Intenta de nuevo.", status: "error" } : m
+          ));
+        }
+      } else {
+        setChatMessages(prev => prev.map(m =>
+          m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
+        ));
+      }
     } finally {
       setGenerating(false);
       if (generationTimerRef.current) {
