@@ -263,11 +263,20 @@ CAMBIOS: [1-2 sentences describing exactly what you changed]
 <!DOCTYPE html>
 [complete, functional HTML]
 
+━━━ SECTION PRESERVATION — most critical rule ━━━
+BEFORE generating output, count the number of <section> tags in the input HTML.
+Your output MUST contain the EXACT same number of <section> tags with ALL content preserved.
+If you are mid-way through writing a section and you realize you are running low on space — DO NOT leave it empty. Stop, go back, and ensure every section has its complete content.
+Empty sections (no text, just a wrapper div) = FAILURE. This is unacceptable.
+
 ━━━ ABSOLUTE RULES (never break these) ━━━
 - NEVER modify id="lead-form", data-page-id attribute, form action URL, or the submit JS script
 - If moving the form into a popup/modal, id="lead-form" MUST remain on the <form> element — never rename it
 - Return the COMPLETE HTML every time — not a diff, not a partial
 - Apply ONLY what was explicitly requested — do NOT "improve" anything else
+- ALL text content from every section must be preserved verbatim unless explicitly asked to change it
+- ALL navigation links, footer links, testimonials, feature cards, and FAQ items must be preserved
+- If you cannot fit the complete HTML in one response, prioritize keeping ALL sections complete over adding new styles
 
 ━━━ HOW TO HANDLE STYLE/AESTHETIC REQUESTS ━━━
 
@@ -510,14 +519,11 @@ Deno.serve({ port }, async (req) => {
     }
 
     // ── Model selection ───────────────────────────────────────────────────────
-    // Railway has NO timeout — use Sonnet for everything with full token budget.
-    // Refinements still use Haiku: 20k+ input tokens → 12k output → 200s with Sonnet
-    // is too slow UX-wise. For fresh generation, Sonnet + 16k = Lovable quality.
-    const model = (useStream && !current_html)
-      ? "claude-sonnet-4-5"   // fresh generation — full quality
-      : "claude-haiku-4-5";   // refinements & JSON fallback — fast
-
-    const maxTokens = model === "claude-sonnet-4-5" ? 16000 : 16000;
+    // Railway has NO timeout — Sonnet for ALL requests.
+    // Haiku was causing refinements to truncate HTML (sections disappearing).
+    // Sonnet follows "return COMPLETE HTML, change only X" far more reliably.
+    const model = "claude-sonnet-4-5";
+    const maxTokens = 16000;
 
     // ── Finalize (deduct credits + log) ───────────────────────────────────────
     async function finalize(inputTokens: number, outputTokens: number) {
