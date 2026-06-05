@@ -1118,8 +1118,10 @@ export default function LandingBuilderPage() {
       const accessToken = session?.access_token ?? "";
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const railwayUrl = (import.meta.env.VITE_RAILWAY_LANDING_URL as string | undefined)?.replace(/\/$/, "");
+      const genEndpoint = railwayUrl ? `${railwayUrl}/generate-landing` : `${supabaseUrl}/functions/v1/generate-landing`;
 
-      const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+      const fetchResp = await fetch(genEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1348,12 +1350,16 @@ export default function LandingBuilderPage() {
 
       // ── Streaming fetch (replaces supabase.functions.invoke) ────────────────
       // Manual fetch so we can read the SSE stream as it arrives.
+      // Uses Railway URL when VITE_RAILWAY_LANDING_URL is set (no 150s timeout,
+      // Sonnet with 16k tokens = Lovable-level quality).
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token ?? "";
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
       const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+      const railwayUrl = (import.meta.env.VITE_RAILWAY_LANDING_URL as string | undefined)?.replace(/\/$/, "");
+      const genEndpoint = railwayUrl ? `${railwayUrl}/generate-landing` : `${supabaseUrl}/functions/v1/generate-landing`;
 
-      const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+      const fetchResp = await fetch(genEndpoint, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -2358,8 +2364,10 @@ export default function LandingBuilderPage() {
                               const accessToken = session?.access_token ?? "";
                               const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
                               const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+                              const railwayUrl = (import.meta.env.VITE_RAILWAY_LANDING_URL as string | undefined)?.replace(/\/$/, "");
+                              const genEndpoint = railwayUrl ? `${railwayUrl}/generate-landing` : `${supabaseUrl}/functions/v1/generate-landing`;
 
-                              const fetchResp = await fetch(`${supabaseUrl}/functions/v1/generate-landing`, {
+                              const fetchResp = await fetch(genEndpoint, {
                                 method: "POST",
                                 headers: {
                                   "Content-Type": "application/json",
