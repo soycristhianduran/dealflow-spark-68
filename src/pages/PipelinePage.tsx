@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -102,6 +103,8 @@ export default function PipelinePage() {
   const [wonBudgetDialogOpen, setWonBudgetDialogOpen] = useState(false);
   const [pendingWonDrop, setPendingWonDrop] = useState<{ contactId: string; stageId: string; stageName: string } | null>(null);
   const [wonBudgetAmount, setWonBudgetAmount] = useState("");
+  const [deletePipelineTarget, setDeletePipelineTarget] = useState<string | null>(null);
+  const [deleteStageTarget, setDeleteStageTarget] = useState<string | null>(null);
   const [wonBudgetCurrency, setWonBudgetCurrency] = useState("USD");
   const [wonBudgetSaving, setWonBudgetSaving] = useState(false);
 
@@ -560,7 +563,7 @@ export default function PipelinePage() {
                           variant="ghost"
                           size="icon"
                           className="h-5 w-5 text-destructive hover:text-destructive"
-                          onClick={(e) => { e.stopPropagation(); handleDeletePipeline(p.id); }}
+                          onClick={(e) => { e.stopPropagation(); setDeletePipelineTarget(p.id); }}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
@@ -684,7 +687,7 @@ export default function PipelinePage() {
                             )}
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
-                              onClick={() => handleDeleteStage(stage.id)}
+                              onClick={() => setDeleteStageTarget(stage.id)}
                             >
                               <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
                             </DropdownMenuItem>
@@ -973,6 +976,42 @@ export default function PipelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deletePipelineTarget} onOpenChange={open => { if (!open) setDeletePipelineTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar pipeline?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará el pipeline y todas sus etapas. Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deletePipelineTarget) handleDeletePipeline(deletePipelineTarget); setDeletePipelineTarget(null); }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteStageTarget} onOpenChange={open => { if (!open) setDeleteStageTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar etapa?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará la etapa permanentemente. Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteStageTarget) handleDeleteStage(deleteStageTarget); setDeleteStageTarget(null); }}
+            >
+              Eliminar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }

@@ -11,6 +11,10 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
 import {
@@ -666,6 +670,8 @@ export default function LandingBuilderPage() {
   // ── Inline rename ────────────────────────────────────────────────────────────
   // Single state tracks which item is being renamed (funnel or page)
   const [renaming, setRenaming] = useState<{ id: string; type: "funnel" | "page"; value: string } | null>(null);
+  const [deleteFunnelTarget, setDeleteFunnelTarget] = useState<string | null>(null);
+  const [deletePageTarget, setDeletePageTarget] = useState<string | null>(null);
 
   const startRename = (e: React.MouseEvent, id: string, type: "funnel" | "page", currentName: string) => {
     e.stopPropagation();
@@ -1697,7 +1703,7 @@ export default function LandingBuilderPage() {
                           </span>
                           <ChevronDown className="h-3 w-3 text-muted-foreground -rotate-90" />
                           <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
-                            onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}>
+                            onClick={e => { e.stopPropagation(); setDeleteFunnelTarget(funnel.id); }}>
                             <Trash2 className="h-3 w-3" />
                           </button>
                         </div>
@@ -1778,7 +1784,7 @@ export default function LandingBuilderPage() {
                             <Edit2 className="h-3 w-3" />
                           </button>
                           <button className="opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-0.5 rounded"
-                            onClick={e => { e.stopPropagation(); handleDelete(page.id); setPagePickerOpen(false); }}>
+                            onClick={e => { e.stopPropagation(); setDeletePageTarget(page.id); setPagePickerOpen(false); }}>
                             <Trash2 className="h-3 w-3" />
                           </button>
                         </div>
@@ -2005,7 +2011,7 @@ export default function LandingBuilderPage() {
                             </button>
                             <button
                               className="text-destructive p-1 rounded hover:bg-destructive/10"
-                              onClick={e => { e.stopPropagation(); handleDeleteFunnel(funnel.id); }}
+                              onClick={e => { e.stopPropagation(); setDeleteFunnelTarget(funnel.id); }}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -2113,7 +2119,7 @@ export default function LandingBuilderPage() {
                           </div>
                           <button
                             className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-1 rounded hover:bg-destructive/10 bg-background/80"
-                            onClick={e => { e.stopPropagation(); handleDelete(page.id); }}
+                            onClick={e => { e.stopPropagation(); setDeletePageTarget(page.id); }}
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -3446,6 +3452,41 @@ export default function LandingBuilderPage() {
           </div>
         );
       })()}
+      <AlertDialog open={!!deleteFunnelTarget} onOpenChange={open => { if (!open) setDeleteFunnelTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar funnel?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará el funnel y todas sus páginas de forma permanente. Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deleteFunnelTarget) handleDeleteFunnel(deleteFunnelTarget); setDeleteFunnelTarget(null); }}
+            >
+              Eliminar funnel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deletePageTarget} onOpenChange={open => { if (!open) setDeletePageTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar página?</AlertDialogTitle>
+            <AlertDialogDescription>Se eliminará la página permanentemente. Esta acción no se puede deshacer.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (deletePageTarget) handleDelete(deletePageTarget); setDeletePageTarget(null); }}
+            >
+              Eliminar página
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
