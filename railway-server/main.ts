@@ -652,6 +652,17 @@ CHANGE COLORS → update --primary, --primary-dark, --primary-rgb, --accent, --a
 
 GOLDEN RULE: Change LESS than you think. Preserve MORE than feels necessary. When unsure, do the minimal interpretation.`;
 
+// ── Helper: compress HTML to reduce token count before sending to API ─────────
+// Strips indentation/blank lines without touching content or CSS/JS logic.
+// A 100KB formatted page → ~60KB compressed = saves ~10k tokens on input.
+function compressHtmlForApi(html: string): string {
+  return html
+    .split("\n")
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join("\n");
+}
+
 // ── Helper: post-process HTML from Anthropic ──────────────────────────────────
 
 function postProcessHtml(
@@ -696,6 +707,23 @@ function postProcessHtml(
     }
     if (!html.toLowerCase().includes("</body>")) html += "\n</body>";
     if (!html.toLowerCase().includes("</html>")) html += "\n</html>";
+  }
+
+  // ── Section-loss safety net ────────────────────────────────────────────────
+  // If a refinement response lost more than 1 section vs the original, the model
+  // truncated its output. Return the original HTML with an error so the user
+  // sees a clear message instead of a broken page.
+  if (current_html && html) {
+    const countSections = (s: string) => (s.match(/<section[\s>]/gi) || []).length;
+    const inCount = countSections(current_html);
+    const outCount = countSections(html);
+    if (inCount > 0 && outCount < inCount - 1) {
+      // Truncation detected — surface the problem rather than saving broken HTML
+      throw new Error(
+        `La respuesta fue truncada (${outCount}/${inCount} secciones recibidas). ` +
+        `Intenta una instrucción más pequeña o simplifica la página antes de refinar.`
+      );
+    }
   }
 
   if (html) {
@@ -826,7 +854,10 @@ Deno.serve({ port }, async (req) => {
         if (msg.role === "user") turns.push({ role: "user", content: msg.content });
         else turns.push({ role: "assistant", content: msg.summary || "CAMBIOS: Aplicados.\n---HTML---\n[HTML actualizado]" });
       }
-      turns.push({ role: "user", content: buildUserContent(`HTML actual de la landing:\n\`\`\`html\n${current_html}\n\`\`\`\n\nModificación solicitada: ${prompt}`) });
+      // Compress HTML before sending to reduce input token count (~30-40% savings).
+      // This lowers the context used so more output tokens are available for the response.
+      const htmlForApi = compressHtmlForApi(current_html);
+      turns.push({ role: "user", content: buildUserContent(`HTML actual de la landing:\n\`\`\`html\n${htmlForApi}\n\`\`\`\n\nModificación solicitada: ${prompt}`) });
       messages = turns;
     } else if (funnel_reference_html) {
       const refHtml = String(funnel_reference_html).slice(0, 4000);
@@ -844,10 +875,10 @@ Deno.serve({ port }, async (req) => {
 
     // ── Model selection ───────────────────────────────────────────────────────
     // Railway has NO timeout — Sonnet for ALL requests.
-    // Haiku was causing refinements to truncate HTML (sections disappearing).
-    // Sonnet follows "return COMPLETE HTML, change only X" far more reliably.
+    // Refinements get 32k output tokens because the full HTML must be returned
+    // (large landings can exceed 20k tokens). Fresh generations use 16k.
     const model = "claude-sonnet-4-5";
-    const maxTokens = 16000;
+    const maxTokens = current_html ? 32000 : 16000;
 
     // ── Finalize (deduct credits + log) ───────────────────────────────────────
     async function finalize(inputTokens: number, outputTokens: number) {
