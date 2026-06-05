@@ -67,11 +67,12 @@ REQUIRED scroll animation (at end of body):
 
 DESIGN RULES:
 - Follow ALL color, typography, style, and section specs from the user prompt exactly
-- Generate EVERY section requested — never truncate content
+- Generate EVERY section requested — complete all sections, finish every tag properly
+- Be CONCISE in HTML — use CSS vars, avoid repeating hex codes inline, reuse Tailwind classes
+- DO NOT pad with excessive comments, placeholder text blocks, or redundant whitespace
 - Buttons: hover:scale-105 hover:shadow-lg transition-all duration-200
 - Cards: rounded-2xl shadow-md hover:shadow-xl transition-shadow
 - Use semantic HTML5 (<section>, <article>, <nav>, <main>, <footer>)
-- Be CONCISE in HTML — use CSS vars, avoid repeating hex codes inline
 - HERO HEIGHT: NEVER use min-h-screen or h-screen on hero sections. Use py-24 lg:py-32 (generous padding). min-h-screen blocks the preview from showing sections below the fold.
 - STICKY MOBILE CTA: Use position:fixed + bottom:0 + z-index:100 — NOT z-50 (z-50 = z-index:50 which can be below modals)
 - html,body must NOT have height:100% — this breaks scrollHeight measurement. Use min-height:100vh only if needed.`;
@@ -291,10 +292,13 @@ Deno.serve(async (req) => {
 
     // ── Subscription check ────────────────────────────────────────────────────
     // Ensure the trial has not expired (or the account has an active paid plan).
-    // This prevents bypass of the frontend LockoutScreen via direct API calls.
+    // Fail-OPEN: if the RPC returns nothing (e.g. org with no subscription row),
+    // allow the request to continue so users are never falsely blocked.
     const { data: subData } = await supabase.rpc("get_active_subscription", { p_org_id: orgId });
     const subRow = Array.isArray(subData) ? subData[0] : subData;
-    if (!subRow?.is_active) {
+    // Only block when we have a definitive is_active=false (expired trial / canceled sub).
+    // undefined/null means no subscription row → allow through (fail-open).
+    if (subRow && subRow.is_active === false) {
       const errPayload = JSON.stringify({
         error: "Tu prueba gratuita ha expirado. Elige un plan para seguir generando landing pages.",
         code: "trial_expired",
@@ -418,6 +422,12 @@ Deno.serve(async (req) => {
       : "claude-haiku-4-5";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
+    // max_tokens budget per model:
+    //   Sonnet 4.5 → ~80 tok/s output.  9000 tokens = ~112s → safe under 150s timeout.
+    //   Haiku  4.5 → ~250 tok/s output. 16000 tokens = ~64s  → plenty of headroom.
+    // Setting Sonnet to 16000 risks 150s+ timeout for any page over ~10k tokens.
+    const maxTokens = model === "claude-sonnet-4-5" ? 9000 : 16000;
+
     async function callAnthropic(streamMode: boolean) {
       const resp = await fetch(ANTHROPIC_API, {
         method: "POST",
@@ -428,7 +438,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           model,
-          max_tokens: 16000,
+          max_tokens: maxTokens,
           stream: streamMode,
           system: systemPrompt,
           messages,

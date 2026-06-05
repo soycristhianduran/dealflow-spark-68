@@ -1424,6 +1424,9 @@ export default function LandingBuilderPage() {
           if (evt.code === "no_landing_credits") {
             throw new Error("No tienes tokens suficientes. Compra más en Facturación.");
           }
+          if (evt.code === "trial_expired") {
+            throw new Error("Tu prueba gratuita terminó. Ve a Facturación para elegir un plan.");
+          }
           throw new Error(evt.error ?? "Error generando la landing");
         }
         return false;
@@ -2390,7 +2393,7 @@ export default function LandingBuilderPage() {
                                 try { evt = JSON.parse(dl.slice(6)); } catch { return false; }
                                 if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
                                 else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); return true; }
-                                else if (evt.type === "error") { if (evt.code === "no_landing_credits") throw new Error("No tienes tokens suficientes. Compra más en Facturación."); throw new Error(evt.error ?? "Error generando"); }
+                                else if (evt.type === "error") { if (evt.code === "no_landing_credits") throw new Error("No tienes tokens suficientes. Compra más en Facturación."); if (evt.code === "trial_expired") throw new Error("Tu prueba gratuita terminó. Ve a Facturación para elegir un plan."); throw new Error(evt.error ?? "Error generando"); }
                                 return false;
                               };
 
