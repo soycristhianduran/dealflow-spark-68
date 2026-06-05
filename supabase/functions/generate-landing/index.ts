@@ -289,6 +289,24 @@ Deno.serve(async (req) => {
 
     const orgId = membership.organization_id;
 
+    // ── Subscription check ────────────────────────────────────────────────────
+    // Ensure the trial has not expired (or the account has an active paid plan).
+    // This prevents bypass of the frontend LockoutScreen via direct API calls.
+    const { data: subData } = await supabase.rpc("get_active_subscription", { p_org_id: orgId });
+    const subRow = Array.isArray(subData) ? subData[0] : subData;
+    if (!subRow?.is_active) {
+      const errPayload = JSON.stringify({
+        error: "Tu prueba gratuita ha expirado. Elige un plan para seguir generando landing pages.",
+        code: "trial_expired",
+      });
+      if (body.stream === true) {
+        const enc = new TextEncoder();
+        const s = new ReadableStream({ start(c) { c.enqueue(enc.encode(`data: ${JSON.stringify({ type: "error", error: "Tu prueba gratuita ha expirado. Elige un plan para seguir generando landing pages.", code: "trial_expired" })}\n\n`)); c.close(); } });
+        return new Response(s, { headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" } });
+      }
+      return new Response(errPayload, { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { data: creditRow } = await supabase
       .from("ia_landings_credits")
       .select("id, credits_remaining")
