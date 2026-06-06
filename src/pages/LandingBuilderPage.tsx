@@ -619,10 +619,7 @@ export default function LandingBuilderPage() {
   const [showVersions, setShowVersions] = useState(false);
   // Section lock panel
   const [showLockPanel, setShowLockPanel] = useState(false);
-  // Clone from URL
-  const [cloneUrl, setCloneUrl] = useState("");
-  const [showCloneInput, setShowCloneInput] = useState(false);
-  const [cloning, setCloning] = useState(false);
+
   // Section to highlight after AI edit (visual diff like Lovable)
   const highlightSectionRef = useRef<string | null>(null);
 
@@ -1853,102 +1850,6 @@ export default function LandingBuilderPage() {
     }
   };
 
-  // ── Clone from URL ──────────────────────────────────────────────────────────
-  const handleClone = async () => {
-    const url = cloneUrl.trim();
-    if (!url) { toast.error("Ingresa una URL válida"); return; }
-    if (!selectedId) { toast.error("Primero crea o selecciona una página"); return; }
-
-    setCloning(true);
-    setShowCloneInput(false);
-    setShowTemplates(false);
-    setChatOpen(true);
-
-    const userMsgId = Math.random().toString(36).slice(2);
-    const assistantMsgId = Math.random().toString(36).slice(2);
-    setChatMessages(prev => [
-      ...prev,
-      { id: userMsgId, role: "user" as const, content: `🔗 Clonar: ${url}`, status: "done" as const },
-      { id: assistantMsgId, role: "assistant" as const, content: "", status: "loading" as const },
-    ]);
-
-    setGenerating(true);
-    setGenerationElapsed(0);
-    setStreamedTokens(0);
-    generationTimerRef.current = setInterval(() => setGenerationElapsed(s => s + 1), 1000);
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const accessToken = session?.access_token ?? "";
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
-      const railwayUrl = (import.meta.env.VITE_RAILWAY_LANDING_URL as string | undefined)?.replace(/\/$/, "");
-      const genEndpoint = railwayUrl ? `${railwayUrl}/generate-landing` : `${supabaseUrl}/functions/v1/generate-landing`;
-
-      const fetchResp = await fetch(genEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken}`, "apikey": anonKey },
-        body: JSON.stringify({
-          stream: true,
-          prompt: `Clona esta landing page exactamente: ${url}`,
-          page_id: selectedId,
-          clone_url: url,
-          chat_history: [],
-        }),
-      });
-
-      if (!fetchResp.ok) throw new Error(`Error HTTP ${fetchResp.status}`);
-      const ct = fetchResp.headers.get("content-type") ?? "";
-      if (!ct.includes("text/event-stream")) {
-        const errBody = await fetchResp.json().catch(() => ({}));
-        throw new Error(errBody.error ?? "Error del servidor");
-      }
-
-      const reader = fetchResp.body!.getReader();
-      const decoder = new TextDecoder();
-      let buf = "", html = "", summary = "✓ Página clonada", tokensUsed = 0, accumulated = "";
-
-      outer: while (true) {
-        const { done, value } = await reader.read();
-        if (done) { if (buf.trim()) for (const s of buf.split("\n\n")) { const dl = s.split("\n").find(l => l.startsWith("data: ")); if (!dl) continue; try { const e = JSON.parse(dl.slice(6)); if (e.type === "done") { html = e.html ?? ""; summary = e.summary ?? summary; } } catch {} } break; }
-        buf += decoder.decode(value, { stream: true });
-        const events = buf.split("\n\n"); buf = events.pop() ?? "";
-        for (const seg of events) {
-          const dl = seg.split("\n").find(l => l.startsWith("data: "));
-          if (!dl) continue;
-          let evt: any; try { evt = JSON.parse(dl.slice(6)); } catch { continue; }
-          if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
-          else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); break outer; }
-          else if (evt.type === "error") throw new Error(evt.error ?? "Error clonando");
-        }
-      }
-
-      if (!html && accumulated) {
-        let r = accumulated.trim(); const di = r.indexOf("<!DOCTYPE"); if (di !== -1) r = r.slice(di);
-        if (r && !r.trimEnd().toLowerCase().endsWith("</html>")) { if (!r.toLowerCase().includes("</body>")) r += "\n</body>"; r += "\n</html>"; }
-        if (r.startsWith("<!DOCTYPE")) html = r;
-      }
-      if (!html) throw new Error("No se pudo clonar la página. Intenta de nuevo.");
-
-      if (generatedHtml) pushHtmlHistory(generatedHtml);
-      setGeneratedHtml(html); setPreviewHtml(html); setHtmlVersion(v => v + 1); setCloneUrl("");
-      supabase.from("landing_pages").update({ html }).eq("id", selectedId).then(() => {});
-
-      const msgs: ChatMessage[] = [
-        { id: userMsgId, role: "user" as const, content: `🔗 Clonar: ${url}`, status: "done" as const },
-        { id: assistantMsgId, role: "assistant" as const, content: `${summary} · ${tokensUsed.toLocaleString()} tokens`, summary, status: "done" as const },
-      ];
-      setChatMessages(msgs);
-      supabase.from("landing_pages").update({ chat_history: msgs }).eq("id", selectedId).then(() => {});
-      toast.success("Página clonada correctamente");
-    } catch (e: any) {
-      setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: e.message || "Error clonando", status: "error" as const } : m));
-    } finally {
-      setCloning(false); setGenerating(false);
-      if (generationTimerRef.current) { clearInterval(generationTimerRef.current); generationTimerRef.current = null; }
-      setGenerationElapsed(0); setStreamedTokens(0);
-    }
-  };
 
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async (publishOverride?: boolean) => {
@@ -3017,26 +2918,6 @@ export default function LandingBuilderPage() {
                         <Button size="sm" variant="outline" onClick={() => setShowTemplates(true)} className="gap-1.5">
                           <Sparkles className="h-3.5 w-3.5" /> Ver plantillas
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setShowCloneInput(v => !v)} className="gap-1.5">
-                          🔗 Clonar URL
-                        </Button>
-                      </div>
-                      {showCloneInput && (
-                        <div className="flex gap-2 w-full max-w-md px-4">
-                          <input
-                            type="url"
-                            placeholder="https://página-a-clonar.com"
-                            value={cloneUrl}
-                            onChange={e => setCloneUrl(e.target.value)}
-                            onKeyDown={e => { if (e.key === "Enter") handleClone(); }}
-                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                            autoFocus
-                          />
-                          <Button size="sm" onClick={handleClone} disabled={cloning || !cloneUrl.trim()}>
-                            {cloning ? "Clonando..." : "Clonar"}
-                          </Button>
-                        </div>
-                      )}
                     </div>
                   )
                 )}
@@ -3461,46 +3342,7 @@ export default function LandingBuilderPage() {
                     }}
                   />
 
-                  {/* Clone URL inline input */}
-                  {showCloneInput && (
-                    <div className="flex gap-2 mb-2">
-                      <input
-                        type="url"
-                        placeholder="https://página-a-clonar.com"
-                        value={cloneUrl}
-                        onChange={e => setCloneUrl(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") handleClone(); if (e.key === "Escape") setShowCloneInput(false); }}
-                        className="flex-1 px-3 py-1.5 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/30"
-                        autoFocus
-                      />
-                      <Button size="sm" className="h-8 text-xs" onClick={handleClone} disabled={cloning || !cloneUrl.trim()}>
-                        {cloning ? <Loader2 className="h-3 w-3 animate-spin" /> : "Clonar"}
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowCloneInput(false)}>
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="flex gap-2 items-center">
-                    {/* Clone URL button */}
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-8 w-8 p-0 shrink-0"
-                            onClick={() => setShowCloneInput(v => !v)}
-                          >
-                            <span className="text-xs">🔗</span>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Clonar desde URL</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-
-                    {/* Image attach button */}
+                                      {/* Image attach button */}
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
