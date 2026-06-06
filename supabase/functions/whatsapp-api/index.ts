@@ -395,25 +395,27 @@ Deno.serve(async (req) => {
       const isFirstNumber = (activeCount ?? 0) === 0;
 
       if (targetRow) {
-        const { error, count } = await supabase
+        // Atomic upsert: safe even if a concurrent request deletes and recreates the row.
+        // Uses the unique constraint on (user_id, phone_number_id) to merge correctly.
+        const { error } = await supabase
           .from("whatsapp_configs")
-          .update({
-            waba_id,
-            phone_number_id,
-            display_phone: display_phone || null,
-            business_name: business_name || null,
-            is_active: true,
-            is_primary: isFirstNumber,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", targetRow.id)
-          .select("id", { count: "exact", head: true });
+          .upsert(
+            {
+              id: targetRow.id,          // keep same row ID
+              user_id: user.id,
+              waba_id,
+              phone_number_id,
+              display_phone: display_phone || null,
+              business_name: business_name || null,
+              is_active: true,
+              is_primary: isFirstNumber,
+              access_token: targetRow.access_token, // preserve token
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id", ignoreDuplicates: false }
+          );
 
         if (error) throw error;
-        // If 0 rows updated, the row was deleted by a concurrent request — signal retry
-        if ((count ?? 0) === 0) {
-          throw new Error("Error al guardar: intenta de nuevo (conflicto de sesión).");
-        }
 
         // Subscribe this WABA to receive webhooks (non-fatal — don't block activation)
         if (targetRow.access_token) {

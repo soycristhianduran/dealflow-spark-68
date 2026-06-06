@@ -192,17 +192,35 @@ Deno.serve(async (req) => {
           const phoneNumberId = value.metadata?.phone_number_id;
           if (!phoneNumberId) continue;
 
-          // Find which user owns this phone_number_id (also fetch access_token for media download)
+          // Find which user owns this phone_number_id.
+          // We do NOT filter by is_active here — if a config exists with a real
+          // phone_number_id and access_token, we process the message regardless
+          // of the is_active flag. This prevents messages being silently dropped
+          // due to race conditions in the connection flow.
+          // We also auto-heal the is_active flag if the config is stuck.
           const { data: config } = await supabase
             .from("whatsapp_configs")
-            .select("user_id, organization_id, access_token")
+            .select("id, user_id, organization_id, access_token, is_active")
             .eq("phone_number_id", phoneNumberId)
-            .eq("is_active", true)
-            .single();
+            .neq("waba_id", "pending")
+            .not("access_token", "is", null)
+            .order("is_active", { ascending: false }) // prefer active configs
+            .limit(1)
+            .maybeSingle();
 
           if (!config) {
             console.log("No config found for phone_number_id:", phoneNumberId);
             continue;
+          }
+
+          // Auto-heal: if config exists but is_active=false, activate it now.
+          // This silently recovers from the OAuth race condition without user intervention.
+          if (!config.is_active) {
+            console.log("Auto-healing is_active for phone_number_id:", phoneNumberId);
+            await supabase
+              .from("whatsapp_configs")
+              .update({ is_active: true, updated_at: new Date().toISOString() })
+              .eq("id", config.id);
           }
 
           // Process incoming messages
