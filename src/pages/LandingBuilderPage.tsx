@@ -1277,9 +1277,22 @@ export default function LandingBuilderPage() {
       setPreviewHtml(html);
       setHtmlVersion(v => v + 1);
 
+      // Proactive suggestions after fresh generation (Lovable-style)
+      const suggestionId = Math.random().toString(36).slice(2);
+      const suggestions = [];
+      if (!html.includes('id="testimonials"') && !html.includes("★★★★★")) suggestions.push("💬 Agrega testimonios reales para aumentar conversión");
+      if (!html.includes('id="faq"') && !html.includes("<details")) suggestions.push("❓ Incluye una sección FAQ para resolver objeciones");
+      if (!html.includes('id="pricing"') && !html.toLowerCase().includes("precio")) suggestions.push("💲 Considera agregar precios o planes para calificar leads");
+      if (!html.includes('id="video"')) suggestions.push("▶️ Un video demo puede duplicar la tasa de conversión");
+      if (html.includes("placehold.co")) suggestions.push("🖼️ Sube imágenes reales para reemplazar los placeholders");
+
+      const suggestionMsg = suggestions.length > 0
+        ? `\n\n💡 **Sugerencias para mejorar:**\n${suggestions.slice(0, 3).map(s => `• ${s}`).join('\n')}`
+        : "";
+
       const updatedHistory: ChatMessage[] = [
         ...initHistory,
-        { id: assistantMsgId, role: "assistant", content: summary + (tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : ""), summary, status: "done" },
+        { id: assistantMsgId, role: "assistant", content: summary + (tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : "") + suggestionMsg, summary, status: "done" },
       ];
       setChatMessages(updatedHistory);
 
