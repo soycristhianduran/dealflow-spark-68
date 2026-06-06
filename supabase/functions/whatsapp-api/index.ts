@@ -360,14 +360,30 @@ Deno.serve(async (req) => {
     if (action === "save_phone_number") {
       const { waba_id, phone_number_id, display_phone, business_name } = body;
 
-      // Find the pending row created by the OAuth callback (phone_number_id = "pending").
-      // Multi-number: we update the PENDING row specifically — never touch active configs.
+      // Find the pending row (most recent first — handles race condition with multiple OAuth starts)
       const { data: pendingRow } = await supabase
         .from("whatsapp_configs")
         .select("id, access_token")
         .eq("user_id", user.id)
         .eq("phone_number_id", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
         .maybeSingle();
+
+      // Fallback: race condition recovery — if the pending row was already consumed but the
+      // real phone_number row exists with is_active=false, activate it instead of failing.
+      // This happens when OAuth runs twice (user clicks "Conectar" multiple times).
+      const { data: stuckRow } = !pendingRow ? await supabase
+        .from("whatsapp_configs")
+        .select("id, access_token")
+        .eq("user_id", user.id)
+        .eq("phone_number_id", phone_number_id)
+        .eq("is_active", false)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle() : { data: null };
+
+      const targetRow = pendingRow ?? stuckRow;
 
       // Check whether this org already has any active number (for is_primary logic)
       const { count: activeCount } = await supabase
@@ -378,8 +394,8 @@ Deno.serve(async (req) => {
 
       const isFirstNumber = (activeCount ?? 0) === 0;
 
-      if (pendingRow) {
-        const { error } = await supabase
+      if (targetRow) {
+        const { error, count } = await supabase
           .from("whatsapp_configs")
           .update({
             waba_id,
@@ -390,21 +406,26 @@ Deno.serve(async (req) => {
             is_primary: isFirstNumber,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", pendingRow.id);
-        if (error) throw error;
+          .eq("id", targetRow.id)
+          .select("id", { count: "exact", head: true });
 
-        // Subscribe this WABA to receive webhooks
-        if (pendingRow.access_token) {
+        if (error) throw error;
+        // If 0 rows updated, the row was deleted by a concurrent request — signal retry
+        if ((count ?? 0) === 0) {
+          throw new Error("Error al guardar: intenta de nuevo (conflicto de sesión).");
+        }
+
+        // Subscribe this WABA to receive webhooks (non-fatal — don't block activation)
+        if (targetRow.access_token) {
           try {
             const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
               method: "POST",
-              headers: { "Authorization": `Bearer ${pendingRow.access_token}` },
+              headers: { "Authorization": `Bearer ${targetRow.access_token}` },
             });
-            console.log("WABA webhook subscription (save_phone_number):", JSON.stringify(await subRes.json()));
+            console.log("WABA webhook subscription:", JSON.stringify(await subRes.json()));
           } catch (_) { /* non-fatal */ }
         }
       } else {
-        // No pending row — wizard was opened without OAuth (shouldn't happen normally)
         throw new Error("No hay un token OAuth pendiente. Reconecta tu cuenta de Meta.");
       }
 
