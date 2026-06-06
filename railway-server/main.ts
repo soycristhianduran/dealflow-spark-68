@@ -202,8 +202,8 @@ OPTION B — Split hero (SaaS/app with product screenshot, 5/7 grid):
     </div>
     <div class="lg:col-span-7 relative anim-visual">
       <div class="relative">
-        <img src="https://placehold.co/900x600/[BG-HEX]/[TEXT-HEX]?text=[Product+Dashboard]" class="w-full rounded-2xl shadow-2xl ring-1 ring-black/5">
-        [Optional: floating badge cards for key metrics — position:absolute -bottom-4 -left-4 bg-white rounded-xl shadow-lg p-4]
+        [Real Unsplash photo OR CSS dashboard mockup — see IMAGE SYSTEM above]
+        [ALWAYS add 2 FLOATING SOCIAL PROOF CARDS — see FLOATING CARDS section above]
       </div>
     </div>
   </div>
@@ -228,7 +228,7 @@ OPTION C — Dark full-screen hero (luxury, premium, bold SaaS, agencies):
 
 OPTION D — Full-bleed image hero (real estate, hospitality, luxury product, events):
 <section class="relative min-h-screen flex items-end overflow-hidden">
-  <div class="absolute inset-0 bg-cover bg-center" style="background-image:url('https://placehold.co/1920x1080/[HEX]/[HEX]?text=[Scene+Description]')"></div>
+  <div class="absolute inset-0 bg-cover bg-center" style="background-image:url('https://images.unsplash.com/photo-[ID-from-IMAGE-SYSTEM]?w=1920&h=1080&fit=crop&auto=format&q=80')"></div>
   <div class="absolute inset-0" style="background:linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.4) 50%, rgba(0,0,0,.1) 100%)"></div>
   <div class="relative z-10 max-w-5xl mx-auto px-6 pb-24 w-full text-white">
     <div class="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold mb-6 backdrop-blur-sm anim-badge" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25)">
@@ -248,9 +248,80 @@ All hero content in <div class="relative z-10"> (above decorative layer).
 NEVER set html,body height:100% or overflow:hidden — that breaks page scroll.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IMAGES — use real Unsplash photos, never placehold.co
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Use real Unsplash photos via: https://images.unsplash.com/photo-[ID]?w=WIDTH&h=HEIGHT&fit=crop&auto=format&q=80
+Pick the ID that best matches the business type and scene needed:
+
+BUSINESS / OFFICE / CONSULTING:
+  Modern office open space:   photo-1497366216548-37526070297c  (w=1200&h=700)
+  Business meeting table:     photo-1552664730-d307ca884978    (w=1200&h=700)
+  Person at laptop workspace: photo-1600880292203-757bb62b4baf  (w=1200&h=700)
+  Professional handshake:     photo-1521791136064-7986c2920216  (w=1200&h=700)
+
+SAAS / TECH / DASHBOARD:
+  Analytics dashboard screen: photo-1551288049-bebda4e38f71    (w=1200&h=750)
+  Laptop with data charts:    photo-1460925895917-afdab827c52f  (w=1200&h=750)
+  Team working on computers:  photo-1522071820081-009f0129c71c  (w=1200&h=750)
+  Code / development:         photo-1555421689-d68471e189f2    (w=1200&h=750)
+
+REAL ESTATE / PROPERTY:
+  Luxury modern house:        photo-1600585154340-be6161a56a0c  (w=1920&h=1080)
+  Beautiful home exterior:    photo-1564013799919-ab600027ffc6  (w=1920&h=1080)
+  Modern apartment interior:  photo-1560448204-e02f11c3d0e2  (w=1920&h=1080)
+  Aerial neighborhood:        photo-1560520653-9e0e4c89eb11  (w=1920&h=1080)
+
+HEALTHCARE / WELLNESS / FITNESS:
+  Doctor with patient:        photo-1576091160399-112ba8d25d1d  (w=1200&h=700)
+  Fitness / gym workout:      photo-1571019613454-1cb2f99b2d8b  (w=1200&h=700)
+  Wellness meditation:        photo-1545205597-3d9d02c29597  (w=1200&h=700)
+  Medical team:               photo-1551190822-a9333d879b1f  (w=1200&h=700)
+
+EDUCATION / LEARNING:
+  Students in classroom:      photo-1524178232363-1fb2b075b655  (w=1200&h=700)
+  Person studying laptop:     photo-1513475382585-d06e58bcb0e0  (w=1200&h=700)
+  Online learning setup:      photo-1488190211105-8b0e65b80b4e  (w=1200&h=700)
+
+FOOD / RESTAURANT / EVENTS:
+  Elegant food plating:       photo-1567620905732-2d1ec7ab7445  (w=1200&h=700)
+  Restaurant interior:        photo-1414235077428-338989a2e8c0  (w=1920&h=1080)
+  Event / conference venue:   photo-1540575467063-178a50c2df87  (w=1920&h=1080)
+
+FINANCE / INVESTMENT:
+  Financial charts trading:   photo-1611974789855-9c2a0a7236a3  (w=1200&h=700)
+  Business growth graph:      photo-1590283603385-17ffb3a7f29f  (w=1200&h=700)
+
+For hero product mockups (SaaS/app): build a CSS-only dashboard mockup instead of a photo:
+<div class="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-black/10 bg-gray-900 p-4">
+  <div class="flex items-center gap-2 mb-3"><div class="w-3 h-3 rounded-full bg-red-500"></div><div class="w-3 h-3 rounded-full bg-yellow-500"></div><div class="w-3 h-3 rounded-full bg-green-500"></div><div class="flex-1 mx-4 h-5 rounded-md bg-gray-700/60 text-xs text-gray-400 flex items-center px-2">app.yourproduct.com</div></div>
+  <div class="bg-gray-800 rounded-xl p-4 space-y-3">
+    <div class="grid grid-cols-3 gap-2">[3 metric cards: bg-gray-700/50 rounded-lg p-3, title text-xs text-gray-400, value text-xl font-bold text-white, trend text-xs text-green-400]</div>
+    <div class="bg-gray-700/30 rounded-lg h-28 flex items-end gap-1 px-3 pb-3">[Bar chart bars: bg-primary/60 rounded-t varying heights]</div>
+    <div class="space-y-1.5">[2-3 data rows: flex justify-between text-sm]</div>
+  </div>
+</div>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FLOATING SOCIAL PROOF CARDS — always add to Option B hero (split)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Add 2 floating cards over the hero image. Position absolutely. Use real-looking metrics:
+<!-- Card 1: metric result — bottom-left of image -->
+<div class="absolute -bottom-4 -left-6 bg-white rounded-2xl shadow-xl p-4 flex items-center gap-3 z-20 anim-visual" style="min-width:180px">
+  <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style="background:linear-gradient(135deg,var(--primary),var(--accent))">
+    <svg class="w-5 h-5 text-white" fill="none" stroke="white" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-5.94-2.28m5.94 2.28l-2.28 5.941"/></svg>
+  </div>
+  <div><p class="text-xs text-gray-500 font-medium">[Metric label]</p><p class="text-lg font-bold text-gray-900">[+47% / 1,200 leads / etc]</p></div>
+</div>
+<!-- Card 2: social proof — top-right of image -->
+<div class="absolute -top-4 -right-6 bg-white rounded-2xl shadow-xl p-4 z-20 anim-visual">
+  <div class="flex items-center gap-2 mb-1"><div class="flex -space-x-1.5">[3 × <div class="w-7 h-7 rounded-full border-2 border-white" style="background:linear-gradient(135deg,var(--primary),var(--accent))"></div>]</div><span class="text-xs font-semibold text-gray-700">+[N] hoy</span></div>
+  <div class="flex text-yellow-400 text-xs">★★★★★</div>
+</div>
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION SELECTION LOGIC — decide in STEP 0, not while generating
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-ALWAYS include: Nav · Hero · Stats · Features · How It Works · Lead Form · Footer
+ALWAYS include: Nav · Hero · Pain/Agitation · Stats · Features · How It Works · Lead Form · Footer
 CONDITIONALLY include based on context clues:
 
   Logo cloud     → if user mentions "clients", "brands", "partners", "trusted by", or business clearly has notable clients
@@ -265,7 +336,7 @@ CONDITIONALLY include based on context clues:
   Video section  → if user mentions "video", "demo", "tour", "watch"
 
 SECTION ORDER (standard high-converting flow):
-  Nav → Hero → Logo cloud (if applicable) → Stats → Problem/Agitation →
+  Nav → Hero → Logo cloud (if applicable) → Stats → Pain/Agitation →
   Features/Bento → How It Works → Zigzag detail (if applicable) →
   Before/After (if applicable) → Testimonials → Pricing (if applicable) →
   FAQ → Final CTA → Footer
@@ -284,6 +355,30 @@ BACKGROUND DECISION:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION PATTERNS — full component library
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+▸ PAIN / AGITATION (ALWAYS include — right after hero or logo cloud):
+Write 4-5 bullets that describe the EXACT painful situation the target persona experiences DAILY.
+Each bullet must be a sentence they'd say out loud, not a feature list.
+<section class="py-20 bg-white">
+  <div class="max-w-4xl mx-auto px-6 text-center">
+    <p class="eyebrow mx-auto w-fit">¿Te suena familiar?</p>
+    <h2 class="text-3xl lg:text-4xl font-bold tracking-tight mb-4">[Agitation headline — e.g. "Cada día pierdes clientes que nunca sabrás que existieron"]</h2>
+    <p class="text-gray-500 text-lg max-w-2xl mx-auto mb-12">[1 sentence expanding the pain — make it personal]</p>
+    <div class="grid md:grid-cols-2 gap-4 text-left max-w-3xl mx-auto">
+      <div class="flex items-start gap-4 p-5 rounded-2xl border border-red-100 bg-red-50/60 fade-in">
+        <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+          <svg class="w-4 h-4 text-red-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </div>
+        <p class="text-gray-700 text-sm leading-relaxed font-medium">[Pain point in first person: "Pierdo horas respondiendo mensajes manualmente sin saber si el lead califica"]</p>
+      </div>
+      [repeat 3-4 more pain bullets, each a distinct daily frustration]
+    </div>
+    <div class="mt-10 inline-flex items-center gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-6 py-4 fade-in">
+      <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="1.75" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <p class="text-sm font-semibold" style="color:var(--primary)">[The fix in one line: "Con [Producto] esto se resuelve en menos de 24 horas."]</p>
+    </div>
+  </div>
+</section>
 
 ▸ LOGO CLOUD (always include when business has clients/partners):
 <section class="py-14 border-y border-gray-100 bg-white">
