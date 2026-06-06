@@ -1776,15 +1776,26 @@ Deno.serve({ port }, async (req) => {
       return { tokensUsed, tokensRemaining };
     }
 
-    // ── Call Anthropic (with one retry on transient errors) ──────────────────
+    // ── Call Anthropic (with prompt caching + one retry on transient errors) ─
+    // Prompt caching caches the system prompt KV states on Anthropic's servers.
+    // Second+ requests with the same system prompt pay only 10% of the input cost
+    // for the cached portion. Output quality is mathematically identical.
+    // FRESH_SYSTEM (~16k tokens): ~84% cost reduction on repeat generations.
+    // REFINE_SYSTEM (~1.5k tokens): moderate savings.
+    // SURGICAL_SYSTEM (~500 tokens): small savings but still beneficial.
+    const cachedSystem = [
+      { type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } },
+    ];
+
     const buildAnthropicReq = () => fetch(ANTHROPIC_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
+        "anthropic-beta": "prompt-caching-2024-07-31",
       },
-      body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, system: systemPrompt, messages }),
+      body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, system: cachedSystem, messages }),
     });
 
     let anthropicResp = await buildAnthropicReq();
