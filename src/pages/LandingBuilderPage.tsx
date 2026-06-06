@@ -64,40 +64,45 @@ function addTargetBlank(html: string): string {
 // Without this, AI-generated modal overlays that use class="hidden" are visible until
 // the CDN finishes loading (~100-500ms), causing a solid-color flash (or permanent
 // full-screen overlay if the CDN load fails / is slow).
-const PREVIEW_EARLY_CSS = `<style id="klosify-early">
-/* 1) Provided BEFORE Tailwind CDN loads — prevents class="hidden" modal overlays from flashing */
+// CSS injected in BOTH edit and preview modes:
+// prevents flash of class="hidden" modal overlays before Tailwind CDN loads.
+const COMMON_EARLY_CSS = `<style id="klosify-early">
 .hidden{display:none!important}
+</style>`;
 
-/* 2) CRITICAL — break the iframe-height infinite loop.
-   When the iframe height is set to a large value (e.g. 8000px), 100vh inside
-   the iframe also becomes 8000px. Any section using min-h-screen then fills
-   the entire iframe, pushing all other sections beyond the visible area.
-   Overriding min-h-screen to 0 lets sections render at their natural height,
-   so postMessage reports the correct total page height and the loop stops.
-   Visual impact in preview: hero won't be full-screen, but ALL sections visible. */
+// CSS injected ONLY in edit mode (full-page height expansion).
+// The iframe is dynamically resized to fit all content so the user can click/edit
+// any section. This overrides min-h-screen to break the infinite height loop that
+// occurs when the iframe viewport equals the measured content height.
+// NOT used in preview mode — preview uses a fixed viewport so min-h-screen renders
+// correctly, matching the published page exactly.
+const EDIT_ONLY_CSS = `<style id="klosify-edit-overrides">
 .min-h-screen{min-height:0!important}
 .h-screen{height:auto!important}
 </style>`;
 
+// ── buildPreviewSrcDoc ────────────────────────────────────────────────────────
+// Used for the PREVIEW iframe (Vista previa mode).
+// The iframe has a FIXED viewport height (like a real browser window) so
+// min-h-screen sections render at 100vh = the visible viewport, exactly as
+// users see the published page. The iframe scrolls internally.
+// No height reporter needed — we don't resize the iframe dynamically.
 function buildPreviewSrcDoc(html: string): string {
   let result = addTargetBlank(html);
 
-  // Inject early CSS right after <head> (or before </head>) so it beats Tailwind CDN
+  // Inject only the safe early CSS (no min-h-screen override)
   if (result.includes("<head>")) {
-    result = result.replace("<head>", "<head>\n" + PREVIEW_EARLY_CSS);
+    result = result.replace("<head>", "<head>\n" + COMMON_EARLY_CSS);
   } else if (result.includes("</head>")) {
-    result = result.replace("</head>", PREVIEW_EARLY_CSS + "\n</head>");
+    result = result.replace("</head>", COMMON_EARLY_CSS + "\n</head>");
   } else {
-    // No head tag — prepend to the document
-    result = PREVIEW_EARLY_CSS + "\n" + result;
+    result = COMMON_EARLY_CSS + "\n" + result;
   }
 
-  // Strip form temporarily so we only number CTAs outside it
+  // Tag CTA buttons for inline link editing
   const formMatch = result.match(/<form[^>]*id=["']lead-form["'][^>]*>[\s\S]*?<\/form>/i);
   const FP = "___KLOSIFY_FORM___";
   let work = formMatch ? result.replace(formMatch[0], FP) : result;
-
-  // Tag each href="#" link with an index
   let ctaN = 0;
   work = work.replace(
     /<a([^>]*)\bhref=["']#["']([^>]*)>/gi,
@@ -105,13 +110,9 @@ function buildPreviewSrcDoc(html: string): string {
   );
   if (formMatch) work = work.replace(FP, formMatch[0]);
 
-  // Click-intercept + height-reporter scripts — run inside the iframe.
-  // Height is reported so the parent can resize the iframe to the full page height
-  // (instead of showing only the first 100vh hero section).
-  // Uses ResizeObserver for continuous tracking + setTimeout fallbacks for CDN-loaded CSS.
-  const interceptScript = `<script>
+  // CTA click intercept only (no height reporter — preview uses fixed viewport height)
+  const ctaScript = `<script>
 (function(){
-  // ── CTA click intercept ──────────────────────────────────────────────────
   document.addEventListener('click',function(e){
     var el=e.target.closest('[data-klosify-cta]');
     if(!el)return;
@@ -124,37 +125,57 @@ function buildPreviewSrcDoc(html: string): string {
       rect:{top:r.top,left:r.left,width:r.width,height:r.height,bottom:r.bottom}
     },'*');
   });
-  // ── Full-page height reporter ────────────────────────────────────────────
-  var lastH=0;
-  function reportHeight(){
-    var h=Math.max(
-      document.body.scrollHeight,
-      document.documentElement.scrollHeight,
-      document.body.offsetHeight,
-      document.documentElement.offsetHeight
-    );
-    if(h>100&&h!==lastH){lastH=h;window.parent.postMessage({type:'klosify_height',h:h},'*');}
-  }
-  // 1) Immediately on script parse (page nearly done)
-  reportHeight();
-  // 2) After DOMContentLoaded
-  document.addEventListener('DOMContentLoaded',function(){reportHeight();setTimeout(reportHeight,100);});
-  // 3) After all resources (fonts, images) load
-  window.addEventListener('load',function(){reportHeight();setTimeout(reportHeight,300);});
-  // 4) Timed fallbacks — catches Tailwind CDN applying classes after load
-  [500,1000,1500,2000,3000,5000].forEach(function(t){setTimeout(reportHeight,t);});
-  // 5) ResizeObserver — fires whenever page layout changes (font swap, lazy img, animation)
-  if(typeof ResizeObserver!=='undefined'){
-    var ro=new ResizeObserver(function(){reportHeight();});
-    ro.observe(document.documentElement);
-  }
 })();
 <\/script>`;
 
   work = work.includes("</body>")
-    ? work.replace("</body>", interceptScript + "\n</body>")
-    : work + interceptScript;
+    ? work.replace("</body>", ctaScript + "\n</body>")
+    : work + ctaScript;
   return work;
+}
+
+// ── buildEditSrcDoc ───────────────────────────────────────────────────────────
+// Used for the EDIT iframe (Editar texto mode).
+// The iframe expands to its full content height so the user can scroll to any
+// section and click on text to edit it. Uses the height reporter + min-h-screen
+// override to prevent the height-loop while still showing all sections.
+function buildEditSrcDoc(html: string): string {
+  let result = addTargetBlank(html);
+
+  // Inject both common CSS and edit-only overrides
+  const editCSS = COMMON_EARLY_CSS + "\n" + EDIT_ONLY_CSS;
+  if (result.includes("<head>")) {
+    result = result.replace("<head>", "<head>\n" + editCSS);
+  } else if (result.includes("</head>")) {
+    result = result.replace("</head>", editCSS + "\n</head>");
+  } else {
+    result = editCSS + "\n" + result;
+  }
+
+  // Height reporter — expands the edit iframe to show all content
+  const heightScript = `<script>
+(function(){
+  var lastH=0;
+  function reportHeight(){
+    var h=Math.max(
+      document.body.scrollHeight,document.documentElement.scrollHeight,
+      document.body.offsetHeight,document.documentElement.offsetHeight
+    );
+    if(h>100&&h!==lastH){lastH=h;window.parent.postMessage({type:'klosify_height',h:h},'*');}
+  }
+  reportHeight();
+  document.addEventListener('DOMContentLoaded',function(){reportHeight();setTimeout(reportHeight,100);});
+  window.addEventListener('load',function(){reportHeight();setTimeout(reportHeight,300);});
+  [500,1000,1500,2000,3000,5000].forEach(function(t){setTimeout(reportHeight,t);});
+  if(typeof ResizeObserver!=='undefined'){
+    new ResizeObserver(function(){reportHeight();}).observe(document.documentElement);
+  }
+})();
+<\/script>`;
+
+  return result.includes("</body>")
+    ? result.replace("</body>", heightScript + "\n</body>")
+    : result + heightScript;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -867,7 +888,7 @@ export default function LandingBuilderPage() {
     });
     if (formMatch) work = work.replace(FP, formMatch[0]);
     setGeneratedHtml(work);
-    setPreviewHtml(buildPreviewSrcDoc(work)); // preserve CTA intercept scripts
+    setPreviewHtml(work); // store raw HTML — iframes call build*SrcDoc themselves
     setHtmlVersion(v => v + 1);
     setCtaPopover(p => ({ ...p, open: false }));
     if (selectedId) {
@@ -2398,44 +2419,52 @@ export default function LandingBuilderPage() {
                       </TooltipProvider>
                     </div>
 
-                    {/* iframe wrapper — outer div scrolls; iframe expands to full page height */}
+                    {/* ── iframe area ─────────────────────────────────────────
+                        Edit mode:    iframe expands to full content height so
+                                      the user can scroll to any section and click
+                                      text to edit it.
+                        Preview mode: fixed viewport height (like a real browser
+                                      window). min-h-screen renders correctly so
+                                      the preview is identical to the published page.
+                                      The user scrolls inside the iframe.
+                    ────────────────────────────────────────────────────────── */}
                     <div className={cn(
-                      "flex-1 overflow-y-auto",
+                      editMode ? "flex-1 overflow-y-auto" : "flex-1 overflow-hidden",
                       deviceSize !== "desktop" ? "bg-muted/40 flex justify-center pt-4" : ""
                     )}>
                       <div
                         className={cn(
                           "transition-all duration-300",
+                          !editMode && "h-full",
                           deviceSize !== "desktop" && "rounded-t-xl overflow-hidden shadow-xl border border-border"
                         )}
                         style={{
                           width: DEVICE_WIDTHS[deviceSize] ?? "100%",
-                          // In desktop mode we keep full height as minimum; in device
-                          // mode the iframe itself will grow to content height.
-                          minHeight: deviceSize === "desktop" ? "100%" : undefined,
+                          minHeight: editMode && deviceSize === "desktop" ? "100%" : undefined,
                         }}
                       >
                         {editMode ? (
-                          /* Edit mode: no sandbox, onLoad calls setupEditMode.
-                             htmlVersion in key forces remount when AI updates HTML. */
+                          /* Edit mode: full-page height expansion via height reporter.
+                             Uses buildEditSrcDoc which injects height reporter +
+                             min-h-screen override to prevent the height loop. */
                           <iframe
                             ref={editIframeRef}
                             key={`edit-${deviceSize}-${htmlVersion}`}
-                            srcDoc={addTargetBlank(previewHtml)}
+                            srcDoc={buildEditSrcDoc(previewHtml)}
                             onLoad={setupEditMode}
                             className="w-full border-0"
                             style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
                             title="Editar landing"
                           />
                         ) : (
-                          /* Preview mode: iframe grows to full page height so all
-                             sections are visible without showing only the hero. */
+                          /* Preview mode: fixed viewport height = identical to published page.
+                             No min-h-screen override → hero sections render full-screen.
+                             iframe scrolls internally (like a real browser window). */
                           <iframe
                             ref={previewIframeRef}
                             key={`preview-${deviceSize}-${htmlVersion}`}
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
-                            className="w-full border-0"
-                            style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
+                            className="w-full h-full border-0"
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                             title="Vista previa landing"
                           />
