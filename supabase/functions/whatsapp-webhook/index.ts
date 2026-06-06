@@ -156,8 +156,11 @@ Deno.serve(async (req) => {
     try {
       const rawBody = await req.text();
 
-      // SECURITY: verify Meta HMAC-SHA256 signature to reject forged payloads
-      const appSecret = Deno.env.get("META_APP_SECRET_WA") ?? Deno.env.get("META_APP_SECRET_IG");
+      // SECURITY: verify Meta HMAC-SHA256 signature to reject forged payloads.
+      // Priority: META_APP_SECRET_WA (WA-specific) → META_APP_SECRET (shared app)
+      // NOTE: META_APP_SECRET_IG is the Instagram secret — NEVER use it for WhatsApp.
+      const appSecret = Deno.env.get("META_APP_SECRET_WA")
+                     ?? Deno.env.get("META_APP_SECRET");
       if (appSecret) {
         const signature = req.headers.get("x-hub-signature-256");
         const valid = await verifyMetaSignature(rawBody, signature, appSecret);
@@ -166,7 +169,7 @@ Deno.serve(async (req) => {
           return new Response("Forbidden", { status: 403 });
         }
       } else {
-        console.warn("WhatsApp webhook: META_APP_SECRET_WA not set — skipping signature check");
+        console.warn("WhatsApp webhook: META_APP_SECRET not set — skipping signature check");
       }
 
       const body = JSON.parse(rawBody);
