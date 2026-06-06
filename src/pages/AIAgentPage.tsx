@@ -58,11 +58,21 @@ export default function AIAgentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [conversationsThisMonth, setConversationsThisMonth] = useState(0);
+  const [hasWhatsApp, setHasWhatsApp] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!organizationId) { setLoading(false); return; }
     loadConfig();
     loadUsage();
+    // Check if org has an active WhatsApp number
+    supabase
+      .from("whatsapp_configs")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setHasWhatsApp(!!data));
   }, [organizationId]);
 
   async function loadConfig() {
@@ -166,6 +176,17 @@ export default function AIAgentPage() {
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
+
+          {/* Warning: no WhatsApp connected */}
+          {hasWhatsApp === false && (
+            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              <span className="text-lg leading-none mt-0.5">⚠️</span>
+              <div>
+                <p className="font-semibold mb-1">No tienes WhatsApp conectado</p>
+                <p className="text-amber-700">El agente no puede responder sin un número de WhatsApp activo. Ve a <a href="../integraciones" className="underline font-medium">Integraciones → WhatsApp Business</a> para conectar tu número primero.</p>
+              </div>
+            </div>
+          )}
 
           {/* Status card */}
           <Card>

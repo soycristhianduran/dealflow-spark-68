@@ -108,6 +108,8 @@ Deno.serve(async (req) => {
     }
 
     // 3. Check if conversation is paused (human took over)
+    // Auto-reactivate after 24 hours — prevents conversations from being
+    // permanently silenced if the human never explicitly reactivated the agent.
     const { data: paused } = await supabase
       .from("ai_agent_paused")
       .select("paused_at")
@@ -117,7 +119,22 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (paused) {
-      return json({ response: null, reason: "conversation_paused" });
+      const pausedAt = new Date(paused.paused_at).getTime();
+      const hoursSincePause = (Date.now() - pausedAt) / 3_600_000;
+
+      if (hoursSincePause < 24) {
+        // Still within the 24h human takeover window
+        return json({ response: null, reason: "conversation_paused" });
+      } else {
+        // 24h elapsed → auto-reactivate the agent for this conversation
+        await supabase
+          .from("ai_agent_paused")
+          .delete()
+          .eq("organization_id", organization_id)
+          .eq("channel", channel)
+          .eq("session_key", session_key);
+        console.log(`[AI-AGENT] Auto-reactivated after ${Math.round(hoursSincePause)}h pause for session ${session_key}`);
+      }
     }
 
     // 4. Check escalation keywords in user message BEFORE calling AI

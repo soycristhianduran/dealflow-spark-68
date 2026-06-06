@@ -543,7 +543,19 @@ Deno.serve(async (req) => {
                     );
 
                     const agentData = await agentRes.json();
-                    console.log("AI agent response:", JSON.stringify(agentData).substring(0, 200));
+
+                    // Detailed logging so we can diagnose agent failures in production
+                    if (!agentData?.response) {
+                      const reason = agentData?.reason || agentData?.error || "unknown";
+                      console.log(`[AI-AGENT] No response. reason=${reason} org=${config.organization_id}`);
+                      // Specific actionable logs per reason
+                      if (reason === "agent_inactive")    console.log("[AI-AGENT] → org has no ai_agent_config or is_active=false. User must configure in Agentes IA.");
+                      if (reason === "channel_disabled")  console.log("[AI-AGENT] → whatsapp channel not enabled in agent config.");
+                      if (reason === "quota_exceeded")    console.log("[AI-AGENT] → monthly conversation quota exceeded.");
+                      if (reason === "conversation_paused") console.log("[AI-AGENT] → conversation was escalated to human. AI paused for this contact.");
+                    } else {
+                      console.log("[AI-AGENT] Responding. length:", agentData.response.length, "escalated:", agentData.escalated);
+                    }
 
                     if (agentData?.response) {
                       // Split long responses into multiple short messages
