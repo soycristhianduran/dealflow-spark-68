@@ -494,8 +494,17 @@ Deno.serve(async (req) => {
                 if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
 
                 // ── AI Agent: respond automatically if enabled ─────────────
-                // Awaited inline (not fire-and-forget) — Claude Haiku responds
-                // in ~1-2s, well within Meta's 20s webhook timeout.
+                // DEBUG: Write a marker to DB so we can confirm this block is reached
+                // even without access to Edge Function logs. Will remove after diagnosis.
+                await supabase.from("activities").insert({
+                  related_entity_type: "contact",
+                  related_entity_id: contact.id,
+                  event_type: "debug",
+                  event_source: "ai_agent_block_reached",
+                  summary: `[DEBUG] AI agent block reached at ${new Date().toISOString()}`,
+                  created_by: config.user_id,
+                }).then(() => {}).catch(() => {});
+
                 console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact.id);
                 try {
                   if (config.organization_id) {
@@ -529,6 +538,7 @@ Deno.serve(async (req) => {
                         headers: {
                           "Content-Type": "application/json",
                           "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                          "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
                         },
                         body: JSON.stringify({
                           channel: "whatsapp",
@@ -544,15 +554,20 @@ Deno.serve(async (req) => {
 
                     const agentData = await agentRes.json();
 
+                    // DEBUG: Write agent response to DB so we can inspect it
+                    await supabase.from("activities").insert({
+                      related_entity_type: "contact",
+                      related_entity_id: contact.id,
+                      event_type: "debug",
+                      event_source: "ai_agent_response",
+                      summary: `[DEBUG] agentData: ${JSON.stringify(agentData).substring(0, 300)}`,
+                      created_by: config.user_id,
+                    }).then(() => {}).catch(() => {});
+
                     // Detailed logging so we can diagnose agent failures in production
                     if (!agentData?.response) {
                       const reason = agentData?.reason || agentData?.error || "unknown";
                       console.log(`[AI-AGENT] No response. reason=${reason} org=${config.organization_id}`);
-                      // Specific actionable logs per reason
-                      if (reason === "agent_inactive")    console.log("[AI-AGENT] → org has no ai_agent_config or is_active=false. User must configure in Agentes IA.");
-                      if (reason === "channel_disabled")  console.log("[AI-AGENT] → whatsapp channel not enabled in agent config.");
-                      if (reason === "quota_exceeded")    console.log("[AI-AGENT] → monthly conversation quota exceeded.");
-                      if (reason === "conversation_paused") console.log("[AI-AGENT] → conversation was escalated to human. AI paused for this contact.");
                     } else {
                       console.log("[AI-AGENT] Responding. length:", agentData.response.length, "escalated:", agentData.escalated);
                     }
