@@ -1599,7 +1599,6 @@ export default function LandingBuilderPage() {
           let retryHtml = "";
           let retrySummary = "✓ Aplicado";
           let retryAccumulated = "";
-          let retryDone = false;
 
           outerRetry: while (true) {
             const { done, value } = await retryReader.read();
@@ -1610,12 +1609,11 @@ export default function LandingBuilderPage() {
             for (const seg of events) {
               const dataLine = seg.split("\n").find(l => l.startsWith("data: "));
               if (!dataLine) continue;
-              try {
-                const evt = JSON.parse(dataLine.slice(6));
-                if (evt.type === "delta") { retryAccumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
-                else if (evt.type === "done") { retryHtml = evt.html ?? ""; retrySummary = evt.summary ?? "✓ Aplicado"; retryDone = true; break outerRetry; }
-                else if (evt.type === "error") throw new Error(evt.error ?? "Error");
-              } catch { continue; }
+              let evt: any;
+              try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; } // skip malformed SSE lines
+              if (evt.type === "delta") { retryAccumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
+              else if (evt.type === "done") { retryHtml = evt.html ?? ""; retrySummary = evt.summary ?? "✓ Aplicado"; break outerRetry; }
+              else if (evt.type === "error") throw new Error(evt.error ?? "Error en reintento");
             }
           }
 
