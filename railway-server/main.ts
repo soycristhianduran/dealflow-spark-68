@@ -172,42 +172,80 @@ NAVIGATION — always fixed, always with hamburger
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 HERO — layout variants (choose based on product type)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-OPTION A — Centered hero (info/service businesses, no obvious product screenshot):
-<section class="relative pt-32 pb-20 lg:pt-44 lg:pb-32 overflow-hidden text-center">
-  [decorative layer]
-  <div class="relative z-10 max-w-4xl mx-auto px-6">
-    <div class="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium mb-6 anim-badge" style="border-color:rgba(var(--primary-rgb),.2);color:var(--primary);background:rgba(var(--primary-rgb),.06)">
-      ✦ [Social proof badge]
+OPTION A — Centered full-screen hero (services, consulting, events, healthcare, real estate):
+<section class="relative min-h-screen flex items-center overflow-hidden mesh-bg">
+  [decorative layer: radial glow blob + dot grid]
+  <div class="relative z-10 max-w-4xl mx-auto px-6 py-32 text-center">
+    <div class="inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-sm font-medium mb-8 anim-badge" style="border-color:rgba(var(--primary-rgb),.2);color:var(--primary);background:rgba(var(--primary-rgb),.06)">
+      ✦ [Specific social proof: "4.9/5 · 500+ clientes"]
     </div>
-    <h1 class="text-5xl lg:text-7xl font-bold tracking-tight leading-[1.05] mb-6 anim-title">[Outcome] <span class="grad-text">[key word]</span></h1>
-    <p class="text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto mb-8 anim-sub">[1-2 sentences expanding the outcome]</p>
-    <div class="flex flex-col sm:flex-row gap-4 justify-center hero-cta anim-cta">
-      <a href="#lead-form" class="btn-primary text-base py-4 px-8">[Primary CTA] →</a>
+    <h1 class="text-5xl lg:text-7xl font-bold tracking-tight leading-[1.05] mb-6 anim-title">[Outcome] <br><span class="grad-text">[key phrase]</span></h1>
+    <p class="text-xl lg:text-2xl text-gray-600 leading-relaxed max-w-2xl mx-auto mb-10 anim-sub">[1-2 sentences: specific outcome for specific person]</p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center hero-cta anim-cta mb-10">
+      <a href="#lead-form" class="btn-primary text-base py-4 px-10">[Strong verb + outcome] →</a>
       <a href="#como-funciona" class="btn-secondary text-base py-4 px-8">Ver cómo funciona</a>
     </div>
-    <div class="flex items-center justify-center gap-3 mt-6 anim-proof">
-      <div class="flex">[5 avatar circles w-8 h-8 rounded-full border-2 border-white -ml-2 first:ml-0 bg-gradient-to-br from-primary to-accent]</div>
-      <p class="text-sm text-gray-500"><span class="text-yellow-500">★★★★★</span> 4.9/5 de <strong>500+</strong> clientes</p>
+    <div class="flex items-center justify-center gap-3 anim-proof">
+      <div class="flex -space-x-2">[5 × <div class="w-9 h-9 rounded-full border-2 border-white" style="background:linear-gradient(135deg,var(--primary),var(--accent))"></div>]</div>
+      <p class="text-sm text-gray-500"><span class="text-yellow-400">★★★★★</span> <strong>500+</strong> clientes satisfechos</p>
     </div>
-    <div class="mt-14 anim-visual">[Hero image/mockup: placehold.co]</div>
+    <div class="mt-16 anim-visual">[Dashboard/product mockup at placehold.co/1200x700]</div>
   </div>
 </section>
 
-OPTION B — Split hero (SaaS/product with screenshot, 5/7 grid):
-<section class="relative pt-24 overflow-hidden">
-  [decorative layer on the right column background]
-  <div class="max-w-7xl mx-auto px-6 grid lg:grid-cols-12 gap-12 lg:gap-0 items-center py-20 lg:py-0">
-    <div class="lg:col-span-5 lg:py-32 relative z-10">
-      [badge] [H1 with grad-text] [subheadline] [CTA group with hero-cta class] [social proof mini-bar]
+OPTION B — Split hero (SaaS/app with product screenshot, 5/7 grid):
+<section class="relative min-h-screen flex items-center overflow-hidden">
+  [decorative layer: large radial glow top-right]
+  <div class="max-w-7xl mx-auto px-6 w-full grid lg:grid-cols-12 gap-12 items-center py-24 lg:py-0">
+    <div class="lg:col-span-5 relative z-10">
+      [badge] [H1 text-5xl lg:text-6xl with grad-text] [subheadline text-lg text-gray-600] [CTA group hero-cta] [mini social proof row]
     </div>
-    <div class="lg:col-span-7 lg:pl-12 relative anim-visual">
-      <img src="https://placehold.co/900x600/HEX/HEX?text=[Product+Preview]" class="w-full rounded-2xl shadow-2xl ring-1 ring-black/5">
+    <div class="lg:col-span-7 relative anim-visual">
+      <div class="relative">
+        <img src="https://placehold.co/900x600/[BG-HEX]/[TEXT-HEX]?text=[Product+Dashboard]" class="w-full rounded-2xl shadow-2xl ring-1 ring-black/5">
+        [Optional: floating badge cards for key metrics — position:absolute -bottom-4 -left-4 bg-white rounded-xl shadow-lg p-4]
+      </div>
     </div>
   </div>
 </section>
 
-HERO HEIGHT: ALWAYS py-20 lg:py-32 or explicit top/bottom padding — NEVER min-h-screen or h-screen.
+OPTION C — Dark full-screen hero (luxury, premium, bold SaaS, agencies):
+<section class="relative min-h-screen flex items-center overflow-hidden mesh-dark text-white">
+  <div class="relative z-10 max-w-5xl mx-auto px-6 py-32 text-center">
+    <div class="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-medium mb-8 anim-badge" style="border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.8);background:rgba(255,255,255,.06)">
+      ✦ [Social proof or category label]
+    </div>
+    <h1 class="text-5xl lg:text-7xl xl:text-8xl font-bold tracking-tight leading-[1.02] mb-6 anim-title">
+      [First line — white]<br><span class="grad-text">[Key phrase — gradient]</span>
+    </h1>
+    <p class="text-xl text-white/60 leading-relaxed max-w-2xl mx-auto mb-10 anim-sub">[Outcome-oriented subheadline]</p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center hero-cta anim-cta">
+      <a href="#lead-form" class="btn-primary py-4 px-10 text-base">[CTA] →</a>
+      <a href="#como-funciona" class="py-4 px-8 rounded-xl border border-white/20 text-white/80 hover:bg-white/10 transition text-base font-medium inline-flex items-center gap-2">Ver demo</a>
+    </div>
+  </div>
+</section>
+
+OPTION D — Full-bleed image hero (real estate, hospitality, luxury product, events):
+<section class="relative min-h-screen flex items-end overflow-hidden">
+  <div class="absolute inset-0 bg-cover bg-center" style="background-image:url('https://placehold.co/1920x1080/[HEX]/[HEX]?text=[Scene+Description]')"></div>
+  <div class="absolute inset-0" style="background:linear-gradient(to top, rgba(0,0,0,.85) 0%, rgba(0,0,0,.4) 50%, rgba(0,0,0,.1) 100%)"></div>
+  <div class="relative z-10 max-w-5xl mx-auto px-6 pb-24 w-full text-white">
+    <div class="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold mb-6 backdrop-blur-sm anim-badge" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.25)">
+      ✦ [Location · Category · Badge]
+    </div>
+    <h1 class="text-5xl lg:text-7xl font-bold leading-[1.05] mb-6 anim-title">[Headline with <span class="grad-text">key word</span>]</h1>
+    <p class="text-xl text-white/80 max-w-xl mb-10 anim-sub">[Subheadline]</p>
+    <div class="flex flex-col sm:flex-row gap-4 hero-cta anim-cta">
+      <a href="#lead-form" class="btn-primary py-4 px-10 text-base">[CTA] →</a>
+    </div>
+  </div>
+</section>
+
+HERO HEIGHT: Use min-h-screen or min-h-[90vh] for dramatic full-screen heroes (recommended for most pages).
+Use explicit py-* padding only for compact landings (event countdown, short lead-gen, minimal squeeze page).
 All hero content in <div class="relative z-10"> (above decorative layer).
+NEVER set html,body height:100% or overflow:hidden — that breaks page scroll.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 SECTION SELECTION LOGIC — decide in STEP 0, not while generating
@@ -521,7 +559,7 @@ HARD RULES — never break
 ✓ Use semantic HTML5: <header> <main> <section> <footer>
 ✓ Images: placehold.co — <img src="https://placehold.co/WxH/HEXBG/HEXTEXT?text=Label">
 ✓ Be CONCISE: CSS vars + Tailwind, never repeat hex codes inline
-✓ HERO HEIGHT: explicit py-* padding ONLY — NEVER min-h-screen or h-screen
+✓ HERO: Use min-h-screen flex items-center for full-screen heroes — looks premium
 ✓ html,body: NEVER height:100% or overflow:hidden
 ✓ Sticky mobile CTA: z-index:100 minimum, not z-50
 ✓ Modals: ALWAYS style="display:none" alongside class="hidden"
