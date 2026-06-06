@@ -1055,63 +1055,42 @@ ABSOLUTE RULES:
 // ── Surgical editing helpers ──────────────────────────────────────────────────
 
 /**
- * Returns true when the prompt is a targeted single-element change.
- * Improvements over v1:
- *  - Date/JS changes (fecha, año, countdown) → surgical via script extraction
- *  - Text-only changes (el título, el párrafo) → surgical
- *  - Image swaps within a section → surgical
- *  - Stricter full-page triggers
+ * Returns true when the change does NOT require rewriting the full page.
+ *
+ * v3 philosophy: SURGICAL BY DEFAULT.
+ * Instead of maintaining a whitelist of "surgical" keywords (which always misses cases),
+ * we return true for EVERYTHING except changes that are structurally impossible to do
+ * surgically (color system, full redesign, adding/removing whole sections, dark mode).
+ * detectTargetSection then determines IF we can actually find the right section.
+ * If it can't find one → it returns null → we fall back to full-HTML automatically.
  */
 function isSurgicalChange(prompt: string): boolean {
   const p = prompt.toLowerCase();
 
-  // Always full-page (colors, layout, multi-section, redesign)
-  const fullRequired = [
-    "color", "paleta", "palette", "tipograf", "fuente", "font",
-    "rediseña", "redesign", "cambia todo", "change all",
-    "todas las secciones", "all sections",
-    "nueva sección", "new section", "agrega sección", "add section",
-    "elimina sección", "remove section", "reorganiz",
+  // These genuinely touch the ENTIRE page — full HTML required
+  const fullPageOnly = [
+    // Color / design system (affects every section's CSS vars)
+    "color", "colores", "paleta", "palette",
+    "tipograf", "fuente", "font", "letra",
+    // Full redesign
+    "rediseña", "redesign", "rediseñar",
+    "cambia todo", "change all", "cambia toda la",
+    "toda la página", "whole page", "full page",
+    // Adding / removing whole sections
+    "nueva sección", "new section",
+    "agrega sección", "agrega una sección", "add section", "add a section",
+    "elimina sección", "elimina la sección", "remove section",
+    "reorganiz", "reorder",
+    // Global theme changes
     "dark mode", "modo oscuro", "light mode", "modo claro",
-    "estilo general", "tema ", "theme ", "apariencia",
-    "fondo de toda", "toda la página", "whole page",
-    "cambia todos", "actualiza todos",
+    "estilo general", "tema general", "theme",
+    "apariencia general",
+    // Multi-section changes
+    "todas las secciones", "all sections",
+    "cambia todos los", "actualiza todos los",
   ];
-  if (fullRequired.some(kw => p.includes(kw))) return false;
 
-  const surgicalKeywords = [
-    // Form / inputs
-    "formulario", "form", "campo", "field", "input",
-    "botón", "button", "cta", "submit",
-    "teléfono", "phone", "whatsapp", "email", "correo", "nombre",
-    "código de país", "country code", "prefijo", "placeholder", "label",
-    "apellido", "empresa", "company", "dirección",
-    // Visual elements
-    "logo", "ícono", "icono", "imagen", "image", "foto",
-    // Sections
-    "faq", "pregunta", "question", "accordion", "duda",
-    "precio", "price", "plan ", "tarifa", "paquete",
-    "testimonial", "reseña", "opinión", "review",
-    "estadística", "stat", "data-counter",
-    "footer", "pie de página", "copyright",
-    "hero", "portada", "encabezado",
-    "nav", "menú", "navegación",
-    // Script / JS values
-    "fecha", "date", "año", "year",
-    "2024", "2025", "2026", "2027", "2028",
-    "countdown", "temporizador", "cuenta regresiva", "regresiva",
-    "hora del lanzamiento", "la fecha del", "cambiar la fecha",
-    "actualizar la fecha", "el contador",
-    // Text-only changes
-    "cambia el texto", "change text", "este texto", "this text",
-    "el título", "el subtítulo", "el párrafo", "el encabezado",
-    "título del", "texto del", "botón de", "texto de",
-    // Actions
-    "añade", "agrega ", "quita ", "elimina ", "mueve ",
-    "add ", "remove ", "move ", "replace ",
-    "pon ", "poner ", "coloca ", "inserta ",
-  ];
-  return surgicalKeywords.some(kw => p.includes(kw));
+  return !fullPageOnly.some(kw => p.includes(kw));
 }
 
 /**
@@ -1290,7 +1269,64 @@ function detectTargetSection(
     }
   }
 
-  return null;
+  // ── Generic fallback: score ALL sections by content overlap with the prompt ──
+  // This catches ANY specific change that didn't match the keyword mappings above.
+  // Works for: "cambia el horario del evento", "pon el nombre del conferencista",
+  // "actualiza la dirección de contacto", "agrega el NIT de la empresa", etc.
+  //
+  // Algorithm:
+  //  1. Extract meaningful words from the prompt (length > 3, skip stopwords)
+  //  2. Score each section/header/footer by how many prompt words appear in it
+  //  3. Return the highest-scoring section IF it scores clearly better than others
+  //     (avoids picking a wrong section when multiple sections have similar score)
+
+  const stopWords = new Set([
+    "para", "este", "esta", "estos", "estas", "como", "pero", "también",
+    "que", "una", "uno", "los", "las", "del", "con", "por", "más",
+    "that", "with", "from", "this", "the", "and", "for", "not",
+    "cambia", "change", "agrega", "quita", "pon", "poner", "modifica",
+    "actualiza", "update", "añade", "elimina", "mueve", "inserta",
+  ]);
+
+  const promptWords = prompt.toLowerCase()
+    .split(/[\s\W]+/)
+    .filter(w => w.length > 3 && !stopWords.has(w));
+
+  if (promptWords.length === 0) return null;
+
+  const scored: Array<{ sectionHtml: string; sectionId: string; score: number }> = [];
+  const blockRegex = /<(section|header|footer)([^>]*)>([\s\S]*?)<\/\1>/gi;
+  let blockMatch: RegExpExecArray | null;
+
+  while ((blockMatch = blockRegex.exec(html)) !== null) {
+    const blockText = blockMatch[0].toLowerCase();
+    const score = promptWords.reduce((acc, w) => acc + (blockText.includes(w) ? 1 : 0), 0);
+    if (score > 0) {
+      const idMatch = blockMatch[0].match(/\bid=["']([^"']+)["']/i);
+      scored.push({
+        sectionHtml: blockMatch[0],
+        sectionId: idMatch ? idMatch[1] : blockMatch[1],
+        score,
+      });
+    }
+  }
+
+  if (scored.length === 0) return null;
+  scored.sort((a, b) => b.score - a.score);
+
+  const best = scored[0];
+  const second = scored[1];
+
+  // Only pick a section if it clearly outscores the runner-up
+  // (avoids ambiguous matches where two sections could both apply)
+  const isUnambiguous = !second || best.score > second.score || best.score >= 3;
+
+  if (isUnambiguous && best.score >= 2) {
+    const sectionHtml = withAdjacentScripts(html, best.sectionHtml);
+    return { sectionHtml, sectionId: best.sectionId };
+  }
+
+  return null; // Ambiguous or no match → full-HTML mode
 }
 
 /**
