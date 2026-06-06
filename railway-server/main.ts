@@ -1746,6 +1746,13 @@ Deno.serve({ port }, async (req) => {
 
       // Save HTML server-side so browser can recover even if SSE drops after this point
       if (generatedHtml && page_id && page_id !== "PENDING") {
+        // 1. Save version snapshot BEFORE overwriting current HTML (persistent undo history)
+        if (current_html) {
+          supabase.from("landing_page_versions")
+            .insert({ page_id, html: current_html, summary: "Versión anterior" })
+            .then(() => {}).catch(() => {});
+        }
+        // 2. Update current HTML
         supabase.from("landing_pages")
           .update({ html: generatedHtml, updated_at: new Date().toISOString() })
           .eq("id", page_id)
@@ -1840,7 +1847,8 @@ Deno.serve({ port }, async (req) => {
             // Save to Supabase BEFORE emitting "done" — guarantees the HTML is
             // persisted even if the SSE stream drops right after this line.
             const { tokensUsed, tokensRemaining } = await finalize(inputTokens, outputTokens, html);
-            emit({ type: "done", html, summary, tokensUsed, tokensRemaining });
+            // Include sectionId so frontend can highlight the changed section
+            emit({ type: "done", html, summary, tokensUsed, tokensRemaining, sectionId: surgicalSectionId ?? null });
 
           } catch (e: any) {
             if (inputTokens > 0 || outputTokens > 0) {

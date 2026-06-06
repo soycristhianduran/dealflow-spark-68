@@ -43,6 +43,54 @@ import EmailEditor from "react-email-editor";
 // ── Link preprocessing (no script required — CSP-safe) ───────────────────────
 // Instead of injecting a click-intercept script (blocked by CSP),
 // we rewrite <a href="..."> in the HTML string before setting srcDoc.
+// ── Section ID backfill ───────────────────────────────────────────────────────
+// Adds required id attributes to sections that lack them in older pages.
+// Called when loading a page for editing — enables surgical mode on legacy pages.
+function backfillSectionIds(html: string): string {
+  // Skip if page already has section IDs (new pages from FRESH_SYSTEM)
+  if (html.includes('id="hero"') || html.includes("id='hero'")) return html;
+  let result = html;
+
+  // Header / nav
+  result = result.replace(/<header(?![^>]*\bid=)[^>]*>/i, m => m.replace('<header', '<header id="site-header"'));
+  // Footer
+  result = result.replace(/<footer(?![^>]*\bid=)[^>]*>/i, m => m.replace('<footer', '<footer id="site-footer"'));
+
+  // Assign IDs to sections in document order based on known content signals
+  const knownIds = [
+    { signal: /min-h-screen|mesh-bg|mesh-dark|hero-cta|anim-title/, id: 'hero' },
+    { signal: /te suena familiar|suena familiar|pain|agitac|dolor/, id: 'pain' },
+    { signal: /logo.*cloud|trusted by|confían en|con la confianza|grayscale/, id: 'logo-cloud' },
+    { signal: /data-counter|clientes activos|años de experiencia|proyectos entregados/, id: 'stats' },
+    { signal: /por qué elegir|característica|feature|beneficio|icon-box/, id: 'features' },
+    { signal: /cómo funciona|how it works|paso 1|paso 2|paso 3|numbered/, id: 'how-it-works' },
+    { signal: /antes.*sin|sin.*antes|con vs|before.*after|✕.*sin|✓.*con/, id: 'before-after' },
+    { signal: /★★★★★|testimonial|reseña|opinión|lo que dicen/, id: 'testimonials' },
+    { signal: /popular|plan.*mes|mensual|tarifa|suscripción|\$\d/, id: 'pricing' },
+    { signal: /<details|accordion|pregunta frecuente|faq/, id: 'faq' },
+    { signal: /youtube|vimeo|video-container|ver demo|play button/, id: 'video' },
+    { signal: /empieza hoy|final.*cta|garantizado|garantía 30/, id: 'final-cta' },
+    { signal: /lead-form-section|id="lead-form"/, id: 'lead-form-section' },
+  ];
+
+  // Process each section tag without an id
+  const sectionPattern = /<section(?![^>]*\bid=)[^>]*>/gi;
+  result = result.replace(sectionPattern, (match, offset) => {
+    // Look ahead in the HTML to find content signals
+    const snippet = result.slice(offset, offset + 600).toLowerCase();
+    for (const { signal, id } of knownIds) {
+      // Skip if this ID is already assigned
+      if (result.includes(`id="${id}"`) || result.includes(`id='${id}'`)) continue;
+      if (signal.test(snippet)) {
+        return match.replace('<section', `<section id="${id}"`);
+      }
+    }
+    return match;
+  });
+
+  return result;
+}
+
 // Anchor links (#) and javascript: are left alone — they don't navigate away.
 function addTargetBlank(html: string): string {
   return html.replace(/<a\b([^>]*)>/gi, (match, attrs: string) => {
@@ -507,11 +555,15 @@ export default function LandingBuilderPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
-  // Version history — last 10 HTML snapshots for undo (in-memory only)
+  // Version history — in-memory snapshots (fast undo) + DB versions (persistent)
   const htmlHistoryRef = useRef<string[]>([]);
   const pushHtmlHistory = (html: string) => {
     htmlHistoryRef.current = [html, ...htmlHistoryRef.current].slice(0, 10);
   };
+  const [dbVersions, setDbVersions] = useState<{ id: string; summary: string | null; created_at: string; version_number: number }[]>([]);
+  const [showVersions, setShowVersions] = useState(false);
+  // Section to highlight after AI edit (visual diff like Lovable)
+  const highlightSectionRef = useRef<string | null>(null);
 
   // Templates panel — shown in empty state, hidden once HTML exists or user dismisses
   const [showTemplates, setShowTemplates] = useState(true);
@@ -911,8 +963,10 @@ export default function LandingBuilderPage() {
     setMode(page.mode);
     setViews(page.views || 0);
     setLeadsCount(page.leads_count || 0);
-    setGeneratedHtml(page.html || "");
-    setPreviewHtml(page.html || "");
+    // Backfill section IDs on legacy pages so surgical mode can find sections
+    const backfilledHtml = page.html ? backfillSectionIds(page.html) : "";
+    setGeneratedHtml(backfilledHtml);
+    setPreviewHtml(backfilledHtml);
     setHtmlVersion(v => v + 1);
     setPrompt(page.prompt || "");
     // Merge DB config over defaults so that a bare `{}` (the DB column default)
@@ -934,6 +988,17 @@ export default function LandingBuilderPage() {
     setEditMode(false);
     setDeviceSize("desktop");
     setBuilderView("editor");
+    setShowVersions(false);
+
+    // Load persistent version history for this page
+    if (page.id) {
+      supabase.from("landing_page_versions")
+        .select("id, summary, created_at, version_number")
+        .eq("page_id", page.id)
+        .order("created_at", { ascending: false })
+        .limit(10)
+        .then(({ data }) => { if (data) setDbVersions(data); });
+    }
 
     if (page.mode === "drag" && editorReady && page.design) {
       editorRef.current?.editor?.loadDesign(page.design);
@@ -1459,6 +1524,8 @@ export default function LandingBuilderPage() {
           summary = evt.summary ?? "✓ Aplicado";
           tokensUsedThisCall = evt.tokensUsed ?? 0;
           if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining);
+          // Store the section ID for visual highlight after iframe loads
+          if (evt.sectionId) (dispatchSseEvent as any)._sectionId = evt.sectionId;
           return true;
         } else if (evt.type === "error") {
           if (evt.code === "no_landing_credits") {
@@ -1555,6 +1622,11 @@ export default function LandingBuilderPage() {
       // Save current HTML to undo history before overwriting
       if (generatedHtml) pushHtmlHistory(generatedHtml);
 
+      // Store section ID for visual highlight after iframe remounts
+      const changedSectionId = (dispatchSseEvent as any)._sectionId ?? null;
+      if (changedSectionId) highlightSectionRef.current = changedSectionId;
+      delete (dispatchSseEvent as any)._sectionId;
+
       // Update HTML and force iframe remount
       setGeneratedHtml(html);
       setPreviewHtml(html);
@@ -1566,6 +1638,13 @@ export default function LandingBuilderPage() {
           .update({ html })
           .eq("id", selectedId)
           .then(() => {});
+        // Reload version history
+        supabase.from("landing_page_versions")
+          .select("id, summary, created_at, version_number")
+          .eq("page_id", selectedId)
+          .order("created_at", { ascending: false })
+          .limit(10)
+          .then(({ data }) => { if (data) setDbVersions(data); });
       }
 
       // Update chat history — DB write is outside setChatMessages to avoid
@@ -2434,6 +2513,48 @@ export default function LandingBuilderPage() {
                         </TooltipProvider>
                       )}
 
+                      {/* Version history button */}
+                      {dbVersions.length > 0 && (
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowVersions(v => !v)}
+                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                            title="Historial de versiones"
+                          >
+                            🕐 {dbVersions.length}
+                          </button>
+                          {showVersions && (
+                            <div className="absolute right-0 top-full mt-1 w-72 bg-popover border border-border rounded-xl shadow-xl z-50 p-2 space-y-1">
+                              <p className="text-xs font-semibold text-muted-foreground px-2 py-1">Historial de versiones</p>
+                              {dbVersions.map(v => (
+                                <button
+                                  key={v.id}
+                                  onClick={async () => {
+                                    const { data } = await supabase
+                                      .from("landing_page_versions")
+                                      .select("html")
+                                      .eq("id", v.id)
+                                      .maybeSingle();
+                                    if (!data?.html) return;
+                                    if (generatedHtml) pushHtmlHistory(generatedHtml);
+                                    setGeneratedHtml(data.html);
+                                    setPreviewHtml(data.html);
+                                    setHtmlVersion(n => n + 1);
+                                    if (selectedId) supabase.from("landing_pages").update({ html: data.html }).eq("id", selectedId).then(() => {});
+                                    toast.success(`Versión ${v.version_number} restaurada`);
+                                    setShowVersions(false);
+                                  }}
+                                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-accent text-xs transition-colors"
+                                >
+                                  <p className="font-medium">v{v.version_number} — {new Date(v.created_at).toLocaleString('es-CO', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                                  {v.summary && <p className="text-muted-foreground truncate">{v.summary}</p>}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* Chat toggle */}
                       <TooltipProvider>
                         <Tooltip>
@@ -2506,6 +2627,20 @@ export default function LandingBuilderPage() {
                             className="w-full h-full border-0"
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
                             title="Vista previa landing"
+                            onLoad={() => {
+                              // Visual highlight: briefly flash the changed section (Lovable-style)
+                              const sid = highlightSectionRef.current;
+                              if (!sid) return;
+                              highlightSectionRef.current = null;
+                              const doc = previewIframeRef.current?.contentDocument;
+                              if (!doc) return;
+                              const el = doc.getElementById(sid) as HTMLElement | null;
+                              if (!el) return;
+                              const prev = el.style.cssText;
+                              el.style.cssText += ';outline:3px solid #6366f1;outline-offset:4px;border-radius:4px;transition:outline 0.8s ease;';
+                              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              setTimeout(() => { el.style.cssText = prev; }, 2000);
+                            }}
                           />
                         )}
                       </div>
