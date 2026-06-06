@@ -507,6 +507,11 @@ export default function LandingBuilderPage() {
   const [generating, setGenerating] = useState(false);
   const [generatedHtml, setGeneratedHtml] = useState<string>("");
   const [previewHtml, setPreviewHtml] = useState<string>("");
+  // Version history — last 10 HTML snapshots for undo (in-memory only)
+  const htmlHistoryRef = useRef<string[]>([]);
+  const pushHtmlHistory = (html: string) => {
+    htmlHistoryRef.current = [html, ...htmlHistoryRef.current].slice(0, 10);
+  };
 
   // Templates panel — shown in empty state, hidden once HTML exists or user dismisses
   const [showTemplates, setShowTemplates] = useState(true);
@@ -1547,6 +1552,9 @@ export default function LandingBuilderPage() {
         toast.warning("La IA no modificó el HTML. Intenta ser más específico.");
       }
 
+      // Save current HTML to undo history before overwriting
+      if (generatedHtml) pushHtmlHistory(generatedHtml);
+
       // Update HTML and force iframe remount
       setGeneratedHtml(html);
       setPreviewHtml(html);
@@ -2388,11 +2396,42 @@ export default function LandingBuilderPage() {
                         {deviceSize === "desktop" ? "100%" : DEVICE_WIDTHS[deviceSize]}
                       </span>
 
-                      {/* HTML version/size indicator — helps diagnose if state is updating */}
+                      {/* HTML version/size indicator */}
                       {generatedHtml && (
                         <span className="text-[10px] text-muted-foreground/60 font-mono shrink-0">
                           v{htmlVersion} · {(generatedHtml.length / 1024).toFixed(1)}kb
                         </span>
+                      )}
+
+                      {/* Undo button — restores previous HTML snapshot */}
+                      {htmlHistoryRef.current.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <button
+                                onClick={() => {
+                                  const prev = htmlHistoryRef.current[0];
+                                  if (!prev) return;
+                                  htmlHistoryRef.current = htmlHistoryRef.current.slice(1);
+                                  setGeneratedHtml(prev);
+                                  setPreviewHtml(prev);
+                                  setHtmlVersion(v => v + 1);
+                                  if (selectedId) {
+                                    supabase.from("landing_pages").update({ html: prev }).eq("id", selectedId).then(() => {});
+                                  }
+                                  toast.success("Cambio deshecho");
+                                }}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
+                                title="Deshacer último cambio de IA"
+                              >
+                                ↩ Deshacer
+                              </button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Deshacer último cambio de IA ({htmlHistoryRef.current.length} disponible{htmlHistoryRef.current.length !== 1 ? "s" : ""})</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       )}
 
                       {/* Chat toggle */}

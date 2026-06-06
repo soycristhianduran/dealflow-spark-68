@@ -1050,7 +1050,11 @@ ABSOLUTE RULES:
 - Use ONLY CSS vars (--primary, --accent, etc.) and classes from the <style> block — never invent new ones
 - Preserve ALL content not explicitly requested to change (text, other fields, classes, IDs)
 - Keep outer element attributes (id, class, data-*) intact
-- Apply ONLY what was requested — nothing more`;
+- Apply ONLY what was requested — nothing more
+
+DELETION RULE: If the request is to DELETE or REMOVE this section entirely:
+  Return exactly this (nothing else after ---SECTION---):
+  ELIMINAR`;
 
 // ── Surgical editing helpers ──────────────────────────────────────────────────
 
@@ -1076,11 +1080,12 @@ function isSurgicalChange(prompt: string): boolean {
     "rediseña", "redesign", "rediseñar",
     "cambia todo", "change all", "cambia toda la",
     "toda la página", "whole page", "full page",
-    // Adding / removing whole sections
+    // Adding NEW sections needs full context (insertion position)
     "nueva sección", "new section",
     "agrega sección", "agrega una sección", "add section", "add a section",
-    "elimina sección", "elimina la sección", "remove section",
-    "reorganiz", "reorder",
+    // NOTE: "elimina sección X" is handled surgically — finds section by content
+    // and removes only that one. NOT in this list.
+    "reorganiz", "reorder", "mueve la sección", "move section",
     // Global theme changes
     "dark mode", "modo oscuro", "light mode", "modo claro",
     "estilo general", "tema general", "theme",
@@ -1362,6 +1367,24 @@ function applySectionPatch(
     for (const pat of scriptPatterns) {
       if (pat.test(currentHtml)) {
         const result = currentHtml.replace(pat, trimmed);
+        if (result !== currentHtml) return result;
+      }
+    }
+    return null;
+  }
+
+  // ── Case 0: Deletion — patch is empty or says "ELIMINAR" ───────────────────
+  // When the user asks to remove a section, Claude returns an empty string
+  // or a special ELIMINAR marker after ---SECTION---. We remove the old section.
+  if (trimmed === "" || trimmed.toUpperCase() === "ELIMINAR") {
+    // Find and remove the section by ID or content patterns
+    const delPatterns: RegExp[] = [
+      new RegExp(`<section[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/section>\\s*`, "i"),
+      new RegExp(`<div[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/div>\\s*`, "i"),
+    ];
+    for (const pat of delPatterns) {
+      if (pat.test(currentHtml)) {
+        const result = currentHtml.replace(pat, "");
         if (result !== currentHtml) return result;
       }
     }
