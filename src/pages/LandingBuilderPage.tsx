@@ -1890,7 +1890,7 @@ export default function LandingBuilderPage() {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${accessToken}`, "apikey": anonKey },
         body: JSON.stringify({
           stream: true,
-          prompt: "",
+          prompt: `Clona esta landing page exactamente: ${url}`,
           page_id: selectedId,
           clone_url: url,
           chat_history: [],
