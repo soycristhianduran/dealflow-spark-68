@@ -1090,6 +1090,93 @@ SCRIPT-ONLY changes (date, JS variable):
 ---SECTION---
 [only the modified <script> tag]`;
 
+// ── Clone system prompt ───────────────────────────────────────────────────────
+const CLONE_SYSTEM = `You are an elite landing page engineer. You receive the HTML of an existing landing page and must recreate it faithfully using our design system.
+
+ABSOLUTE OUTPUT RULE: Return ONLY <!DOCTYPE html>…</html>. No markdown, no fences, no explanations.
+
+══════════════════════════════════════════════════
+YOUR TASK
+══════════════════════════════════════════════════
+Analyze the provided HTML and recreate the page using our Tailwind + CSS-vars design system.
+
+PRESERVE FROM ORIGINAL:
+  ✓ Complete color palette — derive --primary, --accent, --dark from the original colors
+  ✓ Every section and its ORDER (hero → features → testimonials → etc.)
+  ✓ All text content verbatim: headlines, subheadlines, body copy, bullets, CTAs, testimonials, FAQs
+  ✓ Visual hierarchy and layout approach (centered hero, split layout, full-bleed, etc.)
+  ✓ Number of columns, card styles, spacing rhythm
+  ✓ Tone and voice of the copy
+
+ADAPT TO OUR SYSTEM:
+  ✓ Replace custom CSS with Tailwind utilities + our CSS class system (.btn-primary, .card, .eyebrow, .fade-in, .mesh-bg, etc.)
+  ✓ Replace custom fonts with closest Google Fonts equivalent
+  ✓ Replace any external/broken images with equivalent Unsplash photos from our IMAGE SYSTEM
+  ✓ Replace custom JS with our animation system (IntersectionObserver + counter animation)
+  ✓ Add required section IDs: hero, stats, features, testimonials, faq, final-cta, lead-form-section, site-header, site-footer, etc.
+  ✓ Replace any existing form with our lead form: id="lead-form" + our submit JS + data-page-id="{{PAGE_ID}}" action="{{SUBMIT_URL}}"
+  ✓ Add hamburger nav, mobile sticky CTA, scroll progress bar
+  ✓ Add fade-in animations to all cards and sections
+
+CRITICAL RULES:
+  1. id="lead-form" MANDATORY on the <form> element
+  2. Every section MUST have its id (hero, features, testimonials, etc.)
+  3. Include our full <style> block with all CSS vars and component classes
+  4. Use min-h-screen for hero sections
+  5. Use real Unsplash photos — never placehold.co
+  6. Generate COMPLETE page — never truncate mid-section
+  7. --primary-rgb must be "R,G,B" format (no # prefix)`;
+
+// ── URL scraper ───────────────────────────────────────────────────────────────
+async function scrapeUrl(targetUrl: string): Promise<{ html: string; title: string }> {
+  // Validate URL
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(targetUrl.startsWith("http") ? targetUrl : `https://${targetUrl}`);
+  } catch {
+    throw new Error("URL inválida. Asegúrate de incluir https://");
+  }
+
+  const resp = await fetch(parsedUrl.toString(), {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (compatible; Klosify/1.0; +https://klosify.com)",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    },
+    // 15 second timeout
+    signal: AbortSignal.timeout(15_000),
+  });
+
+  if (!resp.ok) throw new Error(`No se pudo acceder a la URL (HTTP ${resp.status})`);
+
+  const contentType = resp.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/html")) {
+    throw new Error("La URL no devuelve una página HTML");
+  }
+
+  let html = await resp.text();
+
+  // Extract title
+  const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+  const title = titleMatch ? titleMatch[1].trim().slice(0, 100) : "Página clonada";
+
+  // Clean up: remove scripts (except inline JSON-LD), style tags, comments
+  // Keep the structure and visible content
+  html = html
+    .replace(/<script(?![^>]*type=["']application\/ld\+json["'])[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<svg[^>]*>[\s\S]*?<\/svg>/gi, '[SVG]')  // Replace SVGs with placeholder
+    .replace(/\s{3,}/g, ' ')  // Collapse excessive whitespace
+    .trim();
+
+  // Limit to 80kb to avoid token overflow (most pages fit within this)
+  if (html.length > 80_000) {
+    html = html.slice(0, 80_000) + "\n<!-- [content truncated for length] -->";
+  }
+
+  return { html, title };
+}
+
 // ── Surgical editing helpers ──────────────────────────────────────────────────
 
 /**
@@ -1592,7 +1679,7 @@ Deno.serve({ port }, async (req) => {
     if (authErr || !user) throw new Error("Unauthorized");
 
     const body = await req.json();
-    const { prompt, page_id, current_html, chat_history, funnel_reference_html, attached_pdf } = body;
+    const { prompt, page_id, current_html, chat_history, funnel_reference_html, attached_pdf, clone_url } = body;
     const useStream: boolean = body.stream === true;
     if (!prompt) throw new Error("prompt es obligatorio");
 
@@ -1709,6 +1796,25 @@ Deno.serve({ port }, async (req) => {
         turns.push({ role: "user", content: buildUserContent(`HTML actual de la landing:\n\`\`\`html\n${htmlForApi}\n\`\`\`\n\nModificación solicitada: ${prompt}`) });
         messages = turns;
       }
+    } else if (clone_url) {
+      // ── CLONE MODE: scrape a URL and recreate in our design system ─────────
+      let scrapedHtml: string;
+      let scrapedTitle: string;
+      try {
+        ({ html: scrapedHtml, title: scrapedTitle } = await scrapeUrl(clone_url));
+      } catch (scrapeErr: any) {
+        throw new Error(`No se pudo acceder a la URL: ${scrapeErr.message}`);
+      }
+      systemPrompt = CLONE_SYSTEM
+        .replace(/\{\{SUBMIT_URL\}\}/g, submitUrl)
+        .replace(/\{\{PAGE_ID\}\}/g, pageIdPlaceholder);
+      const cloneInstruction = prompt?.trim()
+        ? `Instrucciones adicionales del usuario: ${prompt}\n\n`
+        : "";
+      messages = [{
+        role: "user",
+        content: `${cloneInstruction}Recrea esta landing page exactamente en nuestro design system.\nURL original: ${clone_url}\n\nHTML de la página original:\n\`\`\`html\n${scrapedHtml}\n\`\`\``,
+      }];
     } else if (funnel_reference_html) {
       const refHtml = String(funnel_reference_html).slice(0, 4000);
       systemPrompt = FUNNEL_PAGE_SYSTEM
@@ -1729,7 +1835,8 @@ Deno.serve({ port }, async (req) => {
     // Full refinement: full page must fit → 32k.
     // Fresh generation → 16k.
     const model = "claude-sonnet-4-5";
-    const maxTokens = surgicalSectionId ? 4000 : current_html ? 32000 : 16000;
+    // Clone mode needs 32k — input (scraped HTML) + output (recreated page) can both be large
+    const maxTokens = surgicalSectionId ? 4000 : (current_html || clone_url) ? 32000 : 16000;
 
     // ── Finalize (deduct credits + log + save HTML) ───────────────────────────
     // generatedHtml: if provided, Railway saves it to Supabase immediately.
