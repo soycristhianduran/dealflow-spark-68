@@ -895,15 +895,45 @@ HARD RULES — never break
 ✓ Follow ALL color, brand, content, and section specs from the user prompt exactly
 ✓ Generate EVERY section requested — complete all sections, close every tag
 ✓ Use semantic HTML5: <header> <main> <section> <footer>
-✓ Images: placehold.co — <img src="https://placehold.co/WxH/HEXBG/HEXTEXT?text=Label">
+✓ Images: use real Unsplash photos from the IMAGE SYSTEM above — never placehold.co for content images
 ✓ Be CONCISE: CSS vars + Tailwind, never repeat hex codes inline
 ✓ HERO: Use min-h-screen flex items-center for full-screen heroes — looks premium
 ✓ html,body: NEVER height:100% or overflow:hidden
 ✓ Sticky mobile CTA: z-index:100 minimum, not z-50
 ✓ Modals: ALWAYS style="display:none" alongside class="hidden"
-✓ id="lead-form" is MANDATORY — never rename it
+✓ id="lead-form" is MANDATORY on the <form> element — never rename it
 ✓ --primary-rgb must be set as "R,G,B" (comma-separated numbers, no # or rgba wrapper)
-✓ Call lucide.createIcons() at end of body after all other scripts`;
+✓ Call lucide.createIcons() at end of body after all other scripts
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION IDs — MANDATORY for surgical editing
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EVERY section MUST have the exact id listed below. These IDs enable the AI editor
+to find and modify individual sections without touching the rest of the page.
+Missing IDs = broken AI editing.
+
+<header id="site-header">             — navigation bar
+<section id="hero">                   — hero / portada
+<section id="pain">                   — pain / agitation section
+<section id="logo-cloud">             — logo strip / trusted by
+<section id="stats">                  — stats / counters row
+<section id="features">               — feature cards / benefits
+<section id="bento">                  — bento grid (if used instead of features)
+<section id="how-it-works">           — numbered steps
+<section id="before-after">           — before/after comparison
+<section id="zigzag">                 — alternating text+image
+<section id="testimonials">           — testimonials grid
+<section id="featured-quote">         — featured single testimonial
+<section id="comparison">             — comparison table
+<section id="pricing">                — pricing plans
+<section id="faq">                    — FAQ accordion
+<section id="video">                  — video embed
+<section id="final-cta">              — final call-to-action
+<section id="lead-form-section">      — lead capture form (ALWAYS this exact id)
+<footer id="site-footer">             — footer
+
+These IDs are NOT for styling — never reference them in CSS. They exist ONLY
+for the AI editor to locate sections. Use class="" for all styling.`;
 
 const FUNNEL_PAGE_SYSTEM = `Eres un experto en CRO (Conversion Rate Optimization) y diseño de funnels de alta conversión.
 Tu tarea es crear una nueva página HTML VISUALMENTE CONSISTENTE con la referencia, optimizada para convertir.
@@ -1032,29 +1062,35 @@ GOLDEN RULE: Change LESS than you think. Preserve MORE than feels necessary. Whe
 // Used when editing a single known section. Claude receives only the CSS context
 // and the target section — no full HTML. Output is the modified section only.
 // Token cost: ~4-8k vs ~40-57k for full-HTML mode (85-90% savings).
-const SURGICAL_SYSTEM = `You are a precise HTML element editor. You receive:
-1. A <style> block with the page's design tokens (CSS variables and component classes)
-2. The specific HTML fragment to modify (a section, header, footer, div, or script block)
-3. The modification request
+const SURGICAL_SYSTEM = `You are a surgical HTML section editor — like a code editor that touches only the file that needs to change.
+
+You receive:
+  1. PAGE SECTION MANIFEST — table of contents of all sections on the page (id → content preview)
+  2. CSS DESIGN TOKENS — the <style> block with all CSS variables and component classes
+  3. TARGET SECTION — the specific section HTML to modify
+  4. MODIFICATION REQUEST — exactly what to change
 
 MANDATORY RESPONSE FORMAT:
-CAMBIOS: [1 sentence — exactly what changed]
+CAMBIOS: [1 sentence — exactly what changed, nothing more]
 ---SECTION---
-[the modified HTML fragment — same outer tag(s) as received]
+[the modified section HTML — same outer tag, same id, same structure]
 
 ABSOLUTE RULES:
-- Return ONLY the modified HTML fragment after ---SECTION---
-- Do NOT return <!DOCTYPE>, <html>, <head>, <body>, or any full-page wrapper
-- If input is a <script> block: return ONLY the modified <script> block
-- If input is a section + script: return both, in the same order
-- Use ONLY CSS vars (--primary, --accent, etc.) and classes from the <style> block — never invent new ones
-- Preserve ALL content not explicitly requested to change (text, other fields, classes, IDs)
-- Keep outer element attributes (id, class, data-*) intact
-- Apply ONLY what was requested — nothing more
+1. Return ONLY the modified section HTML after ---SECTION---
+2. NEVER return <!DOCTYPE>, <html>, <head>, <body>, or any full-page wrapper
+3. Keep the outer element's id, class, and data-* attributes EXACTLY as received
+4. Use ONLY the CSS vars and classes from the provided <style> block — never invent new ones
+5. Preserve ALL text, structure, and styles NOT mentioned in the request
+6. If the input includes <script> tags after the section: return them too (modified if needed)
+7. Apply ONLY what was explicitly requested — nothing else
 
-DELETION RULE: If the request is to DELETE or REMOVE this section entirely:
-  Return exactly this (nothing else after ---SECTION---):
-  ELIMINAR`;
+DELETION: If asked to DELETE or REMOVE this section:
+---SECTION---
+ELIMINAR
+
+SCRIPT-ONLY changes (date, JS variable):
+---SECTION---
+[only the modified <script> tag]`;
 
 // ── Surgical editing helpers ──────────────────────────────────────────────────
 
@@ -1068,69 +1104,158 @@ DELETION RULE: If the request is to DELETE or REMOVE this section entirely:
  * detectTargetSection then determines IF we can actually find the right section.
  * If it can't find one → it returns null → we fall back to full-HTML automatically.
  */
+// ══════════════════════════════════════════════════════════════════════════════
+// SURGICAL EDITING — Lovable-style approach
+// ══════════════════════════════════════════════════════════════════════════════
+//
+// Philosophy (same as Lovable):
+//   1. Every "component" (section) has a unique ID → reliable extraction
+//   2. Build a manifest (table of contents) of all sections + content preview
+//   3. Send manifest + CSS tokens + target section to Claude
+//   4. Claude edits ONLY that section, returns it
+//   5. Replace by ID → precise, no regex guessing
+//
+// New pages always have IDs (FRESH_SYSTEM enforces them).
+// Old pages fall back to content-scoring for ID discovery.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Returns false ONLY for changes that genuinely require the full page:
+ * color system changes, full redesigns, adding/removing entire sections,
+ * reordering, dark/light mode.
+ * Everything else is attempted as surgical — detectTargetSection determines
+ * whether we can actually find the target.
+ */
 function isSurgicalChange(prompt: string): boolean {
   const p = prompt.toLowerCase();
-
-  // These genuinely touch the ENTIRE page — full HTML required
   const fullPageOnly = [
-    // Color / design system (affects every section's CSS vars)
     "color", "colores", "paleta", "palette",
     "tipograf", "fuente", "font", "letra",
-    // Full redesign
     "rediseña", "redesign", "rediseñar",
     "cambia todo", "change all", "cambia toda la",
     "toda la página", "whole page", "full page",
-    // Adding NEW sections needs full context (insertion position)
     "nueva sección", "new section",
     "agrega sección", "agrega una sección", "add section", "add a section",
-    // NOTE: "elimina sección X" is handled surgically — finds section by content
-    // and removes only that one. NOT in this list.
     "reorganiz", "reorder", "mueve la sección", "move section",
-    // Global theme changes
     "dark mode", "modo oscuro", "light mode", "modo claro",
-    "estilo general", "tema general", "theme",
-    "apariencia general",
-    // Multi-section changes
+    "estilo general", "tema general", "apariencia general",
     "todas las secciones", "all sections",
     "cambia todos los", "actualiza todos los",
   ];
-
   return !fullPageOnly.some(kw => p.includes(kw));
 }
 
 /**
- * Extracts CSS context (`:root` vars + component class definitions) from the
- * page's `<style>` block. This is sent alongside the target section so Claude
- * can use the correct design tokens without seeing the full HTML.
+ * Extracts the full <style> block from the page.
+ * Sent alongside the target section so Claude has all CSS vars/classes.
  */
 function extractCssContext(html: string): string {
-  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
-  if (!styleMatch) return "";
-  // Keep the full style block — it's small (~3-5kb) and critical for design consistency
-  return `<style>${styleMatch[1]}</style>`;
+  const m = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  return m ? `<style>${m[1]}</style>` : "";
 }
 
 /**
- * Given a section HTML string, also grabs any <script> blocks that immediately
- * follow it in the full HTML (within 3000 chars). This ensures form submit scripts
- * and countdown timers are included when extracting form/modal sections.
+ * Builds a section manifest — a table of contents of the page.
+ * Returns an array of { id, tag, preview } for every section/header/footer
+ * that has an id attribute.
+ *
+ * This is the core of the Lovable-style approach: instead of guessing which
+ * section to edit via regex patterns, Claude receives a clear map of what's
+ * on the page and picks the right target by ID.
  */
-function withAdjacentScripts(html: string, sectionHtml: string): string {
-  const idx = html.indexOf(sectionHtml);
-  if (idx === -1) return sectionHtml;
-  const tail = html.slice(idx + sectionHtml.length, idx + sectionHtml.length + 3000);
-  // Capture up to 3 consecutive script tags (whitespace-separated)
-  const scriptMatch = tail.match(/^(\s*<script[^>]*>[\s\S]*?<\/script>){0,3}/);
-  return sectionHtml + (scriptMatch?.[0] ?? "");
+function buildSectionManifest(html: string): Array<{ id: string; tag: string; preview: string }> {
+  const manifest: Array<{ id: string; tag: string; preview: string }> = [];
+  const pattern = /<(section|header|footer|div|main)([^>]*)>/gi;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(html)) !== null) {
+    const tag = match[1];
+    const attrs = match[2];
+    const idMatch = attrs.match(/id=["']([^"']+)["']/i);
+    if (!idMatch) continue;
+    const id = idMatch[1];
+
+    // Find the closing tag for this element
+    const openIdx = match.index;
+    let depth = 1;
+    let pos = openIdx + match[0].length;
+    const openTag = tag;
+    while (pos < html.length && depth > 0) {
+      const nextOpen = html.indexOf(`<${openTag}`, pos);
+      const nextClose = html.indexOf(`</${openTag}`, pos);
+      if (nextClose === -1) break;
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + 1;
+      } else {
+        depth--;
+        pos = nextClose + 1;
+      }
+    }
+    const closeEnd = html.indexOf('>', pos - 1) + 1;
+    const sectionHtml = html.slice(openIdx, closeEnd);
+
+    // Extract text preview (strip HTML, take first 120 chars)
+    const text = sectionHtml
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 120);
+
+    manifest.push({ id, tag, preview: text });
+  }
+
+  return manifest;
 }
 
 /**
- * Maps a user prompt to the most relevant HTML fragment (section, script, etc.).
- * v2 improvements:
- *  - Script-based patterns for countdown/date/JS changes
- *  - Adjacent scripts captured with form/modal sections
- *  - Modal overlay detection (div#modal-overlay)
- *  - More robust patterns per section type
+ * Extracts a single section from the HTML by its id attribute.
+ * Also grabs any <script> blocks immediately following the section
+ * (e.g. form submit handlers, countdown timers).
+ */
+function extractSectionById(html: string, sectionId: string): string | null {
+  // Special cases
+  if (sectionId === "site-header" || sectionId === "header") {
+    const m = html.match(/<header[\s\S]*?<\/header>/i);
+    if (m) return m[0];
+  }
+  if (sectionId === "site-footer" || sectionId === "footer") {
+    const m = html.match(/<footer[\s\S]*?<\/footer>/i);
+    if (m) return m[0];
+  }
+
+  // Generic: find any element with this exact id
+  const patterns = [
+    new RegExp(`<section[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/section>`, 'i'),
+    new RegExp(`<div[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/div>`, 'i'),
+    new RegExp(`<header[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/header>`, 'i'),
+    new RegExp(`<footer[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/footer>`, 'i'),
+  ];
+
+  for (const pat of patterns) {
+    const m = html.match(pat);
+    if (m) {
+      // Also grab adjacent scripts (countdown timer, form handler, etc.)
+      const end = html.indexOf(m[0]) + m[0].length;
+      const tail = html.slice(end, end + 3000);
+      const scripts = tail.match(/^(\s*<script[^>]*>[\s\S]*?<\/script>){0,3}/)?.[0] ?? '';
+      return m[0] + scripts;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detects the target section for a surgical edit.
+ *
+ * Lovable-style two-phase approach:
+ *   Phase 1 — Priority patterns (script changes, named IDs)
+ *   Phase 2 — Manifest scoring: prompt words vs section text content
+ *
+ * Returns { sectionHtml, sectionId } or null (→ full-HTML fallback).
  */
 function detectTargetSection(
   prompt: string,
@@ -1138,8 +1263,7 @@ function detectTargetSection(
 ): { sectionHtml: string; sectionId: string } | null {
   const p = prompt.toLowerCase();
 
-  // ── Priority 1: Script-only changes (date, countdown, JS variable) ──────────
-  // Checked FIRST because "contador" also matches the stats section keywords.
+  // ── Phase 1a: Script-only changes (date, countdown, JS variable) ─────────
   const isScriptChange = [
     "fecha", "date", "año", "year", "2024", "2025", "2026", "2027", "2028",
     "countdown", "temporizador", "cuenta regresiva", "regresiva",
@@ -1148,198 +1272,94 @@ function detectTargetSection(
   ].some(kw => p.includes(kw));
 
   if (isScriptChange) {
-    // Look for a script block containing countdown/date logic
     const scriptPatterns = [
       /<script[^>]*>[\s\S]*?(?:launchDate|targetDate|countdownDate|countDown)[^<]*?<\/script>/i,
       /<script[^>]*>[\s\S]*?new\s+Date\(['"][^'"]*20[2-9]\d[^'"]*['"]\)[\s\S]*?<\/script>/i,
-      /<script[^>]*>[\s\S]*?(?:20(?:24|25|26|27|28))[\s\S]*?(?:countdown|timer|regresiv)[\s\S]*?<\/script>/i,
     ];
     for (const pat of scriptPatterns) {
       const m = html.match(pat);
       if (m) return { sectionHtml: m[0], sectionId: "countdown-script" };
     }
-    // Didn't find a specific script → fall through to section detection
   }
 
-  const mappings: Array<{
-    keywords: string[];
-    patterns: RegExp[];
-    id: string;
-    includeScripts?: boolean; // also capture adjacent <script> tags
-  }> = [
-    {
-      includeScripts: true,
-      keywords: [
-        "formulario", "form", "campo", "input", "teléfono", "phone",
-        "whatsapp", "email", "correo", "nombre", "apellido", "empresa",
-        "registro", "código de país", "country code", "prefijo",
-        "submit", "botón", "lead-form", "cta", "popup", "modal",
-      ],
-      patterns: [
-        // Modal overlay (form inside a popup)
-        /<div[^>]*id=["']modal-overlay["'][^>]*>[\s\S]*?<\/div>(?=\s*<script|\s*<\/body|\s*<footer)/i,
-        // Section with lead-form-section id
-        /<section[^>]*id=["']lead-form-section["'][^>]*>[\s\S]*?<\/section>/i,
-        // Any section containing the lead-form
-        /<section[^>]*>[\s\S]*?id=["']lead-form["'][\s\S]*?<\/section>/i,
-      ],
-      id: "lead-form-section",
-    },
-    {
-      keywords: [
-        "header", "nav", "logo", "menú", "menu", "navegación",
-        "navigation", "barra superior", "barra de nav",
-        "marca", "brand", "nombre de la empresa",
-      ],
-      patterns: [/<header[\s\S]*?<\/header>/i],
-      id: "header",
-    },
-    {
-      keywords: [
-        "faq", "pregunta", "question", "accordion",
-        "duda", "respuesta frecuente", "preguntas frecuentes",
-      ],
-      patterns: [
-        /<section[^>]*id=["'][^"']*faq[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
-        /<section[^>]*>(?:(?!<section).)*<details[\s\S]*?<\/section>/i,
-      ],
-      id: "faq",
-    },
-    {
-      keywords: [
-        "precio", "price", "plan ", "tarifa", "suscripción",
-        "subscription", "paquete", "package", "mensual", "anual",
-      ],
-      patterns: [
-        /<section[^>]*id=["'][^"']*pric[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
-        /<section[^>]*>(?:(?!<section).)*(?:Más popular|más popular|por mes|\/mes)[\s\S]*?<\/section>/i,
-      ],
-      id: "pricing",
-    },
-    {
-      keywords: [
-        "testimonial", "reseña", "opinión", "review",
-        "cliente dice", "lo que dicen", "★", "estrella",
-      ],
-      patterns: [
-        /<section[^>]*id=["'][^"']*testimonial[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
-        /<section[^>]*>(?:(?!<section).)*★★★★★[\s\S]*?<\/section>/i,
-      ],
-      id: "testimonials",
-    },
-    {
-      keywords: [
-        "estadística", "stat", "número clave", "data-counter",
-        "clientes activos", "años de experiencia",
-      ],
-      patterns: [
-        /<section[^>]*>(?:(?!<section).)*data-counter[\s\S]*?<\/section>/i,
-      ],
-      id: "stats",
-    },
-    {
-      keywords: [
-        "footer", "pie de página", "copyright", "redes sociales",
-        "enlace del pie", "links del pie",
-      ],
-      patterns: [/<footer[\s\S]*?<\/footer>/i],
-      id: "footer",
-    },
-    {
-      keywords: [
-        "hero", "portada", "encabezado principal",
-        "título principal", "headline", "sección inicial",
-      ],
-      patterns: [
-        /<\/header>\s*(<section[\s\S]*?<\/section>)/i,
-        /<section[^>]*class="[^"]*(?:min-h-screen|hero|mesh-bg|mesh-dark)[^"]*"[^>]*>[\s\S]*?<\/section>/i,
-      ],
-      id: "hero",
-    },
+  // ── Phase 1b: Explicit section ID mapping (keyword → known section id) ────
+  // This covers the standard FRESH_SYSTEM section IDs.
+  const knownMappings: Array<{ keywords: string[]; ids: string[] }> = [
+    { keywords: ["formulario", "form", "campo", "input", "teléfono", "phone", "whatsapp", "email", "nombre", "apellido", "registro", "código de país", "country code", "prefijo", "submit", "botón del form", "lead-form"], ids: ["lead-form-section", "modal-overlay"] },
+    { keywords: ["nav", "header", "logo", "menú", "menu", "navegación", "navigation", "barra superior"], ids: ["site-header", "header"] },
+    { keywords: ["hero", "portada", "encabezado principal", "título principal", "sección inicial"], ids: ["hero"] },
+    { keywords: ["dolor", "pain", "agitación", "agitation", "problemas del", "te suena familiar", "¿te suena"], ids: ["pain"] },
+    { keywords: ["logo cloud", "clientes de", "empresas que", "confían en", "trusted by", "logotipos"], ids: ["logo-cloud"] },
+    { keywords: ["estadística", "stat", "contador de num", "data-counter", "número clave", "clientes activos", "años de experiencia"], ids: ["stats"] },
+    { keywords: ["característica", "feature", "beneficio", "ventaja", "por qué elegir", "funcionalidad", "bento"], ids: ["features", "bento"] },
+    { keywords: ["cómo funciona", "how it works", "paso", "step", "proceso", "pasos"], ids: ["how-it-works"] },
+    { keywords: ["antes y después", "before after", "antes sin", "con vs sin"], ids: ["before-after"] },
+    { keywords: ["zigzag", "alternating", "característica detallada"], ids: ["zigzag"] },
+    { keywords: ["testimonial", "reseña", "opinión", "review", "cliente dice", "lo que dicen", "★", "estrella"], ids: ["testimonials", "featured-quote"] },
+    { keywords: ["comparación", "comparison", "tabla comparativa", "vs ", "versus", "competencia", "nosotros vs"], ids: ["comparison"] },
+    { keywords: ["precio", "price", "plan ", "tarifa", "suscripción", "subscription", "paquete", "mensual", "anual"], ids: ["pricing"] },
+    { keywords: ["faq", "pregunta", "question", "accordion", "duda", "respuesta frecuente", "preguntas frecuentes"], ids: ["faq"] },
+    { keywords: ["video", "demo", "tour", "reproducir", "play", "ver cómo"], ids: ["video"] },
+    { keywords: ["cta final", "final cta", "última sección", "empieza hoy", "comenzar ahora", "llamada a la acción final"], ids: ["final-cta"] },
+    { keywords: ["footer", "pie de página", "copyright", "redes sociales", "enlace del pie"], ids: ["site-footer", "footer"] },
   ];
 
-  for (const mapping of mappings) {
-    if (mapping.keywords.some(kw => p.includes(kw))) {
-      for (const pattern of mapping.patterns) {
-        const m = html.match(pattern);
-        if (m) {
-          const raw = m[1] ?? m[0];
-          // For form/modal sections, also grab adjacent scripts (submit handler, countdown, etc.)
-          const sectionHtml = mapping.includeScripts
-            ? withAdjacentScripts(html, raw)
-            : raw;
-          return { sectionHtml, sectionId: mapping.id };
+  for (const { keywords, ids } of knownMappings) {
+    if (keywords.some(kw => p.includes(kw))) {
+      for (const id of ids) {
+        const extracted = extractSectionById(html, id);
+        if (extracted) return { sectionHtml: extracted, sectionId: id };
+      }
+    }
+  }
+
+  // ── Phase 2: Manifest scoring — Lovable-style section identification ───────
+  // Build a table of contents of all labeled sections, score each by
+  // how many meaningful prompt words appear in its text content.
+  const manifest = buildSectionManifest(html);
+
+  if (manifest.length > 0) {
+    const stopWords = new Set([
+      "para", "este", "esta", "estos", "estas", "como", "pero", "también",
+      "que", "una", "uno", "los", "las", "del", "con", "por", "más",
+      "that", "with", "from", "this", "the", "and", "for", "not",
+      "cambia", "change", "agrega", "quita", "pon", "poner", "modifica",
+      "actualiza", "update", "añade", "elimina", "mueve", "inserta",
+      "sección", "section", "parte", "bloque",
+    ]);
+
+    const promptWords = p
+      .split(/[\s\W]+/)
+      .filter(w => w.length > 3 && !stopWords.has(w));
+
+    if (promptWords.length > 0) {
+      const scored = manifest.map(entry => ({
+        ...entry,
+        score: promptWords.reduce((acc, w) => acc + (entry.preview.toLowerCase().includes(w) ? 1 : 0), 0),
+      })).filter(e => e.score > 0);
+
+      scored.sort((a, b) => b.score - a.score);
+
+      if (scored.length > 0) {
+        const best = scored[0];
+        const second = scored[1];
+        const isUnambiguous = !second || best.score > second.score || best.score >= 3;
+
+        if (isUnambiguous && best.score >= 2) {
+          const extracted = extractSectionById(html, best.id);
+          if (extracted) return { sectionHtml: extracted, sectionId: best.id };
         }
       }
     }
   }
 
-  // ── Generic fallback: score ALL sections by content overlap with the prompt ──
-  // This catches ANY specific change that didn't match the keyword mappings above.
-  // Works for: "cambia el horario del evento", "pon el nombre del conferencista",
-  // "actualiza la dirección de contacto", "agrega el NIT de la empresa", etc.
-  //
-  // Algorithm:
-  //  1. Extract meaningful words from the prompt (length > 3, skip stopwords)
-  //  2. Score each section/header/footer by how many prompt words appear in it
-  //  3. Return the highest-scoring section IF it scores clearly better than others
-  //     (avoids picking a wrong section when multiple sections have similar score)
-
-  const stopWords = new Set([
-    "para", "este", "esta", "estos", "estas", "como", "pero", "también",
-    "que", "una", "uno", "los", "las", "del", "con", "por", "más",
-    "that", "with", "from", "this", "the", "and", "for", "not",
-    "cambia", "change", "agrega", "quita", "pon", "poner", "modifica",
-    "actualiza", "update", "añade", "elimina", "mueve", "inserta",
-  ]);
-
-  const promptWords = prompt.toLowerCase()
-    .split(/[\s\W]+/)
-    .filter(w => w.length > 3 && !stopWords.has(w));
-
-  if (promptWords.length === 0) return null;
-
-  const scored: Array<{ sectionHtml: string; sectionId: string; score: number }> = [];
-  const blockRegex = /<(section|header|footer)([^>]*)>([\s\S]*?)<\/\1>/gi;
-  let blockMatch: RegExpExecArray | null;
-
-  while ((blockMatch = blockRegex.exec(html)) !== null) {
-    const blockText = blockMatch[0].toLowerCase();
-    const score = promptWords.reduce((acc, w) => acc + (blockText.includes(w) ? 1 : 0), 0);
-    if (score > 0) {
-      const idMatch = blockMatch[0].match(/\bid=["']([^"']+)["']/i);
-      scored.push({
-        sectionHtml: blockMatch[0],
-        sectionId: idMatch ? idMatch[1] : blockMatch[1],
-        score,
-      });
-    }
-  }
-
-  if (scored.length === 0) return null;
-  scored.sort((a, b) => b.score - a.score);
-
-  const best = scored[0];
-  const second = scored[1];
-
-  // Only pick a section if it clearly outscores the runner-up
-  // (avoids ambiguous matches where two sections could both apply)
-  const isUnambiguous = !second || best.score > second.score || best.score >= 3;
-
-  if (isUnambiguous && best.score >= 2) {
-    const sectionHtml = withAdjacentScripts(html, best.sectionHtml);
-    return { sectionHtml, sectionId: best.sectionId };
-  }
-
-  return null; // Ambiguous or no match → full-HTML mode
+  // No match → full-HTML fallback
+  return null;
 }
 
 /**
- * Applies a surgical patch to currentHtml. v2:
- *  - <script>-only patches: countdown date, JS variable changes
- *  - section + trailing scripts replaced as a unit
- *  - modal-overlay div support
- *  - lead-form content matching (no section ID needed)
+ * Applies the surgical patch to currentHtml.
+ * Handles: script patches, section+scripts, section deletion, section replacement.
  */
 function applySectionPatch(
   currentHtml: string,
@@ -1357,9 +1377,27 @@ function applySectionPatch(
     return null;
   }
 
-  // ── Case 1: Script-only patch (countdown date, JS variable) ─────────────────
+  // ── Deletion ────────────────────────────────────────────────────────────────
+  if (trimmed === "" || trimmed.toUpperCase() === "ELIMINAR") {
+    const delPatterns = [
+      new RegExp(`<section[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/section>\s*`, "i"),
+      new RegExp(`<div[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/div>\s*`, "i"),
+      /<header[\s\S]*?<\/header>\s*/i,
+      /<footer[\s\S]*?<\/footer>\s*/i,
+    ];
+    for (const pat of delPatterns) {
+      if (pat.test(currentHtml)) {
+        const result = currentHtml.replace(pat, "");
+        if (result !== currentHtml) return result;
+      }
+    }
+    // Fallback: find section by content from the original extracted section
+    return null;
+  }
+
+  // ── Script-only patch (countdown date, JS variable) ──────────────────────
   if (/^<script/i.test(trimmed)) {
-    const scriptPatterns: RegExp[] = [
+    const scriptPatterns = [
       /<script[^>]*>[\s\S]*?(?:launchDate|targetDate|countdownDate|countDown)[^<]*?<\/script>/i,
       /<script[^>]*>[\s\S]*?new\s+Date\(['"][^'"]*20[2-9]\d[^'"]*['"]\)[\s\S]*?<\/script>/i,
       /<script[^>]*>[\s\S]*?20(?:24|25|26|27|28|29)[\s\S]*?<\/script>/i,
@@ -1373,58 +1411,22 @@ function applySectionPatch(
     return null;
   }
 
-  // ── Case 0: Deletion — patch is empty or says "ELIMINAR" ───────────────────
-  // When the user asks to remove a section, Claude returns an empty string
-  // or a special ELIMINAR marker after ---SECTION---. We remove the old section.
-  if (trimmed === "" || trimmed.toUpperCase() === "ELIMINAR") {
-    // Find and remove the section by ID or content patterns
-    const delPatterns: RegExp[] = [
-      new RegExp(`<section[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/section>\\s*`, "i"),
-      new RegExp(`<div[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/div>\\s*`, "i"),
-    ];
-    for (const pat of delPatterns) {
-      if (pat.test(currentHtml)) {
-        const result = currentHtml.replace(pat, "");
-        if (result !== currentHtml) return result;
-      }
-    }
-    return null;
-  }
-
-  // Guard: must start with a block-level tag
+  // Guard: must start with a block tag
   if (!/^<(section|header|footer|div|nav|form)/i.test(trimmed)) {
     return null;
   }
 
-  // ── Case 2: Section + trailing scripts (replace as one block) ────────────────
-  if (/<\/script>\s*$/.test(trimmed)) {
-    // Split into section part + scripts part
-    const sectionMatch = trimmed.match(
-      /^(<(?:section|header|footer|div|nav|form)[^>]*>[\s\S]*?<\/(?:section|header|footer|div|nav|form)>)/i
-    );
-    if (sectionMatch) {
-      const sectionOnly = sectionMatch[1];
-      // Find this section in current HTML and grab its trailing scripts
-      const anchor = sectionOnly.slice(0, 60).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const anchorPat = new RegExp(anchor + "[\\s\\S]*?<\\/(?:section|footer|div|nav)>(\\s*<script[^>]*>[\\s\\S]*?<\\/script>){0,3}", "i");
-      if (anchorPat.test(currentHtml)) {
-        return currentHtml.replace(anchorPat, trimmed);
-      }
-    }
-  }
-
-  // ── Case 3: Replacement by known ID or tag ───────────────────────────────────
+  // ── ID-based replacement (primary strategy — reliable for labeled pages) ──
   const idPatterns: RegExp[] = [
-    // Modal overlay
-    /<div[^>]*\bid=["']modal-overlay["'][^>]*>[\s\S]*?<\/div>(?=\s*(?:<script|<\/body|<footer))/i,
-    // Named section
-    new RegExp(`<section[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/section>`, "i"),
-    new RegExp(`<div[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/div>`, "i"),
-    // Form section by content
-    /<section[^>]*>[\s\S]*?id=["']lead-form["'][\s\S]*?<\/section>/i,
-    // Header / footer
+    // Exact section ID match
+    new RegExp(`<section[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/section>(\s*<script[^>]*>[\s\S]*?<\/script>)*`, "i"),
+    new RegExp(`<div[^>]*\bid=["']${sectionId}["'][^>]*>[\s\S]*?<\/div>(\s*<script[^>]*>[\s\S]*?<\/script>)*`, "i"),
+    /<header[^>]*id=["']site-header["'][^>]*>[\s\S]*?<\/header>/i,
+    /<footer[^>]*id=["']site-footer["'][^>]*>[\s\S]*?<\/footer>/i,
     /<header[\s\S]*?<\/header>/i,
     /<footer[\s\S]*?<\/footer>/i,
+    // lead-form-section content match (fallback)
+    /<section[^>]*>[\s\S]*?id=["']lead-form["'][\s\S]*?<\/section>/i,
   ];
 
   for (const pat of idPatterns) {
@@ -1667,10 +1669,18 @@ Deno.serve({ port }, async (req) => {
       if (surgicalTarget) {
         surgicalSectionId = surgicalTarget.sectionId;
         const cssContext = extractCssContext(current_html);
+
+        // Build section manifest — table of contents of the page (Lovable-style)
+        // Claude sees what's on the page before deciding how to edit the target section
+        const manifest = buildSectionManifest(current_html);
+        const manifestStr = manifest.length > 0
+          ? `PAGE SECTION MANIFEST:\n${manifest.map(e => `  [${e.id}]: ${e.preview}`).join('\n')}\n\n`
+          : "";
+
         systemPrompt = SURGICAL_SYSTEM;
         messages = [{
           role: "user",
-          content: `${cssContext}\n\nSección a modificar:\n${surgicalTarget.sectionHtml}\n\nModificación solicitada: ${prompt}`,
+          content: `${manifestStr}${cssContext}\n\nTARGET SECTION (id="${surgicalSectionId}"):\n${surgicalTarget.sectionHtml}\n\nModificación solicitada: ${prompt}`,
         }];
       } else {
         // FULL-HTML: standard refinement with compressed full HTML
