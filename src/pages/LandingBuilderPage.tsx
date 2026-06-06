@@ -1502,6 +1502,21 @@ export default function LandingBuilderPage() {
         }
       }
 
+      // Last-resort fallback: Railway saves to Supabase before sending "done".
+      // If the SSE stream dropped (no html, no accumulated text), fetch from DB.
+      if (!html && selectedId) {
+        const { data: savedPage } = await supabase
+          .from("landing_pages")
+          .select("html")
+          .eq("id", selectedId)
+          .maybeSingle();
+        if (savedPage?.html && savedPage.html !== generatedHtml) {
+          html = savedPage.html;
+          summary = "✓ Recuperado desde servidor";
+          toast.info("Página recuperada desde el servidor.");
+        }
+      }
+
       if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
 
       // Debug: log HTML change

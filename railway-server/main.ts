@@ -880,8 +880,12 @@ Deno.serve({ port }, async (req) => {
     const model = "claude-sonnet-4-5";
     const maxTokens = current_html ? 32000 : 16000;
 
-    // ── Finalize (deduct credits + log) ───────────────────────────────────────
-    async function finalize(inputTokens: number, outputTokens: number) {
+    // ── Finalize (deduct credits + log + save HTML) ───────────────────────────
+    // generatedHtml: if provided, Railway saves it to Supabase immediately.
+    // This is the safety net: even if the SSE stream drops before the browser
+    // receives the "done" event, the HTML is already persisted and the browser
+    // can fetch it from Supabase as a fallback.
+    async function finalize(inputTokens: number, outputTokens: number, generatedHtml?: string) {
       const tokensUsed = inputTokens + outputTokens;
       let tokensRemaining = 0;
       if (tokensUsed > 0) {
@@ -902,11 +906,20 @@ Deno.serve({ port }, async (req) => {
         tokens_output: outputTokens,
         tokens_total: tokensUsed,
       }).then(() => {}).catch(() => {});
+
+      // Save HTML server-side so browser can recover even if SSE drops after this point
+      if (generatedHtml && page_id && page_id !== "PENDING") {
+        supabase.from("landing_pages")
+          .update({ html: generatedHtml, updated_at: new Date().toISOString() })
+          .eq("id", page_id)
+          .then(() => {}).catch(() => {});
+      }
+
       return { tokensUsed, tokensRemaining };
     }
 
-    // ── Call Anthropic ────────────────────────────────────────────────────────
-    const anthropicResp = await fetch(ANTHROPIC_API, {
+    // ── Call Anthropic (with one retry on transient errors) ──────────────────
+    const buildAnthropicReq = () => fetch(ANTHROPIC_API, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -916,9 +929,21 @@ Deno.serve({ port }, async (req) => {
       body: JSON.stringify({ model, max_tokens: maxTokens, stream: true, system: systemPrompt, messages }),
     });
 
+    let anthropicResp = await buildAnthropicReq();
+
     if (!anthropicResp.ok) {
       const errText = await anthropicResp.text();
-      throw new Error(`Anthropic API error: ${anthropicResp.status} — ${errText}`);
+      // Retry once on 529 (overloaded) or 5xx errors
+      if (anthropicResp.status >= 500 || anthropicResp.status === 429 || anthropicResp.status === 529) {
+        await new Promise(r => setTimeout(r, 2000));
+        anthropicResp = await buildAnthropicReq();
+        if (!anthropicResp.ok) {
+          const errText2 = await anthropicResp.text();
+          throw new Error(`Anthropic API error: ${anthropicResp.status} — ${errText2}`);
+        }
+      } else {
+        throw new Error(`Anthropic API error: ${anthropicResp.status} — ${errText}`);
+      }
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -975,7 +1000,9 @@ Deno.serve({ port }, async (req) => {
             }
 
             const { html, summary } = postProcessHtml(fullText, current_html, submitUrl);
-            const { tokensUsed, tokensRemaining } = await finalize(inputTokens, outputTokens);
+            // Save to Supabase BEFORE emitting "done" — guarantees the HTML is
+            // persisted even if the SSE stream drops right after this line.
+            const { tokensUsed, tokensRemaining } = await finalize(inputTokens, outputTokens, html);
             emit({ type: "done", html, summary, tokensUsed, tokensRemaining });
 
           } catch (e: any) {
@@ -1035,7 +1062,7 @@ Deno.serve({ port }, async (req) => {
     }
 
     const { html, summary } = postProcessHtml(fullText2, current_html, submitUrl);
-    const { tokensUsed, tokensRemaining } = await finalize(inputTokens2, outputTokens2);
+    const { tokensUsed, tokensRemaining } = await finalize(inputTokens2, outputTokens2, html);
 
     return new Response(
       JSON.stringify({ success: true, html, summary, tokensUsed, tokensRemaining }),
