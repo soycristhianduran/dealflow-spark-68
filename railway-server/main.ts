@@ -1681,7 +1681,7 @@ Deno.serve({ port }, async (req) => {
     const body = await req.json();
     const { prompt, page_id, current_html, chat_history, funnel_reference_html, attached_pdf, clone_url } = body;
     const useStream: boolean = body.stream === true;
-    if (!prompt) throw new Error("prompt es obligatorio");
+    if (!prompt && !clone_url) throw new Error("prompt es obligatorio");
 
     const submitUrl = `${SUPABASE_URL}/functions/v1/landing-submit`;
     const pageIdPlaceholder = page_id || "PENDING";
