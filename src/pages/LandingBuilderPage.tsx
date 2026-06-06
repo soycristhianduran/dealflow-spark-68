@@ -92,6 +92,61 @@ function backfillSectionIds(html: string): string {
 }
 
 // Anchor links (#) and javascript: are left alone — they don't navigate away.
+// ── Section lock helpers ──────────────────────────────────────────────────────
+
+/** Returns all section IDs detected in the HTML, in document order. */
+function detectSectionIds(html: string): string[] {
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  const pattern = /<(?:section|header|footer)[^>]*\bid=["']([^"']+)["'][^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = pattern.exec(html)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); ids.push(m[1]); }
+  }
+  return ids;
+}
+
+/** Returns true if a section is locked. */
+function isSectionLocked(html: string, sectionId: string): boolean {
+  const pat = new RegExp(`<(?:section|header|footer)[^>]*\\bid=["']${sectionId}["'][^>]*>`, 'i');
+  const m = html.match(pat);
+  return m ? m[0].includes('data-locked="true"') : false;
+}
+
+/** Toggles data-locked="true" on a section by its ID. */
+function toggleSectionLock(html: string, sectionId: string, lock: boolean): string {
+  // Try section, header, footer
+  for (const tag of ['section', 'header', 'footer']) {
+    const pat = new RegExp(`(<${tag}[^>]*\\bid=["']${sectionId}["'][^>]*?)>`, 'i');
+    if (pat.test(html)) {
+      if (lock) {
+        return html.replace(pat, (_, attrs) =>
+          attrs.includes('data-locked') ? `${attrs}>` : `${attrs} data-locked="true">`
+        );
+      } else {
+        return html.replace(pat, (_, attrs) =>
+          `${attrs.replace(/\s*data-locked="true"/g, '')}>`
+        );
+      }
+    }
+  }
+  return html;
+}
+
+/** Human-readable label for a section ID. */
+function sectionLabel(id: string): string {
+  const labels: Record<string, string> = {
+    'site-header': '🧭 Navegación', hero: '🦸 Hero', pain: '😤 Problema/Agitación',
+    'logo-cloud': '🏢 Logos clientes', stats: '📊 Estadísticas', features: '⭐ Características',
+    bento: '🔲 Bento grid', 'how-it-works': '⚙️ Cómo funciona', 'before-after': '↔️ Antes/Después',
+    zigzag: '🔀 Detalle alternado', testimonials: '💬 Testimonios', 'featured-quote': '🗣️ Cita destacada',
+    comparison: '📋 Comparación', pricing: '💲 Precios', faq: '❓ FAQ',
+    video: '▶️ Video', 'final-cta': '🎯 CTA Final', 'lead-form-section': '📝 Formulario',
+    'site-footer': '🦶 Footer',
+  };
+  return labels[id] ?? `📌 ${id}`;
+}
+
 function addTargetBlank(html: string): string {
   return html.replace(/<a\b([^>]*)>/gi, (match, attrs: string) => {
     const href = (/\bhref=["']([^"']*)["']/i.exec(attrs) || [])[1] || '';
@@ -562,6 +617,8 @@ export default function LandingBuilderPage() {
   };
   const [dbVersions, setDbVersions] = useState<{ id: string; summary: string | null; created_at: string; version_number: number }[]>([]);
   const [showVersions, setShowVersions] = useState(false);
+  // Section lock panel
+  const [showLockPanel, setShowLockPanel] = useState(false);
   // Section to highlight after AI edit (visual diff like Lovable)
   const highlightSectionRef = useRef<string | null>(null);
 
@@ -953,6 +1010,15 @@ export default function LandingBuilderPage() {
         .then(({ error }) => { if (!error) toast.success("Botón actualizado"); });
     }
   };
+
+  // Close floating panels when pressing Escape or clicking outside
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") { setShowVersions(false); setShowLockPanel(false); }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   // ── Select page ─────────────────────────────────────────────────────────────
   const selectPage = useCallback((page: LandingPage) => {
@@ -2563,6 +2629,74 @@ export default function LandingBuilderPage() {
                                   {v.summary && <p className="text-muted-foreground truncate">{v.summary}</p>}
                                 </button>
                               ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Section lock panel */}
+                      {generatedHtml && detectSectionIds(generatedHtml).length > 0 && (
+                        <div className="relative">
+                          <button
+                            onClick={() => { setShowLockPanel(v => !v); setShowVersions(false); }}
+                            className={cn(
+                              "flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border transition-colors",
+                              detectSectionIds(generatedHtml).some(id => isSectionLocked(generatedHtml, id))
+                                ? "border-amber-400 text-amber-600 bg-amber-50"
+                                : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                            )}
+                            title="Bloquear/desbloquear secciones"
+                          >
+                            🔒
+                            {detectSectionIds(generatedHtml).some(id => isSectionLocked(generatedHtml, id)) && (
+                              <span className="font-bold text-amber-600">
+                                {detectSectionIds(generatedHtml).filter(id => isSectionLocked(generatedHtml, id)).length}
+                              </span>
+                            )}
+                          </button>
+
+                          {showLockPanel && (
+                            <div className="absolute right-0 top-full mt-1 w-72 bg-popover border border-border rounded-xl shadow-xl z-50 p-2">
+                              <p className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
+                                🔒 Secciones bloqueadas — la IA no las modifica
+                              </p>
+                              <div className="space-y-0.5 max-h-80 overflow-y-auto">
+                                {detectSectionIds(generatedHtml).map(sectionId => {
+                                  const locked = isSectionLocked(generatedHtml, sectionId);
+                                  return (
+                                    <button
+                                      key={sectionId}
+                                      onClick={() => {
+                                        const newHtml = toggleSectionLock(generatedHtml, sectionId, !locked);
+                                        if (generatedHtml) pushHtmlHistory(generatedHtml);
+                                        setGeneratedHtml(newHtml);
+                                        setPreviewHtml(newHtml);
+                                        setHtmlVersion(v => v + 1);
+                                        if (selectedId) {
+                                          supabase.from("landing_pages").update({ html: newHtml }).eq("id", selectedId).then(() => {});
+                                        }
+                                      }}
+                                      className={cn(
+                                        "w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition-colors",
+                                        locked
+                                          ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
+                                          : "hover:bg-accent text-foreground"
+                                      )}
+                                    >
+                                      <span>{sectionLabel(sectionId)}</span>
+                                      <span className={cn(
+                                        "font-medium text-[10px] px-2 py-0.5 rounded-full",
+                                        locked ? "bg-amber-200 text-amber-800" : "bg-muted text-muted-foreground"
+                                      )}>
+                                        {locked ? "🔒 Bloqueada" : "🔓 Libre"}
+                                      </span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground px-2 pt-2 border-t border-border mt-1">
+                                Las secciones bloqueadas no se modifican aunque le pidas cambios generales a la IA.
+                              </p>
                             </div>
                           )}
                         </div>
