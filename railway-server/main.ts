@@ -110,6 +110,11 @@ HEAD — always this exact structure
     .mesh-brand{background:var(--primary);background-image:radial-gradient(ellipse 60% 80% at 10% 50%,rgba(255,255,255,.15) 0%,transparent 60%),radial-gradient(ellipse 40% 60% at 90% 20%,rgba(var(--accent-rgb),.25) 0%,transparent 50%)}
     /* ── Noise texture overlay (apply as ::before on section) ── */
     .noise::before{content:'';position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:1;mix-blend-mode:overlay}
+    /* ── Glassmorphism ── */
+    .glass{background:rgba(255,255,255,.08);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.15)}
+    .glass-light{background:rgba(255,255,255,.72);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,.55)}
+    /* ── Scroll progress bar (top of page) ── */
+    #scroll-progress{position:fixed;top:0;left:0;height:3px;background:linear-gradient(90deg,var(--primary),var(--accent));width:0%;z-index:9999;transition:width .1s linear}
   </style>
 </head>
 
@@ -189,7 +194,15 @@ OPTION A — Centered full-screen hero (services, consulting, events, healthcare
       <div class="flex -space-x-2">[5 × <div class="w-9 h-9 rounded-full border-2 border-white" style="background:linear-gradient(135deg,var(--primary),var(--accent))"></div>]</div>
       <p class="text-sm text-gray-500"><span class="text-yellow-400">★★★★★</span> <strong>500+</strong> clientes satisfechos</p>
     </div>
-    <div class="mt-16 anim-visual">[Dashboard/product mockup at placehold.co/1200x700]</div>
+    <!-- TRUST BADGES — always add below social proof -->
+    <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 mt-6 anim-proof">
+      <div class="flex items-center gap-1.5 text-xs text-gray-400 font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Sin tarjeta de crédito</div>
+      <div class="w-px h-3 bg-gray-200 hidden sm:block"></div>
+      <div class="flex items-center gap-1.5 text-xs text-gray-400 font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Garantía 30 días</div>
+      <div class="w-px h-3 bg-gray-200 hidden sm:block"></div>
+      <div class="flex items-center gap-1.5 text-xs text-gray-400 font-medium"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Cancela cuando quieras</div>
+    </div>
+    <div class="mt-16 anim-visual">[Use real Unsplash image OR CSS dashboard mockup — see IMAGE SYSTEM]</div>
   </div>
 </section>
 
@@ -331,9 +344,11 @@ CONDITIONALLY include based on context clues:
   Pricing        → if user mentions "plans", "prices", "packages", "tiers", or "subscription"
   Testimonials   → ALWAYS include if business has any social proof mentioned; 3 invented-but-realistic ones if none given
   FAQ            → ALWAYS include — minimum 4 objection-based questions specific to this business
-  Comparison     → if the business competes with manual methods, old tools, or obvious alternatives
+  Comparison     → if the business competes with manual methods, spreadsheets, old tools, or obvious alternatives
   Timeline       → if product is a launch, event, or multi-phase process
-  Video section  → if user mentions "video", "demo", "tour", "watch"
+  Video section  → if user mentions "video", "demo", "tour", "watch", "ver cómo funciona"
+  Countdown      → if user mentions a launch date, event date, or limited availability with deadline
+  Featured quote → if there's one standout testimonial result worth highlighting before the grid
 
 SECTION ORDER (standard high-converting flow):
   Nav → Hero → Logo cloud (if applicable) → Stats → Pain/Agitation →
@@ -454,19 +469,19 @@ Each bullet must be a sentence they'd say out loud, not a feature list.
 </div>
 
 ▸ ZIGZAG FEATURES (alternating text+image for deeper product explanation):
-<section class="py-24 white">
+<section class="py-24 bg-white">
   <div class="max-w-7xl mx-auto px-6 space-y-24">
     <div class="grid lg:grid-cols-2 gap-16 items-center fade-in">
-      <div>[eyebrow][H3][body][benefit list][CTA link]</div>
+      <div>[eyebrow][H3 text-2xl font-bold][body text-gray-500][benefit list: ul space-y-2 with checkmark SVGs][CTA link text-primary font-semibold]</div>
       <div class="rounded-2xl overflow-hidden shadow-xl ring-1 ring-black/5">
-        <img src="https://placehold.co/700x480/HEX/HEX?text=[Feature]" class="w-full h-full object-cover">
+        <img src="https://images.unsplash.com/photo-[relevant-ID]?w=700&h=480&fit=crop&auto=format&q=80" class="w-full h-full object-cover" loading="lazy">
       </div>
     </div>
     <div class="grid lg:grid-cols-2 gap-16 items-center fade-in">
       <div class="order-2 lg:order-1 rounded-2xl overflow-hidden shadow-xl ring-1 ring-black/5">
-        <img src="https://placehold.co/700x480/HEX/HEX?text=[Feature]" class="w-full h-full object-cover">
+        <img src="https://images.unsplash.com/photo-[relevant-ID]?w=700&h=480&fit=crop&auto=format&q=80" class="w-full h-full object-cover" loading="lazy">
       </div>
-      <div class="order-1 lg:order-2">[content reversed]</div>
+      <div class="order-1 lg:order-2">[content reversed — same structure]</div>
     </div>
   </div>
 </section>
@@ -489,17 +504,171 @@ Each bullet must be a sentence they'd say out loud, not a feature list.
   </div>
 </section>
 
+▸ TESTIMONIALS — featured quote variant (add BEFORE the 3-grid when you have one standout testimonial):
+<section class="py-16 bg-[var(--bg-alt)]">
+  <div class="max-w-4xl mx-auto px-6">
+    <div class="rounded-3xl p-10 lg:p-14 fade-in" style="background:linear-gradient(135deg,rgba(var(--primary-rgb),.06),rgba(var(--accent-rgb),.04));border:1px solid rgba(var(--primary-rgb),.12)">
+      <div class="flex text-yellow-400 text-xl mb-6">★★★★★</div>
+      <blockquote class="text-2xl lg:text-3xl font-semibold text-gray-900 leading-snug mb-8">
+        "[One powerful sentence outcome. Something with a specific number or timeframe that proves the result.]"
+      </blockquote>
+      <div class="flex items-center gap-4">
+        <div class="w-14 h-14 rounded-full flex-shrink-0" style="background:linear-gradient(135deg,var(--primary),var(--accent))"></div>
+        <div>
+          <p class="font-bold text-gray-900">[Full Name]</p>
+          <p class="text-gray-500 text-sm">[Role] · [Company] · [City]</p>
+        </div>
+        <div class="ml-auto hidden sm:block text-right">
+          <p class="text-3xl font-black" style="color:var(--primary)">[+X%]</p>
+          <p class="text-xs text-gray-500">[Metric achieved]</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+▸ COMPARISON TABLE (include when competing with manual process, spreadsheets, or obvious alternative):
+<section class="py-24 bg-white">
+  <div class="max-w-4xl mx-auto px-6">
+    <p class="eyebrow text-center mx-auto w-fit">La diferencia es clara</p>
+    <h2 class="text-3xl lg:text-4xl font-bold text-center mb-12">[Headline: "Por qué [Producto] vs [Alternativa]"]</h2>
+    <div class="overflow-hidden rounded-2xl border border-gray-200 shadow-sm">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-200">
+            <th class="py-4 px-6 text-left text-gray-500 font-medium w-2/5">Característica</th>
+            <th class="py-4 px-6 text-center w-[30%]" style="background:rgba(var(--primary-rgb),.06)">
+              <span class="font-bold text-base" style="color:var(--primary)">[Tu Producto]</span>
+            </th>
+            <th class="py-4 px-6 text-center text-gray-400 font-medium w-[30%]">[Alternativa / Sin herramienta]</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Row pattern — repeat for 5-7 features: -->
+          <tr class="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+            <td class="py-4 px-6 text-gray-700 font-medium">[Feature name]</td>
+            <td class="py-4 px-6 text-center" style="background:rgba(var(--primary-rgb),.03)">
+              <span class="inline-flex items-center justify-center w-7 h-7 rounded-full" style="background:rgba(var(--primary-rgb),.1)">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+              </span>
+            </td>
+            <td class="py-4 px-6 text-center">
+              <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-red-50">
+                <svg class="w-4 h-4 text-red-400" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+              </span>
+            </td>
+          </tr>
+          [repeat 5-7 rows — mix of ✓/✗ per column, always ✓ for your product]
+        </tbody>
+      </table>
+    </div>
+    <div class="text-center mt-8">
+      <a href="#lead-form" class="btn-primary">[CTA — empieza gratis] →</a>
+    </div>
+  </div>
+</section>
+
+▸ VIDEO SECTION (include when user mentions "video", "demo", "tour", "watch", "ver"):
+<section class="py-24 bg-[var(--bg-alt)]">
+  <div class="max-w-4xl mx-auto px-6">
+    <p class="eyebrow text-center mx-auto w-fit">Ve cómo funciona</p>
+    <h2 class="text-3xl lg:text-4xl font-bold text-center mb-4">[Headline]</h2>
+    <p class="text-gray-500 text-center text-lg max-w-xl mx-auto mb-10">[1 sentence — what they'll see in 2 minutes]</p>
+    <!-- Video embed with play button overlay -->
+    <div class="relative rounded-2xl overflow-hidden shadow-2xl ring-1 ring-black/10 cursor-pointer group fade-in" id="video-container">
+      <img src="https://images.unsplash.com/photo-[relevant-ID]?w=900&h=506&fit=crop&auto=format&q=80" class="w-full aspect-video object-cover" alt="Video thumbnail">
+      <div class="absolute inset-0 bg-black/40 flex items-center justify-center group-hover:bg-black/50 transition-colors">
+        <div class="w-20 h-20 rounded-full flex items-center justify-center glass group-hover:scale-110 transition-transform shadow-2xl">
+          <svg class="w-8 h-8 text-white ml-1" fill="white" viewBox="0 0 24 24"><path d="M8 5.14v14l11-7-11-7z"/></svg>
+        </div>
+      </div>
+      <div class="absolute bottom-4 left-4 glass-light rounded-lg px-3 py-1.5">
+        <p class="text-xs font-semibold text-gray-800">▶ Demo en [X] minutos</p>
+      </div>
+    </div>
+    <!-- YouTube/Vimeo embed — hidden until play clicked -->
+    <div id="video-embed" class="hidden mt-4 rounded-2xl overflow-hidden shadow-2xl aspect-video" style="display:none">
+      <iframe width="100%" height="100%" src="https://www.youtube.com/embed/[VIDEO_ID]?autoplay=1" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen class="w-full h-full"></iframe>
+    </div>
+  </div>
+</section>
+<script>(function(){var c=document.getElementById('video-container'),e=document.getElementById('video-embed');if(c&&e){c.addEventListener('click',function(){c.style.display='none';e.style.display='block';e.classList.remove('hidden');});}})();</script>
+
+▸ COUNTDOWN TIMER (for events, launches, limited offers — include when date is mentioned):
+<!-- Add this banner INSIDE the hero section, above the H1, when there's a launch date -->
+<div class="inline-flex items-center gap-3 rounded-2xl px-6 py-3 mb-8 anim-badge" style="background:rgba(var(--primary-rgb),.08);border:1px solid rgba(var(--primary-rgb),.2)">
+  <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  <span class="text-sm font-semibold" style="color:var(--primary)">Lanzamiento en: </span>
+  <div class="flex items-center gap-2 font-mono font-bold" style="color:var(--primary)">
+    <span><span id="cd-days">00</span><span class="text-xs font-normal opacity-60 ml-0.5">d</span></span>
+    <span class="opacity-40">:</span>
+    <span><span id="cd-hours">00</span><span class="text-xs font-normal opacity-60 ml-0.5">h</span></span>
+    <span class="opacity-40">:</span>
+    <span><span id="cd-mins">00</span><span class="text-xs font-normal opacity-60 ml-0.5">m</span></span>
+    <span class="opacity-40">:</span>
+    <span><span id="cd-secs">00</span><span class="text-xs font-normal opacity-60 ml-0.5">s</span></span>
+  </div>
+</div>
+<script>
+(function(){
+  // Set target date from context. If no explicit date, set 30 days from now.
+  var target=new Date('[YYYY-MM-DDT10:00:00]');
+  function tick(){
+    var now=new Date(),diff=target-now;
+    if(diff<=0){['cd-days','cd-hours','cd-mins','cd-secs'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent='00';});return;}
+    var d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000),s=Math.floor((diff%60000)/1000);
+    var pad=function(n){return String(n).padStart(2,'0');};
+    var ids={d:'cd-days',h:'cd-hours',m:'cd-mins',s:'cd-secs'};
+    [{k:'d',v:d},{k:'h',v:h},{k:'m',v:m},{k:'s',v:s}].forEach(function(x){var el=document.getElementById(ids[x.k]);if(el)el.textContent=pad(x.v);});
+  }
+  tick();setInterval(tick,1000);
+})();
+</script>
+
 ▸ PRICING (when pricing is relevant):
 <section class="py-24 bg-[var(--bg-alt)]">
   <div class="max-w-5xl mx-auto px-6">
-    <p class="eyebrow text-center mx-auto w-fit">Precios</p>
-    <h2 class="text-4xl font-bold text-center mb-12">[Simple headline]</h2>
-    <div class="grid md:grid-cols-3 gap-6">
-      <!-- Highlighted plan (middle, scaled up) -->
-      <div class="relative rounded-2xl p-8 shadow-2xl md:scale-[1.04] fade-in" style="background:var(--primary);color:white">
-        <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-white text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full" style="color:var(--primary)">Más popular</div>
-        [price + features]
+    <p class="eyebrow text-center mx-auto w-fit">Precios simples y transparentes</p>
+    <h2 class="text-4xl font-bold text-center mb-3">[Headline: value-focused, not price-focused]</h2>
+    <p class="text-gray-500 text-center text-lg mb-12 max-w-xl mx-auto">[Subheadline: what they get, not what it costs]</p>
+    <div class="grid md:grid-cols-3 gap-6 items-start">
+      <!-- Basic plan -->
+      <div class="card p-8 fade-in">
+        <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">[Plan name]</p>
+        <div class="flex items-baseline gap-1 mb-1"><span class="text-4xl font-black text-gray-900">$[N]</span><span class="text-gray-500">/mes</span></div>
+        <p class="text-xs text-gray-400 mb-6">[Billing note: facturado anualmente]</p>
+        <a href="#lead-form" class="btn-secondary w-full justify-center mb-6">Empezar gratis</a>
+        <ul class="space-y-3">
+          [5-6 features: <li class="flex items-start gap-2 text-sm text-gray-600"><svg class="w-4 h-4 flex-shrink-0 mt-0.5" ...checkmark style="color:var(--primary)"></svg>[feature]</li>]
+        </ul>
       </div>
+      <!-- Featured/popular plan — scaled up, brand colored -->
+      <div class="relative rounded-2xl p-8 shadow-2xl md:-mt-4 md:mb-4 fade-in" style="background:var(--primary);color:white">
+        <div class="absolute -top-4 left-1/2 -translate-x-1/2 bg-white text-xs font-bold uppercase tracking-wider px-4 py-1.5 rounded-full shadow-md" style="color:var(--primary)">⭐ Más popular</div>
+        <p class="text-sm font-semibold uppercase tracking-wider mb-2 text-white/70">[Plan name]</p>
+        <div class="flex items-baseline gap-1 mb-1"><span class="text-4xl font-black text-white">$[N]</span><span class="text-white/70">/mes</span></div>
+        <p class="text-xs text-white/50 mb-6">[Billing note]</p>
+        <a href="#lead-form" class="w-full justify-center mb-6 py-3 px-6 rounded-xl font-semibold text-sm flex items-center gap-2 transition-all" style="background:white;color:var(--primary)">Empezar ahora →</a>
+        <ul class="space-y-3">
+          [6-8 features: <li class="flex items-start gap-2 text-sm text-white/85"><svg class="w-4 h-4 flex-shrink-0 mt-0.5 text-white" ...checkmark></svg>[feature]</li>]
+        </ul>
+      </div>
+      <!-- Enterprise plan -->
+      <div class="card p-8 fade-in">
+        <p class="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">Enterprise</p>
+        <div class="flex items-baseline gap-1 mb-1"><span class="text-4xl font-black text-gray-900">A medida</span></div>
+        <p class="text-xs text-gray-400 mb-6">Contacta para precio personalizado</p>
+        <a href="#lead-form" class="btn-secondary w-full justify-center mb-6">Hablar con ventas</a>
+        <ul class="space-y-3">
+          [5-6 enterprise features with checkmarks]
+        </ul>
+      </div>
+    </div>
+    <!-- Money-back guarantee row -->
+    <div class="mt-10 text-center flex flex-wrap items-center justify-center gap-6 text-sm text-gray-500">
+      <span class="flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>Garantía 30 días · sin preguntas</span>
+      <span class="flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Sin permanencia · cancela cuando quieras</span>
+      <span class="flex items-center gap-1.5"><svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="color:var(--primary)"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/></svg>Soporte humano incluido</span>
     </div>
   </div>
 </section>
@@ -596,7 +765,11 @@ document.querySelectorAll('[data-counter]').forEach(function(el){
 });
 // Lucide icons
 if(window.lucide)lucide.createIcons();
+// Scroll progress bar
+(function(){var bar=document.getElementById('scroll-progress');if(!bar)return;window.addEventListener('scroll',function(){var pct=(window.scrollY/(document.documentElement.scrollHeight-window.innerHeight))*100;bar.style.width=Math.min(pct,100)+'%';},{passive:true});})();
 </script>
+<!-- Scroll progress bar element — place right after <body> tag -->
+<div id="scroll-progress"></div>
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 CONVERSION PSYCHOLOGY
@@ -615,6 +788,54 @@ SOCIAL PROOF: Always specific — "José M., CEO TechCorp: 'En 60 días subimos 
 OBJECTIONS: Address top 2 fears before final CTA with pill badges: "Sin permanencia" · "Garantía 30 días" · "Soporte incluido"
 URGENCY: Only if authentic — "Solo 12 cupos este mes" NOT "¡Oferta limitada!"
 AGITATION: List 3-5 painful situations the target audience recognizes as their own daily reality
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COPY EXAMPLES BY INDUSTRY — imitate this tone and specificity
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Study these real-quality H1 examples. Your copy must match this level of specificity.
+NEVER write generic taglines. Always name the outcome + who gets it + how fast/easy.
+
+REAL ESTATE / PROPERTY:
+  H1: "Invierte en el proyecto que más valoriza en [Ciudad] antes de que se agoten las 24 unidades"
+  H2: "Del depósito a las llaves en menos de 30 días"
+  Pain: "Llevas meses viendo proyectos que no encajan o que ya se vendieron cuando los encuentras"
+  CTA: "Reserva tu unidad con $[X] de separación →"
+
+SAAS / CRM / AUTOMATION:
+  H1: "Convierte el 40% más de tus leads sin contratar un solo vendedor extra"
+  H2: "De hoja de cálculo caótica a pipeline que se mueve solo"
+  Pain: "Tu equipo pierde 3 horas al día en tareas manuales que un software haría en segundos"
+  CTA: "Ver mi demo personalizado →"
+
+HEALTH / WELLNESS / FITNESS:
+  H1: "Baja 8 kilos en 12 semanas con un plan hecho para tu cuerpo, no para todos"
+  H2: "De dieta genérica que no funciona a resultados que se ven en el espejo"
+  Pain: "Has intentado 4 dietas distintas y siempre recuperas el peso en 2 meses"
+  CTA: "Quiero mi plan personalizado →"
+
+CONSULTING / PROFESSIONAL SERVICES:
+  H1: "Duplica los ingresos de tu agencia en 6 meses o te devolvemos lo invertido"
+  H2: "De trabajar 60 horas a vivir del negocio, no en el negocio"
+  Pain: "Estás atrapado haciendo trabajo operativo cuando deberías estar vendiendo y creciendo"
+  CTA: "Quiero mi diagnóstico gratis →"
+
+EDUCATION / COURSES / COACHING:
+  H1: "Aprende [Skill] en 8 semanas y cobra tu primera consultoría antes de terminar el curso"
+  H2: "De no saber por dónde empezar a tener clientes pagando por tu conocimiento"
+  Pain: "Llevas años con conocimiento valioso pero sin saber cómo convertirlo en ingresos reales"
+  CTA: "Ver el programa completo →"
+
+EVENTS / LAUNCHES:
+  H1: "El evento que transforma cómo cierras ventas de alto valor — [Ciudad], [Fecha]"
+  H2: "200 fundadores que pasaron de $50K a $500K al año en 12 meses"
+  Pain: "Asistes a eventos genéricos que no te dan nada accionable para el lunes siguiente"
+  CTA: "Reservar mi lugar ahora →"
+
+ECOMMERCE / PRODUCTS:
+  H1: "[Producto] que [outcome específico] — probado por [N] clientes en [países]"
+  H2: "De [problema actual] a [solución] en [timeframe]"
+  Pain: "Compras productos que prometen mucho, llegan tarde y decepcionan al abrir la caja"
+  CTA: "Quiero el mío →"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ICONS — use Lucide SVG paths (never emoji for icons)
