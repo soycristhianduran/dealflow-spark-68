@@ -1028,6 +1028,257 @@ CHANGE COLORS → update --primary, --primary-dark, --primary-rgb, --accent, --a
 
 GOLDEN RULE: Change LESS than you think. Preserve MORE than feels necessary. When unsure, do the minimal interpretation.`;
 
+// ── Surgical system prompt ─────────────────────────────────────────────────────
+// Used when editing a single known section. Claude receives only the CSS context
+// and the target section — no full HTML. Output is the modified section only.
+// Token cost: ~4-8k vs ~40-57k for full-HTML mode (85-90% savings).
+const SURGICAL_SYSTEM = `You are a precise HTML section editor. You receive:
+1. A <style> block with the page's design tokens (CSS variables and component classes)
+2. The specific HTML section to modify
+3. The modification request
+
+MANDATORY RESPONSE FORMAT:
+CAMBIOS: [1 sentence — exactly what changed]
+---SECTION---
+[the modified section HTML — same outer tag as received]
+
+ABSOLUTE RULES:
+- Return ONLY the modified section HTML after ---SECTION---
+- Do NOT return <!DOCTYPE>, <html>, <head>, <body>, or any other page wrapper
+- Use ONLY the CSS variables (--primary, --accent, etc.) and classes (.btn-primary, .card, .field, etc.) from the provided <style> block — never invent new ones
+- Preserve ALL existing content that was not explicitly requested to change
+- Keep the same outer element and its attributes (id, class, data-*) intact
+- If the change requires a <script> tag, append it immediately after the closing section tag
+- Apply ONLY what was requested — preserve all other text, structure, and styles exactly`;
+
+// ── Surgical editing helpers ──────────────────────────────────────────────────
+
+/**
+ * Returns true when the prompt is a targeted single-section change that does NOT
+ * require rewriting the full page. The caller falls back to full-HTML mode if
+ * false, or if no matching section is found in the HTML.
+ */
+function isSurgicalChange(prompt: string): boolean {
+  const p = prompt.toLowerCase();
+
+  // These always require the full page (color system, layout, multi-section)
+  const fullRequired = [
+    "color", "paleta", "palette", "tipograf", "fuente", "font",
+    "rediseña", "redesign", "cambia todo", "change all",
+    "todas las secciones", "all sections",
+    "nueva sección", "new section", "agrega sección", "add section",
+    "elimina sección", "remove section", "reorganiz",
+    "dark mode", "modo oscuro", "light mode", "modo claro",
+    "estilo general", "tema ", "theme ", "apariencia",
+    "fondo de toda", "toda la página", "whole page",
+  ];
+  if (fullRequired.some(kw => p.includes(kw))) return false;
+
+  // These indicate a targeted element change → surgical is safe
+  const surgicalKeywords = [
+    "formulario", "form", "campo", "field", "input",
+    "botón", "button", "cta", "submit",
+    "teléfono", "phone", "whatsapp", "email", "correo", "nombre",
+    "código de país", "country code", "prefijo", "placeholder", "label",
+    "logo", "ícono", "icono",
+    "faq", "pregunta", "question", "accordion",
+    "precio", "price", "plan ", "tarifa",
+    "testimonial", "reseña", "opinión",
+    "contador", "counter", "estadística", "stat",
+    "cambia el texto", "change text", "este texto", "this text",
+    "añade", "agrega ", "quita ", "elimina ", "mueve ",
+    "add ", "remove ", "move ", "replace ",
+  ];
+  return surgicalKeywords.some(kw => p.includes(kw));
+}
+
+/**
+ * Extracts CSS context (`:root` vars + component class definitions) from the
+ * page's `<style>` block. This is sent alongside the target section so Claude
+ * can use the correct design tokens without seeing the full HTML.
+ */
+function extractCssContext(html: string): string {
+  const styleMatch = html.match(/<style[^>]*>([\s\S]*?)<\/style>/i);
+  if (!styleMatch) return "";
+  // Keep the full style block — it's small (~3-5kb) and critical for design consistency
+  return `<style>${styleMatch[1]}</style>`;
+}
+
+/**
+ * Maps a user prompt to the most relevant HTML section.
+ * Returns the section's HTML string + an identifier used for replacement.
+ * Returns null if no section matched (caller falls back to full-HTML mode).
+ */
+function detectTargetSection(
+  prompt: string,
+  html: string,
+): { sectionHtml: string; sectionId: string } | null {
+  const p = prompt.toLowerCase();
+
+  const mappings: Array<{
+    keywords: string[];
+    patterns: RegExp[];
+    id: string;
+  }> = [
+    {
+      keywords: [
+        "formulario", "form", "campo", "input", "teléfono", "phone",
+        "whatsapp", "email", "correo", "nombre", "registro", "registro",
+        "código de país", "country code", "prefijo", "submit", "botón",
+        "lead-form", "cta",
+      ],
+      patterns: [
+        // Section with id="lead-form-section"
+        /<section[^>]*id=["']lead-form-section["'][^>]*>[\s\S]*?<\/section>/i,
+        // Modal overlay (if form is in a modal)
+        /<div[^>]*id=["']modal-overlay["'][^>]*>[\s\S]*?<\/div>\s*(?=<script|<\/body|<footer)/i,
+      ],
+      id: "lead-form-section",
+    },
+    {
+      keywords: [
+        "header", "nav", "logo", "menú", "menu", "navegación",
+        "navigation", "barra superior", "barra de nav",
+      ],
+      patterns: [/<header[\s\S]*?<\/header>/i],
+      id: "header",
+    },
+    {
+      keywords: ["faq", "pregunta", "question", "accordion", "duda", "respuesta frecuente"],
+      patterns: [
+        // Section containing <details> accordion
+        /<section[^>]*>(?:(?!<section).)*<details[\s\S]*?<\/section>/i,
+        /<section[^>]*id=["'][^"']*faq[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
+      ],
+      id: "faq",
+    },
+    {
+      keywords: [
+        "precio", "price", "plan ", "tarifa", "suscripción",
+        "subscription", "paquete", "package",
+      ],
+      patterns: [
+        /<section[^>]*id=["'][^"']*pric[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
+        // Section containing "popular" or "por mes"
+        /<section[^>]*>(?:(?!<section).)*(?:popular|por mes|\/mes)[\s\S]*?<\/section>/i,
+      ],
+      id: "pricing",
+    },
+    {
+      keywords: [
+        "testimonial", "reseña", "opinión", "review",
+        "cliente dice", "lo que dicen", "★",
+      ],
+      patterns: [
+        // Section containing star ratings
+        /<section[^>]*>(?:(?!<section).)*★★★★★[\s\S]*?<\/section>/i,
+        /<section[^>]*id=["'][^"']*testimonial[^"']*["'][^>]*>[\s\S]*?<\/section>/i,
+      ],
+      id: "testimonials",
+    },
+    {
+      keywords: [
+        "estadística", "stat", "contador", "counter", "número",
+        "metric", "métrica", "data-counter",
+      ],
+      patterns: [
+        /<section[^>]*>(?:(?!<section).)*data-counter[\s\S]*?<\/section>/i,
+      ],
+      id: "stats",
+    },
+    {
+      keywords: ["footer", "pie de página", "copyright", "redes sociales", "enlace del pie"],
+      patterns: [/<footer[\s\S]*?<\/footer>/i],
+      id: "footer",
+    },
+    {
+      keywords: ["hero", "portada", "encabezado principal", "título principal", "headline"],
+      patterns: [
+        // First <section> after <header>
+        /<\/header>\s*(<section[\s\S]*?<\/section>)/i,
+        /<section[^>]*class="[^"]*(?:min-h-screen|hero|pt-32|pt-24)[^"]*"[^>]*>[\s\S]*?<\/section>/i,
+      ],
+      id: "hero",
+    },
+  ];
+
+  for (const mapping of mappings) {
+    if (mapping.keywords.some(kw => p.includes(kw))) {
+      for (const pattern of mapping.patterns) {
+        const m = html.match(pattern);
+        if (m) {
+          // Use the first capture group if present (hero pattern), else full match
+          const sectionHtml = m[1] ?? m[0];
+          return { sectionHtml, sectionId: mapping.id };
+        }
+      }
+    }
+  }
+
+  return null; // No match → fall back to full-HTML mode
+}
+
+/**
+ * Replaces the old section in `currentHtml` with `patchHtml`.
+ * Returns the updated full HTML, or null if the section wasn't found
+ * (caller falls back to treating `patchHtml` as a full-page response).
+ *
+ * Safety checks:
+ *  - patch must start with a block-level HTML tag
+ *  - patch must not contain <html> or <body> (would indicate Claude returned full page)
+ *  - old section must actually be present in currentHtml (no phantom replacement)
+ */
+function applySectionPatch(
+  currentHtml: string,
+  patchHtml: string,
+  sectionId: string,
+): string | null {
+  const trimmed = patchHtml.trim();
+
+  // Guard: reject if Claude returned a full page instead of a section
+  if (
+    trimmed.toLowerCase().includes("<!doctype") ||
+    trimmed.toLowerCase().includes("<html") ||
+    trimmed.toLowerCase().includes("<body")
+  ) {
+    return null;
+  }
+
+  // Guard: must start with a block tag
+  if (!/^<(section|header|footer|div|nav|form)/i.test(trimmed)) {
+    return null;
+  }
+
+  // Try replacement strategies in order of precision:
+
+  // 1. Match section/header/footer by id attribute
+  const idPatterns: RegExp[] = [
+    new RegExp(
+      `<section[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/section>`,
+      "i",
+    ),
+    new RegExp(
+      `<div[^>]*\\bid=["']${sectionId}["'][^>]*>[\\s\\S]*?<\\/div>`,
+      "i",
+    ),
+    /<header[\s\S]*?<\/header>/i,
+    /<footer[\s\S]*?<\/footer>/i,
+  ];
+
+  for (const pat of idPatterns) {
+    if (pat.test(currentHtml)) {
+      const result = currentHtml.replace(pat, trimmed);
+      if (result !== currentHtml) return result; // success
+    }
+  }
+
+  // 2. For sections without id: match by unique content fingerprint (first 120 chars of section)
+  const fingerprint = patchHtml.slice(0, 120).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Skip this strategy for safety — could match wrong section
+
+  return null; // couldn't find target, caller will use full HTML
+}
+
 // ── Helper: compress HTML to reduce token count before sending to API ─────────
 // Strips indentation/blank lines without touching content or CSS/JS logic.
 // A 100KB formatted page → ~60KB compressed = saves ~10k tokens on input.
@@ -1045,6 +1296,7 @@ function postProcessHtml(
   rawText: string,
   current_html: string | undefined,
   submitUrl: string,
+  surgicalSectionId?: string, // set when using surgical mode
 ): { html: string; summary: string } {
   let text = rawText
     .replace(/^```html\s*/i, "")
@@ -1055,7 +1307,31 @@ function postProcessHtml(
   let html: string;
   let summary: string;
 
-  if (current_html) {
+  // ── Surgical mode: Claude returned only a section, not the full page ─────────
+  if (current_html && surgicalSectionId) {
+    const sectionDelim = "---SECTION---";
+    const sectionIdx = text.indexOf(sectionDelim);
+    if (sectionIdx !== -1) {
+      const before = text.slice(0, sectionIdx).trim();
+      const patchHtml = text.slice(sectionIdx + sectionDelim.length).trim();
+      const m = before.match(/^CAMBIOS:\s*(.+)/im);
+      summary = m ? m[1].trim() : "Cambios aplicados";
+
+      const patched = applySectionPatch(current_html, patchHtml, surgicalSectionId);
+      if (patched) {
+        html = patched;
+      } else {
+        // Patch failed — fall back: treat as full HTML (Claude may have returned full page)
+        html = patchHtml.trimStart().startsWith("<!") ? patchHtml : current_html;
+        summary += " (fallback: sección no localizada)";
+      }
+    } else {
+      // No delimiter — Claude returned something unexpected; use full text
+      html = text.trimStart().startsWith("<!") ? text : current_html;
+      summary = "Cambios aplicados";
+    }
+  } else if (current_html) {
+    // ── Standard full-HTML refinement mode ─────────────────────────────────────
     const delimiter = "---HTML---";
     const delimIdx = text.indexOf(delimiter);
     if (delimIdx !== -1) {
@@ -1085,16 +1361,14 @@ function postProcessHtml(
     if (!html.toLowerCase().includes("</html>")) html += "\n</html>";
   }
 
-  // ── Section-loss safety net ────────────────────────────────────────────────
-  // If a refinement response lost more than 1 section vs the original, the model
-  // truncated its output. Return the original HTML with an error so the user
-  // sees a clear message instead of a broken page.
-  if (current_html && html) {
+  // ── Section-loss safety net (full-HTML mode only) ─────────────────────────
+  // Skip in surgical mode — the patched HTML was assembled from current_html
+  // with only the target section replaced, so section count is always correct.
+  if (current_html && html && !surgicalSectionId) {
     const countSections = (s: string) => (s.match(/<section[\s>]/gi) || []).length;
     const inCount = countSections(current_html);
     const outCount = countSections(html);
     if (inCount > 0 && outCount < inCount - 1) {
-      // Truncation detected — surface the problem rather than saving broken HTML
       throw new Error(
         `La respuesta fue truncada (${outCount}/${inCount} secciones recibidas). ` +
         `Intenta una instrucción más pequeña o simplifica la página antes de refinar.`
@@ -1222,19 +1496,37 @@ Deno.serve({ port }, async (req) => {
       ];
     };
 
+    let surgicalSectionId: string | undefined;
+
     if (current_html) {
-      systemPrompt = REFINE_SYSTEM;
-      const history = Array.isArray(chat_history) ? chat_history : [];
-      const turns: { role: string; content: string | any[] }[] = [];
-      for (const msg of history.filter((m: any) => m.status === "done").slice(-6)) {
-        if (msg.role === "user") turns.push({ role: "user", content: msg.content });
-        else turns.push({ role: "assistant", content: msg.summary || "CAMBIOS: Aplicados.\n---HTML---\n[HTML actualizado]" });
+      // ── Try surgical mode first ─────────────────────────────────────────────
+      // Surgical: send only target section + CSS vars. Saves 85-90% of tokens
+      // on targeted changes (form, text, button, FAQ, pricing, etc.).
+      const surgicalTarget = isSurgicalChange(prompt)
+        ? detectTargetSection(prompt, current_html)
+        : null;
+
+      if (surgicalTarget) {
+        surgicalSectionId = surgicalTarget.sectionId;
+        const cssContext = extractCssContext(current_html);
+        systemPrompt = SURGICAL_SYSTEM;
+        messages = [{
+          role: "user",
+          content: `${cssContext}\n\nSección a modificar:\n${surgicalTarget.sectionHtml}\n\nModificación solicitada: ${prompt}`,
+        }];
+      } else {
+        // FULL-HTML: standard refinement with compressed full HTML
+        systemPrompt = REFINE_SYSTEM;
+        const history = Array.isArray(chat_history) ? chat_history : [];
+        const turns: { role: string; content: string | any[] }[] = [];
+        for (const msg of history.filter((m: any) => m.status === "done").slice(-6)) {
+          if (msg.role === "user") turns.push({ role: "user", content: msg.content });
+          else turns.push({ role: "assistant", content: msg.summary || "CAMBIOS: Aplicados.\n---HTML---\n[HTML actualizado]" });
+        }
+        const htmlForApi = compressHtmlForApi(current_html);
+        turns.push({ role: "user", content: buildUserContent(`HTML actual de la landing:\n\`\`\`html\n${htmlForApi}\n\`\`\`\n\nModificación solicitada: ${prompt}`) });
+        messages = turns;
       }
-      // Compress HTML before sending to reduce input token count (~30-40% savings).
-      // This lowers the context used so more output tokens are available for the response.
-      const htmlForApi = compressHtmlForApi(current_html);
-      turns.push({ role: "user", content: buildUserContent(`HTML actual de la landing:\n\`\`\`html\n${htmlForApi}\n\`\`\`\n\nModificación solicitada: ${prompt}`) });
-      messages = turns;
     } else if (funnel_reference_html) {
       const refHtml = String(funnel_reference_html).slice(0, 4000);
       systemPrompt = FUNNEL_PAGE_SYSTEM
@@ -1251,10 +1543,11 @@ Deno.serve({ port }, async (req) => {
 
     // ── Model selection ───────────────────────────────────────────────────────
     // Railway has NO timeout — Sonnet for ALL requests.
-    // Refinements get 32k output tokens because the full HTML must be returned
-    // (large landings can exceed 20k tokens). Fresh generations use 16k.
+    // Surgical: only one section returned (~1-3k tokens) → 4k is plenty.
+    // Full refinement: full page must fit → 32k.
+    // Fresh generation → 16k.
     const model = "claude-sonnet-4-5";
-    const maxTokens = current_html ? 32000 : 16000;
+    const maxTokens = surgicalSectionId ? 4000 : current_html ? 32000 : 16000;
 
     // ── Finalize (deduct credits + log + save HTML) ───────────────────────────
     // generatedHtml: if provided, Railway saves it to Supabase immediately.
@@ -1375,7 +1668,7 @@ Deno.serve({ port }, async (req) => {
               }
             }
 
-            const { html, summary } = postProcessHtml(fullText, current_html, submitUrl);
+            const { html, summary } = postProcessHtml(fullText, current_html, submitUrl, surgicalSectionId);
             // Save to Supabase BEFORE emitting "done" — guarantees the HTML is
             // persisted even if the SSE stream drops right after this line.
             const { tokensUsed, tokensRemaining } = await finalize(inputTokens, outputTokens, html);
@@ -1437,7 +1730,7 @@ Deno.serve({ port }, async (req) => {
       }
     }
 
-    const { html, summary } = postProcessHtml(fullText2, current_html, submitUrl);
+    const { html, summary } = postProcessHtml(fullText2, current_html, submitUrl, surgicalSectionId);
     const { tokensUsed, tokensRemaining } = await finalize(inputTokens2, outputTokens2, html);
 
     return new Response(
