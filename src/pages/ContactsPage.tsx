@@ -497,7 +497,7 @@ export default function ContactsPage() {
       try {
         const phone = c.primary_phone!.replace(/[^0-9]/g, "");
         const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-          body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id },
+          body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id, organization_id: organizationId ?? null },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null, user_id: myUserId });

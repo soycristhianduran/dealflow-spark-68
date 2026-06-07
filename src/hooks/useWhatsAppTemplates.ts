@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 export interface WaTemplateButton {
@@ -45,6 +46,7 @@ export interface CreateTemplateParams {
 }
 
 export function useWhatsAppTemplates() {
+  const { organizationId } = useOrganizationContext();
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -70,7 +72,7 @@ export function useWhatsAppTemplates() {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "list_templates" },
+        body: { action: "list_templates", organization_id: organizationId ?? null },
       });
       if (data?.error) throw new Error(data.error);
       if (error) throw new Error(error.message);
@@ -94,7 +96,7 @@ export function useWhatsAppTemplates() {
     setCreating(true);
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "create_template", ...params },
+        body: { action: "create_template", ...params, organization_id: organizationId ?? null },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success("Plantilla enviada a Meta ✓  — Haz clic en 'Sincronizar' para ver el estado actualizado.");
@@ -111,7 +113,7 @@ export function useWhatsAppTemplates() {
   const deleteTemplate = useCallback(async (name: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "delete_template", name },
+        body: { action: "delete_template", name, organization_id: organizationId ?? null },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success("Plantilla eliminada");
@@ -132,7 +134,7 @@ export function useWhatsAppTemplates() {
   }) => {
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "update_template", ...params },
+        body: { action: "update_template", ...params, organization_id: organizationId ?? null },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success("Plantilla actualizada ✓  — Haz clic en 'Sincronizar' para ver el estado de Meta.");

@@ -160,7 +160,7 @@ export function AudioPlayer({ src, outgoing }: { src: string; outgoing: boolean 
 }
 
 // ───────────────────────────── Media upload helper ───────────────────────────
-export async function uploadTemplateMedia(file: File): Promise<string> {
+export async function uploadTemplateMedia(file: File, orgId?: string | null): Promise<string> {
   const base64 = await new Promise<string>((res, rej) => {
     const reader = new FileReader();
     reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
@@ -168,7 +168,7 @@ export async function uploadTemplateMedia(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
   const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-    body: { action: "upload_template_media", file_base64: base64, mime_type: file.type, filename: file.name },
+    body: { action: "upload_template_media", file_base64: base64, mime_type: file.type, filename: file.name, organization_id: orgId ?? null },
   });
   if (error || data?.error) throw new Error(data?.error || error?.message);
   return data.media_id as string;

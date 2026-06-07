@@ -146,7 +146,7 @@ export function useWhatsAppIntegration() {
     business_name?: string;
   }) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "save_manual_config", ...params },
+      body: { action: "save_manual_config", ...params, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     toast.success("Número de WhatsApp conectado correctamente");
@@ -157,7 +157,7 @@ export function useWhatsAppIntegration() {
   // Disconnect a specific number by config ID (or all numbers if no ID given)
   const disconnect = useCallback(async (configId?: string) => {
     const { error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "disconnect", config_id: configId },
+      body: { action: "disconnect", config_id: configId, organization_id: organizationId ?? null },
     });
     if (!error) {
       if (configId) {
@@ -199,7 +199,7 @@ export function useWhatsAppIntegration() {
 
   const registerPhone = useCallback(async (pin: string) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "register_phone", pin },
+      body: { action: "register_phone", pin, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     return data;

@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 export interface WaConversation {
@@ -29,6 +30,7 @@ export interface WaMessage {
 }
 
 export function useWhatsAppInbox() {
+  const { organizationId } = useOrganizationContext();
   const [conversations, setConversations] = useState<WaConversation[]>([]);
   const [messages, setMessages] = useState<WaMessage[]>([]);
   const [selectedPhone, setSelectedPhone] = useState<string | null>(null);
@@ -254,7 +256,7 @@ export function useWhatsAppInbox() {
   const fetchMedia = useCallback(async (messageId: string, waMediaId: string) => {
     try {
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "fetch_media", wa_media_id: waMediaId, message_id: messageId },
+        body: { action: "fetch_media", wa_media_id: waMediaId, message_id: messageId, organization_id: organizationId ?? null },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       if (data?.media_url) {
@@ -298,6 +300,7 @@ export function useWhatsAppInbox() {
             mime_type: mimeType,
             filename,
             contact_id: contactId || null,
+            organization_id: organizationId ?? null,
           },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
@@ -361,6 +364,7 @@ export function useWhatsAppInbox() {
               variables,
               header_media_id: headerMediaId || undefined,
               contact_id: contactId || null,
+              organization_id: organizationId ?? null,
             },
           }
         );

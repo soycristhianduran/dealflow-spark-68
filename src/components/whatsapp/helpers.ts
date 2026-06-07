@@ -74,7 +74,7 @@ export function getWindowStatus(
 // Used by template-sending dialogs to attach images/video/PDF as the
 // template header. Returns the numeric media_id Meta needs in the
 // template send payload.
-export async function uploadTemplateMedia(file: File): Promise<string> {
+export async function uploadTemplateMedia(file: File, orgId?: string | null): Promise<string> {
   const base64 = await new Promise<string>((res, rej) => {
     const reader = new FileReader();
     reader.onload = (e) => res((e.target?.result as string).split(",")[1]);
@@ -87,6 +87,7 @@ export async function uploadTemplateMedia(file: File): Promise<string> {
       file_base64: base64,
       mime_type: file.type,
       filename: file.name,
+      organization_id: orgId ?? null,
     },
   });
   if (error || data?.error) throw new Error(data?.error || error?.message);

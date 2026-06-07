@@ -682,7 +682,7 @@ export default function IntegrationsPage() {
   // If not, incoming messages won't arrive (WABA is subscribed to the wrong app).
   useEffect(() => {
     if (!wa.isConnected) { setWrongAppWarning(null); return; }
-    supabase.functions.invoke("whatsapp-api", { body: { action: "check_webhook_app" } })
+    supabase.functions.invoke("whatsapp-api", { body: { action: "check_webhook_app", organization_id: organizationId ?? null } })
       .then(({ data, error }) => {
         if (error || data?.error) return; // non-fatal: don't show warning on network errors
         if (data && !data.is_crm_app) {

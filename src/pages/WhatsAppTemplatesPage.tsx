@@ -14,6 +14,7 @@ import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
   Plus, RefreshCw, Trash2, MessageCircle, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -283,6 +284,7 @@ function templateToForm(t: WhatsAppTemplate): FormState {
 export default function WhatsAppTemplatesPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { organizationId } = useOrganizationContext();
   const { isConnected, loading: waLoading } = useWhatsAppIntegration();
   const { templates, loading, creating, fetchTemplates, syncFromMeta, createTemplate, deleteTemplate, updateTemplate } = useWhatsAppTemplates();
 
@@ -318,7 +320,7 @@ export default function WhatsAppTemplatesPage() {
       });
 
       const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-        body: { action: "upload_media", file_base64: base64, mime_type: file.type, filename: file.name },
+        body: { action: "upload_media", file_base64: base64, mime_type: file.type, filename: file.name, organization_id: organizationId ?? null },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       formSetter(f => ({ ...f, headerMediaId: data.media_id, headerUploading: false }));

@@ -73,12 +73,13 @@ Deno.serve(async (req) => {
       const { file_base64, mime_type, filename } = body;
       if (!file_base64 || !mime_type) throw new Error("file_base64 y mime_type son obligatorios");
 
-      const { data: config } = await supabase
+      let utmQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) utmQ = utmQ.eq("organization_id", orgId);
+      const { data: config } = await utmQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → binary
@@ -111,12 +112,13 @@ Deno.serve(async (req) => {
       const { file_base64, mime_type, filename } = body;
       if (!file_base64 || !mime_type) throw new Error("file_base64 y mime_type son obligatorios");
 
-      const { data: config } = await supabase
+      let umQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, waba_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) umQ = umQ.eq("organization_id", orgId);
+      const { data: config } = await umQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → binary
@@ -202,12 +204,13 @@ Deno.serve(async (req) => {
       const CRM_APP_ID = Deno.env.get("META_APP_ID") || "1978595056421653";
       const CRM_APP_SECRET = Deno.env.get("META_APP_SECRET") || "";
 
-      const { data: config } = await supabase
+      let cwaQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) cwaQ = cwaQ.eq("organization_id", orgId);
+      const { data: config } = await cwaQ.maybeSingle();
       if (!config?.access_token) throw new Error("WhatsApp no está configurado");
 
       const appRes = await fetch(`${GRAPH_API}/app?fields=id,name`, {
@@ -257,11 +260,12 @@ Deno.serve(async (req) => {
         throw new Error("El PIN debe ser de exactamente 6 dígitos numéricos");
       }
 
-      const { data: config } = await supabase
+      let rpQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
-        .eq("user_id", user.id)
-        .maybeSingle();
+        .eq("user_id", user.id);
+      if (orgId) rpQ = rpQ.eq("organization_id", orgId);
+      const { data: config } = await rpQ.maybeSingle();
       if (!config?.phone_number_id || !config?.access_token) {
         throw new Error("WhatsApp no está configurado. Conecta primero.");
       }
@@ -522,13 +526,14 @@ Deno.serve(async (req) => {
 
       // If no token provided, reuse the pending/latest OAuth token
       if (!access_token) {
-        const { data: existing } = await supabase
+        let tokenQ = supabase
           .from("whatsapp_configs")
           .select("access_token")
           .eq("user_id", user.id)
           .order("updated_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(1);
+        if (orgId) tokenQ = tokenQ.eq("organization_id", orgId);
+        const { data: existing } = await tokenQ.maybeSingle();
         access_token = existing?.access_token || null;
         if (!access_token) throw new Error("No hay token guardado. Conéctate primero con Facebook.");
       }
@@ -552,13 +557,15 @@ Deno.serve(async (req) => {
         }
       } catch (_) { /* non-fatal */ }
 
-      // Check if this is the first active number (for is_primary)
-      const { count: activeCount } = await supabase
+      // Check if this is the first active number for this org (for is_primary)
+      let acQ = supabase
         .from("whatsapp_configs")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("is_active", true)
         .neq("phone_number_id", "pending");
+      if (orgId) acQ = acQ.eq("organization_id", orgId);
+      const { count: activeCount } = await acQ;
 
       const isFirstNumber = (activeCount ?? 0) === 0;
 
@@ -567,6 +574,7 @@ Deno.serve(async (req) => {
       const { error } = await supabase.from("whatsapp_configs").upsert(
         {
           user_id: user.id,
+          organization_id: orgId || null,
           access_token,
           phone_number_id,
           waba_id,
@@ -649,10 +657,12 @@ Deno.serve(async (req) => {
       const { config_id, label } = body;
       if (!config_id) throw new Error("config_id es obligatorio");
 
-      await supabase.from("whatsapp_configs")
+      let ulQ = supabase.from("whatsapp_configs")
         .update({ label: label || null })
         .eq("id", config_id)
         .eq("user_id", user.id);
+      if (orgId) ulQ = ulQ.eq("organization_id", orgId);
+      await ulQ;
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -752,12 +762,13 @@ Deno.serve(async (req) => {
     // ── TEMPLATES ────────────────────────────────────────────────────────────
 
     if (action === "list_templates") {
-      const { data: config } = await supabase
+      let ltQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token, phone_number_id")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) ltQ = ltQ.eq("organization_id", orgId);
+      const { data: config } = await ltQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Clean up templates from any previous WABA before syncing.
@@ -879,12 +890,13 @@ Deno.serve(async (req) => {
         throw new Error("name, category, language y body_text son obligatorios");
       }
 
-      const { data: config } = await supabase
+      let ctQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) ctQ = ctQ.eq("organization_id", orgId);
+      const { data: config } = await ctQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Validate media headers have an uploaded file
@@ -1025,12 +1037,13 @@ Deno.serve(async (req) => {
 
       // Only call Meta API if template was actually created there (not a DRAFT)
       if (tmpl?.template_id && tmpl?.status !== "DRAFT") {
-        const { data: config } = await supabase
+        let dtQ = supabase
           .from("whatsapp_configs")
           .select("waba_id, access_token")
           .eq("user_id", user.id)
-          .eq("is_active", true)
-          .maybeSingle();
+          .eq("is_active", true);
+        if (orgId) dtQ = dtQ.eq("organization_id", orgId);
+        const { data: config } = await dtQ.maybeSingle();
 
         if (config) {
           const res = await fetch(
@@ -1060,12 +1073,13 @@ Deno.serve(async (req) => {
       const { template_id, name, header, body_text, footer, buttons, variable_examples } = body;
       if (!template_id || !body_text) throw new Error("template_id y body_text son obligatorios");
 
-      const { data: config } = await supabase
+      let utQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) utQ = utQ.eq("organization_id", orgId);
+      const { data: config } = await utQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Validate media headers have an uploaded file
@@ -1155,12 +1169,13 @@ Deno.serve(async (req) => {
       const { phone, template_name, language, variables, header_media_url, header_media_id, contact_id } = body;
       if (!phone || !template_name) throw new Error("phone y template_name son obligatorios");
 
-      const { data: config } = await supabase
+      let stQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) stQ = stQ.eq("organization_id", orgId);
+      const { data: config } = await stQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Look up template in local DB to know header type and body text
@@ -1269,12 +1284,13 @@ Deno.serve(async (req) => {
       const { wa_media_id, message_id } = body;
       if (!wa_media_id) throw new Error("wa_media_id es obligatorio");
 
-      const { data: config } = await supabase
+      let fmQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) fmQ = fmQ.eq("organization_id", orgId);
+      const { data: config } = await fmQ.maybeSingle();
       if (!config?.access_token) throw new Error("WhatsApp no está configurado o token inválido");
 
       // Step 1: get download URL from Meta
@@ -1330,12 +1346,13 @@ Deno.serve(async (req) => {
         throw new Error("phone, file_base64 y mime_type son obligatorios");
       }
 
-      const { data: config } = await supabase
+      let smQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
         .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
+      if (orgId) smQ = smQ.eq("organization_id", orgId);
+      const { data: config } = await smQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → Uint8Array
