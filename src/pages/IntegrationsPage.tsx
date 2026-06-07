@@ -664,6 +664,7 @@ function VapiSection() {
 }
 
 export default function IntegrationsPage() {
+  const { organizationId } = useOrganizationContext();
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
