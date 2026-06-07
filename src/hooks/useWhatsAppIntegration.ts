@@ -129,7 +129,7 @@ export function useWhatsAppIntegration() {
     business_name?: string;
   }) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "save_phone_number", ...params },
+      body: { action: "save_phone_number", ...params, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     toast.success("Número de WhatsApp conectado correctamente");

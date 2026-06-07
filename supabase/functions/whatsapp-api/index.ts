@@ -360,15 +360,17 @@ Deno.serve(async (req) => {
     if (action === "save_phone_number") {
       const { waba_id, phone_number_id, display_phone, business_name } = body;
 
-      // Find the pending row (most recent first — handles race condition with multiple OAuth starts)
-      const { data: pendingRow } = await supabase
+      // Find the pending row — filter by organization_id when provided (multi-org fix)
+      const orgId: string | null = body.organization_id ?? null;
+      const pendingQuery = supabase
         .from("whatsapp_configs")
         .select("id, access_token")
         .eq("user_id", user.id)
         .eq("phone_number_id", "pending")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
+      if (orgId) pendingQuery.eq("organization_id", orgId);
+      const { data: pendingRow } = await pendingQuery.maybeSingle();
 
       // Fallback: race condition recovery — if the pending row was already consumed but the
       // real phone_number row exists with is_active=false, activate it instead of failing.
