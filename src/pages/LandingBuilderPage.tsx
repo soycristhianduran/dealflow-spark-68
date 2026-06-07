@@ -2918,6 +2918,7 @@ export default function LandingBuilderPage() {
                         <Button size="sm" variant="outline" onClick={() => setShowTemplates(true)} className="gap-1.5">
                           <Sparkles className="h-3.5 w-3.5" /> Ver plantillas
                         </Button>
+                      </div>
                     </div>
                   )
                 )}
@@ -3078,7 +3079,7 @@ export default function LandingBuilderPage() {
 
               {/* ── Chat panel (collapsible, RIGHT side) ── */}
               {chatOpen && (
-              <div className="w-80 shrink-0 border-l border-border flex flex-col">
+                <div className="w-80 shrink-0 border-l border-border flex flex-col">
                 {/* Header */}
                 <div className="shrink-0 border-b border-border px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -3400,11 +3401,10 @@ export default function LandingBuilderPage() {
                     </Button>
                   </div>
                 </div>
-              </div>
               )}
             </div>
           ) : (
-            /* ── Drag & Drop Mode (Unlayer web) ── */
+            /* Drag & Drop Mode */
             <div className="flex-1 min-h-0">
               <EmailEditor
                 ref={editorRef}
