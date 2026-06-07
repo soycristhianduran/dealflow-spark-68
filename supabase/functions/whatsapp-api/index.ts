@@ -40,27 +40,28 @@ Deno.serve(async (req) => {
     // Helper to get user's access token — prefers pending row (fresh OAuth), then any active row
     const orgId: string | null = body?.organization_id ?? null;
     const getUserToken = async () => {
-      // 1. Look for pending row (just created by OAuth) filtered by org when available
-      const pendingQ = supabase
+      // 1. Look for pending row (just created by OAuth) — MUST be scoped by org
+      //    so that a user admin of multiple orgs gets the token for THIS org, not another.
+      let pendingQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
         .eq("phone_number_id", "pending")
         .order("created_at", { ascending: false })
         .limit(1);
-      if (orgId) pendingQ.eq("organization_id", orgId);
+      if (orgId) pendingQ = pendingQ.eq("organization_id", orgId);
       const { data: pending } = await pendingQ.maybeSingle();
       if (pending?.access_token) return pending.access_token;
 
       // 2. Fall back to any active row for this org
-      const activeQ = supabase
+      let activeQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
         .neq("phone_number_id", "pending")
         .order("created_at", { ascending: false })
         .limit(1);
-      if (orgId) activeQ.eq("organization_id", orgId);
+      if (orgId) activeQ = activeQ.eq("organization_id", orgId);
       const { data: active } = await activeQ.maybeSingle();
       if (!active?.access_token) throw new Error("No token found. Please reconnect.");
       return active.access_token;
@@ -307,14 +308,14 @@ Deno.serve(async (req) => {
       const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
 
       // Find active config, scoped by org when provided
-      const wabaQ = supabase
+      let wabaQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1);
-      if (orgId) wabaQ.eq("organization_id", orgId);
+      if (orgId) wabaQ = wabaQ.eq("organization_id", orgId);
       const { data: config } = await wabaQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
@@ -398,14 +399,14 @@ Deno.serve(async (req) => {
 
       // Find the pending row — filter by organization_id when provided (multi-org fix)
       const orgId: string | null = body.organization_id ?? null;
-      const pendingQuery = supabase
+      let pendingQuery = supabase
         .from("whatsapp_configs")
         .select("id, access_token")
         .eq("user_id", user.id)
         .eq("phone_number_id", "pending")
         .order("created_at", { ascending: false })
         .limit(1);
-      if (orgId) pendingQuery.eq("organization_id", orgId);
+      if (orgId) pendingQuery = pendingQuery.eq("organization_id", orgId);
       const { data: pendingRow } = await pendingQuery.maybeSingle();
 
       // Fallback: race condition recovery — if the pending row was already consumed but the
@@ -426,12 +427,12 @@ Deno.serve(async (req) => {
       // Check whether this org already has any active number (for is_primary logic)
       // Scope to the current org so a user with numbers in other orgs still gets
       // is_primary=true for their first number in THIS org.
-      const activeCountQ = supabase
+      let activeCountQ = supabase
         .from("whatsapp_configs")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
         .eq("is_active", true);
-      if (orgId) activeCountQ.eq("organization_id", orgId);
+      if (orgId) activeCountQ = activeCountQ.eq("organization_id", orgId);
       const { count: activeCount } = await activeCountQ;
 
       const isFirstNumber = (activeCount ?? 0) === 0;
@@ -636,10 +637,10 @@ Deno.serve(async (req) => {
       if (!config_id) throw new Error("config_id es obligatorio");
 
       // Unset all primaries only within the current org so other orgs are unaffected
-      const unsetQ = supabase.from("whatsapp_configs")
+      let unsetQ = supabase.from("whatsapp_configs")
         .update({ is_primary: false })
         .eq("user_id", user.id);
-      if (orgId) unsetQ.eq("organization_id", orgId);
+      if (orgId) unsetQ = unsetQ.eq("organization_id", orgId);
       await unsetQ;
 
       await supabase.from("whatsapp_configs")
@@ -671,7 +672,7 @@ Deno.serve(async (req) => {
 
     // ── LIST ALL ACTIVE CONFIGS ──────────────────────────────────────────────
     if (action === "list_configs") {
-      const listQ = supabase
+      let listQ = supabase
         .from("whatsapp_configs")
         .select("id, phone_number_id, waba_id, display_phone, business_name, label, is_primary, is_active, webhook_verified, created_at")
         .eq("user_id", user.id)
@@ -679,7 +680,7 @@ Deno.serve(async (req) => {
         .neq("phone_number_id", "pending")
         .order("is_primary", { ascending: false })
         .order("created_at", { ascending: true });
-      if (orgId) listQ.eq("organization_id", orgId);
+      if (orgId) listQ = listQ.eq("organization_id", orgId);
       const { data: configs } = await listQ;
 
       return new Response(JSON.stringify({ configs: configs || [] }), {
@@ -698,7 +699,7 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id);
 
         // Promote next active number within the same org as new primary
-        const nextQ = supabase
+        let nextQ = supabase
           .from("whatsapp_configs")
           .select("id")
           .eq("user_id", user.id)
@@ -706,7 +707,7 @@ Deno.serve(async (req) => {
           .neq("phone_number_id", "pending")
           .order("created_at", { ascending: true })
           .limit(1);
-        if (orgId) nextQ.eq("organization_id", orgId);
+        if (orgId) nextQ = nextQ.eq("organization_id", orgId);
         const { data: remaining } = await nextQ;
 
         if (remaining?.[0]) {
@@ -721,17 +722,17 @@ Deno.serve(async (req) => {
           .eq("type", "whatsapp");
       } else {
         // Disconnect ALL numbers for THIS org only — never touch other orgs
-        const disconnectQ = supabase.from("whatsapp_configs")
+        let disconnectQ = supabase.from("whatsapp_configs")
           .update({ is_active: false })
           .eq("user_id", user.id);
-        if (orgId) disconnectQ.eq("organization_id", orgId);
+        if (orgId) disconnectQ = disconnectQ.eq("organization_id", orgId);
         await disconnectQ;
 
-        const channelsQ = supabase.from("channels")
+        let channelsQ = supabase.from("channels")
           .update({ is_active: false, status: "disconnected" })
           .eq("user_id", user.id)
           .eq("type", "whatsapp");
-        if (orgId) channelsQ.eq("organization_id", orgId);
+        if (orgId) channelsQ = channelsQ.eq("organization_id", orgId);
         await channelsQ;
 
         // Delete templates only for this org's WABA
