@@ -113,13 +113,12 @@ Deno.serve(async (req) => {
     // Multi-number: delete any previous "pending" row so a second OAuth flow
     // (adding a new number) doesn't overwrite an already-active config.
     // Active configs (phone_number_id !== "pending") are never touched here.
-    // Delete only the pending row for this specific org (if org known) or user
-    const pendingDelete = supabase.from("whatsapp_configs")
+    // Delete any previous pending row for this user+org before inserting a new one
+    const deleteQuery = supabase.from("whatsapp_configs")
       .delete()
       .eq("user_id", userId)
       .eq("phone_number_id", "pending");
-    if (organizationId) pendingDelete.eq("organization_id", organizationId);
-    await pendingDelete;
+    await (organizationId ? deleteQuery.eq("organization_id", organizationId) : deleteQuery);
 
     await supabase.from("whatsapp_configs").insert({
       user_id: userId,
