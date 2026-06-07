@@ -23,20 +23,21 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) throw new Error("Unauthorized");
 
-    const { phone, message, contact_id, phone_number_id: requestedPhoneId } = await req.json();
+    const { phone, message, contact_id, phone_number_id: requestedPhoneId, organization_id: orgId } = await req.json();
     if (!phone || !message) throw new Error("phone and message are required");
 
     // Normalize phone — strip everything except digits (consistent with incoming messages)
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (!cleanPhone) throw new Error("Número de teléfono inválido");
 
-    // Get the org's WhatsApp config.
-    // Multi-number: if the caller specifies a phone_number_id, use that number.
-    // Otherwise fall back to the primary number, then any active number.
+    // Get the org's WhatsApp config — always scoped to the caller's organization
+    // so that a user admin of multiple orgs never sends from the wrong number.
     let configQuery = supabase
       .from("whatsapp_configs")
       .select("*")
       .eq("is_active", true);
+
+    if (orgId) configQuery = configQuery.eq("organization_id", orgId);
 
     if (requestedPhoneId) {
       configQuery = configQuery.eq("phone_number_id", requestedPhoneId);

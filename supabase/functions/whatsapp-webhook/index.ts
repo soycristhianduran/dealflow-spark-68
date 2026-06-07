@@ -604,22 +604,26 @@ Deno.serve(async (req) => {
                           }
                         );
                         const metaData = await metaRes.json();
-                        if (metaData.error) {
-                          console.error("[AI-AGENT] Meta send error:", JSON.stringify(metaData.error));
+                        const metaError = metaData.error
+                          ? `Meta error ${metaData.error.code}: ${metaData.error.message}${metaData.error.error_data?.details ? " — " + metaData.error.error_data.details : ""}`
+                          : null;
+                        if (metaError) {
+                          console.error("[AI-AGENT] Meta send error:", metaError);
                         }
                         const waOutId = metaData?.messages?.[0]?.id || null;
 
-                        // Save this part to DB
+                        // Save this part to DB — include error_details so failures are visible
                         await supabase.from("whatsapp_messages").insert({
                           user_id: config.user_id,
                           contact_id: contact.id,
                           wa_message_id: waOutId,
                           phone_number: senderPhone,
-                          from_phone_number_id: phoneNumberId, // which of our numbers sent it
+                          from_phone_number_id: phoneNumberId,
                           direction: "outgoing",
                           message_type: "text",
                           message_text: part,
-                          status: "sent",
+                          status: metaError ? "failed" : "sent",
+                          error_details: metaError,
                           sent_at: new Date().toISOString(),
                           is_ai_generated: true,
                         });

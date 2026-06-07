@@ -51,7 +51,7 @@ export function useWhatsAppIntegration() {
   const fetchConfig = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("whatsapp_configs")
         .select("id, phone_number_id, waba_id, display_phone, business_name, label, is_primary, webhook_verified, is_active, created_at")
         .eq("user_id", user.id)
@@ -59,6 +59,8 @@ export function useWhatsAppIntegration() {
         .neq("phone_number_id", "pending")
         .order("is_primary", { ascending: false })
         .order("created_at", { ascending: true });
+      if (organizationId) query = query.eq("organization_id", organizationId);
+      const { data, error } = await query;
       if (error) throw error;
       setConfigs(data ?? []);
     } catch (e: any) {
@@ -188,7 +190,7 @@ export function useWhatsAppIntegration() {
 
   const sendMessage = async (phone: string, message: string, contactId?: string, phoneNumberId?: string) => {
     const { data, error } = await supabase.functions.invoke("send-whatsapp", {
-      body: { phone, message, contact_id: contactId, phone_number_id: phoneNumberId },
+      body: { phone, message, contact_id: contactId, phone_number_id: phoneNumberId, organization_id: organizationId ?? null },
     });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
