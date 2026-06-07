@@ -37,15 +37,33 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const { action } = body;
 
-    // Helper to get user's access token
+    // Helper to get user's access token — prefers pending row (fresh OAuth), then any active row
+    const orgId: string | null = body?.organization_id ?? null;
     const getUserToken = async () => {
-      const { data: config } = await supabase
+      // 1. Look for pending row (just created by OAuth) filtered by org when available
+      const pendingQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
         .eq("user_id", user.id)
-        .maybeSingle();
-      if (!config?.access_token) throw new Error("No token found. Please reconnect.");
-      return config.access_token;
+        .eq("phone_number_id", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (orgId) pendingQ.eq("organization_id", orgId);
+      const { data: pending } = await pendingQ.maybeSingle();
+      if (pending?.access_token) return pending.access_token;
+
+      // 2. Fall back to any active row for this org
+      const activeQ = supabase
+        .from("whatsapp_configs")
+        .select("access_token")
+        .eq("user_id", user.id)
+        .neq("phone_number_id", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (orgId) activeQ.eq("organization_id", orgId);
+      const { data: active } = await activeQ.maybeSingle();
+      if (!active?.access_token) throw new Error("No token found. Please reconnect.");
+      return active.access_token;
     };
 
     // ── UPLOAD MEDIA FOR SENDING (to Meta directly → media_id) ─────────────────
