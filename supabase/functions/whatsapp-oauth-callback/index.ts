@@ -23,8 +23,9 @@ Deno.serve(async (req) => {
     // available — same pattern as facebook-oauth-callback).
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let userId: string | null = null;
+    let organizationId: string | null = null;
     if (state) {
-      // 1. Try nonce-based validation first
+      // 1. Try nonce-based validation first (returns JSONB {user_id, organization_id})
       const { data: consumed, error: consumeErr } = await earlySupabase.rpc(
         "consume_oauth_state",
         { p_token: state, p_provider: "whatsapp" },
@@ -32,7 +33,10 @@ Deno.serve(async (req) => {
       if (consumeErr) {
         console.error("consume_oauth_state RPC failed:", consumeErr);
       }
-      userId = (consumed as string | null) || null;
+      if (consumed && typeof consumed === "object") {
+        userId = (consumed as any).user_id || null;
+        organizationId = (consumed as any).organization_id || null;
+      }
 
       // 2. Fallback: raw UUID state
       if (!userId && UUID_RE.test(state)) {
@@ -109,13 +113,17 @@ Deno.serve(async (req) => {
     // Multi-number: delete any previous "pending" row so a second OAuth flow
     // (adding a new number) doesn't overwrite an already-active config.
     // Active configs (phone_number_id !== "pending") are never touched here.
-    await supabase.from("whatsapp_configs")
+    // Delete only the pending row for this specific org (if org known) or user
+    const pendingDelete = supabase.from("whatsapp_configs")
       .delete()
       .eq("user_id", userId)
       .eq("phone_number_id", "pending");
+    if (organizationId) pendingDelete.eq("organization_id", organizationId);
+    await pendingDelete;
 
     await supabase.from("whatsapp_configs").insert({
       user_id: userId,
+      organization_id: organizationId || null,
       access_token: longLivedToken,
       phone_number_id: "pending",
       waba_id: "pending",
@@ -126,21 +134,32 @@ Deno.serve(async (req) => {
       webhook_verified: false,
     });
 
-    // Look up user's org slug so we redirect to the correct slug URL
+    // Resolve org slug — use organizationId from state if available (fixes multi-org bug)
     let orgSlug: string | null = null;
     try {
-      const { data: memberRow } = await supabase
-        .from("organization_members")
-        .select("organization_id")
-        .eq("user_id", userId)
-        .maybeSingle();
-      if (memberRow?.organization_id) {
+      const orgIdToResolve = organizationId;
+      if (orgIdToResolve) {
         const { data: orgRow } = await supabase
           .from("organizations")
           .select("slug")
-          .eq("id", memberRow.organization_id)
+          .eq("id", orgIdToResolve)
           .maybeSingle();
         orgSlug = orgRow?.slug ?? null;
+      } else {
+        // Fallback: pick first org (single-org users)
+        const { data: memberRow } = await supabase
+          .from("organization_members")
+          .select("organization_id")
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (memberRow?.organization_id) {
+          const { data: orgRow } = await supabase
+            .from("organizations")
+            .select("slug")
+            .eq("id", memberRow.organization_id)
+            .maybeSingle();
+          orgSlug = orgRow?.slug ?? null;
+        }
       }
     } catch (_) { /* non-fatal — fall back to /integrations */ }
 

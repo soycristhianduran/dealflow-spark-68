@@ -147,7 +147,7 @@ export function useFacebookIntegration() {
     // Facebook tokens under the victim's account.
     const { data: stateToken, error: stateErr } = await supabase.rpc(
       "create_oauth_state",
-      { p_provider: "facebook" },
+      { p_provider: "facebook", p_organization_id: organizationId ?? null },
     );
     if (stateErr || !stateToken) {
       setConnecting(false);

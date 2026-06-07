@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 export interface WhatsAppConfig {
@@ -28,6 +29,7 @@ function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, stateToken: s
 
 export function useWhatsAppIntegration() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const [configs, setConfigs] = useState<WhatsAppConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -91,7 +93,7 @@ export function useWhatsAppIntegration() {
 
     const { data: stateToken, error: stateErr } = await supabase.rpc(
       "create_oauth_state",
-      { p_provider: "whatsapp" },
+      { p_provider: "whatsapp", p_organization_id: organizationId ?? null },
     );
     if (stateErr || !stateToken) {
       console.warn("create_oauth_state failed for whatsapp, using UUID fallback:", stateErr);

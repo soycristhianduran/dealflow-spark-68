@@ -418,15 +418,15 @@ Deno.serve(async (req) => {
     //     Raising from 3000→6000 restores Sonnet quality for most real-world prompts.
     const isLongPrompt = typeof prompt === "string" && prompt.length > 6000;
     const model = (useStream && !current_html && !isLongPrompt)
-      ? "claude-sonnet-4-5"
-      : "claude-haiku-4-5";
+      ? "claude-sonnet-4-5-20251001"
+      : "claude-haiku-4-5-20251001";
 
     // ── Shared Anthropic call helper ──────────────────────────────────────────
     // max_tokens budget per model:
     //   Sonnet 4.5 → ~80 tok/s output.  9000 tokens = ~112s → safe under 150s timeout.
-    //   Haiku  4.5 → ~250 tok/s output. 16000 tokens = ~64s  → plenty of headroom.
+    //   Haiku  4.5 → ~250 tok/s output. 16000 tokens = ~64s  → plenty de headroom.
     // Setting Sonnet to 16000 risks 150s+ timeout for any page over ~10k tokens.
-    const maxTokens = model === "claude-sonnet-4-5" ? 9000 : 16000;
+    const maxTokens = model === "claude-sonnet-4-5-20251001" ? 9000 : 16000;
 
     async function callAnthropic(streamMode: boolean) {
       const resp = await fetch(ANTHROPIC_API, {

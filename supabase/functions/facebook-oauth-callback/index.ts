@@ -54,8 +54,9 @@ Deno.serve(async (req) => {
     // available; less CSRF-safe but acceptable during DB migration windows).
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     let userId: string | null = null;
+    let organizationId: string | null = null;
     if (state) {
-      // 1. Try nonce-based validation first
+      // 1. Try nonce-based validation first (returns JSONB {user_id, organization_id})
       const { data: consumed, error: consumeErr } = await earlySupabase.rpc(
         "consume_oauth_state",
         { p_token: state, p_provider: "facebook" },
@@ -63,10 +64,12 @@ Deno.serve(async (req) => {
       if (consumeErr) {
         console.error("consume_oauth_state RPC failed:", consumeErr);
       }
-      userId = (consumed as string | null) || null;
+      if (consumed && typeof consumed === "object") {
+        userId = (consumed as any).user_id || null;
+        organizationId = (consumed as any).organization_id || null;
+      }
 
-      // 2. Fallback: raw UUID state (transitional — while oauth_state_tokens
-      //    table may not yet be deployed on some environments)
+      // 2. Fallback: raw UUID state
       if (!userId && UUID_RE.test(state)) {
         console.warn("CSRF nonce not found; accepting raw UUID state as fallback");
         try {
@@ -161,19 +164,41 @@ Deno.serve(async (req) => {
 
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
-    await supabase.from("facebook_tokens").upsert(
-      {
-        user_id: userId,
-        access_token: longLivedToken,
-        token_expires_at: expiresAt,
-        fb_user_id: fbUserId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id" }
-    );
+    // Upsert scoped by (user_id, organization_id) so each org has its own token.
+    // Falls back to upsert by user_id alone when org is unknown (backward compat).
+    if (organizationId) {
+      await supabase.from("facebook_tokens").upsert(
+        {
+          user_id: userId,
+          organization_id: organizationId,
+          access_token: longLivedToken,
+          token_expires_at: expiresAt,
+          fb_user_id: fbUserId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,organization_id" }
+      );
+    } else {
+      await supabase.from("facebook_tokens").upsert(
+        {
+          user_id: userId,
+          access_token: longLivedToken,
+          token_expires_at: expiresAt,
+          fb_user_id: fbUserId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+    }
 
-    // Success - redirect back to app, using workspace slug if available
-    const slug = await resolveOrgSlug(supabase, userId);
+    // Redirect using the org from the state, or resolve it as fallback
+    let slug: string | null = null;
+    if (organizationId) {
+      const { data: orgRow } = await supabase.from("organizations").select("slug").eq("id", organizationId).maybeSingle();
+      slug = orgRow?.slug ?? null;
+    } else {
+      slug = await resolveOrgSlug(supabase, userId);
+    }
     return new Response(null, {
       status: 302,
       headers: { ...corsHeaders, "Location": buildRedirect(appUrl, slug, "fb_connected=true") },

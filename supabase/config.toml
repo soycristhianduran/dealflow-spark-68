@@ -50,3 +50,6 @@ verify_jwt = false
 
 [functions.cron-sync-calls]
 verify_jwt = false
+
+[functions.ai-agent]
+verify_jwt = false
