@@ -205,11 +205,11 @@ export function useWhatsAppIntegration() {
 
   const resubscribeWebhook = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "subscribe_waba" },
+      body: { action: "subscribe_waba", organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     return data;
-  }, []);
+  }, [organizationId]);
 
   const checkHasPendingToken = useCallback(async () => {
     if (!user) return false;

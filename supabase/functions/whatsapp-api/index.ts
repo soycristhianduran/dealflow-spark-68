@@ -299,17 +299,31 @@ Deno.serve(async (req) => {
 
     // ── SUBSCRIBE WABA TO APP (enables webhook delivery for incoming messages) ──
     if (action === "subscribe_waba") {
-      const { data: config } = await supabase
+      const META_APP_ID = Deno.env.get("META_APP_ID");
+      const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
+
+      // Find active config, scoped by org when provided
+      const wabaQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
         .eq("user_id", user.id)
         .eq("is_active", true)
-        .maybeSingle();
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (orgId) wabaQ.eq("organization_id", orgId);
+      const { data: config } = await wabaQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
+
+      // Prefer App Access Token (APP_ID|APP_SECRET) so that we subscribe the
+      // Klosify app specifically, not whatever app issued the user token.
+      // Falls back to user token when app secret is not set.
+      const authToken = (META_APP_ID && META_APP_SECRET)
+        ? `${META_APP_ID}|${META_APP_SECRET}`
+        : config.access_token;
 
       const res = await fetch(`${GRAPH_API}/${config.waba_id}/subscribed_apps`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${config.access_token}` },
+        headers: { "Authorization": `Bearer ${authToken}` },
       });
       const data = await res.json();
       console.log("subscribe_waba response:", JSON.stringify(data));
@@ -437,16 +451,20 @@ Deno.serve(async (req) => {
 
         if (error) throw error;
 
-        // Subscribe this WABA to receive webhooks (non-fatal — don't block activation)
-        if (targetRow.access_token) {
-          try {
-            const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
-              method: "POST",
-              headers: { "Authorization": `Bearer ${targetRow.access_token}` },
-            });
-            console.log("WABA webhook subscription:", JSON.stringify(await subRes.json()));
-          } catch (_) { /* non-fatal */ }
-        }
+        // Subscribe this WABA to receive webhooks using App Access Token so that
+        // the Klosify app is subscribed regardless of which app issued the user token.
+        try {
+          const META_APP_ID_SAVE = Deno.env.get("META_APP_ID");
+          const META_APP_SECRET_SAVE = Deno.env.get("META_APP_SECRET");
+          const subToken = (META_APP_ID_SAVE && META_APP_SECRET_SAVE)
+            ? `${META_APP_ID_SAVE}|${META_APP_SECRET_SAVE}`
+            : targetRow.access_token;
+          const subRes = await fetch(`${GRAPH_API}/${waba_id}/subscribed_apps`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${subToken}` },
+          });
+          console.log("WABA webhook subscription:", JSON.stringify(await subRes.json()));
+        } catch (_) { /* non-fatal */ }
       } else {
         throw new Error("No hay un token OAuth pendiente. Reconecta tu cuenta de Meta.");
       }
