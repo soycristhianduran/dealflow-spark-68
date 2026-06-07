@@ -215,14 +215,15 @@ export function useWhatsAppIntegration() {
 
   const checkHasPendingToken = useCallback(async () => {
     if (!user) return false;
-    const { data } = await supabase
+    let query = supabase
       .from("whatsapp_configs")
       .select("phone_number_id, is_active")
       .eq("user_id", user.id)
-      .eq("phone_number_id", "pending")
-      .maybeSingle();
+      .eq("phone_number_id", "pending");
+    if (organizationId) query = query.eq("organization_id", organizationId);
+    const { data } = await query.maybeSingle();
     return !!data;
-  }, [user]);
+  }, [user, organizationId]);
 
   return {
     // Multi-number: full list
