@@ -1,4 +1,4 @@
-import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone, Building2, Users } from "lucide-react";
+import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone, Building2, Users, Languages } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -13,6 +13,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useTranslation } from "react-i18next";
 
 interface AppHeaderProps {
   title: string;
@@ -25,6 +26,7 @@ const mockNotifications: { id: string; text: string; type: string; link: string;
 export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const { user, signOut } = useAuth();
+  const { i18n, t } = useTranslation();
   const { avatarUrl, initials } = useProfile();
   const navigate = useNavigate();
   const { path } = useWorkspace();
@@ -316,11 +318,30 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 <User className="h-4 w-4 text-muted-foreground" /> Mi perfil
               </button>
               <button onClick={() => { setProfileOpen(false); navigate(path("/settings")); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors">
-                <Settings className="h-4 w-4 text-muted-foreground" /> Configuración
+                <Settings className="h-4 w-4 text-muted-foreground" /> {t("settings.title")}
               </button>
+              {/* Language switcher */}
+              <div className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground">
+                <Languages className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="flex-1">{t("common.language")}</span>
+                <div className="flex items-center gap-1 rounded-lg border p-0.5 bg-muted">
+                  <button
+                    onClick={() => { i18n.changeLanguage("es"); localStorage.setItem("klosify_lang", "es"); }}
+                    className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${i18n.language === "es" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    ES
+                  </button>
+                  <button
+                    onClick={() => { i18n.changeLanguage("en"); localStorage.setItem("klosify_lang", "en"); }}
+                    className={`rounded-md px-2 py-0.5 text-xs font-medium transition-colors ${i18n.language === "en" ? "bg-background shadow text-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                  >
+                    EN
+                  </button>
+                </div>
+              </div>
               <Separator className="my-1" />
               <button onClick={() => { signOut(); setProfileOpen(false); }} className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-                <LogOut className="h-4 w-4" /> Cerrar sesión
+                <LogOut className="h-4 w-4" /> {t("common.logout")}
               </button>
             </div>
           </PopoverContent>

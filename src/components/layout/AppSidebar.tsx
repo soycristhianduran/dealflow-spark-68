@@ -10,77 +10,87 @@ import { useLocation } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTranslation } from "react-i18next";
 
-// ── Nav visible a todos los roles ─────────────────────────────────────────────
-const navItems = [
-  { title: "Dashboard",      url: "/",             icon: LayoutDashboard },
-  { title: "Leads",          url: "/contacts",     icon: Users },
-  { title: "Empresas",       url: "/companies",    icon: Building2 },
-  { title: "Pipeline",       url: "/pipeline",     icon: KanbanSquare },
-  { title: "Calendario",     url: "/calendar",     icon: CalendarDays },
-  { title: "Tareas",         url: "/tasks",        icon: CheckSquare },
-  { title: "Conversaciones", url: "/conversations",icon: MessageSquare },
+// ── Nav key definitions (titles are i18n keys resolved in component) ──────────
+const navItemDefs = [
+  { key: "nav.dashboard",    url: "/",              icon: LayoutDashboard },
+  { key: "nav.leads",        url: "/contacts",      icon: Users },
+  { key: "nav.companies",    url: "/companies",     icon: Building2 },
+  { key: "nav.pipeline",     url: "/pipeline",      icon: KanbanSquare },
+  { key: "nav.calendar",     url: "/calendar",      icon: CalendarDays },
+  { key: "nav.tasks",        url: "/tasks",         icon: CheckSquare },
+  { key: "nav.conversations",url: "/conversations", icon: MessageSquare },
 ];
 
-// ── Grupos de sección "Avanzado" (admin / owner) ──────────────────────────────
-const powerGroups = [
+const powerGroupDefs = [
   {
     id: "agentes",
-    label: "Agentes IA",
+    labelKey: "nav.advanced",
     icon: Bot,
     items: [
-      { title: "Agente de Chat", url: "/ai-agent",      icon: MessageSquare },
-      { title: "Agente de Voz",  url: "/calling-agent", icon: PhoneCall },
+      { key: "nav.chatAgent", url: "/ai-agent",      icon: MessageSquare },
+      { key: "nav.voiceAgent",url: "/calling-agent", icon: PhoneCall },
     ],
   },
   {
     id: "marketing",
-    label: "Marketing",
+    labelKey: "nav.marketing",
     icon: Mail,
     items: [
-      { title: "Campañas",     url: "/email-campaigns", icon: BarChart3 },
-      { title: "Email Builder",url: "/email-builder",   icon: Mail },
-      { title: "Landings",     url: "/landing-builder", icon: Globe },
+      { key: "nav.campaigns",    url: "/email-campaigns", icon: BarChart3 },
+      { key: "nav.emailBuilder", url: "/email-builder",   icon: Mail },
+      { key: "nav.landingPages", url: "/landing-builder", icon: Globe },
     ],
   },
   {
     id: "automatizaciones",
-    label: "Automatizaciones",
+    labelKey: "nav.automations",
     icon: Zap,
     items: [
-      { title: "Flujos",          url: "/automations",            icon: Zap },
-      { title: "IG Automaciones", url: "/instagram/automations",  icon: Sparkles },
-      { title: "WA Plantillas",   url: "/whatsapp/templates",     icon: MessageSquare },
+      { key: "nav.flows",         url: "/automations",           icon: Zap },
+      { key: "nav.igAutomations", url: "/instagram/automations", icon: Sparkles },
+      { key: "nav.waTemplates",   url: "/whatsapp/templates",    icon: MessageSquare },
     ],
   },
   {
     id: "publicidad",
-    label: "Publicidad",
+    labelKey: "nav.advertising",
     icon: TrendingUp,
     items: [
-      { title: "Meta Ads", url: "/meta-ads", icon: BarChart3 },
+      { key: "nav.advertising", url: "/meta-ads", icon: BarChart3 },
     ],
   },
   {
     id: "sistema",
-    label: "Sistema",
+    labelKey: "nav.system",
     icon: Plug,
     items: [
-      { title: "Integraciones", url: "/integrations", icon: Plug },
+      { key: "nav.settings", url: "/integrations", icon: Plug },
     ],
   },
 ];
 
-const bottomItems = [
-  { title: "Facturación", url: "/billing", icon: CreditCard },
-  { title: "Configuración", url: "/settings", icon: Settings },
+const bottomItemDefs = [
+  { key: "nav.billing",  url: "/billing",  icon: CreditCard },
+  { key: "nav.settings", url: "/settings", icon: Settings },
 ];
 
 // ── Componente principal ──────────────────────────────────────────────────────
 export function AppSidebar() {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const location = useLocation();
+
+  // Resolve translated arrays inside component so they react to language changes
+  const navItems = navItemDefs.map((d) => ({ ...d, title: t(d.key) }));
+  const powerGroups = powerGroupDefs.map((g) => ({
+    ...g,
+    label: t(g.labelKey),
+    items: g.items.map((i) => ({ ...i, title: t(i.key) })),
+  }));
+  const bottomItems = bottomItemDefs.map((d) => ({ ...d, title: t(d.key) }));
 
   // Track which groups are open — closed by default, auto-open the active group
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
@@ -194,7 +204,7 @@ export function AppSidebar() {
             {/* Separador */}
             {!collapsed && (
               <p className="px-3 pt-2 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/40">
-                Avanzado
+                {t("nav.advanced")}
               </p>
             )}
             {collapsed && <div className="my-2 border-t border-sidebar-border/50" />}
@@ -273,7 +283,7 @@ export function AppSidebar() {
           className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         >
           <ChevronLeft className={cn("h-4 w-4 shrink-0 transition-transform", collapsed && "rotate-180")} />
-          {!collapsed && <span>Colapsar</span>}
+          {!collapsed && <span>{t("nav.collapse")}</span>}
         </button>
       </div>
     </aside>
