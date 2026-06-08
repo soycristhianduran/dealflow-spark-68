@@ -12,16 +12,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
   Instagram, Plus, MessageCircle, MessageSquare, Sparkles,
   Trash2, Edit3, Loader2, Zap, Filter, Image as ImageIcon, X,
-  Link as LinkIcon, ChevronDown, ChevronUp,
+  Link as LinkIcon, ChevronDown, ChevronUp, ArrowLeft, Save,
 } from "lucide-react";
 import { toast } from "sonner";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
@@ -461,13 +458,36 @@ export default function InstagramAutomationsPage() {
           </div>
         )}
 
-        {/* Create / Edit Dialog */}
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar automatización" : "Nueva automatización"}</DialogTitle>
-            </DialogHeader>
+        {/* Create / Edit — full screen editor */}
+        {dialogOpen && (
+          <div className="fixed inset-0 z-50 bg-background flex flex-col">
+            {/* Top bar */}
+            <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b bg-background/95 backdrop-blur shrink-0">
+              <button
+                type="button"
+                onClick={() => setDialogOpen(false)}
+                className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <ArrowLeft className="h-4 w-4" /> Automatizaciones
+              </button>
+              <span className="text-muted-foreground">/</span>
+              <span className="text-sm font-semibold">{editing ? "Editar automatización" : "Nueva automatización"}</span>
+              <div className="flex-1" />
+              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button
+                size="sm"
+                onClick={handleSave}
+                disabled={saving}
+                className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 gap-1.5"
+              >
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                {editing ? "Actualizar" : "Crear automatización"}
+              </Button>
+            </div>
 
+            {/* Scrollable body — two-column on wide screens */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-4xl mx-auto px-4 md:px-8 py-6">
             <div className="space-y-5 pt-2">
               {/* Name */}
               <div className="space-y-1.5">
@@ -714,15 +734,18 @@ export default function InstagramAutomationsPage() {
                 )}
               </div>
 
-              <div className="flex gap-2 pt-2">
+              {/* Bottom save — visible on mobile where top bar might be off screen */}
+              <div className="flex gap-2 pt-4 pb-8 md:hidden">
                 <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</Button>
                 <Button onClick={handleSave} disabled={saving} className="flex-1 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editing ? "Actualizar" : "Crear automatización")}
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+          </div>
+            </div>
+          </div>
+        )}
 
         {/* Visual picker — Instagram posts */}
         <InstagramPostPicker
