@@ -1,31 +1,37 @@
 import { useState, useEffect } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useInstagramIntegration, IgMedia } from "@/hooks/useInstagramIntegration";
-import { Loader2, Image as ImageIcon, Film, Layers, Heart, MessageCircle, Check, X, Search, ExternalLink } from "lucide-react";
+import {
+  Loader2, Image as ImageIcon, Film, Layers, Heart, MessageCircle,
+  Check, X, Search, ArrowLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedMediaId: string | null;
-  onSelect: (mediaId: string | null) => void;
+  selectedMediaIds: string[];
+  onSelect: (mediaIds: string[]) => void;
 }
 
 /**
- * Visual picker for Instagram posts.  Lets the user browse their recent
- * publications and click one to use as the trigger filter, instead of
- * having to paste a Media ID by hand.
+ * Full-screen picker for Instagram posts.
+ * Rendered via portal so it always paints above any overlay (e.g. the editor at z-[9999]).
+ * Supports multi-select: user picks several posts, then taps "Confirmar".
  */
-export function InstagramPostPicker({ open, onOpenChange, selectedMediaId, onSelect }: Props) {
+export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSelect }: Props) {
   const ig = useInstagramIntegration();
   const [media, setMedia] = useState<IgMedia[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  // Local selection (committed only when user taps Confirmar)
+  const [localSelected, setLocalSelected] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open) return;
+    setLocalSelected(selectedMediaIds);
     setLoading(true);
     ig.listMedia(48)
       .then(setMedia)
@@ -40,14 +46,19 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaId, onSel
     return (m.caption || "").toLowerCase().includes(q) || m.id.includes(q);
   });
 
-  const handleSelect = (m: IgMedia) => {
-    onSelect(m.id);
+  const toggle = (id: string) => {
+    setLocalSelected((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleConfirm = () => {
+    onSelect(localSelected);
     onOpenChange(false);
   };
 
-  const handleClear = () => {
-    onSelect(null);
-    onOpenChange(false);
+  const handleClearAll = () => {
+    setLocalSelected([]);
   };
 
   const typeIcon = (type: string) => {
@@ -56,124 +67,156 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaId, onSel
     return <ImageIcon className="h-3 w-3" />;
   };
 
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 px-6 py-4 text-white">
-          <DialogHeader>
-            <DialogTitle className="text-white">Selecciona una publicación</DialogTitle>
-            <p className="text-xs text-white/80 mt-1">
-              Elige el post donde quieres que se active esta automatización. Si no eliges ninguno, aplica a todos.
-            </p>
-          </DialogHeader>
-        </div>
+  if (!open) return null;
 
-        {/* Toolbar */}
-        <div className="px-6 py-3 border-b flex gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por caption o ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-8 h-9 text-sm"
-            />
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] bg-background flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b bg-background/95 backdrop-blur shrink-0">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" /> Volver
+        </button>
+        <span className="text-muted-foreground">/</span>
+        <span className="text-sm font-semibold">Seleccionar publicaciones</span>
+        <div className="flex-1" />
+        {localSelected.length > 0 && (
+          <button
+            type="button"
+            onClick={handleClearAll}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
+          >
+            <X className="h-3.5 w-3.5" /> Aplicar a todas
+          </button>
+        )}
+        <Button
+          onClick={handleConfirm}
+          size="sm"
+          className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 text-white gap-1.5"
+        >
+          <Check className="h-4 w-4" />
+          {localSelected.length > 0
+            ? `Confirmar (${localSelected.length})`
+            : "Aplicar a todas"}
+        </Button>
+      </div>
+
+      {/* Subtitle */}
+      <div className="px-4 md:px-8 py-2 border-b bg-muted/30">
+        <p className="text-xs text-muted-foreground">
+          Selecciona una o varias publicaciones donde se activará esta automatización.
+          {localSelected.length === 0
+            ? " Sin selección = aplica a todas tus publicaciones."
+            : ` ${localSelected.length} post${localSelected.length > 1 ? "s" : ""} seleccionado${localSelected.length > 1 ? "s" : ""}.`}
+        </p>
+      </div>
+
+      {/* Search bar */}
+      <div className="px-4 md:px-8 py-3 border-b">
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por caption o ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8 h-9 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 md:px-8 py-4">
+        {loading ? (
+          <div className="text-center py-16">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-2" />
+            <p className="text-sm text-muted-foreground">Cargando tus publicaciones...</p>
           </div>
-          {selectedMediaId && (
-            <Button variant="outline" size="sm" onClick={handleClear} className="gap-1.5 shrink-0">
-              <X className="h-3.5 w-3.5" /> Aplicar a todas
-            </Button>
-          )}
-        </div>
-
-        {/* Grid — use raw overflow-y-auto with min-h-0 so flex parent
-            actually constrains it (ScrollArea fails to size correctly when
-            nested inside DialogContent's flex column). */}
-        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
-          {loading ? (
-            <div className="text-center py-16">
-              <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">Cargando tus publicaciones...</p>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="text-center py-16">
-              <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
-              <p className="text-sm text-muted-foreground">
-                {search ? "Sin resultados" : "No se encontraron publicaciones"}
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {filtered.map((m) => {
-                const isSelected = selectedMediaId === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => handleSelect(m)}
-                    className={`relative group rounded-xl overflow-hidden border-2 transition-all aspect-square ${
-                      isSelected
-                        ? "border-pink-500 ring-2 ring-pink-500/30"
-                        : "border-transparent hover:border-pink-500/50"
-                    }`}
-                  >
-                    {m.preview_url ? (
-                      <img
-                        src={m.preview_url}
-                        alt=""
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <div className="w-full h-full bg-muted flex items-center justify-center">
-                        <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
-                      </div>
-                    )}
-
-                    {/* Type badge */}
-                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur rounded-md px-1.5 py-0.5 text-white text-[10px] flex items-center gap-1">
-                      {typeIcon(m.media_type)}
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16">
+            <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
+            <p className="text-sm text-muted-foreground">
+              {search ? "Sin resultados" : "No se encontraron publicaciones"}
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {filtered.map((m) => {
+              const isSelected = localSelected.includes(m.id);
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => toggle(m.id)}
+                  className={`relative group rounded-xl overflow-hidden border-2 transition-all aspect-square ${
+                    isSelected
+                      ? "border-pink-500 ring-2 ring-pink-500/30"
+                      : "border-border hover:border-pink-500/50"
+                  }`}
+                >
+                  {m.preview_url ? (
+                    <img
+                      src={m.preview_url}
+                      alt=""
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                      loading="lazy"
+                      crossOrigin="anonymous"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-muted flex items-center justify-center">
+                      <ImageIcon className="h-8 w-8 text-muted-foreground/40" />
                     </div>
+                  )}
 
-                    {/* Selected indicator */}
-                    {isSelected && (
-                      <div className="absolute top-2 left-2 bg-pink-500 rounded-full p-1">
-                        <Check className="h-3 w-3 text-white" />
-                      </div>
-                    )}
+                  {/* Type badge */}
+                  <div className="absolute top-2 right-2 bg-black/60 backdrop-blur rounded-md px-1.5 py-0.5 text-white text-[10px] flex items-center gap-1">
+                    {typeIcon(m.media_type)}
+                  </div>
 
-                    {/* Hover overlay with stats + caption */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-white text-left">
-                      <div className="flex items-center gap-3 text-[11px] mb-1">
-                        <span className="flex items-center gap-0.5">
-                          <Heart className="h-3 w-3" /> {m.like_count}
-                        </span>
-                        <span className="flex items-center gap-0.5">
-                          <MessageCircle className="h-3 w-3" /> {m.comments_count}
-                        </span>
-                      </div>
-                      {m.caption && (
-                        <p className="text-[10px] line-clamp-2 leading-tight">{m.caption}</p>
-                      )}
+                  {/* Selected check */}
+                  {isSelected ? (
+                    <div className="absolute top-2 left-2 bg-pink-500 rounded-full p-1 shadow-md">
+                      <Check className="h-3 w-3 text-white" />
                     </div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  ) : (
+                    <div className="absolute top-2 left-2 rounded-full p-1 border-2 border-white/60 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="h-3 w-3" />
+                    </div>
+                  )}
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t bg-muted/30 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{filtered.length} publicaciones</span>
-          {selectedMediaId && (
-            <span className="flex items-center gap-1 font-mono text-[10px]">
-              <Check className="h-3 w-3 text-pink-500" />
-              ID: {selectedMediaId.slice(-12)}
-            </span>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+                  {/* Hover overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-2 text-white text-left">
+                    <div className="flex items-center gap-3 text-[11px] mb-1">
+                      <span className="flex items-center gap-0.5">
+                        <Heart className="h-3 w-3" /> {m.like_count ?? 0}
+                      </span>
+                      <span className="flex items-center gap-0.5">
+                        <MessageCircle className="h-3 w-3" /> {m.comments_count ?? 0}
+                      </span>
+                    </div>
+                    {m.caption && (
+                      <p className="text-[10px] line-clamp-2 leading-tight">{m.caption}</p>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Footer */}
+      <div className="px-4 md:px-8 py-3 border-t bg-muted/30 flex items-center justify-between text-xs text-muted-foreground shrink-0">
+        <span>{filtered.length} publicaciones</span>
+        {localSelected.length > 0 && (
+          <span className="text-pink-500 font-medium">
+            {localSelected.length} seleccionada{localSelected.length > 1 ? "s" : ""}
+          </span>
+        )}
+      </div>
+    </div>,
+    document.body
   );
 }

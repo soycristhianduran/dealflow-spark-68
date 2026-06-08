@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -35,6 +36,7 @@ interface Automation {
   trigger_type: TriggerType;
   trigger_types: TriggerTypes;
   media_id: string | null;
+  media_ids: string[] | null;
   keywords: string[] | null;
   match_mode: "any" | "all" | "exact";
   require_follower: boolean;
@@ -108,6 +110,65 @@ function ButtonBuilder({
   );
 }
 
+// Variables disponibles para personalizar mensajes
+const IG_VARS = [
+  { label: "Nombre", tag: "{{nombre}}", desc: "Nombre completo del usuario" },
+  { label: "@usuario", tag: "{{username}}", desc: "Usuario de Instagram (@handle)" },
+];
+
+// Textarea con chips de variables clicables — estilo ManyChat
+function VarTextarea({
+  value, onChange, placeholder, rows = 3,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  const insertVar = (tag: string) => {
+    const el = ref.current;
+    if (!el) { onChange(value + tag); return; }
+    const start = el.selectionStart ?? value.length;
+    const end = el.selectionEnd ?? value.length;
+    const next = value.slice(0, start) + tag + value.slice(end);
+    onChange(next);
+    // Restore cursor after inserted tag
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(start + tag.length, start + tag.length);
+    });
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <Textarea
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={rows}
+        className="resize-none"
+      />
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[10px] text-muted-foreground">Insertar:</span>
+        {IG_VARS.map((v) => (
+          <button
+            key={v.tag}
+            type="button"
+            title={v.desc}
+            onClick={() => insertVar(v.tag)}
+            className="inline-flex items-center gap-1 rounded-full border border-pink-300 dark:border-pink-700 bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 px-2 py-0.5 text-[11px] font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors"
+          >
+            + {v.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function InstagramAutomationsPage() {
   const { user } = useAuth();
   const { path } = useWorkspace();
@@ -123,9 +184,8 @@ export default function InstagramAutomationsPage() {
   const [name, setName] = useState("");
   const [keywordsInput, setKeywordsInput] = useState("");
   const [matchMode, setMatchMode] = useState<"any" | "all" | "exact">("any");
-  const [mediaId, setMediaId] = useState("");
+  const [mediaIds, setMediaIds] = useState<string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [mediaPreview, setMediaPreview] = useState<{ id: string; preview_url: string | null; caption: string | null } | null>(null);
   const [triggerTypes, setTriggerTypes] = useState<TriggerTypes>(["comment"]);
   const [requireFollower, setRequireFollower] = useState(false);
   const [dmText, setDmText] = useState("");
@@ -176,8 +236,9 @@ export default function InstagramAutomationsPage() {
     setTriggerTypes(a.trigger_types?.length ? a.trigger_types : [a.trigger_type || "comment"]);
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
-    setMediaId(a.media_id || "");
-    setMediaPreview(a.media_id ? { id: a.media_id, preview_url: null, caption: null } : null);
+    // Support legacy single media_id and new media_ids array
+    const ids = a.media_ids?.length ? a.media_ids : (a.media_id ? [a.media_id] : []);
+    setMediaIds(ids);
     setRequireFollower(a.require_follower);
     setDmText(a.dm_message_text || "");
     setDmButtons(a.dm_buttons || []);
@@ -188,24 +249,8 @@ export default function InstagramAutomationsPage() {
     setDialogOpen(true);
   };
 
-  // When a post is picked from the visual picker, fetch its preview metadata
-  // by listing media and finding the match.  This keeps the preview accurate
-  // even after refresh.
-  const handleMediaPicked = async (id: string | null) => {
-    setMediaId(id || "");
-    if (!id) {
-      setMediaPreview(null);
-      return;
-    }
-    try {
-      const all = await ig.listMedia(48);
-      const match = all.find((m) => m.id === id);
-      setMediaPreview(match
-        ? { id: match.id, preview_url: match.preview_url, caption: match.caption }
-        : { id, preview_url: null, caption: null });
-    } catch (_) {
-      setMediaPreview({ id, preview_url: null, caption: null });
-    }
+  const handleMediaPicked = (ids: string[]) => {
+    setMediaIds(ids);
   };
 
   const handleSave = async () => {
@@ -247,7 +292,8 @@ export default function InstagramAutomationsPage() {
       trigger_types: triggerTypes,
       keywords: keywords.length > 0 ? keywords : null,
       match_mode: matchMode,
-      media_id: triggerTypes.includes("comment") ? (mediaId.trim() || null) : null,
+      media_id: triggerTypes.includes("comment") ? (mediaIds[0] || null) : null,
+      media_ids: triggerTypes.includes("comment") ? mediaIds : [],
       require_follower: requireFollower,
       dm_message_text: dmText.trim() || null,
       dm_buttons: validBtns(dmButtons).length > 0 ? validBtns(dmButtons) : null,
@@ -416,8 +462,8 @@ export default function InstagramAutomationsPage() {
                           ) : (
                             <span className="text-foreground">con cualquier texto</span>
                           )}
-                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && a.media_id && <span> en pub. <code className="text-[10px]">{a.media_id.slice(-8)}</code></span>}
-                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && (a.media_ids?.length || a.media_id) && <span> en {a.media_ids?.length || 1} pub.</span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && !a.media_ids?.length && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
                           {a.require_follower && <span className="text-xs text-orange-600 dark:text-orange-400"> · verifica seguidor</span>}
                         </div>
                       </div>
@@ -459,9 +505,9 @@ export default function InstagramAutomationsPage() {
           </div>
         )}
 
-        {/* Create / Edit — full screen editor */}
-        {dialogOpen && (
-          <div className="fixed inset-0 z-50 bg-background flex flex-col">
+        {/* Create / Edit — full screen editor (portal ensures it's above AppHeader stacking context) */}
+        {dialogOpen && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-background flex flex-col">
             {/* Top bar */}
             <div className="flex items-center gap-3 px-4 md:px-8 py-3 border-b bg-background/95 backdrop-blur shrink-0">
               <button
@@ -583,35 +629,37 @@ export default function InstagramAutomationsPage() {
 
                 {triggerTypes.includes("comment") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Publicación específica (opcional)</Label>
-                    {mediaId ? (
-                      <div className="flex items-center gap-3 rounded-xl border bg-background p-2.5">
-                        <div className="h-14 w-14 rounded-lg overflow-hidden shrink-0 bg-muted flex items-center justify-center">
-                          {mediaPreview?.preview_url ? (
-                            <img src={mediaPreview.preview_url} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                          )}
+                    <Label className="text-xs">Publicaciones específicas (opcional)</Label>
+                    {mediaIds.length > 0 ? (
+                      <div className="rounded-xl border bg-background p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {mediaIds.length} publicación{mediaIds.length > 1 ? "es" : ""} seleccionada{mediaIds.length > 1 ? "s" : ""}
+                          </span>
+                          <div className="flex gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                              Cambiar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setMediaIds([])}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium truncate">
-                            {mediaPreview?.caption || "Publicación seleccionada"}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground font-mono">
-                            ID: ...{mediaId.slice(-12)}
-                          </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {mediaIds.map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                              ID: ...{id.slice(-8)}
+                              <button type="button" onClick={() => setMediaIds((prev) => prev.filter((x) => x !== id))}>
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
                         </div>
-                        <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
-                          Cambiar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleMediaPicked(null)}
-                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
                       </div>
                     ) : (
                       <button
@@ -620,7 +668,7 @@ export default function InstagramAutomationsPage() {
                         className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-pink-500/50 hover:text-foreground transition-colors"
                       >
                         <ImageIcon className="h-4 w-4" />
-                        Seleccionar publicación...
+                        Seleccionar publicaciones...
                       </button>
                     )}
                     <p className="text-[10px] text-muted-foreground">
@@ -637,15 +685,12 @@ export default function InstagramAutomationsPage() {
                   <h4 className="text-sm font-semibold flex items-center gap-1.5">
                     <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> Responder comentario (público, opcional)
                   </h4>
-                  <Textarea
+                  <VarTextarea
                     placeholder="Ej: ¡Te envié toda la info al DM {{username}}! 📨"
                     value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
+                    onChange={setReplyText}
                     rows={2}
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para mencionar. Deja vacío para no responder públicamente.
-                  </p>
                 </div>
               )}
 
@@ -690,22 +735,19 @@ export default function InstagramAutomationsPage() {
                       : <><span className="text-base">💬</span> Mensaje DM</>
                     }
                   </p>
-                  <Textarea
-                    placeholder={requireFollower
-                      ? "Ej: ¡Hola {{username}}! 🎉 Aquí está tu recurso:\n\n👉 https://tulink.com/recurso\n\n¡Gracias por seguirme!"
-                      : "Ej: ¡Hola {{username}}! Aquí está la info:\n\n👉 https://miempresa.com/oferta"}
+                  <VarTextarea
                     value={dmText}
-                    onChange={(e) => setDmText(e.target.value)}
-                    rows={3}
+                    onChange={setDmText}
+                    placeholder={requireFollower
+                      ? "Ej: ¡Hola {{nombre}}! 🎉 Aquí está tu recurso:\n\n👉 https://tulink.com/recurso\n\n¡Gracias por seguirme!"
+                      : "Ej: ¡Hola {{nombre}}! Aquí está la info:\n\n👉 https://miempresa.com/oferta"}
+                    rows={4}
                   />
                   <ButtonBuilder
                     buttons={dmButtons}
                     onChange={setDmButtons}
                     label="Botones con enlace (opcional, máx 3)"
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para personalizar.
-                  </p>
                 </div>
 
                 {/* Non-follower DM — ALWAYS visible when require_follower is on, clearly labelled */}
@@ -717,10 +759,10 @@ export default function InstagramAutomationsPage() {
                     <p className="text-[10px] text-orange-700 dark:text-orange-400">
                       Cuando te sigan y te escriban de vuelta, recibirán el recurso de arriba <strong>automáticamente</strong>.
                     </p>
-                    <Textarea
-                      placeholder={"Ej: ¡Hola {{username}}! 👋\n\nPara enviarte el recurso necesito que primero me sigas 🙏\n\n👉 Sígueme @tucuenta\n\nUna vez que me sigas, escríbeme aquí y te lo mando de inmediato! 📩"}
+                    <VarTextarea
                       value={dmNonFollowerText}
-                      onChange={(e) => setDmNonFollowerText(e.target.value)}
+                      onChange={setDmNonFollowerText}
+                      placeholder={"Ej: ¡Hola {{nombre}}! 👋\n\nPara enviarte el recurso necesito que primero me sigas 🙏\n\n👉 Sígueme @tucuenta\n\nUna vez que me sigas, escríbeme aquí y te lo mando de inmediato! 📩"}
                       rows={4}
                     />
                     <ButtonBuilder
@@ -728,9 +770,6 @@ export default function InstagramAutomationsPage() {
                       onChange={setDmButtonsNonFollower}
                       label="Botones con enlace (ej: enlace a tu perfil)"
                     />
-                    <p className="text-[10px] text-muted-foreground">
-                      Deja vacío para no enviar DM a no seguidores (solo seguidores recibirán el recurso).
-                    </p>
                   </div>
                 )}
               </div>
@@ -746,13 +785,13 @@ export default function InstagramAutomationsPage() {
           </div>
             </div>
           </div>
-        )}
+        , document.body)}
 
         {/* Visual picker — Instagram posts */}
         <InstagramPostPicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}
-          selectedMediaId={mediaId || null}
+          selectedMediaIds={mediaIds}
           onSelect={handleMediaPicked}
         />
       </div>

@@ -741,50 +741,50 @@ async function processInstagramMessenger(
     }
   }
 
-  // ── Follower-gate: deliver pending lead magnet if sender is now following ──
-  // Meta includes sender.is_follower in DM webhooks — this is the most reliable
-  // follower check available (no extra API call needed).
-  const isNowFollower: boolean = event.sender?.is_follower === true;
-  if (isNowFollower) {
-    try {
-      const { data: pending } = await supabase
-        .from("instagram_pending_deliveries")
-        .select("*")
-        .eq("ig_account_id", account.id)
-        .eq("commenter_id", senderId)
-        .eq("status", "waiting_follow")
-        .order("created_at", { ascending: true })
-        .limit(1)
-        .maybeSingle();
+  // ── Follower-gate: check pending deliveries on EVERY incoming DM ─────────
+  // Meta includes sender.is_follower in DM webhooks — most reliable follower check.
+  // Two cases:
+  //   A) sender IS follower   + pending delivery → deliver lead magnet ✅
+  //   B) sender is NOT follower + pending delivery → re-send "please follow" message 🔁
+  try {
+    const { data: pending } = await supabase
+      .from("instagram_pending_deliveries")
+      .select("*, automation:automation_id(*)")
+      .eq("ig_account_id", account.id)
+      .eq("commenter_id", senderId)
+      .in("status", ["waiting_follow", "ready_to_deliver"])
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-      if (pending) {
-        // Deliver the resource/lead magnet via DM
-        const igToken = account.page_access_token;
-        const igHost = igToken?.startsWith("IGAA")
-          ? "https://graph.instagram.com/v21.0"
-          : "https://graph.facebook.com/v21.0";
+    if (pending) {
+      // sender.is_follower is the most reliable follower signal — available on every DM
+      // webhook without any special permissions. We use it as the single source of truth.
+      const isNowFollower: boolean = event.sender?.is_follower === true;
+      const igToken = account.page_access_token;
+      const igHost = graphHostForToken(igToken);
+      console.log(`[follower-gate DM] sender=${senderId} is_follower=${isNowFollower} status=${pending.status}`);
 
+      if (isNowFollower) {
+        // ── A) Confirmed follower → deliver lead magnet ──────────────────────
+        const auto = pending.automation;
+        const resourceButtons = auto?.dm_buttons ?? null;
         const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
           method: "POST",
-          headers: {
-            "Authorization": `Bearer ${igToken}`,
-            "Content-Type": "application/json",
-          },
+          headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({
             recipient: { id: senderId },
-            message: { text: pending.dm_text },
+            message: buildIgMessageBody(pending.dm_text, resourceButtons),
           }),
         });
         const sendData = await sendRes.json();
 
         if (!sendData.error) {
-          // Mark delivered
           await supabase
             .from("instagram_pending_deliveries")
             .update({ status: "delivered", delivered_at: new Date().toISOString() })
             .eq("id", pending.id);
 
-          // Save outgoing message to CRM so agent sees it in the thread
           await supabase.from("instagram_messages").insert({
             user_id: account.user_id,
             conversation_id: conversationId,
@@ -800,15 +800,36 @@ async function processInstagramMessenger(
             is_ai_generated: false,
           });
 
-          console.log(`✅ Follower-gate: delivered pending resource to ${senderId}`);
-          return; // Resource delivered — skip AI agent response for this DM
+          console.log(`[follower-gate DM] ✅ Delivered lead magnet to ${senderId}`);
+          return; // Done — skip AI agent
         } else {
-          console.error("Follower-gate delivery failed:", JSON.stringify(sendData.error));
+          console.error("[follower-gate DM] Delivery failed:", JSON.stringify(sendData.error));
+        }
+      } else {
+        // ── B) Still not following → re-send the "please follow" message ────
+        const auto = pending.automation;
+        if (auto?.dm_message_non_follower) {
+          const nonFollowerText = resolveVars(auto.dm_message_non_follower, null, null);
+          const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              recipient: { id: senderId },
+              message: buildIgMessageBody(nonFollowerText, auto.dm_buttons_non_follower ?? null),
+            }),
+          });
+          const sendData = await sendRes.json();
+          if (sendData.error) {
+            console.error("[follower-gate DM] Re-send non-follower msg failed:", JSON.stringify(sendData.error));
+          } else {
+            console.log(`[follower-gate DM] 🔁 Re-sent non-follower message to ${senderId}`);
+          }
+          return; // Skip AI agent — we handled this DM
         }
       }
-    } catch (e) {
-      console.warn("Follower-gate check error (non-fatal):", e);
     }
+  } catch (e) {
+    console.warn("[follower-gate DM] Error (non-fatal):", e);
   }
 
   // ── AI Agent: respond automatically if enabled ────────────────────────────
@@ -935,6 +956,20 @@ async function processInstagramDirectChange(
   }
 }
 
+// ── Template variable resolver ────────────────────────────────────────────────
+/**
+ * Replace {{nombre}} and {{username}} in a message template.
+ * - {{nombre}}   → display name from IG profile, or @handle fallback
+ * - {{username}} → @handle (legacy, kept for compatibility)
+ */
+function resolveVars(text: string, username: string | null, displayName: string | null): string {
+  const handle = username ? `@${username}` : "";
+  const name = displayName || handle;
+  return text
+    .replace(/\{\{nombre\}\}/gi, name)
+    .replace(/\{\{username\}\}/gi, handle);
+}
+
 // ── Follower check helper ─────────────────────────────────────────────────────
 /**
  * Try to determine whether `commenterIgUserId` follows the IG account
@@ -956,21 +991,23 @@ async function checkIsFollower(
 ): Promise<boolean | null> {
   try {
     const graphHost = graphHostForToken(pageAccessToken);
-    // Use the commenter's profile to check is_following_business — the correct Meta endpoint.
-    // /followers?user_id=X does NOT support per-user filtering; this field does.
-    const res = await fetch(
-      `${graphHost}/${commenterIgUserId}?fields=is_following_business&access_token=${encodeURIComponent(pageAccessToken)}`,
-    );
+    const url = `${graphHost}/${commenterIgUserId}?fields=is_following_business&access_token=${encodeURIComponent(pageAccessToken)}`;
+    console.log(`[checkIsFollower] GET ${graphHost}/${commenterIgUserId}?fields=is_following_business`);
+    const res = await fetch(url);
     const data = await res.json();
+    console.log(`[checkIsFollower] response:`, JSON.stringify(data).substring(0, 300));
     if (data.error) {
-      console.warn("checkIsFollower API error:", JSON.stringify(data.error));
-      return null; // cannot determine — treat as non-follower in caller
+      console.warn("[checkIsFollower] API error:", JSON.stringify(data.error));
+      return null; // cannot determine
     }
-    // is_following_business is a boolean field
-    if (typeof data.is_following_business === "boolean") return data.is_following_business;
+    if (typeof data.is_following_business === "boolean") {
+      console.log(`[checkIsFollower] is_following_business =`, data.is_following_business);
+      return data.is_following_business;
+    }
+    console.warn("[checkIsFollower] field missing in response:", JSON.stringify(data));
     return null;
   } catch (e) {
-    console.warn("checkIsFollower threw:", e);
+    console.warn("[checkIsFollower] threw:", e);
     return null;
   }
 }
@@ -978,9 +1015,11 @@ async function checkIsFollower(
 /**
  * Build the message body for a Meta IG DM.
  *
- * If `buttons` is provided (and non-empty), we use the Generic Template format
- * which renders tappable URL buttons inside the DM — the same approach ManyChat
- * uses.  Otherwise we fall back to a plain text message.
+ * Uses Generic Template (nice button UI) for non-Instagram URLs.
+ * instagram.com URLs are skipped from buttons (opening instagram.com inside
+ * Instagram's own in-app WebView causes an infinite-loading loop) and
+ * instead appended as plain-text links at the end of the message — Instagram
+ * renders them as tappable links opening in Safari/Chrome.
  *
  * buttons: [{ title: string, url: string }] — max 3
  */
@@ -989,10 +1028,23 @@ function buildIgMessageBody(text: string, buttons?: { title: string; url: string
   if (validBtns.length === 0) {
     return { text };
   }
-  // Generic Template: image optional, title = first 80 chars of text,
-  // subtitle = rest of text, buttons = URL buttons.
+
+  const isIgUrl = (url: string) =>
+    /instagram\.com/i.test(url) || url.startsWith("instagram://");
+
+  // Separate: external URLs → Generic Template buttons (work fine)
+  //           instagram.com URLs → skip entirely (can't navigate inside Instagram's WebView)
+  const externalBtns = validBtns.filter(b => !isIgUrl(b.url)).slice(0, 3);
+
+  if (externalBtns.length === 0) {
+    // All buttons were instagram.com — send plain text only
+    return { text };
+  }
+
+  // Generic Template: use the original text (NOT modified) for title/subtitle
+  // so the message reads cleanly without raw URLs mixed in.
   const title = text.substring(0, 80);
-  const subtitle = text.length > 80 ? text.substring(80, 1000) : undefined;
+  const subtitle = text.length > 80 ? text.substring(80, 200) : undefined;
   return {
     attachment: {
       type: "template",
@@ -1001,7 +1053,7 @@ function buildIgMessageBody(text: string, buttons?: { title: string; url: string
         elements: [{
           title,
           ...(subtitle ? { subtitle } : {}),
-          buttons: validBtns.slice(0, 3).map(b => ({
+          buttons: externalBtns.map(b => ({
             type: "web_url",
             url: b.url,
             title: b.title.substring(0, 20),
@@ -1119,8 +1171,11 @@ async function processInstagramComment(
   const lowerText = text.toLowerCase();
 
   for (const auto of automations) {
-    // Filter by media_id if set
-    if (auto.media_id && auto.media_id !== mediaId) continue;
+    // Filter by media_ids array (new) or legacy media_id
+    const targetIds: string[] = auto.media_ids?.length
+      ? auto.media_ids
+      : (auto.media_id ? [auto.media_id] : []);
+    if (targetIds.length > 0 && !targetIds.includes(mediaId)) continue;
 
     // Match keywords
     const keywords: string[] = (auto.keywords || []).map((k: string) => k.toLowerCase());
@@ -1136,13 +1191,16 @@ async function processInstagramComment(
     }
     if (!matches) continue;
 
-    const usernameForTemplate = commenterUsername ? `@${commenterUsername}` : "";
+    const rv = (t: string) => resolveVars(t, commenterUsername ?? null, null);
 
     // 1) Public reply on the comment (always fires regardless of follower status)
     if (auto.reply_to_comment_text) {
       try {
-        const replyText = auto.reply_to_comment_text.replace(/\{\{username\}\}/g, usernameForTemplate);
-        const res = await fetch(`https://graph.facebook.com/v21.0/${commentId}/replies`, {
+        const replyText = rv(auto.reply_to_comment_text);
+        // Use the correct host based on the token type (IGAA = Instagram Graph API)
+        const replyHost = graphHostForToken(account.page_access_token);
+        console.log(`[comment-reply] Posting reply to ${replyHost}/${commentId}/replies — text: "${replyText.substring(0, 60)}"`);
+        const res = await fetch(`${replyHost}/${commentId}/replies`, {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${account.page_access_token}`,
@@ -1152,15 +1210,16 @@ async function processInstagramComment(
         });
         const data = await res.json();
         if (data.error) {
-          console.error("Automation reply_comment failed:", JSON.stringify(data.error));
+          console.error("[comment-reply] FAILED:", JSON.stringify(data.error));
         } else {
+          console.log("[comment-reply] OK — reply id:", data.id);
           await supabase
             .from("instagram_comments")
             .update({ is_replied: true, matched_automation_id: auto.id })
             .eq("comment_id", commentId);
         }
       } catch (e) {
-        console.error("Error replying to comment in automation:", e);
+        console.error("[comment-reply] Exception:", e);
       }
     }
 
@@ -1174,52 +1233,86 @@ async function processInstagramComment(
             commenterId,
             account.page_access_token,
           );
+          console.log(`[follower-gate] commenter=${commenterId} isFollower=${isFollower} auto=${auto.id}`);
 
-          if (isFollower === true || isFollower === null) {
-            // They follow (or we can't determine) — deliver lead magnet immediately.
-            // null means the API couldn't verify; we give the benefit of the doubt.
-            const dmText = (auto.dm_message_text ?? "").replace(/\{\{username\}\}/g, usernameForTemplate);
+          if (isFollower === true) {
+            // Confirmed follower — deliver lead magnet immediately.
+            const dmText = rv(auto.dm_message_text ?? "");
             const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
             if (success) {
               await supabase.from("instagram_comments")
                 .update({ is_dm_sent: true, matched_automation_id: auto.id })
                 .eq("comment_id", commentId);
-              console.log(`Follower confirmed (or unverifiable) — lead magnet sent to ${commenterId}`);
+              console.log(`[follower-gate] ✅ Follower confirmed — lead magnet sent to ${commenterId}`);
             }
           } else {
-            // Confirmed non-follower — send "please follow" message
-            // and save a pending delivery for when they follow and DM back.
-            const nonFollowerText = auto.dm_message_non_follower.replace(/\{\{username\}\}/g, usernameForTemplate);
-            const { success: sent } = await sendCommentDm(entryId, commentId, nonFollowerText, account.page_access_token, auto.dm_buttons_non_follower);
+            // Not a follower, OR couldn't verify (null = API error / permission not approved).
+            // In both cases send the "please follow" message and save a pending delivery.
+            // When the user later DMs us, sender.is_follower=true triggers delivery.
+            console.log(`[follower-gate] ⛔ Non-follower (or unverifiable) — sending non-follower message to ${commenterId}`);
 
-            if (sent && auto.dm_message_text) {
-              // Save pending delivery so we can deliver the resource when they
-              // DM us after following (webhook will have sender.is_follower=true)
-              const dmResourceText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+            // Generate (or reuse) a pending delivery so we have a verify_token for the button URL
+            const dmResourceText = rv(auto.dm_message_text ?? "");
+            let verifyToken: string | null = null;
+
+            if (auto.dm_message_text) {
               const { data: existing } = await supabase
                 .from("instagram_pending_deliveries")
-                .select("id")
+                .select("id, verify_token")
                 .eq("ig_account_id", account.id)
                 .eq("commenter_id", commenterId)
                 .eq("status", "waiting_follow")
                 .maybeSingle();
 
-              if (!existing) {
-                await supabase.from("instagram_pending_deliveries").insert({
-                  user_id: account.user_id,
-                  ig_account_id: account.id,
-                  automation_id: auto.id,
-                  commenter_id: commenterId,
-                  commenter_username: commenterUsername,
-                  dm_text: dmResourceText,
-                });
+              if (existing) {
+                verifyToken = existing.verify_token;
+              } else {
+                const { data: inserted } = await supabase
+                  .from("instagram_pending_deliveries")
+                  .insert({
+                    user_id: account.user_id,
+                    ig_account_id: account.id,
+                    automation_id: auto.id,
+                    commenter_id: commenterId,
+                    commenter_username: commenterUsername,
+                    dm_text: dmResourceText,
+                  })
+                  .select("verify_token")
+                  .single();
+                verifyToken = inserted?.verify_token ?? null;
+                console.log(`[follower-gate] Pending delivery saved — token=${verifyToken}`);
               }
-              console.log(`Non-follower notified — pending delivery saved for ${commenterId}`);
+            }
+
+            // Build non-follower buttons, auto-injecting the verify button if token exists
+            const baseButtons: { title: string; url: string }[] = auto.dm_buttons_non_follower || [];
+            const verifyUrl = verifyToken
+              ? `https://app.klosify.com/ig/verify/${verifyToken}`
+              : null;
+            // If no verify button already, prepend it automatically
+            const hasVerifyBtn = baseButtons.some((b) =>
+              b.url?.includes("/ig/verify/") || b.title?.toLowerCase().includes("siguiendo") || b.title?.toLowerCase().includes("ya te sigo")
+            );
+            const finalNonFollowerButtons =
+              verifyUrl && !hasVerifyBtn
+                ? [{ title: "✅ Ya te sigo", url: verifyUrl }, ...baseButtons].slice(0, 3)
+                : baseButtons.length > 0
+                ? baseButtons
+                : verifyUrl
+                ? [{ title: "✅ Ya te sigo", url: verifyUrl }]
+                : null;
+
+            const nonFollowerText = rv(auto.dm_message_non_follower);
+            const { success: sent } = await sendCommentDm(
+              entryId, commentId, nonFollowerText, account.page_access_token, finalNonFollowerButtons
+            );
+            if (sent) {
+              console.log(`[follower-gate] Non-follower message sent to ${commenterId}`);
             }
           }
         } else if (auto.dm_message_text) {
           // ── REGULAR DM (no follower gate) ───────────────────────────────
-          const dmText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+          const dmText = rv(auto.dm_message_text);
           const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
           if (success) {
             await supabase.from("instagram_comments")
@@ -1312,17 +1405,18 @@ async function processInstagramStoryMention(
   };
 
   for (const auto of autos) {
-    const usernameLabel = mentionerUsername ? `@${mentionerUsername}` : "";
+    const rv = (t: string) => resolveVars(t, mentionerUsername ?? null, null);
     const isFollower = await checkIsFollower(igUserId, mentionerId, igToken);
 
     if (auto.require_follower && auto.dm_message_non_follower) {
-      if (isFollower === true || isFollower === null) {
-        // null = unverifiable → give benefit of the doubt
+      if (isFollower === true) {
+        // Confirmed follower → deliver resource
         if (auto.dm_message_text) {
-          await sendDm(auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons);
+          await sendDm(rv(auto.dm_message_text), auto.dm_buttons);
         }
       } else {
-        const sent = await sendDm(auto.dm_message_non_follower.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons_non_follower);
+        // null (unverifiable) or false → send non-follower message + pending delivery
+        const sent = await sendDm(rv(auto.dm_message_non_follower), auto.dm_buttons_non_follower);
         if (sent && auto.dm_message_text) {
           const { data: ex } = await supabase
             .from("instagram_pending_deliveries").select("id")
@@ -1332,13 +1426,13 @@ async function processInstagramStoryMention(
             await supabase.from("instagram_pending_deliveries").insert({
               user_id: account.user_id, ig_account_id: account.id, automation_id: auto.id,
               commenter_id: mentionerId, commenter_username: mentionerUsername,
-              dm_text: auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel),
+              dm_text: rv(auto.dm_message_text),
             });
           }
         }
       }
     } else if (auto.dm_message_text) {
-      await sendDm(auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons);
+      await sendDm(rv(auto.dm_message_text), auto.dm_buttons);
     }
 
     await supabase.from("instagram_comment_automations")
@@ -1385,17 +1479,17 @@ async function processInstagramNewFollower(
     ? "https://graph.instagram.com/v21.0"
     : "https://graph.facebook.com/v21.0";
 
-  // Get follower username for {{username}} placeholder
-  let followerUsername = "";
+  // Get follower username for {{username}} / {{nombre}} placeholders
+  let followerUsername: string | null = null;
   try {
     const r = await fetch(`${igHost}/${followerId}?fields=username&access_token=${encodeURIComponent(igToken)}`);
     const d = await r.json();
-    if (d.username) followerUsername = `@${d.username}`;
+    if (d.username) followerUsername = d.username;
   } catch (_) { /* ignore */ }
 
   for (const auto of autos) {
     if (!auto.dm_message_text) continue;
-    const text = auto.dm_message_text.replace(/\{\{username\}\}/g, followerUsername);
+    const text = resolveVars(auto.dm_message_text, followerUsername, null);
     const r = await fetch(`${igHost}/${account.instagram_user_id}/messages`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },

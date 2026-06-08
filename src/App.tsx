@@ -47,6 +47,7 @@ import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import IgVerifyPage from "./pages/IgVerifyPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import { TrialBanner } from "@/components/billing/TrialBanner";
 import { LockoutScreen } from "@/components/billing/LockoutScreen";
@@ -188,6 +189,7 @@ function AppRoutes() {
       {/* Status page Meta surfaces to the end user after a deletion callback */}
       <Route path="/data-deletion-status" element={<DataDeletionStatusPage />} />
       <Route path="/estado-eliminacion" element={<DataDeletionStatusPage />} />
+      <Route path="/ig/verify/:token" element={<IgVerifyPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
