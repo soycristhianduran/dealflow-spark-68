@@ -950,24 +950,25 @@ async function processInstagramDirectChange(
  *   null  — could not determine (API error / missing permission)
  */
 async function checkIsFollower(
-  igUserId: string,
+  _igUserId: string,
   commenterIgUserId: string,
   pageAccessToken: string,
 ): Promise<boolean | null> {
   try {
     const graphHost = graphHostForToken(pageAccessToken);
-    // The /followers endpoint lets you check a specific user_id in the follower list.
+    // Use the commenter's profile to check is_following_business — the correct Meta endpoint.
+    // /followers?user_id=X does NOT support per-user filtering; this field does.
     const res = await fetch(
-      `${graphHost}/${igUserId}/followers?user_id=${commenterIgUserId}&access_token=${encodeURIComponent(pageAccessToken)}`,
+      `${graphHost}/${commenterIgUserId}?fields=is_following_business&access_token=${encodeURIComponent(pageAccessToken)}`,
     );
     const data = await res.json();
     if (data.error) {
       console.warn("checkIsFollower API error:", JSON.stringify(data.error));
-      return null; // cannot determine
+      return null; // cannot determine — treat as non-follower in caller
     }
-    // data.data is an array; non-empty means they follow
-    const followerList = data.data ?? [];
-    return followerList.length > 0;
+    // is_following_business is a boolean field
+    if (typeof data.is_following_business === "boolean") return data.is_following_business;
+    return null;
   } catch (e) {
     console.warn("checkIsFollower threw:", e);
     return null;
@@ -1173,18 +1174,19 @@ async function processInstagramComment(
             account.page_access_token,
           );
 
-          if (isFollower === true) {
-            // They follow — deliver lead magnet immediately
+          if (isFollower === true || isFollower === null) {
+            // They follow (or we can't determine) — deliver lead magnet immediately.
+            // null means the API couldn't verify; we give the benefit of the doubt.
             const dmText = (auto.dm_message_text ?? "").replace(/\{\{username\}\}/g, usernameForTemplate);
             const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
             if (success) {
               await supabase.from("instagram_comments")
                 .update({ is_dm_sent: true, matched_automation_id: auto.id })
                 .eq("comment_id", commentId);
-              console.log(`Follower confirmed — lead magnet sent to ${commenterId}`);
+              console.log(`Follower confirmed (or unverifiable) — lead magnet sent to ${commenterId}`);
             }
           } else {
-            // Not a follower (or undetermined) — send "please follow" message
+            // Confirmed non-follower — send "please follow" message
             // and save a pending delivery for when they follow and DM back.
             const nonFollowerText = auto.dm_message_non_follower.replace(/\{\{username\}\}/g, usernameForTemplate);
             const { success: sent } = await sendCommentDm(entryId, commentId, nonFollowerText, account.page_access_token, auto.dm_buttons_non_follower);
@@ -1313,7 +1315,8 @@ async function processInstagramStoryMention(
     const isFollower = await checkIsFollower(igUserId, mentionerId, igToken);
 
     if (auto.require_follower && auto.dm_message_non_follower) {
-      if (isFollower === true) {
+      if (isFollower === true || isFollower === null) {
+        // null = unverifiable → give benefit of the doubt
         if (auto.dm_message_text) {
           await sendDm(auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons);
         }
