@@ -608,28 +608,6 @@ export default function InstagramAutomationsPage() {
                   </div>
                 )}
 
-                {/* Follower toggle */}
-                <div className="rounded-xl border p-3 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Switch checked={requireFollower} onCheckedChange={setRequireFollower} id="require-follower" />
-                    <Label htmlFor="require-follower" className="text-xs cursor-pointer">
-                      Verificar si el usuario es <span className="font-semibold">seguidor</span> antes de enviar el recurso
-                    </Label>
-                  </div>
-                  {requireFollower && (
-                    <div className="rounded-lg bg-gradient-to-br from-pink-50 to-orange-50 dark:from-pink-950/30 dark:to-orange-950/30 border border-pink-200/60 dark:border-pink-800/40 p-3 space-y-1.5">
-                      <p className="text-[11px] font-semibold text-pink-700 dark:text-pink-300 flex items-center gap-1">
-                        <Zap className="h-3 w-3" /> Flujo tipo ManyChat
-                      </p>
-                      <div className="text-[10px] text-muted-foreground space-y-0.5">
-                        <p>1. Alguien comenta con la palabra clave</p>
-                        <p>2. <span className="font-medium text-green-600">Si ya te sigue</span> → recibe el recurso directo en DM</p>
-                        <p>3. <span className="font-medium text-orange-600">Si no te sigue</span> → recibe el mensaje de abajo y espera</p>
-                        <p>4. Cuando te sigue y escribe, recibe el recurso automáticamente</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Action 1: reply to comment — only for post comments */}
