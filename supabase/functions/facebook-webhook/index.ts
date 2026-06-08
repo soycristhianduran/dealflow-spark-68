@@ -1348,6 +1348,84 @@ async function processInstagramStoryMention(
   }
 }
 
+/**
+ * New follower automation.
+ * Meta sends: change.field = "follows", change.value = { follower_id: "IGSID" }
+ * We look for active automations with trigger_types @> ['new_follower'] and DM the new follower.
+ */
+async function processInstagramNewFollower(
+  supabase: SupabaseClient,
+  igAccountId: string,
+  change: Record<string, any>,
+) {
+  const followerId: string | undefined = change.value?.follower_id;
+  if (!followerId) return;
+
+  // Find the IG account record
+  const { data: account } = await supabase
+    .from("instagram_accounts")
+    .select("id, user_id, page_access_token, instagram_user_id")
+    .eq("instagram_user_id", igAccountId)
+    .maybeSingle();
+  if (!account?.page_access_token) return;
+
+  // Load active new_follower automations
+  const { data: autos } = await supabase
+    .from("instagram_comment_automations")
+    .select("*")
+    .eq("user_id", account.user_id)
+    .eq("ig_account_id", account.id)
+    .eq("is_active", true)
+    .contains("trigger_types", ["new_follower"]);
+
+  if (!autos || autos.length === 0) return;
+
+  const igToken = account.page_access_token;
+  const igHost = igToken?.startsWith("IGAA")
+    ? "https://graph.instagram.com/v21.0"
+    : "https://graph.facebook.com/v21.0";
+
+  // Get follower username for {{username}} placeholder
+  let followerUsername = "";
+  try {
+    const r = await fetch(`${igHost}/${followerId}?fields=username&access_token=${encodeURIComponent(igToken)}`);
+    const d = await r.json();
+    if (d.username) followerUsername = `@${d.username}`;
+  } catch (_) { /* ignore */ }
+
+  for (const auto of autos) {
+    if (!auto.dm_message_text) continue;
+    const text = auto.dm_message_text.replace(/\{\{username\}\}/g, followerUsername);
+    const r = await fetch(`${igHost}/${account.instagram_user_id}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: followerId },
+        message: buildIgMessageBody(text, auto.dm_buttons),
+      }),
+    });
+    const d = await r.json();
+    if (d.error) {
+      console.error("new_follower DM failed:", JSON.stringify(d.error));
+    } else {
+      console.log(`New follower DM sent to ${followerId}`);
+      // Save outgoing message to conversations
+      await supabase.from("instagram_messages").insert({
+        ig_account_id: account.id,
+        sender_id: account.instagram_user_id,
+        recipient_id: followerId,
+        message_text: text,
+        direction: "outgoing",
+        timestamp: new Date().toISOString(),
+      }).throwOnError().catch(() => {/* table may differ */});
+    }
+    await supabase.from("instagram_comment_automations")
+      .update({ trigger_count: (auto.trigger_count ?? 0) + 1, last_triggered_at: new Date().toISOString() })
+      .eq("id", auto.id);
+    break; // fire first matching automation only
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1453,6 +1531,8 @@ Deno.serve(async (req) => {
             await processInstagramDirectChange(supabase, entryId, change);
           } else if (change.field === "mentions") {
             await processInstagramStoryMention(supabase, entryId, change);
+          } else if (change.field === "follows") {
+            await processInstagramNewFollower(supabase, entryId, change);
           }
         } catch (err) {
           console.error(`Unhandled error processing ${change.field} change:`, err);

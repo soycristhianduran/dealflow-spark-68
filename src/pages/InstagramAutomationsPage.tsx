@@ -23,7 +23,7 @@ import {
 import { toast } from "sonner";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
 
-type TriggerType = "comment" | "story_reply" | "story_mention";
+type TriggerType = "comment" | "story_reply" | "story_mention" | "new_follower";
 type TriggerTypes = TriggerType[];
 
 interface IgButton { title: string; url: string; }
@@ -399,6 +399,7 @@ export default function InstagramAutomationsPage() {
                               <span key={tt}>
                                 {tt === "story_reply" ? "📖 Story reply" :
                                  tt === "story_mention" ? "📣 Mención story" :
+                                 tt === "new_follower" ? "🤝 Nuevo seguidor" :
                                  "💬 Comentario"}
                               </span>
                             ))}
@@ -508,11 +509,12 @@ export default function InstagramAutomationsPage() {
                 {/* Trigger type multi-select */}
                 <div className="space-y-1.5">
                   <Label className="text-xs">¿Cuándo se activa? <span className="text-muted-foreground font-normal">(selecciona uno o varios)</span></Label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {([
                       { value: "comment" as TriggerType, icon: "💬", label: "Comentario en post" },
                       { value: "story_reply" as TriggerType, icon: "📖", label: "Respuesta a story" },
                       { value: "story_mention" as TriggerType, icon: "📣", label: "Mención en story" },
+                      { value: "new_follower" as TriggerType, icon: "🤝", label: "Nuevo seguidor" },
                     ]).map((opt) => {
                       const active = triggerTypes.includes(opt.value);
                       const toggle = () => {
@@ -547,38 +549,37 @@ export default function InstagramAutomationsPage() {
                   <p className="text-[10px] text-muted-foreground">Puedes activar la misma automatización con varios tipos de interacción a la vez.</p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Palabras clave (separadas por coma)</Label>
-                  <Input
-                    placeholder={
-                      triggerTypes.includes("story_mention") && triggerTypes.length === 1
-                        ? "Vacío = cualquier mención activa la automatización"
-                        : triggerTypes.includes("comment")
-                        ? "Ej: INFO, precio, link"
-                        : "Ej: RECURSO, quiero, info — vacío = cualquier respuesta"
-                    }
-                    value={keywordsInput}
-                    onChange={(e) => setKeywordsInput(e.target.value)}
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    {triggerTypes.includes("story_mention") && !triggerTypes.includes("comment")
-                      ? "Para story mention normalmente se deja vacío — se activa con cualquier mención."
-                      : "Deja vacío para activar con cualquier interacción."}
-                  </p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Modo de coincidencia</Label>
-                  <select
-                    value={matchMode}
-                    onChange={(e) => setMatchMode(e.target.value as "any" | "all" | "exact")}
-                    className="w-full h-9 rounded-md border bg-background px-3 text-sm"
-                  >
-                    <option value="any">Contiene CUALQUIERA de las palabras</option>
-                    <option value="all">Contiene TODAS las palabras</option>
-                    <option value="exact">Coincide EXACTAMENTE con una palabra</option>
-                  </select>
-                </div>
+                {/* Keywords & match mode hidden when only new_follower */}
+                {!(triggerTypes.length === 1 && triggerTypes[0] === "new_follower") && (
+                  <div className="space-y-3">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Palabras clave (separadas por coma)</Label>
+                      <Input
+                        placeholder={
+                          triggerTypes.includes("story_mention") && triggerTypes.length === 1
+                            ? "Vacío = cualquier mención activa la automatización"
+                            : triggerTypes.includes("comment")
+                            ? "Ej: INFO, precio, link"
+                            : "Ej: RECURSO, quiero, info — vacío = cualquier respuesta"
+                        }
+                        value={keywordsInput}
+                        onChange={(e) => setKeywordsInput(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Modo de coincidencia</Label>
+                      <select
+                        value={matchMode}
+                        onChange={(e) => setMatchMode(e.target.value as "any" | "all" | "exact")}
+                        className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+                      >
+                        <option value="any">Contiene CUALQUIERA de las palabras</option>
+                        <option value="all">Contiene TODAS las palabras</option>
+                        <option value="exact">Coincide EXACTAMENTE con una palabra</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
 
                 {triggerTypes.includes("comment") && (
                   <div className="space-y-1.5">
