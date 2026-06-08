@@ -130,15 +130,33 @@ Deno.serve(async (req) => {
 
     console.log("[ig-follow-verify] account.ig_user_id:", igUserId, "commenter:", commenterId);
 
-    // NOTE: We skip the is_following_business API check here because that field
-    // requires the instagram_manage_insights permission which is not approved yet.
-    // The real follower gate is sender.is_follower in the DM webhook — that field
-    // is available without special permissions and fires reliably on every DM.
-    //
-    // Flow: user taps "Ya te sigo" → we attempt delivery immediately.
-    //   • If the 24h window is open → delivered ✅
-    //   • If window is closed → mark ready_to_deliver; next DM from user
-    //     triggers delivery ONLY if sender.is_follower === true.
+    // ── Check is_following_business ──────────────────────────────────────────
+    // This requires instagram_manage_insights (pending App Review).
+    // • true  → confirmed follower → proceed to deliver
+    // • false → confirmed non-follower → return not_following
+    // • null  → API can't verify (no permission yet) → proceed anyway (honor system
+    //           until permission is approved; at that point null won't happen)
+    const checkRes = await fetch(
+      `${host}/${commenterId}?fields=is_following_business&access_token=${encodeURIComponent(igToken)}`
+    );
+    const checkData = await checkRes.json();
+    const isFollowing: boolean | null =
+      typeof checkData.is_following_business === "boolean"
+        ? checkData.is_following_business
+        : null;
+    console.log("[ig-follow-verify] is_following_business:", isFollowing, JSON.stringify(checkData).substring(0, 200));
+
+    if (isFollowing === false) {
+      // API confirmed they are NOT following → block delivery
+      return new Response(JSON.stringify({
+        status: "not_following",
+        profile_url: igUsername ? `instagram://user?username=${igUsername}` : null,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    // isFollowing === true  → verified follower
+    // isFollowing === null  → can't verify (permission pending) → proceed with honor system
 
     // ── Try to deliver the lead magnet immediately ───────────────────────────
     const resourceText = pending.dm_text;

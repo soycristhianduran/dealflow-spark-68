@@ -52,6 +52,7 @@ export interface IgDiagnosis {
     page_subscribed_to_comments: boolean;
     token_has_instagram_basic: boolean;
     token_has_instagram_manage_messages: boolean;
+    token_has_instagram_manage_insights: boolean;
     token_has_pages_messaging: boolean;
     token_has_pages_manage_metadata: boolean;
   };

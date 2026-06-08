@@ -296,6 +296,15 @@ function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
       critical: true,
     },
     {
+      key: "token_has_instagram_manage_insights",
+      label: "Token con permiso instagram_manage_insights",
+      fixHint:
+        "Necesario para verificar si un usuario sigue la cuenta (follower-gate). Solicítalo en Meta App Review → Permissions and Features. Una vez aprobado, reconecta la cuenta de Instagram.",
+      fixLink: "https://developers.facebook.com/apps/",
+      fixLinkLabel: "Solicitar en App Review",
+      critical: false,
+    },
+    {
       key: "page_subscribed_to_messaging_postbacks",
       label: "Página suscrita a 'messaging_postbacks' (botones rápidos)",
       fixHint: "Se suscribe automáticamente al conectar. Si falla, suele ser por el mismo permiso de messages.",

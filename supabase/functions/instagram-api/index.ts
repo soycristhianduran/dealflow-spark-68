@@ -248,6 +248,7 @@ Deno.serve(async (req) => {
         page_subscribed_to_comments: subscribedFields.has("comments"),
         token_has_instagram_basic: hasPermission("instagram_basic"),
         token_has_instagram_manage_messages: hasPermission("instagram_manage_messages"),
+        token_has_instagram_manage_insights: hasPermission("instagram_manage_insights"),
         token_has_pages_messaging: hasPermission("pages_messaging"),
         token_has_pages_manage_metadata: hasPermission("pages_manage_metadata"),
       };
