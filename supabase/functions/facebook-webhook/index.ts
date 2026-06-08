@@ -665,7 +665,7 @@ async function processInstagramMessenger(
         .select("*")
         .eq("user_id", account.user_id)
         .eq("ig_account_id", account.id)
-        .eq("trigger_type", "story_reply")
+        .contains("trigger_types", ["story_reply"])
         .eq("is_active", true);
 
       if (storyAutos && storyAutos.length > 0) {
@@ -1111,7 +1111,8 @@ async function processInstagramComment(
     .select("*")
     .eq("user_id", account.user_id)
     .eq("ig_account_id", account.id)
-    .eq("is_active", true);
+    .eq("is_active", true)
+    .contains("trigger_types", ["comment"]);
 
   if (!automations || automations.length === 0) return;
 
@@ -1289,7 +1290,7 @@ async function processInstagramStoryMention(
     .select("*")
     .eq("user_id", account.user_id)
     .eq("ig_account_id", account.id)
-    .eq("trigger_type", "story_mention")
+    .contains("trigger_types", ["story_mention"])
     .eq("is_active", true);
 
   if (!autos || autos.length === 0) return;

@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
 
 type TriggerType = "comment" | "story_reply" | "story_mention";
+type TriggerTypes = TriggerType[];
 
 interface IgButton { title: string; url: string; }
 
@@ -35,6 +36,7 @@ interface Automation {
   name: string;
   is_active: boolean;
   trigger_type: TriggerType;
+  trigger_types: TriggerTypes;
   media_id: string | null;
   keywords: string[] | null;
   match_mode: "any" | "all" | "exact";
@@ -127,7 +129,7 @@ export default function InstagramAutomationsPage() {
   const [mediaId, setMediaId] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ id: string; preview_url: string | null; caption: string | null } | null>(null);
-  const [triggerType, setTriggerType] = useState<TriggerType>("comment");
+  const [triggerTypes, setTriggerTypes] = useState<TriggerTypes>(["comment"]);
   const [requireFollower, setRequireFollower] = useState(false);
   const [dmText, setDmText] = useState("");
   const [dmButtons, setDmButtons] = useState<IgButton[]>([]);
@@ -160,7 +162,7 @@ export default function InstagramAutomationsPage() {
     setMatchMode("any");
     setMediaId("");
     setMediaPreview(null);
-    setTriggerType("comment");
+    setTriggerTypes(["comment"]);
     setRequireFollower(false);
     setDmText("");
     setDmButtons([]);
@@ -174,7 +176,7 @@ export default function InstagramAutomationsPage() {
   const openEdit = (a: Automation) => {
     setEditing(a);
     setName(a.name);
-    setTriggerType(a.trigger_type || "comment");
+    setTriggerTypes(a.trigger_types?.length ? a.trigger_types : [a.trigger_type || "comment"]);
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
     setMediaId(a.media_id || "");
@@ -244,10 +246,11 @@ export default function InstagramAutomationsPage() {
       user_id: user.id,
       ig_account_id: account.id,
       name: name.trim(),
-      trigger_type: triggerType,
+      trigger_type: triggerTypes[0] || "comment",
+      trigger_types: triggerTypes,
       keywords: keywords.length > 0 ? keywords : null,
       match_mode: matchMode,
-      media_id: triggerType === "comment" ? (mediaId.trim() || null) : null,
+      media_id: triggerTypes.includes("comment") ? (mediaId.trim() || null) : null,
       require_follower: requireFollower,
       dm_message_text: dmText.trim() || null,
       dm_buttons: validBtns(dmButtons).length > 0 ? validBtns(dmButtons) : null,
@@ -255,7 +258,7 @@ export default function InstagramAutomationsPage() {
       dm_buttons_non_follower: requireFollower && validBtns(dmButtonsNonFollower).length > 0
         ? validBtns(dmButtonsNonFollower) : null,
       follow_keyword: requireFollower ? (followKeyword.trim() || "LISTO") : null,
-      reply_to_comment_text: triggerType === "comment" ? (replyText.trim() || null) : null,
+      reply_to_comment_text: triggerTypes.includes("comment") ? (replyText.trim() || null) : null,
       is_active: true,
       updated_at: new Date().toISOString(),
     };
@@ -394,10 +397,14 @@ export default function InstagramAutomationsPage() {
                       <div className="flex items-start gap-2 text-muted-foreground">
                         <Filter className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                         <div>
-                          <span className="text-foreground font-medium">
-                            {a.trigger_type === "story_reply" ? "📖 Responde tu story" :
-                             a.trigger_type === "story_mention" ? "📣 Te menciona en su story" :
-                             "💬 Comenta en post"}
+                          <span className="text-foreground font-medium flex flex-wrap gap-1">
+                            {(a.trigger_types?.length ? a.trigger_types : [a.trigger_type]).map((tt) => (
+                              <span key={tt}>
+                                {tt === "story_reply" ? "📖 Story reply" :
+                                 tt === "story_mention" ? "📣 Mención story" :
+                                 "💬 Comentario"}
+                              </span>
+                            ))}
                           </span>{" "}
                           {a.keywords && a.keywords.length > 0 ? (
                             <>
@@ -411,8 +418,8 @@ export default function InstagramAutomationsPage() {
                           ) : (
                             <span className="text-foreground">con cualquier texto</span>
                           )}
-                          {a.trigger_type === "comment" && a.media_id && <span> en pub. <code className="text-[10px]">{a.media_id.slice(-8)}</code></span>}
-                          {a.trigger_type === "comment" && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && a.media_id && <span> en pub. <code className="text-[10px]">{a.media_id.slice(-8)}</code></span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
                           {a.require_follower && <span className="text-xs text-orange-600 dark:text-orange-400"> · verifica seguidor</span>}
                         </div>
                       </div>
@@ -478,47 +485,65 @@ export default function InstagramAutomationsPage() {
                   <Filter className="h-3.5 w-3.5" /> Disparador (cuándo se activa)
                 </h4>
 
-                {/* Trigger type selector */}
+                {/* Trigger type multi-select */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Tipo de interacción</Label>
+                  <Label className="text-xs">¿Cuándo se activa? <span className="text-muted-foreground font-normal">(selecciona uno o varios)</span></Label>
                   <div className="grid grid-cols-3 gap-2">
                     {([
-                      { value: "comment", icon: "💬", label: "Comentario en post" },
-                      { value: "story_reply", icon: "📖", label: "Respuesta a story" },
-                      { value: "story_mention", icon: "📣", label: "Mención en story" },
-                    ] as const).map((opt) => (
-                      <button
-                        key={opt.value}
-                        type="button"
-                        onClick={() => setTriggerType(opt.value)}
-                        className={`flex flex-col items-center gap-1 rounded-lg border-2 py-2.5 px-2 text-center text-xs transition-colors ${
-                          triggerType === opt.value
-                            ? "border-pink-500 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300 font-semibold"
-                            : "border-border hover:border-muted-foreground/40"
-                        }`}
-                      >
-                        <span className="text-base">{opt.icon}</span>
-                        {opt.label}
-                      </button>
-                    ))}
+                      { value: "comment" as TriggerType, icon: "💬", label: "Comentario en post" },
+                      { value: "story_reply" as TriggerType, icon: "📖", label: "Respuesta a story" },
+                      { value: "story_mention" as TriggerType, icon: "📣", label: "Mención en story" },
+                    ]).map((opt) => {
+                      const active = triggerTypes.includes(opt.value);
+                      const toggle = () => {
+                        if (active) {
+                          // don't allow deselecting all
+                          if (triggerTypes.length === 1) return;
+                          setTriggerTypes(triggerTypes.filter(t => t !== opt.value));
+                        } else {
+                          setTriggerTypes([...triggerTypes, opt.value]);
+                        }
+                      };
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={toggle}
+                          className={`relative flex flex-col items-center gap-1 rounded-lg border-2 py-2.5 px-2 text-center text-xs transition-colors ${
+                            active
+                              ? "border-pink-500 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300 font-semibold"
+                              : "border-border hover:border-muted-foreground/40 text-muted-foreground"
+                          }`}
+                        >
+                          {active && (
+                            <span className="absolute top-1 right-1.5 text-pink-500 text-[10px]">✓</span>
+                          )}
+                          <span className="text-base">{opt.icon}</span>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
                   </div>
+                  <p className="text-[10px] text-muted-foreground">Puedes activar la misma automatización con varios tipos de interacción a la vez.</p>
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs">Palabras clave (separadas por coma)</Label>
                   <Input
                     placeholder={
-                      triggerType === "comment" ? "Ej: INFO, precio, link" :
-                      triggerType === "story_reply" ? "Ej: RECURSO, quiero, info — vacío = cualquier respuesta" :
-                      "Vacío = cualquier mención activa la automatización"
+                      triggerTypes.includes("story_mention") && triggerTypes.length === 1
+                        ? "Vacío = cualquier mención activa la automatización"
+                        : triggerTypes.includes("comment")
+                        ? "Ej: INFO, precio, link"
+                        : "Ej: RECURSO, quiero, info — vacío = cualquier respuesta"
                     }
                     value={keywordsInput}
                     onChange={(e) => setKeywordsInput(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    {triggerType === "story_mention"
-                      ? "Normalmente se deja vacío — cada vez que alguien te menciona en su story se activa."
-                      : "Deja vacío para activar con cualquier comentario o respuesta."}
+                    {triggerTypes.includes("story_mention") && !triggerTypes.includes("comment")
+                      ? "Para story mention normalmente se deja vacío — se activa con cualquier mención."
+                      : "Deja vacío para activar con cualquier interacción."}
                   </p>
                 </div>
 
@@ -535,7 +560,7 @@ export default function InstagramAutomationsPage() {
                   </select>
                 </div>
 
-                {triggerType === "comment" && (
+                {triggerTypes.includes("comment") && (
                   <div className="space-y-1.5">
                     <Label className="text-xs">Publicación específica (opcional)</Label>
                     {mediaId ? (
@@ -608,7 +633,7 @@ export default function InstagramAutomationsPage() {
               </div>
 
               {/* Action 1: reply to comment — only for post comments */}
-              {triggerType === "comment" && (
+              {triggerTypes.includes("comment") && (
                 <div className="rounded-xl border bg-blue-50 dark:bg-blue-950/30 p-4 space-y-2">
                   <h4 className="text-sm font-semibold flex items-center gap-1.5">
                     <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> Responder comentario (público, opcional)
