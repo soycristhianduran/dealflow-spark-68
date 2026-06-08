@@ -21,22 +21,92 @@ import {
 import {
   Instagram, Plus, MessageCircle, MessageSquare, Sparkles,
   Trash2, Edit3, Loader2, Zap, Filter, Image as ImageIcon, X,
+  Link as LinkIcon, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
+
+type TriggerType = "comment" | "story_reply" | "story_mention";
+
+interface IgButton { title: string; url: string; }
 
 interface Automation {
   id: string;
   name: string;
   is_active: boolean;
+  trigger_type: TriggerType;
   media_id: string | null;
   keywords: string[] | null;
   match_mode: "any" | "all" | "exact";
   require_follower: boolean;
   reply_to_comment_text: string | null;
   dm_message_text: string | null;
+  dm_buttons: IgButton[] | null;
+  dm_message_non_follower: string | null;
+  dm_buttons_non_follower: IgButton[] | null;
+  follow_keyword: string | null;
   trigger_count: number;
   last_triggered_at: string | null;
+}
+
+// ── Button builder sub-component ─────────────────────────────────────────────
+function ButtonBuilder({
+  buttons, onChange, label,
+}: {
+  buttons: IgButton[];
+  onChange: (btns: IgButton[]) => void;
+  label?: string;
+}) {
+  const add = () => {
+    if (buttons.length >= 3) return;
+    onChange([...buttons, { title: "", url: "" }]);
+  };
+  const remove = (i: number) => onChange(buttons.filter((_, idx) => idx !== i));
+  const update = (i: number, field: keyof IgButton, val: string) =>
+    onChange(buttons.map((b, idx) => idx === i ? { ...b, [field]: val } : b));
+
+  return (
+    <div className="space-y-2">
+      {label && <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">{label}</p>}
+      {buttons.map((btn, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <div className="flex-1 grid grid-cols-2 gap-1.5">
+            <Input
+              placeholder="Texto del botón (máx 20 car.)"
+              value={btn.title}
+              maxLength={20}
+              onChange={(e) => update(i, "title", e.target.value)}
+              className="text-xs h-8"
+            />
+            <Input
+              placeholder="https://enlace.com"
+              value={btn.url}
+              onChange={(e) => update(i, "url", e.target.value)}
+              className="text-xs h-8"
+              type="url"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => remove(i)}
+            className="h-8 w-8 shrink-0 rounded-md flex items-center justify-center text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      ))}
+      {buttons.length < 3 && (
+        <button
+          type="button"
+          onClick={add}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+        >
+          <LinkIcon className="h-3 w-3" />
+          Agregar botón con enlace {buttons.length > 0 ? `(${3 - buttons.length} más)` : "(máx 3)"}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export default function InstagramAutomationsPage() {
@@ -57,9 +127,14 @@ export default function InstagramAutomationsPage() {
   const [mediaId, setMediaId] = useState("");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [mediaPreview, setMediaPreview] = useState<{ id: string; preview_url: string | null; caption: string | null } | null>(null);
+  const [triggerType, setTriggerType] = useState<TriggerType>("comment");
   const [requireFollower, setRequireFollower] = useState(false);
-  const [replyText, setReplyText] = useState("");
   const [dmText, setDmText] = useState("");
+  const [dmButtons, setDmButtons] = useState<IgButton[]>([]);
+  const [dmNonFollowerText, setDmNonFollowerText] = useState("");
+  const [dmButtonsNonFollower, setDmButtonsNonFollower] = useState<IgButton[]>([]);
+  const [followKeyword, setFollowKeyword] = useState("LISTO");
+  const [replyText, setReplyText] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingAutomation, setDeletingAutomation] = useState<Automation | null>(null);
 
@@ -85,22 +160,32 @@ export default function InstagramAutomationsPage() {
     setMatchMode("any");
     setMediaId("");
     setMediaPreview(null);
+    setTriggerType("comment");
     setRequireFollower(false);
-    setReplyText("");
     setDmText("");
+    setDmButtons([]);
+    setDmNonFollowerText("");
+    setDmButtonsNonFollower([]);
+    setFollowKeyword("LISTO");
+    setReplyText("");
     setDialogOpen(true);
   };
 
   const openEdit = (a: Automation) => {
     setEditing(a);
     setName(a.name);
+    setTriggerType(a.trigger_type || "comment");
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
     setMediaId(a.media_id || "");
     setMediaPreview(a.media_id ? { id: a.media_id, preview_url: null, caption: null } : null);
     setRequireFollower(a.require_follower);
-    setReplyText(a.reply_to_comment_text || "");
     setDmText(a.dm_message_text || "");
+    setDmButtons(a.dm_buttons || []);
+    setDmNonFollowerText(a.dm_message_non_follower || "");
+    setDmButtonsNonFollower(a.dm_buttons_non_follower || []);
+    setFollowKeyword(a.follow_keyword || "LISTO");
+    setReplyText(a.reply_to_comment_text || "");
     setDialogOpen(true);
   };
 
@@ -152,16 +237,25 @@ export default function InstagramAutomationsPage() {
       return;
     }
 
+    const validBtns = (btns: IgButton[]) =>
+      btns.filter(b => b.title.trim() && b.url.trim());
+
     const payload = {
       user_id: user.id,
       ig_account_id: account.id,
       name: name.trim(),
+      trigger_type: triggerType,
       keywords: keywords.length > 0 ? keywords : null,
       match_mode: matchMode,
-      media_id: mediaId.trim() || null,
+      media_id: triggerType === "comment" ? (mediaId.trim() || null) : null,
       require_follower: requireFollower,
-      reply_to_comment_text: replyText.trim() || null,
       dm_message_text: dmText.trim() || null,
+      dm_buttons: validBtns(dmButtons).length > 0 ? validBtns(dmButtons) : null,
+      dm_message_non_follower: requireFollower ? (dmNonFollowerText.trim() || null) : null,
+      dm_buttons_non_follower: requireFollower && validBtns(dmButtonsNonFollower).length > 0
+        ? validBtns(dmButtonsNonFollower) : null,
+      follow_keyword: requireFollower ? (followKeyword.trim() || "LISTO") : null,
+      reply_to_comment_text: triggerType === "comment" ? (replyText.trim() || null) : null,
       is_active: true,
       updated_at: new Date().toISOString(),
     };
@@ -300,22 +394,26 @@ export default function InstagramAutomationsPage() {
                       <div className="flex items-start gap-2 text-muted-foreground">
                         <Filter className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                         <div>
-                          <span className="text-foreground font-medium">Si comentan</span>{" "}
+                          <span className="text-foreground font-medium">
+                            {a.trigger_type === "story_reply" ? "📖 Responde tu story" :
+                             a.trigger_type === "story_mention" ? "📣 Te menciona en su story" :
+                             "💬 Comenta en post"}
+                          </span>{" "}
                           {a.keywords && a.keywords.length > 0 ? (
                             <>
                               <span className="text-foreground">
-                                {a.match_mode === "exact" ? "exactamente " : a.match_mode === "all" ? "todas las palabras: " : "alguna de: "}
+                                {a.match_mode === "exact" ? "exactamente " : a.match_mode === "all" ? "con todas: " : "con alguna de: "}
                               </span>
                               {a.keywords.map((k) => (
                                 <Badge key={k} variant="outline" className="text-[10px] mr-1">{k}</Badge>
                               ))}
                             </>
                           ) : (
-                            <span className="text-foreground">cualquier cosa</span>
+                            <span className="text-foreground">con cualquier texto</span>
                           )}
-                          {a.media_id && <span> en publicación <code className="text-[10px]">{a.media_id.slice(-8)}</code></span>}
-                          {!a.media_id && <span className="text-xs"> (en todas las publicaciones)</span>}
-                          {a.require_follower && <span className="text-xs"> · solo si es seguidor</span>}
+                          {a.trigger_type === "comment" && a.media_id && <span> en pub. <code className="text-[10px]">{a.media_id.slice(-8)}</code></span>}
+                          {a.trigger_type === "comment" && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
+                          {a.require_follower && <span className="text-xs text-orange-600 dark:text-orange-400"> · verifica seguidor</span>}
                         </div>
                       </div>
 
@@ -380,15 +478,47 @@ export default function InstagramAutomationsPage() {
                   <Filter className="h-3.5 w-3.5" /> Disparador (cuándo se activa)
                 </h4>
 
+                {/* Trigger type selector */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Tipo de interacción</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {([
+                      { value: "comment", icon: "💬", label: "Comentario en post" },
+                      { value: "story_reply", icon: "📖", label: "Respuesta a story" },
+                      { value: "story_mention", icon: "📣", label: "Mención en story" },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setTriggerType(opt.value)}
+                        className={`flex flex-col items-center gap-1 rounded-lg border-2 py-2.5 px-2 text-center text-xs transition-colors ${
+                          triggerType === opt.value
+                            ? "border-pink-500 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300 font-semibold"
+                            : "border-border hover:border-muted-foreground/40"
+                        }`}
+                      >
+                        <span className="text-base">{opt.icon}</span>
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <Label className="text-xs">Palabras clave (separadas por coma)</Label>
                   <Input
-                    placeholder="Ej: INFO, info, precio, link"
+                    placeholder={
+                      triggerType === "comment" ? "Ej: INFO, precio, link" :
+                      triggerType === "story_reply" ? "Ej: RECURSO, quiero, info — vacío = cualquier respuesta" :
+                      "Vacío = cualquier mención activa la automatización"
+                    }
                     value={keywordsInput}
                     onChange={(e) => setKeywordsInput(e.target.value)}
                   />
                   <p className="text-[10px] text-muted-foreground">
-                    Deja vacío para que se active con cualquier comentario.
+                    {triggerType === "story_mention"
+                      ? "Normalmente se deja vacío — cada vez que alguien te menciona en su story se activa."
+                      : "Deja vacío para activar con cualquier comentario o respuesta."}
                   </p>
                 </div>
 
@@ -405,90 +535,180 @@ export default function InstagramAutomationsPage() {
                   </select>
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Publicación específica (opcional)</Label>
-                  {mediaId ? (
-                    <div className="flex items-center gap-3 rounded-xl border bg-background p-2.5">
-                      <div className="h-14 w-14 rounded-lg overflow-hidden shrink-0 bg-muted flex items-center justify-center">
-                        {mediaPreview?.preview_url ? (
-                          <img src={mediaPreview.preview_url} alt="" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                        )}
+                {triggerType === "comment" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Publicación específica (opcional)</Label>
+                    {mediaId ? (
+                      <div className="flex items-center gap-3 rounded-xl border bg-background p-2.5">
+                        <div className="h-14 w-14 rounded-lg overflow-hidden shrink-0 bg-muted flex items-center justify-center">
+                          {mediaPreview?.preview_url ? (
+                            <img src={mediaPreview.preview_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium truncate">
+                            {mediaPreview?.caption || "Publicación seleccionada"}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground font-mono">
+                            ID: ...{mediaId.slice(-12)}
+                          </p>
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
+                          Cambiar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleMediaPicked(null)}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-medium truncate">
-                          {mediaPreview?.caption || "Publicación seleccionada"}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground font-mono">
-                          ID: ...{mediaId.slice(-12)}
-                        </p>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
-                        Cambiar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleMediaPicked(null)}
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setPickerOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-pink-500/50 hover:text-foreground transition-colors"
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
+                        <ImageIcon className="h-4 w-4" />
+                        Seleccionar publicación...
+                      </button>
+                    )}
+                    <p className="text-[10px] text-muted-foreground">
+                      Si no eliges ninguna, la regla aplica a comentarios en TODAS tus publicaciones.
+                    </p>
+                  </div>
+                )}
+
+                {/* Follower toggle */}
+                <div className="rounded-xl border p-3 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Switch checked={requireFollower} onCheckedChange={setRequireFollower} id="require-follower" />
+                    <Label htmlFor="require-follower" className="text-xs cursor-pointer">
+                      Verificar si el usuario es <span className="font-semibold">seguidor</span> antes de enviar el recurso
+                    </Label>
+                  </div>
+                  {requireFollower && (
+                    <div className="rounded-lg bg-gradient-to-br from-pink-50 to-orange-50 dark:from-pink-950/30 dark:to-orange-950/30 border border-pink-200/60 dark:border-pink-800/40 p-3 space-y-1.5">
+                      <p className="text-[11px] font-semibold text-pink-700 dark:text-pink-300 flex items-center gap-1">
+                        <Zap className="h-3 w-3" /> Flujo tipo ManyChat
+                      </p>
+                      <div className="text-[10px] text-muted-foreground space-y-0.5">
+                        <p>1. Alguien comenta con la palabra clave</p>
+                        <p>2. <span className="font-medium text-green-600">Si ya te sigue</span> → recibe el recurso directo en DM</p>
+                        <p>3. <span className="font-medium text-orange-600">Si no te sigue</span> → recibe el mensaje de abajo y espera</p>
+                        <p>4. Cuando te sigue y escribe, recibe el recurso automáticamente</p>
+                      </div>
                     </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setPickerOpen(true)}
-                      className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-pink-500/50 hover:text-foreground transition-colors"
-                    >
-                      <ImageIcon className="h-4 w-4" />
-                      Seleccionar publicación...
-                    </button>
                   )}
+                </div>
+              </div>
+
+              {/* Action 1: reply to comment — only for post comments */}
+              {triggerType === "comment" && (
+                <div className="rounded-xl border bg-blue-50 dark:bg-blue-950/30 p-4 space-y-2">
+                  <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                    <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> Responder comentario (público, opcional)
+                  </h4>
+                  <Textarea
+                    placeholder="Ej: ¡Te envié toda la info al DM {{username}}! 📨"
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    rows={2}
+                  />
                   <p className="text-[10px] text-muted-foreground">
-                    Si no eliges ninguna, la regla aplica a comentarios en TODAS tus publicaciones.
+                    Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para mencionar. Deja vacío para no responder públicamente.
+                  </p>
+                </div>
+              )}
+
+              {/* DM Messages section — two panels side by side when follower mode on */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5 text-pink-500" /> Mensaje DM privado
+                </h4>
+
+                {/* Follower toggle — visible always, prominent */}
+                <div
+                  className={`rounded-xl border-2 p-3 flex items-start gap-3 cursor-pointer transition-all ${
+                    requireFollower
+                      ? "border-pink-400 bg-pink-50 dark:bg-pink-950/30"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                  onClick={() => setRequireFollower(!requireFollower)}
+                >
+                  <Switch checked={requireFollower} onCheckedChange={setRequireFollower}
+                    onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold">
+                      Verificar si es seguidor antes de enviar
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                      {requireFollower
+                        ? "✅ Activo — seguidores reciben el recurso, no seguidores reciben el mensaje de abajo"
+                        : "Todos reciben el mismo DM sin verificar si siguen tu cuenta"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Follower DM */}
+                <div className={`rounded-xl border p-4 space-y-3 ${
+                  requireFollower
+                    ? "border-green-300 dark:border-green-700 bg-green-50/50 dark:bg-green-950/20"
+                    : "bg-muted/20"
+                }`}>
+                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                    {requireFollower
+                      ? <><span className="text-base">✅</span> DM para <span className="text-green-700 dark:text-green-400">seguidores</span> — el recurso o lead magnet</>
+                      : <><span className="text-base">💬</span> Mensaje DM</>
+                    }
+                  </p>
+                  <Textarea
+                    placeholder={requireFollower
+                      ? "Ej: ¡Hola {{username}}! 🎉 Aquí está tu recurso:\n\n👉 https://tulink.com/recurso\n\n¡Gracias por seguirme!"
+                      : "Ej: ¡Hola {{username}}! Aquí está la info:\n\n👉 https://miempresa.com/oferta"}
+                    value={dmText}
+                    onChange={(e) => setDmText(e.target.value)}
+                    rows={3}
+                  />
+                  <ButtonBuilder
+                    buttons={dmButtons}
+                    onChange={setDmButtons}
+                    label="Botones con enlace (opcional, máx 3)"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para personalizar.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2">
-                  <Switch checked={requireFollower} onCheckedChange={setRequireFollower} />
-                  <Label className="text-xs cursor-pointer" onClick={() => setRequireFollower(!requireFollower)}>
-                    Solo activar si el usuario es <span className="font-semibold">seguidor</span>
-                  </Label>
-                </div>
-              </div>
-
-              {/* Action 1: reply to comment */}
-              <div className="rounded-xl border bg-blue-50 dark:bg-blue-950/30 p-4 space-y-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                  <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> Acción 1 — Responder comentario (público)
-                </h4>
-                <Textarea
-                  placeholder="Ej: ¡Te envié toda la info al DM {{username}}! 📨"
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  rows={2}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para mencionar al comentador. Deja vacío para no responder.
-                </p>
-              </div>
-
-              {/* Action 2: send DM */}
-              <div className="rounded-xl border bg-pink-50 dark:bg-pink-950/30 p-4 space-y-2">
-                <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                  <MessageSquare className="h-3.5 w-3.5 text-pink-500" /> Acción 2 — Enviar DM privado
-                </h4>
-                <Textarea
-                  placeholder={`Ej: ¡Hola {{username}}! Aquí está toda la info que pediste:\n\n👉 https://miempresa.com/oferta\n\nCualquier pregunta, escríbeme.`}
-                  value={dmText}
-                  onChange={(e) => setDmText(e.target.value)}
-                  rows={4}
-                />
-                <p className="text-[10px] text-muted-foreground">
-                  Usa <code className="bg-muted px-1 rounded">{`{{username}}`}</code> para personalizar. Deja vacío para no enviar DM.
-                </p>
+                {/* Non-follower DM — ALWAYS visible when require_follower is on, clearly labelled */}
+                {requireFollower && (
+                  <div className="rounded-xl border-2 border-orange-300 dark:border-orange-700 bg-orange-50/60 dark:bg-orange-950/20 p-4 space-y-3">
+                    <p className="text-xs font-semibold flex items-center gap-1.5">
+                      <span className="text-base">⏳</span> DM para <span className="text-orange-600 dark:text-orange-400">NO seguidores</span> — pídeles que te sigan primero
+                    </p>
+                    <p className="text-[10px] text-orange-700 dark:text-orange-400">
+                      Cuando te sigan y te escriban de vuelta, recibirán el recurso de arriba <strong>automáticamente</strong>.
+                    </p>
+                    <Textarea
+                      placeholder={"Ej: ¡Hola {{username}}! 👋\n\nPara enviarte el recurso necesito que primero me sigas 🙏\n\n👉 Sígueme @tucuenta\n\nUna vez que me sigas, escríbeme aquí y te lo mando de inmediato! 📩"}
+                      value={dmNonFollowerText}
+                      onChange={(e) => setDmNonFollowerText(e.target.value)}
+                      rows={4}
+                    />
+                    <ButtonBuilder
+                      buttons={dmButtonsNonFollower}
+                      onChange={setDmButtonsNonFollower}
+                      label="Botones con enlace (ej: enlace a tu perfil)"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Deja vacío para no enviar DM a no seguidores (solo seguidores recibirán el recurso).
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-2 pt-2">

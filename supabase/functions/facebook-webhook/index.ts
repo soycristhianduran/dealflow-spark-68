@@ -618,12 +618,18 @@ async function processInstagramMessenger(
   const igMessageId = msg.mid ?? null;
   const timestamp = event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString();
 
+  // Detect if this is a story reply (Meta wraps it inside message.reply_to.story)
+  const storyReply = msg.reply_to?.story ?? null;
+  const isStoryReply = !!storyReply;
+
   const conversationId = await upsertIgConversation(supabase, {
     user_id: account.user_id,
     ig_account_id: account.id,
     participant_id: senderId,
     last_message_at: timestamp,
-    last_message_preview: messageText.substring(0, 200) || `[${messageType}]`,
+    last_message_preview: isStoryReply
+      ? `📖 Respondió tu story: ${messageText.substring(0, 150) || "[adjunto]"}`
+      : (messageText.substring(0, 200) || `[${messageType}]`),
     increment_unread: true,
   });
 
@@ -639,9 +645,9 @@ async function processInstagramMessenger(
     ig_account_id: account.id,
     ig_message_id: igMessageId,
     direction: "incoming",
-    message_type: messageType,
+    message_type: isStoryReply ? "story_reply" : messageType,
     message_text: messageText || null,
-    attachment_url: attachmentUrl,
+    attachment_url: attachmentUrl ?? (storyReply?.url || null),
     sender_id: senderId,
     recipient_id: recipientId,
     status: "received",
@@ -649,7 +655,161 @@ async function processInstagramMessenger(
     sent_at: timestamp,
   });
 
-  console.log(`IG DM stored: from=${senderId} to=${recipientId} text=${messageText.substring(0, 60)}`);
+  console.log(`IG ${isStoryReply ? "story reply" : "DM"} stored: from=${senderId} text=${messageText.substring(0, 60)}`);
+
+  // ── Story reply automations ────────────────────────────────────────────────
+  if (isStoryReply) {
+    try {
+      const { data: storyAutos } = await supabase
+        .from("instagram_comment_automations")
+        .select("*")
+        .eq("user_id", account.user_id)
+        .eq("ig_account_id", account.id)
+        .eq("trigger_type", "story_reply")
+        .eq("is_active", true);
+
+      if (storyAutos && storyAutos.length > 0) {
+        const lowerReply = messageText.toLowerCase();
+        const isFollower: boolean = event.sender?.is_follower === true;
+
+        for (const auto of storyAutos) {
+          // Keyword match (optional — empty keywords = match any story reply)
+          const keywords: string[] = (auto.keywords || []).map((k: string) => k.toLowerCase());
+          let matches = keywords.length === 0;
+          if (!matches) {
+            if (auto.match_mode === "exact") matches = keywords.some((k) => lowerReply.trim() === k);
+            else if (auto.match_mode === "all") matches = keywords.every((k) => lowerReply.includes(k));
+            else matches = keywords.some((k) => lowerReply.includes(k));
+          }
+          if (!matches) continue;
+
+          const igToken = account.page_access_token;
+          const igHost = igToken?.startsWith("IGAA")
+            ? "https://graph.instagram.com/v21.0"
+            : "https://graph.facebook.com/v21.0";
+
+          const sendDm = async (text: string, buttons?: any[] | null) => {
+            const r = await fetch(`${igHost}/${recipientId}/messages`, {
+              method: "POST",
+              headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
+              body: JSON.stringify({ recipient: { id: senderId }, message: buildIgMessageBody(text, buttons) }),
+            });
+            const d = await r.json();
+            if (d.error) console.error("story_reply DM failed:", JSON.stringify(d.error));
+            else {
+              await supabase.from("instagram_messages").insert({
+                user_id: account.user_id, conversation_id: conversationId,
+                ig_account_id: account.id, direction: "outgoing", message_type: "text",
+                message_text: text, sender_id: recipientId, recipient_id: senderId,
+                status: "sent", sent_at: new Date().toISOString(), received_at: new Date().toISOString(),
+              });
+            }
+            return !d.error;
+          };
+
+          if (auto.require_follower && auto.dm_message_non_follower) {
+            if (isFollower) {
+              if (auto.dm_message_text) await sendDm(auto.dm_message_text, auto.dm_buttons);
+            } else {
+              const sent = await sendDm(auto.dm_message_non_follower, auto.dm_buttons_non_follower);
+              if (sent && auto.dm_message_text) {
+                const { data: ex } = await supabase
+                  .from("instagram_pending_deliveries")
+                  .select("id").eq("ig_account_id", account.id)
+                  .eq("commenter_id", senderId).eq("status", "waiting_follow").maybeSingle();
+                if (!ex) {
+                  await supabase.from("instagram_pending_deliveries").insert({
+                    user_id: account.user_id, ig_account_id: account.id,
+                    automation_id: auto.id, commenter_id: senderId,
+                    dm_text: auto.dm_message_text,
+                  });
+                }
+              }
+            }
+          } else if (auto.dm_message_text) {
+            await sendDm(auto.dm_message_text, auto.dm_buttons);
+          }
+
+          await supabase.from("instagram_comment_automations")
+            .update({ trigger_count: (auto.trigger_count ?? 0) + 1, last_triggered_at: new Date().toISOString() })
+            .eq("id", auto.id);
+          break;
+        }
+      }
+    } catch (e) {
+      console.warn("Story reply automation error (non-fatal):", e);
+    }
+  }
+
+  // ── Follower-gate: deliver pending lead magnet if sender is now following ──
+  // Meta includes sender.is_follower in DM webhooks — this is the most reliable
+  // follower check available (no extra API call needed).
+  const isNowFollower: boolean = event.sender?.is_follower === true;
+  if (isNowFollower) {
+    try {
+      const { data: pending } = await supabase
+        .from("instagram_pending_deliveries")
+        .select("*")
+        .eq("ig_account_id", account.id)
+        .eq("commenter_id", senderId)
+        .eq("status", "waiting_follow")
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (pending) {
+        // Deliver the resource/lead magnet via DM
+        const igToken = account.page_access_token;
+        const igHost = igToken?.startsWith("IGAA")
+          ? "https://graph.instagram.com/v21.0"
+          : "https://graph.facebook.com/v21.0";
+
+        const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${igToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            recipient: { id: senderId },
+            message: { text: pending.dm_text },
+          }),
+        });
+        const sendData = await sendRes.json();
+
+        if (!sendData.error) {
+          // Mark delivered
+          await supabase
+            .from("instagram_pending_deliveries")
+            .update({ status: "delivered", delivered_at: new Date().toISOString() })
+            .eq("id", pending.id);
+
+          // Save outgoing message to CRM so agent sees it in the thread
+          await supabase.from("instagram_messages").insert({
+            user_id: account.user_id,
+            conversation_id: conversationId,
+            ig_account_id: account.id,
+            direction: "outgoing",
+            message_type: "text",
+            message_text: pending.dm_text,
+            sender_id: recipientId,
+            recipient_id: senderId,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            received_at: new Date().toISOString(),
+            is_ai_generated: false,
+          });
+
+          console.log(`✅ Follower-gate: delivered pending resource to ${senderId}`);
+          return; // Resource delivered — skip AI agent response for this DM
+        } else {
+          console.error("Follower-gate delivery failed:", JSON.stringify(sendData.error));
+        }
+      }
+    } catch (e) {
+      console.warn("Follower-gate check error (non-fatal):", e);
+    }
+  }
 
   // ── AI Agent: respond automatically if enabled ────────────────────────────
   // Awaited inline so it completes within the outer EdgeRuntime.waitUntil work promise.
@@ -707,21 +867,26 @@ async function processInstagramMessenger(
           const part = parts[i];
           if (i > 0) await sleep(700);
 
-          // Send this part via Instagram API
-          await fetch(`${supabaseUrl}/functions/v1/instagram-api`, {
+          // Send directly via Meta Graph API (avoids inter-function auth issues)
+          const igToken = account.page_access_token;
+          const igHost = igToken?.startsWith("IGAA")
+            ? "https://graph.instagram.com/v21.0"
+            : "https://graph.facebook.com/v21.0";
+          const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
             method: "POST",
             headers: {
+              "Authorization": `Bearer ${igToken}`,
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
             },
             body: JSON.stringify({
-              action: "send_message",
-              ig_account_id: account.id,
-              recipient_id: senderId,
-              message: part,
-              user_id: account.user_id,
+              recipient: { id: senderId },
+              message: { text: part },
             }),
           });
+          const sendData = await sendRes.json();
+          if (sendData.error) {
+            console.error("IG AI send_dm failed:", JSON.stringify(sendData.error));
+          }
 
           // Save this part to DB
           await supabase.from("instagram_messages").insert({
@@ -770,9 +935,124 @@ async function processInstagramDirectChange(
   }
 }
 
+// ── Follower check helper ─────────────────────────────────────────────────────
+/**
+ * Try to determine whether `commenterIgUserId` follows the IG account
+ * identified by `igUserId`.
+ *
+ * Meta's Graph API exposes this via the Messenger webhook (sender.is_follower)
+ * for DM events.  For COMMENT events there is no direct `is_follower` field,
+ * so we use the business_discovery endpoint as a best-effort check.
+ *
+ * Returns:
+ *   true  — confirmed follower
+ *   false — confirmed NOT a follower
+ *   null  — could not determine (API error / missing permission)
+ */
+async function checkIsFollower(
+  igUserId: string,
+  commenterIgUserId: string,
+  pageAccessToken: string,
+): Promise<boolean | null> {
+  try {
+    const graphHost = graphHostForToken(pageAccessToken);
+    // The /followers endpoint lets you check a specific user_id in the follower list.
+    const res = await fetch(
+      `${graphHost}/${igUserId}/followers?user_id=${commenterIgUserId}&access_token=${encodeURIComponent(pageAccessToken)}`,
+    );
+    const data = await res.json();
+    if (data.error) {
+      console.warn("checkIsFollower API error:", JSON.stringify(data.error));
+      return null; // cannot determine
+    }
+    // data.data is an array; non-empty means they follow
+    const followerList = data.data ?? [];
+    return followerList.length > 0;
+  } catch (e) {
+    console.warn("checkIsFollower threw:", e);
+    return null;
+  }
+}
+
+/**
+ * Build the message body for a Meta IG DM.
+ *
+ * If `buttons` is provided (and non-empty), we use the Generic Template format
+ * which renders tappable URL buttons inside the DM — the same approach ManyChat
+ * uses.  Otherwise we fall back to a plain text message.
+ *
+ * buttons: [{ title: string, url: string }] — max 3
+ */
+function buildIgMessageBody(text: string, buttons?: { title: string; url: string }[] | null): any {
+  const validBtns = (buttons || []).filter(b => b.title && b.url);
+  if (validBtns.length === 0) {
+    return { text };
+  }
+  // Generic Template: image optional, title = first 80 chars of text,
+  // subtitle = rest of text, buttons = URL buttons.
+  const title = text.substring(0, 80);
+  const subtitle = text.length > 80 ? text.substring(80, 1000) : undefined;
+  return {
+    attachment: {
+      type: "template",
+      payload: {
+        template_type: "generic",
+        elements: [{
+          title,
+          ...(subtitle ? { subtitle } : {}),
+          buttons: validBtns.slice(0, 3).map(b => ({
+            type: "web_url",
+            url: b.url,
+            title: b.title.substring(0, 20),
+          })),
+        }],
+      },
+    },
+  };
+}
+
+/**
+ * Send a private DM using the "Private Reply" flow that Meta offers for
+ * comment-originated conversations (uses comment_id as recipient identifier).
+ */
+async function sendCommentDm(
+  igUserId: string,
+  commentId: string,
+  text: string,
+  pageAccessToken: string,
+  buttons?: { title: string; url: string }[] | null,
+): Promise<{ success: boolean; recipientId?: string }> {
+  const graphHost = graphHostForToken(pageAccessToken);
+  const res = await fetch(`${graphHost}/${igUserId}/messages`, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${pageAccessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      recipient: { comment_id: commentId },
+      message: buildIgMessageBody(text, buttons),
+    }),
+  });
+  const data = await res.json();
+  if (data.error) {
+    console.error("sendCommentDm failed:", JSON.stringify(data.error));
+    return { success: false };
+  }
+  return { success: true, recipientId: data.recipient_id };
+}
+
 /**
  * Process a comment event.  Stores the comment + runs any matching
- * comment-to-DM automations.
+ * comment-to-DM automations, including the follower-gate flow:
+ *
+ *   require_follower = TRUE:
+ *     IS follower    → send dm_message_text (lead magnet / resource)
+ *     NOT follower   → send dm_message_non_follower ("please follow first")
+ *                      + save instagram_pending_deliveries row
+ *
+ *   require_follower = FALSE (default):
+ *     → always send dm_message_text
  */
 async function processInstagramComment(
   supabase: any,
@@ -785,7 +1065,7 @@ async function processInstagramComment(
   const commentId = value.id;
   const mediaId = value.media?.id;
   const parentCommentId = value.parent_id ?? null;
-  const commenterId = value.from?.id;
+  const commenterId = value.from?.id;          // IG user ID (not IGSID)
   const commenterUsername = value.from?.username ?? null;
   const text: string = value.text ?? "";
 
@@ -854,10 +1134,9 @@ async function processInstagramComment(
     }
     if (!matches) continue;
 
-    // Substitute {{username}} placeholder
     const usernameForTemplate = commenterUsername ? `@${commenterUsername}` : "";
 
-    // 1) Public reply on the comment
+    // 1) Public reply on the comment (always fires regardless of follower status)
     if (auto.reply_to_comment_text) {
       try {
         const replyText = auto.reply_to_comment_text.replace(/\{\{username\}\}/g, usernameForTemplate);
@@ -883,36 +1162,70 @@ async function processInstagramComment(
       }
     }
 
-    // 2) Send DM to the commenter
-    if (auto.dm_message_text) {
+    // 2) DM logic — with optional follower gate
+    if (auto.dm_message_text || auto.dm_message_non_follower) {
       try {
-        const dmText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+        if (auto.require_follower && auto.dm_message_non_follower) {
+          // ── FOLLOWER-GATED flow ──────────────────────────────────────────
+          const isFollower = await checkIsFollower(
+            entryId,
+            commenterId,
+            account.page_access_token,
+          );
 
-        // For comment-to-DM we send via the "Private Replies" endpoint which
-        // uses the comment_id as the target, not a user PSID.  This is a special
-        // affordance Meta gives for replying privately to public comments.
-        const res = await fetch(`https://graph.facebook.com/v21.0/${entryId}/messages`, {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${account.page_access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            recipient: { comment_id: commentId },
-            message: { text: dmText },
-          }),
-        });
-        const data = await res.json();
-        if (data.error) {
-          console.error("Automation DM failed:", JSON.stringify(data.error));
-        } else {
-          await supabase
-            .from("instagram_comments")
-            .update({ is_dm_sent: true, matched_automation_id: auto.id })
-            .eq("comment_id", commentId);
+          if (isFollower === true) {
+            // They follow — deliver lead magnet immediately
+            const dmText = (auto.dm_message_text ?? "").replace(/\{\{username\}\}/g, usernameForTemplate);
+            const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
+            if (success) {
+              await supabase.from("instagram_comments")
+                .update({ is_dm_sent: true, matched_automation_id: auto.id })
+                .eq("comment_id", commentId);
+              console.log(`Follower confirmed — lead magnet sent to ${commenterId}`);
+            }
+          } else {
+            // Not a follower (or undetermined) — send "please follow" message
+            // and save a pending delivery for when they follow and DM back.
+            const nonFollowerText = auto.dm_message_non_follower.replace(/\{\{username\}\}/g, usernameForTemplate);
+            const { success: sent } = await sendCommentDm(entryId, commentId, nonFollowerText, account.page_access_token, auto.dm_buttons_non_follower);
+
+            if (sent && auto.dm_message_text) {
+              // Save pending delivery so we can deliver the resource when they
+              // DM us after following (webhook will have sender.is_follower=true)
+              const dmResourceText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+              const { data: existing } = await supabase
+                .from("instagram_pending_deliveries")
+                .select("id")
+                .eq("ig_account_id", account.id)
+                .eq("commenter_id", commenterId)
+                .eq("status", "waiting_follow")
+                .maybeSingle();
+
+              if (!existing) {
+                await supabase.from("instagram_pending_deliveries").insert({
+                  user_id: account.user_id,
+                  ig_account_id: account.id,
+                  automation_id: auto.id,
+                  commenter_id: commenterId,
+                  commenter_username: commenterUsername,
+                  dm_text: dmResourceText,
+                });
+              }
+              console.log(`Non-follower notified — pending delivery saved for ${commenterId}`);
+            }
+          }
+        } else if (auto.dm_message_text) {
+          // ── REGULAR DM (no follower gate) ───────────────────────────────
+          const dmText = auto.dm_message_text.replace(/\{\{username\}\}/g, usernameForTemplate);
+          const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
+          if (success) {
+            await supabase.from("instagram_comments")
+              .update({ is_dm_sent: true, matched_automation_id: auto.id })
+              .eq("comment_id", commentId);
+          }
         }
       } catch (e) {
-        console.error("Error sending DM in automation:", e);
+        console.error("Error in DM automation:", e);
       }
     }
 
@@ -926,6 +1239,107 @@ async function processInstagramComment(
       .eq("id", auto.id);
 
     // Don't fire multiple automations for the same comment
+    break;
+  }
+}
+
+/**
+ * Process a story mention event — fired when someone mentions @yourIGaccount
+ * in their own story.  Meta sends this as a "mentions" change on object=instagram.
+ *
+ * We run matching story_mention automations: typically an auto-DM that thanks
+ * the person or sends them a resource (follower gate supported).
+ */
+async function processInstagramStoryMention(
+  supabase: any,
+  igUserId: string,   // entry.id = the IG business account that was mentioned
+  change: any,
+): Promise<void> {
+  const value = change.value;
+  if (!value) return;
+
+  // mentionerId is the IG user ID who mentioned us (from.id in some payloads,
+  // or sender_id / commenter_id depending on the exact story type).
+  // Meta sends mentions with media_id of the mentioner's story.
+  const mentionerId: string | null = value.sender_id || value.from?.id || null;
+  const mentionerUsername: string | null = value.from?.username ?? null;
+  const storyMediaId: string | null = value.media_id ?? null;
+
+  if (!mentionerId) {
+    console.warn("Story mention without mentioner id:", JSON.stringify(value).substring(0, 300));
+    return;
+  }
+
+  console.log(`Story mention: @account=${igUserId} mentioned by ${mentionerId} in story ${storyMediaId}`);
+
+  const account = await findIgAccountByIgUserId(supabase, igUserId);
+  if (!account) {
+    console.log(`No IG account for ig_user_id=${igUserId}; ignoring mention`);
+    return;
+  }
+
+  // Don't respond to our own story mentions (loop guard)
+  if (mentionerId === igUserId) return;
+
+  // Load active story_mention automations for this account
+  const { data: autos } = await supabase
+    .from("instagram_comment_automations")
+    .select("*")
+    .eq("user_id", account.user_id)
+    .eq("ig_account_id", account.id)
+    .eq("trigger_type", "story_mention")
+    .eq("is_active", true);
+
+  if (!autos || autos.length === 0) return;
+
+  const igToken = account.page_access_token;
+  const igHost = igToken?.startsWith("IGAA")
+    ? "https://graph.instagram.com/v21.0"
+    : "https://graph.facebook.com/v21.0";
+
+  const sendDm = async (text: string, buttons?: any[] | null): Promise<boolean> => {
+    const r = await fetch(`${igHost}/${igUserId}/messages`, {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ recipient: { id: mentionerId }, message: buildIgMessageBody(text, buttons) }),
+    });
+    const d = await r.json();
+    if (d.error) { console.error("story_mention DM failed:", JSON.stringify(d.error)); return false; }
+    return true;
+  };
+
+  for (const auto of autos) {
+    const usernameLabel = mentionerUsername ? `@${mentionerUsername}` : "";
+    const isFollower = await checkIsFollower(igUserId, mentionerId, igToken);
+
+    if (auto.require_follower && auto.dm_message_non_follower) {
+      if (isFollower === true) {
+        if (auto.dm_message_text) {
+          await sendDm(auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons);
+        }
+      } else {
+        const sent = await sendDm(auto.dm_message_non_follower.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons_non_follower);
+        if (sent && auto.dm_message_text) {
+          const { data: ex } = await supabase
+            .from("instagram_pending_deliveries").select("id")
+            .eq("ig_account_id", account.id).eq("commenter_id", mentionerId)
+            .eq("status", "waiting_follow").maybeSingle();
+          if (!ex) {
+            await supabase.from("instagram_pending_deliveries").insert({
+              user_id: account.user_id, ig_account_id: account.id, automation_id: auto.id,
+              commenter_id: mentionerId, commenter_username: mentionerUsername,
+              dm_text: auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel),
+            });
+          }
+        }
+      }
+    } else if (auto.dm_message_text) {
+      await sendDm(auto.dm_message_text.replace(/\{\{username\}\}/g, usernameLabel), auto.dm_buttons);
+    }
+
+    await supabase.from("instagram_comment_automations")
+      .update({ trigger_count: (auto.trigger_count ?? 0) + 1, last_triggered_at: new Date().toISOString() })
+      .eq("id", auto.id);
     break;
   }
 }
@@ -1034,7 +1448,7 @@ Deno.serve(async (req) => {
             // IG Login flow sends DMs as a "messages" change on object=instagram
             await processInstagramDirectChange(supabase, entryId, change);
           } else if (change.field === "mentions") {
-            console.log("Instagram mention received:", JSON.stringify(change.value));
+            await processInstagramStoryMention(supabase, entryId, change);
           }
         } catch (err) {
           console.error(`Unhandled error processing ${change.field} change:`, err);
