@@ -302,6 +302,18 @@ Deno.serve(async (req) => {
         throw new Error(`Meta: ${msg} (código ${code})`);
       }
 
+      // Mark number as registered so the UI can detect unregistered numbers
+      let regUpdateQ = supabase
+        .from("whatsapp_configs")
+        .update({ webhook_verified: true })
+        .eq("is_active", true);
+      if (orgId) {
+        regUpdateQ = regUpdateQ.eq("organization_id", orgId);
+      } else {
+        regUpdateQ = regUpdateQ.eq("user_id", user.id);
+      }
+      await regUpdateQ;
+
       return new Response(JSON.stringify({ success: true, result: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

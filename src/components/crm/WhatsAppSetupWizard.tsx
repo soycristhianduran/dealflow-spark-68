@@ -292,6 +292,22 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
           </div>
 
           <div className="p-6 space-y-5">
+            {/* ⚠️ Unregistered number alert */}
+            {wa.configs.some(c => !c.webhook_verified) && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 flex items-start gap-2">
+                <span className="text-amber-500 mt-0.5 shrink-0">⚠️</span>
+                <div className="text-xs text-amber-800 dark:text-amber-300">
+                  <p className="font-semibold mb-0.5">Número pendiente de activación</p>
+                  <p>Un número conectado aún no está registrado en WhatsApp Cloud API. Sin este paso no podrás enviar mensajes ni plantillas.</p>
+                  <button
+                    className="mt-1.5 underline font-medium hover:opacity-80"
+                    onClick={() => setRegisterDialogOpen(true)}
+                  >
+                    Activar ahora →
+                  </button>
+                </div>
+              </div>
+            )}
             {/* Numbers list */}
             <div className="space-y-2">
               {wa.configs.map((cfg) => (
