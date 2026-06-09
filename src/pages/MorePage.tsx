@@ -4,7 +4,7 @@ import { NavLink } from "@/components/NavLink";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   Building2, CalendarDays, CheckSquare, Plug, Settings,
-  Bot, Mail, Globe, Zap, TrendingUp, PhoneCall, Sparkles, MessageSquare,
+  Bot, Mail, Globe, Zap, TrendingUp, PhoneCall, Sparkles, MessageSquare, CreditCard, PenLine,
 } from "lucide-react";
 
 const moreItems = [
@@ -15,11 +15,13 @@ const moreItems = [
   { title: "Agente de Chat",        url: "/ai-agent",               icon: Bot           },
   { title: "Agente de Voz",         url: "/calling-agent",          icon: PhoneCall     },
   { title: "Campañas Email",        url: "/email-campaigns",        icon: Mail          },
+  { title: "Email Builder",         url: "/email-builder",          icon: PenLine       },
   { title: "Landings",              url: "/landing-builder",        icon: Globe         },
   { title: "Flujos (Automatiz.)",   url: "/automations",            icon: Zap           },
   { title: "Autom. Instagram",      url: "/instagram/automations",  icon: Sparkles      },
   { title: "Plantillas WhatsApp",   url: "/whatsapp/templates",     icon: MessageSquare },
   { title: "Meta Ads",              url: "/meta-ads",               icon: TrendingUp    },
+  { title: "Facturación",           url: "/billing",                icon: CreditCard    },
   { title: "Configuración",         url: "/settings",               icon: Settings      },
 ];
 
