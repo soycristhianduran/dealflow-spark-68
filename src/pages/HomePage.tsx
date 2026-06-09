@@ -77,16 +77,16 @@ const klosifyIncludes = [
 
 const integrationLogos: IntegrationLogo[] = [
   { domain: "whatsapp.com",  name: "WhatsApp",  brandColor: "bg-green-600" },
-  { domain: "meta.com",      name: "Meta",      brandColor: "bg-blue-600"  },
+  { domain: "meta.com",      name: "Meta Ads",  brandColor: "bg-blue-600"  },
   { domain: "instagram.com", name: "Instagram", brandColor: "bg-pink-600"  },
-  { domain: "tiktok.com",    name: "TikTok",    brandColor: "bg-slate-700" },
   { domain: "google.com",    name: "Google",    brandColor: "bg-blue-500"  },
+  { domain: "stripe.com",    name: "Stripe",    brandColor: "bg-violet-600"},
 ];
 
 const testimonials: Testimonial[] = [
-  { quote: "En 2 semanas ya recuperamos la inversión. El lead scoring de la IA nos cambió completamente cómo priorizamos el trabajo.", name: "Carlos Mendoza", role: "Director Comercial", company: "AgenciaPro", initials: "CM", color: "bg-blue-600" },
-  { quote: "Teníamos 5 herramientas distintas. Ahora todo está en Klosify y pagamos menos de la mitad. La integración con WhatsApp es impecable.", name: "Laura Gómez", role: "CEO", company: "VentasDigitales", initials: "LG", color: "bg-purple-600" },
-  { quote: "Las landings con IA nos ahorran horas cada semana. Los leads llegan directo al pipeline, ya calificados por la IA.", name: "Andrés Torres", role: "Marketing Manager", company: "StartupBogotá", initials: "AT", color: "bg-teal-600" },
+  { quote: "El lead scoring de la IA nos cambió cómo priorizamos. En 2 semanas ya recuperamos la inversión.", name: "Carlos M.", role: "Director Comercial", company: "Agencia de ventas · Colombia", initials: "CM", color: "bg-blue-600" },
+  { quote: "Teníamos Kommo, ManyChat y Zapier. Ahora solo usamos Klosify y pagamos menos de la mitad.", name: "Laura G.", role: "CEO", company: "E-commerce · México", initials: "LG", color: "bg-purple-600" },
+  { quote: "El agente IA responde a las 2am cuando yo ya no puedo. Los leads llegan calificados a la mañana.", name: "Andrés T.", role: "Fundador", company: "Inmobiliaria · Bogotá", initials: "AT", color: "bg-teal-600" },
 ];
 
 const addOns: AddOn[] = [
@@ -619,18 +619,18 @@ export default function HomePage() {
               <div>
                 <div className="hero-anim inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-7" style={{ animationDelay: "0ms" }}>
                   <Sparkles className="w-3.5 h-3.5" />
-                  Nuevo — IA Boost: scoring automático de leads
+                  IA nativa · Agente 24/7 · WhatsApp + Instagram
                 </div>
 
                 <h1 className="hero-anim text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight" style={{ animationDelay: "80ms" }}>
-                  El CRM para equipos que
+                  El CRM con IA que
                   <br />
-                  <span className="gradient-text">venden por WhatsApp</span>
+                  <span className="gradient-text">cierra ventas por ti</span>
                 </h1>
 
                 <p className="hero-anim text-lg text-slate-400 mt-6 leading-relaxed max-w-lg" style={{ animationDelay: "180ms" }}>
-                  Pipeline de ventas, WhatsApp Business nativo, Meta Ads con ROAS y landing
-                  pages con IA — todo desde <span className="text-white font-semibold">$29/mes</span>.
+                  Lead scoring automático, agente IA 24/7 en WhatsApp e Instagram, Meta Ads con
+                  ROAS y pipeline visual — todo desde <span className="text-white font-semibold">$29/mes</span>.
                 </p>
 
                 <div className="hero-anim flex flex-col sm:flex-row items-start gap-4 mt-10" style={{ animationDelay: "280ms" }}>
@@ -677,10 +677,10 @@ export default function HomePage() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { icon: Users,         val: "2,400+", label: "Equipos activos"       },
-                { icon: TrendingUp,    val: "$4.2M",  label: "En ventas gestionadas" },
-                { icon: MessageCircle, val: "1.2M",   label: "Mensajes WhatsApp/mes" },
-                { icon: Activity,      val: "99.9%",  label: "Uptime garantizado"    },
+                { icon: Users,         val: "800+",   label: "Equipos activos"        },
+                { icon: TrendingUp,    val: "3.4×",   label: "ROAS promedio reportado" },
+                { icon: MessageCircle, val: "98%",    label: "Leads respondidos en <5min" },
+                { icon: Activity,      val: "99.9%",  label: "Uptime garantizado"     },
               ].map(({ icon: Icon, val, label }, i) => (
                 <FadeUp key={label} delay={i * 80}>
                   <Icon className="w-4 h-4 text-orange-500/60 mx-auto mb-2" />
@@ -943,8 +943,8 @@ export default function HomePage() {
                           <div key={i} className="h-px w-10 bg-gradient-to-r from-slate-700 to-orange-500/60" />
                         ))}
                       </div>
-                      <div className="w-14 h-14 bg-gradient-to-br from-orange-400 to-orange-600 rounded-2xl flex items-center justify-center shadow-xl shadow-orange-500/30 flex-shrink-0 group-hover:scale-105 transition-transform">
-                        <Zap className="w-7 h-7 text-white fill-white" />
+                      <div className="flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform drop-shadow-xl">
+                        <KlosifyLogo size={56} />
                       </div>
                     </div>
                     <div className="mt-4 flex items-center gap-1.5">
