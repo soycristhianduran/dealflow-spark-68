@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   MessageCircle, BarChart3, Brain, GitBranch, Check, X, Menu, Shield,
   TrendingUp, Layout, Plus, Minus, Zap, Sparkles, Star, BadgePercent,
-  Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot,
+  Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot, PhoneCall, PieChart,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -745,20 +745,23 @@ export default function HomePage() {
                 <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_0%,rgba(59,130,246,0.07),transparent)] pointer-events-none" />
                   <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
-                    <BarChart3 className="w-5 h-5 text-white" />
+                    <PieChart className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Meta Ads + ROAS Real</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Conecta Facebook e Instagram Ads y ve el retorno real de cada peso.</p>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Dashboard Marketing & Ventas</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">Sincroniza Meta Ads y ve en un solo lugar tus métricas de marketing, pipeline y ROAS real.</p>
                   </div>
-                  <div className="flex items-end gap-1.5 h-16 mt-auto">
-                    {[40, 65, 45, 80, 55, 90, 70].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-sm transition-all duration-300 group-hover:opacity-100" style={{ height: `${h}%`, background: i === 5 ? "#f97316" : "#334155", opacity: 0.85 }} />
+                  <div className="space-y-2 mt-auto">
+                    {[
+                      { label: "Inversión Ads", val: "$1.2k", color: "text-blue-400" },
+                      { label: "Ingresos pipeline", val: "$4.1k", color: "text-green-400" },
+                      { label: "ROAS", val: "3.4×", color: "text-orange-400" },
+                    ].map((r) => (
+                      <div key={r.label} className="flex items-center justify-between">
+                        <span className="text-xs text-slate-500">{r.label}</span>
+                        <span className={`text-sm font-bold font-mono ${r.color}`}>{r.val}</span>
+                      </div>
                     ))}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-slate-500">ROAS promedio</span>
-                    <span className="text-lg font-black text-orange-400 font-mono">3.4×</span>
                   </div>
                 </div>
               </FadeUp>
@@ -818,18 +821,24 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp delay={100}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-purple-500/20 hover:shadow-xl hover:shadow-purple-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_100%_100%,rgba(168,85,247,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
-                    <Layout className="w-5 h-5 text-white" />
+                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_100%_100%,rgba(6,182,212,0.07),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-cyan-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                    <PhoneCall className="w-5 h-5 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Landings con IA</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Describe tu página en texto y la IA la genera lista para publicar.</p>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Analizador de Llamadas</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.</p>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-auto">
-                    {["Editor visual", "Leads → CRM automático", "Publicación instantánea"].map((t) => (
-                      <span key={t} className="text-xs text-purple-400/80 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded-full">{t}</span>
+                  <div className="space-y-2 mt-auto">
+                    {[
+                      { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
+                      { label: "Intención de compra", tag: "Alta — 8.7/10", color: "text-green-400 bg-green-500/10 border-green-500/20" },
+                    ].map((r) => (
+                      <div key={r.label} className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500 shrink-0">{r.label}</span>
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${r.color}`}>{r.tag}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
