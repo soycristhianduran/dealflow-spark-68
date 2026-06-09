@@ -625,7 +625,9 @@ export default function HomePage() {
                 <h1 className="hero-anim text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight" style={{ animationDelay: "80ms" }}>
                   El CRM con IA que
                   <br />
-                  <span className="gradient-text">cierra ventas por ti</span>
+                  <span className="gradient-text">hace el trabajo fuerte.</span>
+                  <br />
+                  <span className="text-white">Tu equipo solo cierra.</span>
                 </h1>
 
                 <p className="hero-anim text-lg text-slate-400 mt-6 leading-relaxed max-w-lg" style={{ animationDelay: "180ms" }}>
