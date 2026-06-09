@@ -595,7 +595,7 @@ export default function PipelinePage() {
           </div>
         }
       />
-      <main className="flex-1 overflow-x-auto p-6 scrollbar-thin">
+      <main className="flex-1 overflow-x-auto p-2 sm:p-6 scrollbar-thin">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -622,7 +622,7 @@ export default function PipelinePage() {
                   }}
                   onDragEnd={() => { setDraggedStageId(null); setDragOverStageCol(null); }}
                   className={cn(
-                    "flex w-72 flex-col rounded-lg bg-muted/50 transition-all",
+                    "flex w-[260px] sm:w-72 flex-col rounded-lg bg-muted/50 transition-all",
                     !manageMode && dragOverStage === stage.id && "ring-2 ring-primary/40 bg-primary/5",
                     manageMode && dragOverStageCol === stage.id && draggedStageId !== stage.id && "ring-2 ring-primary/40",
                     manageMode && draggedStageId === stage.id && "opacity-50 scale-95",
@@ -758,7 +758,7 @@ export default function PipelinePage() {
             {manageMode && (
               <button
                 onClick={openAddStage}
-                className="flex w-72 flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 transition-colors gap-2 py-12"
+                className="flex w-[260px] sm:w-72 flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 transition-colors gap-2 py-12"
               >
                 <Plus className="h-5 w-5 text-muted-foreground" />
                 <span className="text-sm text-muted-foreground">Agregar etapa</span>

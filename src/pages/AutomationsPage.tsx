@@ -2285,9 +2285,9 @@ function AutomationCard({
 
   return (
     <div className="group rounded-xl border bg-card hover:shadow-md transition-all">
-      <div className="flex items-center gap-4 p-4">
+      <div className="flex items-start gap-3 p-4">
         {/* Active toggle */}
-        <Switch checked={automation.is_active} onCheckedChange={onToggle} className="shrink-0" />
+        <Switch checked={automation.is_active} onCheckedChange={onToggle} className="shrink-0 mt-0.5" />
 
         {/* Info */}
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onEdit}>
@@ -2296,7 +2296,7 @@ function AutomationCard({
             <Badge variant="secondary" className={automation.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}>
               {automation.is_active ? "Activa" : "Inactiva"}
             </Badge>
-            <Badge variant="outline" className="text-xs">{TRIGGER_LABELS[automation.trigger_type] || automation.trigger_type}</Badge>
+            <Badge variant="outline" className="text-xs hidden sm:inline-flex">{TRIGGER_LABELS[automation.trigger_type] || automation.trigger_type}</Badge>
           </div>
           {automation.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{automation.description}</p>}
           <div className="flex items-center gap-3 mt-2">
@@ -2320,10 +2320,22 @@ function AutomationCard({
               <Users className="h-3 w-3" />{automation._enrollment_count || 0} enrolamientos
             </span>
           </div>
+          {/* Actions — shown below on mobile */}
+          <div className="flex items-center gap-1 mt-3 sm:hidden">
+            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEnroll(); }} disabled={!automation.is_active}>
+              <Play className="h-3.5 w-3.5 mr-1" />Enrolar
+            </Button>
+            <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
+              <Edit className="h-3.5 w-3.5 mr-1" />Editar
+            </Button>
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-1 shrink-0">
+        {/* Actions — desktop only */}
+        <div className="hidden sm:flex items-center gap-1 shrink-0">
           <Button variant="ghost" size="sm" onClick={onEnroll} disabled={!automation.is_active} title={!automation.is_active ? "Activa para enrolar" : undefined}>
             <Play className="h-3.5 w-3.5 mr-1" />Enrolar
           </Button>

@@ -580,7 +580,7 @@ export default function ConversationsPage() {
     <AppLayout>
       <div className="flex h-[calc(100vh-3.5rem)]">
         {/* ===== LEFT: list ===== */}
-        <aside className="w-96 border-r flex flex-col">
+        <aside className={`${selected ? "hidden md:flex" : "flex"} w-full md:w-96 border-r flex-col`}>
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h1 className="font-bold text-base">Conversaciones</h1>
@@ -628,7 +628,7 @@ export default function ConversationsPage() {
         </aside>
 
         {/* ===== RIGHT: chat ===== */}
-        <main className="flex-1 flex flex-col">
+        <main className={`${selected ? "flex" : "hidden md:flex"} flex-1 flex-col`}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2 max-w-sm">
@@ -640,6 +640,14 @@ export default function ConversationsPage() {
             <>
               {/* Chat header */}
               <div className="border-b p-4 flex items-center gap-3">
+                {/* Back button — mobile only */}
+                <button
+                  className="md:hidden mr-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => setSelected(null)}
+                  aria-label="Volver"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                </button>
                 <ChannelBadge channel={selected.channel} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{selected.display_name}</p>
