@@ -314,6 +314,27 @@ Deno.serve(async (req) => {
       }
       await regUpdateQ;
 
+      // Auto-subscribe WABA to webhook after registration so incoming messages work
+      // without any manual step from the user.
+      try {
+        const { data: wabaConfig } = await supabase
+          .from("whatsapp_configs")
+          .select("waba_id, access_token")
+          .eq("is_active", true)
+          .eq(orgId ? "organization_id" : "user_id", orgId ?? user.id)
+          .maybeSingle();
+        if (wabaConfig?.waba_id && wabaConfig?.access_token) {
+          const subRes = await fetch(`${GRAPH_API}/${wabaConfig.waba_id}/subscribed_apps`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${wabaConfig.access_token}` },
+          });
+          const subData = await subRes.json();
+          console.log("Auto subscribe_waba after register:", JSON.stringify(subData));
+        }
+      } catch (subErr) {
+        console.warn("Auto subscribe_waba failed (non-fatal):", subErr);
+      }
+
       return new Response(JSON.stringify({ success: true, result: data }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -339,12 +360,11 @@ Deno.serve(async (req) => {
       const { data: config } = await wabaQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
-      // Prefer App Access Token (APP_ID|APP_SECRET) so that we subscribe the
-      // Klosify app specifically, not whatever app issued the user token.
-      // Falls back to user token when app secret is not set.
-      const authToken = (META_APP_ID && META_APP_SECRET)
-        ? `${META_APP_ID}|${META_APP_SECRET}`
-        : config.access_token;
+      // Always use the customer's own access token to subscribe their WABA.
+      // The App Access Token (APP_ID|APP_SECRET) only works for Klosify's own
+      // system-user WABAs — for customer WABAs connected via OAuth, only their
+      // user token (with whatsapp_business_management permission) has access.
+      const authToken = config.access_token;
 
       const res = await fetch(`${GRAPH_API}/${config.waba_id}/subscribed_apps`, {
         method: "POST",
