@@ -328,11 +328,14 @@ Deno.serve(async (req) => {
       let wabaQ = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
-        .eq("user_id", user.id)
         .eq("is_active", true)
         .order("created_at", { ascending: false })
         .limit(1);
-      if (orgId) wabaQ = wabaQ.eq("organization_id", orgId);
+      if (orgId) {
+        wabaQ = wabaQ.eq("organization_id", orgId);
+      } else {
+        wabaQ = wabaQ.eq("user_id", user.id);
+      }
       const { data: config } = await wabaQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
