@@ -5,7 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   MessageCircle, BarChart3, Brain, GitBranch, Check, X, Menu, Shield,
   TrendingUp, Layout, Plus, Minus, Zap, Sparkles, Star, BadgePercent,
-  Wand2, Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot,
+  Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -31,23 +31,23 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter", monthly: 29, annual: 24,
     desc: "Para emprendedores que están comenzando",
-    features: ["1 usuario", "500 contactos", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Todas las integraciones", "Agente IA — 100 conversaciones/mes"],
-    notIncluded: ["IA Boost (scoring)", "Automatizaciones de Instagram"],
+    features: ["1 usuario", "500 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Agente IA — 100 conversaciones/mes"],
+    notIncluded: ["IA Boost (scoring)", "Detección de objeciones IA", "Automatizaciones de Instagram", "Email campaigns", "API access"],
     cta: "Empezar gratis", popular: false,
   },
   {
     id: "pro",
     name: "Pro", monthly: 39, annual: 32,
     desc: "Para equipos de ventas en crecimiento",
-    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 leads/mes", "Agente IA — 500 conversaciones/mes", "Automatizaciones de Instagram", "WhatsApp Business nativo", "Meta Ads + ROAS"],
-    notIncluded: [],
+    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 análisis/mes", "Detección de objeciones IA", "Agente IA — 500 conversaciones/mes", "Agente de voz (llamadas)", "Automatizaciones de Instagram", "Email campaigns", "WhatsApp Business nativo", "Meta Ads + ROAS"],
+    notIncluded: ["API access"],
     cta: "Comenzar ahora →", popular: true,
   },
   {
     id: "business",
     name: "Business", monthly: 89, annual: 74,
     desc: "Para agencias y equipos grandes",
-    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 leads/mes", "Agente IA — 2.500 conversaciones/mes", "Soporte prioritario", "Todo lo del Pro"],
+    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 análisis/mes", "Agente IA — 2.500 conversaciones/mes", "Agente de voz (llamadas)", "Email campaigns", "API access", "Soporte prioritario + onboarding 1-on-1", "Todo lo del Pro"],
     notIncluded: [],
     cta: "Suscribirse ahora →", popular: false,
   },
@@ -59,20 +59,20 @@ const faqItems: FaqItem[] = [
   { q: "¿Qué pasa cuando se acaban mis créditos de IA?", a: "Puedes comprar paquetes adicionales desde $9 en cualquier momento, sin necesidad de cambiar de plan." },
   { q: "¿Hay contrato de permanencia?", a: "No. Cancela cuando quieras. Si cancelas, conservas el acceso hasta el final del período pagado." },
   { q: "¿Los precios son en dólares?", a: "Sí, en USD. Aceptamos tarjetas de crédito/débito internacionales a través de Stripe, de forma segura." },
-  { q: "¿Puedo importar mis contactos actuales?", a: "Sí. Importa contactos desde Excel o CSV en segundos. También soportamos importación desde otros CRMs." },
+  { q: "¿Puedo importar mis contactos actuales?", a: "Sí. Importa contactos desde Excel o CSV en segundos, sin límite de filas." },
 ];
 
 const toolStack: StackTool[] = [
   { domain: "kommo.com",     name: "Kommo CRM",          price: "$50/mes", brandColor: "bg-blue-600"   },
-  { domain: "lovable.dev",   name: "Lovable",             price: "$25/mes", brandColor: "bg-rose-500"   },
-  { domain: "zapier.com",    name: "Zapier Professional", price: "$49/mes", brandColor: "bg-orange-500" },
+  { domain: "webflow.com",   name: "Webflow (landings)",  price: "$23/mes", brandColor: "bg-rose-500"   },
+  { domain: "zapier.com",    name: "Zapier Professional", price: "$69/mes", brandColor: "bg-orange-500" },
   { domain: "mailchimp.com", name: "Mailchimp Standard",  price: "$20/mes", brandColor: "bg-yellow-500" },
   { domain: "manychat.com",  name: "ManyChat Pro",        price: "$15/mes", brandColor: "bg-blue-500"   },
 ];
 
 const klosifyIncludes = [
-  "CRM completo", "Landings con IA", "Integraciones nativas (sin Zapier)",
-  "Email marketing", "Automatizaciones Instagram", "WhatsApp Business nativo", "Meta Ads + ROAS",
+  "CRM completo (pipeline, contactos, empresas)", "Calendario y tareas", "Landings con IA", "Integraciones nativas (sin Zapier)",
+  "Email campaigns", "Automatizaciones WhatsApp + Instagram", "Agente IA + Agente de voz", "WhatsApp Business nativo", "Meta Ads + ROAS",
 ];
 
 const integrationLogos: IntegrationLogo[] = [
@@ -90,9 +90,8 @@ const testimonials: Testimonial[] = [
 ];
 
 const addOns: AddOn[] = [
-  { icon: Wand2,    label: "+500K tokens IA Landings",  price: "$12",    iconColor: "text-purple-600", iconBg: "bg-purple-100" },
-  { icon: Target,   label: "+1.000 IA Boost", price: "$9",    iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
-  { icon: Rocket,   label: "+5.000 IA Boost", price: "$39",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
+  { icon: Target,   label: "+1.000 IA Boost (análisis + objeciones)", price: "$19",   iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
+  { icon: Rocket,   label: "+5.000 IA Boost (análisis + objeciones)", price: "$39",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
   { icon: UserPlus, label: "Seat adicional",  price: "$9/mes",iconColor: "text-teal-600",   iconBg: "bg-teal-100"   },
 ];
 
@@ -289,7 +288,7 @@ const marqueeRow1 = [
 const marqueeRow2 = [
   "Sin contratos de permanencia",
   "Soporte en español",
-  "Datos alojados en LATAM",
+  "Datos cifrados 256-bit",
   "Setup en menos de 30 min",
   "Sin tarjeta de crédito",
   "API de WhatsApp oficial",
@@ -733,7 +732,7 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["Plantillas Meta", "Respuestas automáticas", "Bandeja multiagente"].map((t) => (
+                    {["Plantillas Meta", "Respuestas automáticas", "WhatsApp + Instagram DMs"].map((t) => (
                       <span key={t} className="text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">{t}</span>
                     ))}
                   </div>
@@ -827,7 +826,7 @@ export default function HomePage() {
                     <p className="text-slate-400 text-sm leading-relaxed">Describe tu página en texto y la IA la genera lista para publicar.</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-auto">
-                    {["Drag & drop", "Leads → CRM automático", "Subdominio gratis"].map((t) => (
+                    {["Editor visual", "Leads → CRM automático", "Publicación instantánea"].map((t) => (
                       <span key={t} className="text-xs text-purple-400/80 bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded-full">{t}</span>
                     ))}
                   </div>
@@ -845,7 +844,7 @@ export default function HomePage() {
                     <p className="text-slate-400 text-sm leading-relaxed">Flujos que trabajan 24/7 para WhatsApp, asignación y seguimientos.</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-auto">
-                    {["WhatsApp + email", "Condiciones", "Plantillas por industria"].map((t) => (
+                    {["WhatsApp + email", "Condiciones y filtros", "Disparadores automáticos"].map((t) => (
                       <span key={t} className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">{t}</span>
                     ))}
                   </div>
@@ -869,7 +868,7 @@ export default function HomePage() {
                     <div className="space-y-2.5">
                       {[
                         { msg: "Hola, ¿cuánto cuesta el plan Pro?", time: "23:14", out: false },
-                        { msg: "¡Hola! El plan Pro está a $59/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
+                        { msg: "¡Hola! El plan Pro está a $39/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
                         { msg: "Sí, quiero hablar con alguien para comprarlo", time: "23:15", out: false },
                         { msg: "¡Perfecto! Voy a comunicarte con uno de nuestros asesores ahora mismo 😊", time: "23:15", out: true, ai: true },
                       ].map((m, i) => (
@@ -1078,7 +1077,7 @@ export default function HomePage() {
                     </div>
                     <p className="text-slate-400 text-sm leading-relaxed mb-5">Las automatizaciones hacen el seguimiento por ti. Enfócate solo en los hot leads que están listos para cerrar.</p>
                     <ul className="space-y-2 mt-auto">
-                      {["Seguimientos automáticos por WhatsApp", "Alertas de leads sin respuesta", "Pronóstico de cierre por IA"].map((b) => (
+                      {["Seguimientos automáticos por WhatsApp", "Alertas de leads sin respuesta", "Lead scoring IA en tiempo real"].map((b) => (
                         <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
                           <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
                         </li>
@@ -1127,7 +1126,7 @@ export default function HomePage() {
                   </div>
                   <div className="mt-5 pt-5 border-t border-slate-200 flex items-center justify-between">
                     <span className="text-sm font-medium text-slate-600">Total mensual</span>
-                    <span className="text-2xl font-black text-red-500 font-mono">$159/mes</span>
+                    <span className="text-2xl font-black text-red-500 font-mono">$177/mes</span>
                   </div>
                 </div>
               </FadeUp>
@@ -1156,9 +1155,9 @@ export default function HomePage() {
                   <div className="bg-slate-950 rounded-xl p-5 mt-6 text-center">
                     <p className="text-3xl font-black text-white font-mono mb-2">$39/mes</p>
                     <div className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold mb-2">
-                      <BadgePercent className="w-3.5 h-3.5" /> Ahorras $120/mes
+                      <BadgePercent className="w-3.5 h-3.5" /> Ahorras $138/mes
                     </div>
-                    <p className="text-slate-500 text-xs">$1.440/año en tu bolsillo</p>
+                    <p className="text-slate-500 text-xs">$1.656/año en tu bolsillo</p>
                   </div>
                 </div>
               </FadeUp>
@@ -1267,7 +1266,7 @@ export default function HomePage() {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8">
-                {["Sin setup técnico", "Soporte en español", "Datos seguros en LATAM"].map((b) => (
+                {["Sin setup técnico", "Soporte en español", "Datos cifrados y seguros"].map((b) => (
                   <div key={b} className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
                     <span className="text-sm text-slate-500">{b}</span>
@@ -1284,8 +1283,8 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-10 pb-10 border-b border-slate-800">
               <div className="md:col-span-1">
                 <Link to="/" className="flex items-center gap-2.5 mb-4 group">
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
-                    <Zap className="w-4 h-4 text-white fill-white" />
+                  <div className="group-hover:scale-105 transition-transform">
+                    <KlosifyLogo size={30} />
                   </div>
                   <span className="text-white font-bold">Klosify <span className="text-orange-500">CRM</span></span>
                 </Link>
