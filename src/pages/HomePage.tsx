@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -561,8 +562,8 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex items-center justify-between h-16">
               <Link to="/" className="flex items-center gap-3 flex-shrink-0 group">
-                <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30 group-hover:scale-105 transition-transform">
-                  <Zap className="w-5 h-5 text-white fill-white" />
+                <div className="group-hover:scale-105 transition-transform">
+                  <KlosifyLogo size={36} />
                 </div>
                 <span className="text-white font-bold text-lg tracking-tight">
                   Klosify <span className="text-orange-500">CRM</span>
