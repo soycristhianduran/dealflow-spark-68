@@ -55,8 +55,9 @@ function brandHeader(brandName: string, appUrl: string): string {
   return `
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#0f172a;padding:24px 0;">
       <tr><td align="center">
-        <a href="${appUrl}" style="color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:22px;font-weight:700;text-decoration:none;letter-spacing:-0.4px;">
-          ⚡ ${brandName}
+        <a href="${appUrl}" style="color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:22px;font-weight:700;text-decoration:none;letter-spacing:-0.4px;display:inline-flex;align-items:center;gap:8px;">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28" style="display:inline-block;vertical-align:middle;"><defs><linearGradient id="kg" x1="20" y1="6" x2="80" y2="91" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#FFA01E"/><stop offset="46%" stop-color="#FF6B2C"/><stop offset="100%" stop-color="#E8460E"/></linearGradient></defs><rect x="17" y="6" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="61" y="6" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="28" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="39" y="28" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="50" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="39" y="50" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="72" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="61" y="72" width="19" height="19" rx="5" fill="url(#kg)"/></svg>
+          ${brandName}
         </a>
       </td></tr>
     </table>

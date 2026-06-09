@@ -4,6 +4,7 @@ import {
   CheckSquare, Settings, ChevronLeft, ChevronRight, Zap, Plug,
   BarChart3, MessageSquare, Mail, Sparkles, Globe, TrendingUp, CreditCard, Bot, PhoneCall,
 } from "lucide-react";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { NavLink } from "@/components/NavLink";
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
@@ -149,12 +150,7 @@ export function AppSidebar() {
         {logoUrl ? (
           <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain shrink-0" />
         ) : (
-          <div
-            className="flex h-8 w-8 items-center justify-center rounded-lg shrink-0 shadow-md ring-1 ring-white/10"
-            style={{ backgroundImage: "linear-gradient(135deg, hsl(24 95% 58%) 0%, hsl(18 88% 50%) 100%)" }}
-          >
-            <Zap className="h-4 w-4 text-white fill-white" />
-          </div>
+          <KlosifyLogo size={32} />
         )}
         {!collapsed && (
           <span className="text-base font-bold tracking-tight text-white">

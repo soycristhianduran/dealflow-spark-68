@@ -177,11 +177,24 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
           </div>
 
           {!fb.isConnected && (
-            <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3.5">
-              <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                <span className="font-semibold">Conecta Facebook primero.</span> Instagram requiere acceso vía una página de Facebook vinculada.
+            <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-muted/40 p-6">
+              <p className="text-sm text-muted-foreground text-center max-w-xs">
+                Para conectar Instagram necesitas iniciar sesión con tu cuenta de Meta primero.
               </p>
+              <button
+                onClick={() => fb.connect()}
+                disabled={fb.connecting || fb.metaAppIdLoading}
+                className="flex items-center gap-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166FE5] active:bg-[#1464D8] disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm px-5 py-2.5 transition-colors shadow-sm"
+              >
+                {fb.connecting || fb.metaAppIdLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <svg className="h-4 w-4 fill-white" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+                  </svg>
+                )}
+                Iniciar sesión con Meta
+              </button>
             </div>
           )}
 

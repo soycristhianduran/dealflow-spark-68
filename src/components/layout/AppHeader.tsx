@@ -1,4 +1,5 @@
-import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Zap, Mail, Phone, Building2, Users, Languages } from "lucide-react";
+import { Bell, Search, Sun, Moon, Menu, LogOut, User, Settings, Mail, Phone, Building2, Users, Languages } from "lucide-react";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -115,9 +116,7 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
                 {logoUrl ? (
                   <img src={logoUrl} alt="Logo" className="h-8 w-8 rounded-lg object-contain" />
                 ) : (
-                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-                    <Zap className="h-4 w-4 text-primary-foreground" />
-                  </div>
+                  <KlosifyLogo size={32} />
                 )}
                 <SheetTitle className="text-base font-bold">Klosify CRM</SheetTitle>
               </div>

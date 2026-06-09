@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Zap, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -145,9 +146,7 @@ export default function AuthPage() {
       <Card className="w-full max-w-md border-none shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="flex justify-center mb-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary">
-              <Zap className="h-6 w-6 text-primary-foreground" />
-            </div>
+            <KlosifyLogo size={48} />
           </div>
           <CardTitle className="text-2xl font-bold">Klosify CRM</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">Gestión comercial inteligente</p>

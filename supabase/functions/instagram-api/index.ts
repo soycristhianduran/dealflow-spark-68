@@ -46,14 +46,55 @@ Deno.serve(async (req) => {
     // account attached.  Returns the list so the user can pick which one to
     // connect to the CRM.
     if (action === "list_available_ig_accounts") {
-      const { data: pages, error } = await supabase
-        .from("facebook_pages")
-        .select("page_id, page_name, page_access_token")
-        .eq("user_id", user.id);
-      if (error) throw error;
+      // Get the user's current access token from facebook_tokens
+      const { data: tokenRow } = await supabase
+        .from("facebook_tokens")
+        .select("access_token")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const userAccessToken = tokenRow?.access_token;
+
+      // Build pages list: first try live from Meta using the user token,
+      // then fall back to saved facebook_pages rows.
+      let pagesForCheck: { page_id: string; page_name: string; page_access_token: string }[] = [];
+
+      if (userAccessToken) {
+        try {
+          const accountsRes = await fetch(
+            `${GRAPH_API}/me/accounts?fields=id,name,access_token&limit=50&access_token=${userAccessToken}`
+          );
+          const accountsData = await accountsRes.json();
+          if (accountsData.data) {
+            pagesForCheck = (accountsData.data as any[]).map((p: any) => ({
+              page_id: p.id,
+              page_name: p.name,
+              page_access_token: p.access_token,
+            }));
+            // Also upsert these pages so facebook_pages stays fresh
+            for (const p of pagesForCheck) {
+              await supabase.from("facebook_pages").upsert(
+                { user_id: user.id, page_id: p.page_id, page_name: p.page_name, page_access_token: p.page_access_token },
+                { onConflict: "user_id,page_id" }
+              );
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching pages from Meta:", e);
+        }
+      }
+
+      // If live fetch returned nothing, fall back to saved pages
+      if (pagesForCheck.length === 0) {
+        const { data: savedPages } = await supabase
+          .from("facebook_pages")
+          .select("page_id, page_name, page_access_token")
+          .eq("user_id", user.id);
+        pagesForCheck = savedPages || [];
+      }
 
       const results: any[] = [];
-      for (const page of pages || []) {
+      for (const page of pagesForCheck) {
         try {
           const res = await fetch(
             `${GRAPH_API}/${page.page_id}?fields=instagram_business_account{id,username,profile_picture_url,followers_count}&access_token=${page.page_access_token}`,

@@ -14,7 +14,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Sparkles, ArrowRight, Zap } from "lucide-react";
+import { CheckCircle2, Sparkles, ArrowRight } from "lucide-react";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -105,9 +106,7 @@ export default function PricingPage() {
       <nav className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, hsl(24 95% 58%), hsl(18 88% 50%))" }}>
-              <Zap className="w-4 h-4 text-white fill-white" />
-            </div>
+            <KlosifyLogo size={28} />
             <span className="font-bold text-base tracking-tight">Klosify <span className="text-primary">CRM</span></span>
           </Link>
           <div className="flex items-center gap-3">
