@@ -4,21 +4,23 @@ import { NavLink } from "@/components/NavLink";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import {
   Building2, CalendarDays, CheckSquare, Plug, Settings,
-  Bot, Mail, Globe, Zap, TrendingUp, PhoneCall,
+  Bot, Mail, Globe, Zap, TrendingUp, PhoneCall, Sparkles, MessageSquare,
 } from "lucide-react";
 
 const moreItems = [
-  { title: "Empresas",         url: "/companies",       icon: Building2 },
-  { title: "Calendario",       url: "/calendar",        icon: CalendarDays },
-  { title: "Tareas",           url: "/tasks",           icon: CheckSquare },
-  { title: "Integraciones",    url: "/integrations",    icon: Plug },
-  { title: "Agente de Chat",   url: "/ai-agent",        icon: Bot },
-  { title: "Agente de Voz",    url: "/calling-agent",   icon: PhoneCall },
-  { title: "Campañas Email",   url: "/email-campaigns", icon: Mail },
-  { title: "Landings",         url: "/landing-builder", icon: Globe },
-  { title: "Automatizaciones", url: "/automations",     icon: Zap },
-  { title: "Meta Ads",         url: "/meta-ads",        icon: TrendingUp },
-  { title: "Configuración",    url: "/settings",        icon: Settings },
+  { title: "Empresas",              url: "/companies",              icon: Building2     },
+  { title: "Calendario",            url: "/calendar",               icon: CalendarDays  },
+  { title: "Tareas",                url: "/tasks",                  icon: CheckSquare   },
+  { title: "Integraciones",         url: "/integrations",           icon: Plug          },
+  { title: "Agente de Chat",        url: "/ai-agent",               icon: Bot           },
+  { title: "Agente de Voz",         url: "/calling-agent",          icon: PhoneCall     },
+  { title: "Campañas Email",        url: "/email-campaigns",        icon: Mail          },
+  { title: "Landings",              url: "/landing-builder",        icon: Globe         },
+  { title: "Flujos (Automatiz.)",   url: "/automations",            icon: Zap           },
+  { title: "Autom. Instagram",      url: "/instagram/automations",  icon: Sparkles      },
+  { title: "Plantillas WhatsApp",   url: "/whatsapp/templates",     icon: MessageSquare },
+  { title: "Meta Ads",              url: "/meta-ads",               icon: TrendingUp    },
+  { title: "Configuración",         url: "/settings",               icon: Settings      },
 ];
 
 export default function MorePage() {
