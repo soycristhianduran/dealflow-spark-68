@@ -134,6 +134,7 @@ function FadeUp({
         transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
         willChange: "transform, opacity",
         transformOrigin: from === "scale" ? "left center" : undefined,
+        pointerEvents: visible ? undefined : "none",
       }}
     >
       {children}
