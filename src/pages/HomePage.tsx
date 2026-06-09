@@ -623,11 +623,11 @@ export default function HomePage() {
                 </div>
 
                 <h1 className="hero-anim text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight" style={{ animationDelay: "80ms" }}>
-                  El CRM con IA que
+                  <span className="gradient-text">El CRM con IA</span>
                   <br />
-                  <span className="gradient-text">hace el trabajo fuerte.</span>
+                  que hace el trabajo fuerte.
                   <br />
-                  <span className="text-white">Tu equipo solo cierra.</span>
+                  Tu equipo solo cierra.
                 </h1>
 
                 <p className="hero-anim text-lg text-slate-400 mt-6 leading-relaxed max-w-lg" style={{ animationDelay: "180ms" }}>
