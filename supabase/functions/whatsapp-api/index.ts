@@ -261,11 +261,16 @@ Deno.serve(async (req) => {
         throw new Error("El PIN debe ser de exactamente 6 dígitos numéricos");
       }
 
+      // Query by org_id first (multi-user orgs); fall back to user_id for solo workspaces
       let rpQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
-        .eq("user_id", user.id);
-      if (orgId) rpQ = rpQ.eq("organization_id", orgId);
+        .eq("is_active", true);
+      if (orgId) {
+        rpQ = rpQ.eq("organization_id", orgId);
+      } else {
+        rpQ = rpQ.eq("user_id", user.id);
+      }
       const { data: config } = await rpQ.maybeSingle();
       if (!config?.phone_number_id || !config?.access_token) {
         throw new Error("WhatsApp no está configurado. Conecta primero.");
@@ -1173,9 +1178,12 @@ Deno.serve(async (req) => {
       let stQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
-        .eq("user_id", user.id)
         .eq("is_active", true);
-      if (orgId) stQ = stQ.eq("organization_id", orgId);
+      if (orgId) {
+        stQ = stQ.eq("organization_id", orgId);
+      } else {
+        stQ = stQ.eq("user_id", user.id);
+      }
       const { data: config } = await stQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
