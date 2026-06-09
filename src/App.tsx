@@ -192,6 +192,7 @@ function AppRoutes() {
       <Route path="/estado-eliminacion" element={<DataDeletionStatusPage />} />
       <Route path="/ig/verify/:token" element={<IgVerifyPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
+      <Route path="/privacidad" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
 
