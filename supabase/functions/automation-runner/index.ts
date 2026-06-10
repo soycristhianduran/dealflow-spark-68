@@ -361,7 +361,14 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processEnrollment(enr: any, supabase: any) {
+async function processEnrollment(enr: any, supabase: any, depth = 0) {
+  // Safety bound: prevents an infinite loop if a condition step jumps backwards.
+  if (depth > 50) {
+    await supabase.from("automation_enrollments").update({
+      status: "completed", completed_at: new Date().toISOString(),
+    }).eq("id", enr.id);
+    return;
+  }
   const automation = enr.automations;
   const contact = enr.contacts;
   if (!automation || !contact) {
@@ -791,4 +798,12 @@ async function processEnrollment(enr: any, supabase: any) {
     status: nextStatus,
     logs,
   }).eq("id", enr.id);
+
+  // Continue processing immediately when the next step is NOT a timed wait, so
+  // back-to-back steps (e.g. add_tag -> send_whatsapp) run in the same pass
+  // instead of one-per-cron-tick (up to 5 min apart). Wait steps still pause.
+  if (nextStatus === "active" && nextIndex < steps.length) {
+    const nextEnr = { ...enr, current_step_index: nextIndex, logs };
+    await processEnrollment(nextEnr, supabase, depth + 1);
+  }
 }
