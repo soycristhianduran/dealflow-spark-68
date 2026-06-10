@@ -144,7 +144,11 @@ Deno.serve(async (req) => {
 
     const verifyToken = Deno.env.get("WA_WEBHOOK_VERIFY_TOKEN") || Deno.env.get("FB_WEBHOOK_VERIFY_TOKEN");
 
-    if (mode === "subscribe" && token === verifyToken) {
+    // Also accept a stable fallback token so we can register per-WABA override
+    // callback URIs (subscribed_apps override) without depending on the secret value.
+    const FALLBACK_VERIFY_TOKEN = "klosify-wa-webhook-2026";
+
+    if (mode === "subscribe" && (token === verifyToken || token === FALLBACK_VERIFY_TOKEN)) {
       console.log("WhatsApp webhook verified");
       return new Response(challenge, { status: 200 });
     }
