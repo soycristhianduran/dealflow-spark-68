@@ -903,6 +903,7 @@ Deno.serve(async (req) => {
 
         await supabase.from("whatsapp_templates").upsert({
           user_id: user.id,
+          organization_id: orgId,
           waba_id: config.waba_id,
           template_id: t.id,
           name: t.name,

@@ -478,13 +478,27 @@ async function processEnrollment(enr: any, supabase: any) {
 
         const variables: string[] = (cfg.variables || []).map((v: string) => renderVars(v, ctx));
 
-        // Fetch template metadata (header type + approved media handle)
-        const { data: tplMeta } = await supabase
+        // Fetch template metadata (header type + approved media handle).
+        // Prefer the org-scoped row; fall back to the enrollment owner's rows
+        // (legacy templates synced before organization_id was stored) so media
+        // headers are still included and the send doesn't fail with #132012.
+        let { data: tplMeta } = await supabase
           .from("whatsapp_templates")
           .select("body_text, header_type, header_media_handle")
           .eq("organization_id", contact.organization_id)
           .eq("name", cfg.template_name)
           .maybeSingle();
+        if (!tplMeta) {
+          const { data: legacyTpl } = await supabase
+            .from("whatsapp_templates")
+            .select("body_text, header_type, header_media_handle")
+            .eq("user_id", enr.user_id)
+            .eq("name", cfg.template_name)
+            .order("updated_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          tplMeta = legacyTpl ?? null;
+        }
 
         const components: any[] = [];
 
