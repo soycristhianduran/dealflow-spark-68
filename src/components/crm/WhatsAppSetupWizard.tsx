@@ -404,11 +404,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               ))}
             </div>
 
-            {/* Add another number — launches OAuth directly */}
+            {/* Add another number — launches Embedded Signup */}
             <Button
               variant="outline"
               className="w-full gap-2"
-              onClick={() => wa.connect()}
+              onClick={() => wa.launchEmbeddedSignup()}
+              disabled={wa.connecting}
             >
               <Plus className="h-4 w-4" />
               Conectar otro número
@@ -601,8 +602,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 {/* Meta Embedded Signup redirect — recommended */}
                 <button
                   className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-blue-500/30 bg-card p-5 text-left transition-all hover:shadow-md group disabled:opacity-60"
-                  onClick={() => { setUseManual(false); wa.connect(); }}
-                  disabled={!wa.metaAppId}
+                  onClick={() => { setUseManual(false); wa.launchEmbeddedSignup(); }}
+                  disabled={!wa.metaAppId || wa.connecting}
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0" style={{ backgroundColor: "#1877F220" }}>
                     <svg className="h-6 w-6" viewBox="0 0 24 24" fill="#1877F2">

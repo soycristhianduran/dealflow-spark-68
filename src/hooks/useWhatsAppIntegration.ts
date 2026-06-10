@@ -27,6 +27,30 @@ function buildOAuthRedirectUrl(appId: string, supabaseUrl: string, stateToken: s
   return `https://www.facebook.com/v21.0/dialog/oauth?client_id=${appId}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code`;
 }
 
+// Lazy-load the Facebook JS SDK once. Required for the WhatsApp Embedded Signup
+// popup (FB.login with a config_id).
+let fbSdkPromise: Promise<void> | null = null;
+function loadFacebookSdk(appId: string): Promise<void> {
+  if (fbSdkPromise) return fbSdkPromise;
+  fbSdkPromise = new Promise<void>((resolve) => {
+    const w = window as any;
+    if (w.FB) { resolve(); return; }
+    w.fbAsyncInit = function () {
+      w.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v21.0" });
+      resolve();
+    };
+    const id = "facebook-jssdk";
+    if (document.getElementById(id)) { resolve(); return; }
+    const js = document.createElement("script");
+    js.id = id;
+    js.src = "https://connect.facebook.net/en_US/sdk.js";
+    js.async = true;
+    js.defer = true;
+    document.body.appendChild(js);
+  });
+  return fbSdkPromise;
+}
+
 export function useWhatsAppIntegration() {
   const { user } = useAuth();
   const { organizationId } = useOrganizationContext();
@@ -34,6 +58,7 @@ export function useWhatsAppIntegration() {
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
+  const [waConfigId, setWaConfigId] = useState<string | null>(null);
   const [pendingOAuth, setPendingOAuth] = useState(false);
 
   // Primary config (or first active) — kept for backward compatibility
@@ -44,6 +69,9 @@ export function useWhatsAppIntegration() {
     supabase.functions.invoke("facebook-get-app-id").then(({ data }) => {
       if (data?.app_id) {
         setMetaAppId(data.app_id);
+      }
+      if (data?.wa_config_id) {
+        setWaConfigId(data.wa_config_id);
       }
     });
   }, []);
@@ -107,6 +135,87 @@ export function useWhatsAppIntegration() {
     const oauthUrl = buildOAuthRedirectUrl(metaAppId, supabaseUrl, stateToken);
     window.location.href = oauthUrl;
   }, [user, metaAppId]);
+
+  // PROPER WhatsApp Embedded Signup (Tech Provider flow). This is what makes
+  // EXTERNAL customers' WhatsApp work: the popup shares the customer's WABA with
+  // our app and lets Meta deliver webhooks (incoming messages + delivery status).
+  // Falls back to the plain OAuth redirect when no config_id is configured.
+  const launchEmbeddedSignup = useCallback(async () => {
+    if (!metaAppId) {
+      toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
+      return;
+    }
+    // Without a config_id we cannot run Embedded Signup — fall back to OAuth.
+    if (!waConfigId) {
+      console.warn("META_WA_CONFIG_ID not configured — falling back to OAuth redirect.");
+      return connect();
+    }
+
+    setConnecting(true);
+    try {
+      await loadFacebookSdk(metaAppId);
+      const FB = (window as any).FB;
+      if (!FB) throw new Error("No se pudo cargar el SDK de Facebook.");
+
+      // Capture waba_id + phone_number_id emitted by the Embedded Signup popup.
+      const session: { waba_id?: string; phone_number_id?: string } = {};
+      const messageHandler = (event: MessageEvent) => {
+        if (typeof event.origin !== "string" || !event.origin.endsWith("facebook.com")) return;
+        try {
+          const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+          if (data?.type === "WA_EMBEDDED_SIGNUP" && data?.data) {
+            if (data.data.waba_id) session.waba_id = data.data.waba_id;
+            if (data.data.phone_number_id) session.phone_number_id = data.data.phone_number_id;
+          }
+        } catch {
+          /* non-JSON messages are not ours */
+        }
+      };
+      window.addEventListener("message", messageHandler);
+
+      FB.login(
+        async (response: any) => {
+          window.removeEventListener("message", messageHandler);
+          const code = response?.authResponse?.code;
+          if (!code) {
+            setConnecting(false);
+            toast.error("Conexión cancelada.");
+            return;
+          }
+          try {
+            const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
+              body: {
+                code,
+                waba_id: session.waba_id ?? null,
+                phone_number_id: session.phone_number_id ?? null,
+                organization_id: organizationId ?? null,
+              },
+            });
+            if (error || data?.error) throw new Error(data?.error || error?.message);
+            if (data?.status === "pending") {
+              toast.success("Cuenta vinculada. Selecciona el número para terminar.");
+            } else {
+              toast.success("WhatsApp conectado. Los mensajes ya llegan al CRM.");
+            }
+            await fetchConfig();
+          } catch (e: any) {
+            toast.error(e?.message || "Error al conectar WhatsApp.");
+          } finally {
+            setConnecting(false);
+          }
+        },
+        {
+          config_id: waConfigId,
+          response_type: "code",
+          override_default_response_type: true,
+          extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+        }
+      );
+    } catch (e: any) {
+      setConnecting(false);
+      toast.error(e?.message || "No se pudo iniciar la conexión.");
+    }
+  }, [metaAppId, waConfigId, organizationId, connect, fetchConfig]);
 
   const getWabaAccounts = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
@@ -234,9 +343,11 @@ export function useWhatsAppIntegration() {
     loading,
     connecting,
     metaAppId,
+    waConfigId,
     pendingOAuth,
     setPendingOAuth,
     connect,
+    launchEmbeddedSignup,
     disconnect,
     setPrimary,
     updateLabel,

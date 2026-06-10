@@ -25,140 +25,136 @@ Deno.serve(async (req) => {
     if (authError || !user) throw new Error("Unauthorized");
 
     const body = await req.json();
-    const { code } = body;
+    // Embedded Signup gives us the code (FB.login response) plus the WABA + phone
+    // number ids directly from the WA_EMBEDDED_SIGNUP "message" event. We use those
+    // ids directly — NEVER iterate me/businesses, which fails for customers whose
+    // WABA lives in their own (external) business.
+    const code: string | undefined = body?.code;
+    const sessionWabaId: string | null = body?.waba_id ?? null;
+    const sessionPhoneId: string | null = body?.phone_number_id ?? null;
+    const organizationId: string | null = body?.organization_id ?? null;
 
     if (!code) throw new Error("Missing code from Embedded Signup");
 
-    // 1. Exchange code for short-lived token
+    // 1. Exchange the Embedded Signup code for a business-integration token.
+    //    For Embedded Signup, NO redirect_uri is used and the returned token is
+    //    already a long-lived (60d) business token — do not run fb_exchange_token.
     const tokenRes = await fetch(
-      `${GRAPH_API}/oauth/access_token?client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&code=${code}`
+      `${GRAPH_API}/oauth/access_token?client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&code=${encodeURIComponent(code)}`
     );
     const tokenData = await tokenRes.json();
-
     if (!tokenData.access_token) {
-      console.error("Token exchange failed:", tokenData);
-      throw new Error("Token exchange failed");
+      console.error("ES token exchange failed:", JSON.stringify(tokenData));
+      throw new Error("No se pudo completar la conexión con Meta (token).");
+    }
+    const accessToken: string = tokenData.access_token;
+
+    // 2. Resolve WABA + phone ids. Prefer the session ids from the popup; fall
+    //    back to debug_token (granular scopes) if the popup didn't surface them.
+    let wabaId = sessionWabaId;
+    let phoneId = sessionPhoneId;
+
+    if (!wabaId) {
+      const dbg = await fetch(
+        `${GRAPH_API}/debug_token?input_token=${accessToken}&access_token=${accessToken}`
+      ).then((r) => r.json()).catch(() => null);
+      const scopes = dbg?.data?.granular_scopes || [];
+      const waScope = scopes.find((s: any) => s.scope === "whatsapp_business_management")
+                   || scopes.find((s: any) => s.scope === "whatsapp_business_messaging");
+      wabaId = waScope?.target_ids?.[0] ?? null;
     }
 
-    // 2. Exchange for long-lived token
-    const longTokenRes = await fetch(
-      `${GRAPH_API}/oauth/access_token?grant_type=fb_exchange_token&client_id=${META_APP_ID}&client_secret=${META_APP_SECRET}&fb_exchange_token=${tokenData.access_token}`
-    );
-    const longTokenData = await longTokenRes.json();
-    const longLivedToken = longTokenData.access_token || tokenData.access_token;
+    if (!wabaId) {
+      // Couldn't determine WABA — save token as pending for manual selection.
+      await supabase.from("whatsapp_configs").insert({
+        user_id: user.id,
+        organization_id: organizationId,
+        access_token: accessToken,
+        phone_number_id: "pending",
+        waba_id: "pending",
+        is_active: false,
+        webhook_verified: false,
+      });
+      return new Response(JSON.stringify({
+        success: true, status: "pending",
+        message: "Token guardado. Selecciona tu cuenta y número manualmente.",
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
-    // 3. Get shared WABA(s) - find the WABA and phone number the user just connected
-    // First get the user's businesses
-    const bizRes = await fetch(`${GRAPH_API}/me/businesses?fields=id,name&access_token=${longLivedToken}`);
-    const bizData = await bizRes.json();
-
-    let selectedWabaId = "";
-    let selectedWabaName = "";
-    let selectedPhoneId = "";
-    let selectedDisplayPhone = "";
-    let selectedBusinessName = "";
-
-    const businesses = bizData.data || [];
-    
-    for (const biz of businesses) {
-      // Get WABAs for this business
-      const wabaRes = await fetch(
-        `${GRAPH_API}/${biz.id}/owned_whatsapp_business_accounts?fields=id,name&access_token=${longLivedToken}`
-      );
-      const wabaData = await wabaRes.json();
-
-      if (wabaData.data && wabaData.data.length > 0) {
-        for (const waba of wabaData.data) {
-          // Get phone numbers for this WABA
-          const phoneRes = await fetch(
-            `${GRAPH_API}/${waba.id}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,status&access_token=${longLivedToken}`
-          );
-          const phoneData = await phoneRes.json();
-
-          if (phoneData.data && phoneData.data.length > 0) {
-            // Take the first available phone number
-            const phone = phoneData.data[0];
-            selectedWabaId = waba.id;
-            selectedWabaName = waba.name;
-            selectedPhoneId = phone.id;
-            selectedDisplayPhone = phone.display_phone_number;
-            selectedBusinessName = phone.verified_name || waba.name || biz.name;
-            break;
-          }
-        }
-        if (selectedPhoneId) break;
+    // 3. If no phone id from the session, fetch the first phone of the WABA.
+    let displayPhone = "";
+    let businessName = "";
+    {
+      const phoneRes = await fetch(
+        `${GRAPH_API}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name&access_token=${accessToken}`
+      ).then((r) => r.json()).catch(() => null);
+      const phones = phoneRes?.data || [];
+      const match = phoneId ? phones.find((p: any) => p.id === phoneId) : phones[0];
+      const chosen = match || phones[0];
+      if (chosen) {
+        phoneId = chosen.id;
+        displayPhone = chosen.display_phone_number || "";
+        businessName = chosen.verified_name || "";
       }
     }
 
-    if (!selectedPhoneId || !selectedWabaId) {
-      // Save token as pending so user can manually select later
-      await supabase.from("whatsapp_configs").upsert(
-        {
-          user_id: user.id,
-          access_token: longLivedToken,
-          phone_number_id: "pending",
-          waba_id: "pending",
-          is_active: false,
-          webhook_verified: false,
-        },
-        { onConflict: "user_id" }
-      );
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        status: "pending",
-        message: "Token saved. Please select your WABA and phone number." 
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 4. Save complete config
-    await supabase.from("whatsapp_configs").upsert(
-      {
-        user_id: user.id,
-        access_token: longLivedToken,
-        phone_number_id: selectedPhoneId,
-        waba_id: selectedWabaId,
-        display_phone: selectedDisplayPhone,
-        business_name: selectedBusinessName,
-        is_active: true,
-        webhook_verified: false,
-      },
-      { onConflict: "user_id" }
-    );
-
-    // 5. Subscribe WABA to the SaaS app so webhooks (incoming messages) work
-    //    This is the key step that makes incoming messages arrive for ALL users
-    //    without any manual configuration in Meta Developer Console.
+    // 4. CRITICAL: subscribe OUR app to the customer's WABA so Meta delivers
+    //    webhooks (incoming messages + delivery statuses) to us. Uses the
+    //    customer's own token — the only token with permission over their WABA.
     let webhookSubscribed = false;
     try {
-      const subRes = await fetch(`${GRAPH_API}/${selectedWabaId}/subscribed_apps`, {
+      const subRes = await fetch(`${GRAPH_API}/${wabaId}/subscribed_apps`, {
         method: "POST",
-        headers: { "Authorization": `Bearer ${longLivedToken}` },
+        headers: { "Authorization": `Bearer ${accessToken}` },
       });
       const subData = await subRes.json();
-      console.log("WABA webhook subscription:", JSON.stringify(subData));
+      console.log("ES WABA subscription:", JSON.stringify(subData));
       webhookSubscribed = subData.success === true;
-      if (subData.error) {
-        console.warn("WABA subscription warning:", subData.error.message);
-      }
     } catch (subErr) {
-      console.warn("WABA subscription failed (non-fatal):", subErr);
+      console.warn("ES WABA subscription failed (non-fatal):", subErr);
+    }
+
+    // 5. Persist config. One row per (organization, phone_number_id). We avoid
+    //    onConflict:user_id (that overwrote configs and broke multi-number).
+    if (phoneId) {
+      // Deactivate any stale row for this same phone in this org, then upsert.
+      let deQ = supabase.from("whatsapp_configs").update({ is_active: false })
+        .eq("phone_number_id", phoneId);
+      deQ = organizationId ? deQ.eq("organization_id", organizationId) : deQ.eq("user_id", user.id);
+      await deQ;
+
+      await supabase.from("whatsapp_configs").insert({
+        user_id: user.id,
+        organization_id: organizationId,
+        access_token: accessToken,
+        phone_number_id: phoneId,
+        waba_id: wabaId,
+        display_phone: displayPhone,
+        business_name: businessName,
+        is_active: true,
+        webhook_verified: webhookSubscribed,
+      });
+    } else {
+      await supabase.from("whatsapp_configs").insert({
+        user_id: user.id,
+        organization_id: organizationId,
+        access_token: accessToken,
+        phone_number_id: "pending",
+        waba_id: wabaId,
+        is_active: false,
+        webhook_verified: false,
+      });
     }
 
     return new Response(JSON.stringify({
       success: true,
-      status: "connected",
-      waba_id: selectedWabaId,
-      waba_name: selectedWabaName,
-      phone_number_id: selectedPhoneId,
-      display_phone: selectedDisplayPhone,
-      business_name: selectedBusinessName,
+      status: phoneId ? "connected" : "pending",
+      waba_id: wabaId,
+      phone_number_id: phoneId,
+      display_phone: displayPhone,
+      business_name: businessName,
       webhook_subscribed: webhookSubscribed,
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (error: any) {
     console.error("WhatsApp Embedded Signup error:", error);
