@@ -449,8 +449,8 @@ export default function DashboardPage() {
     // Pipeline stages
     const stagesQ = supabase
       .from("pipeline_stages")
-      .select("id, name, position, color")
-      .order("position");
+      .select("id, name, order, color")
+      .order("order", { ascending: true });
 
     // Lost reasons (all time)
     let lostQ = supabase
@@ -544,7 +544,7 @@ export default function DashboardPage() {
     }
     setStageData(
       stages.map((s) => ({
-        id: s.id, name: s.name, position: s.position, color: s.color,
+        id: s.id, name: s.name, position: (s as any).order ?? (s as any).position, color: s.color,
         ...(sMap.get(s.id) || { count: 0, value: 0 }),
       }))
     );

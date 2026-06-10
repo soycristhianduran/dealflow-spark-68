@@ -1367,7 +1367,7 @@ function MovePipelineStepEditor({ step, onChange }: {
 
   useEffect(() => {
     if (!c.pipeline_id) return;
-    supabase.from("pipeline_stages").select("id, name").eq("pipeline_id", c.pipeline_id).order("position").then(({ data }) => setStages(data || []));
+    supabase.from("pipeline_stages").select("id, name").eq("pipeline_id", c.pipeline_id).order("order", { ascending: true }).then(({ data }) => setStages(data || []));
   }, [c.pipeline_id]);
 
   return (
