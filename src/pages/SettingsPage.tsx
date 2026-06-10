@@ -18,6 +18,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
+import { EmailDomainsSettings } from "@/components/settings/EmailDomainsSettings";
 import { validateSlug, toSlug, buildWorkspaceUrl } from "@/lib/subdomain";
 
 const stageColorOptions = [
@@ -463,8 +464,13 @@ export default function SettingsPage() {
             <TabsTrigger value="equipo">Equipo</TabsTrigger>
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="campos">Campos</TabsTrigger>
+            <TabsTrigger value="email">Email</TabsTrigger>
             <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="email" className="space-y-4">
+            <EmailDomainsSettings />
+          </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-4">
             <Card className="border-none shadow-sm">

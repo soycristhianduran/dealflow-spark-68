@@ -420,8 +420,20 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       const cfg = step.config || {};
       const subject = renderVars(cfg.subject || "", ctx);
       const html = renderVars(cfg.html_content || "", ctx);
-      const fromEmail = cfg.from_email || "onboarding@resend.dev";
       const fromName = cfg.from_name || "Equipo";
+      // Flexible sender: use the org's custom domain only when verified in Resend.
+      let fromEmail = Deno.env.get("EMAIL_FROM_ADDRESS") || "onboarding@resend.dev";
+      if (cfg.from_email && String(cfg.from_email).includes("@")) {
+        const reqDomain = String(cfg.from_email).split("@")[1].toLowerCase();
+        const { data: vdom } = await supabase
+          .from("email_domains")
+          .select("domain")
+          .eq("organization_id", contact.organization_id)
+          .eq("status", "verified")
+          .eq("domain", reqDomain)
+          .maybeSingle();
+        if (vdom) fromEmail = cfg.from_email;
+      }
 
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
       if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY no configurado");

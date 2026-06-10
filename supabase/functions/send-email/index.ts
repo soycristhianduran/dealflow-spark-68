@@ -99,9 +99,24 @@ Deno.serve(async (req) => {
       if (cErr) throw cErr;
       if (!contacts?.length) throw new Error("No hay contactos con email en esta lista");
 
-      const fromAddress = campaign.from_email
-        ? `${campaign.from_name || "Equipo"} <${campaign.from_email}>`
-        : `${campaign.from_name || "Equipo"} <onboarding@resend.dev>`;
+      // Flexible sender: only send from the org's custom domain when it's been
+      // verified in Resend; otherwise fall back to the shared sender so the
+      // campaign never fails with an "unverified domain" error.
+      const SHARED_FROM = Deno.env.get("EMAIL_FROM_ADDRESS") || "onboarding@resend.dev";
+      let fromEmail = SHARED_FROM;
+      if (campaign.from_email && campaign.from_email.includes("@")) {
+        const reqDomain = campaign.from_email.split("@")[1].toLowerCase();
+        const { data: verified } = await supabase
+          .from("email_domains")
+          .select("domain")
+          .eq("organization_id", orgId)
+          .eq("status", "verified")
+          .eq("domain", reqDomain)
+          .maybeSingle();
+        if (verified) fromEmail = campaign.from_email;
+        else console.warn(`from_email domain "${reqDomain}" not verified for org ${orgId} — using shared sender`);
+      }
+      const fromAddress = `${campaign.from_name || "Equipo"} <${fromEmail}>`;
 
       // Mark as sending
       await supabase.from("email_campaigns").update({

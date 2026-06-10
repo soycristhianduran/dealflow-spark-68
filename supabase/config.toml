@@ -56,3 +56,6 @@ verify_jwt = false
 
 [functions.automation-runner]
 verify_jwt = false
+
+[functions.email-domains]
+verify_jwt = true
