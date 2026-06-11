@@ -66,7 +66,31 @@ Deno.serve(async (req) => {
             { headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        return new Response(JSON.stringify({ pages: data.data || [] }), {
+        const pages = data.data || [];
+        // Flag pages already connected to a DIFFERENT organization so the UI can
+        // warn and prevent connecting the same page to two orgs (which would make
+        // lead routing ambiguous).
+        const pageIds = pages.map((p: any) => p.id);
+        const takenMap: Record<string, string> = {};
+        if (pageIds.length) {
+          const { data: taken } = await supabase
+            .from("facebook_pages").select("page_id, organization_id").in("page_id", pageIds);
+          for (const t of (taken || [])) {
+            if (t.organization_id && (!reqOrgId || t.organization_id !== reqOrgId)) takenMap[t.page_id] = t.organization_id;
+          }
+        }
+        const otherOrgIds = [...new Set(Object.values(takenMap))];
+        const orgNames: Record<string, string> = {};
+        if (otherOrgIds.length) {
+          const { data: orgs } = await supabase.from("organizations").select("id, name").in("id", otherOrgIds);
+          for (const o of (orgs || [])) orgNames[o.id] = o.name || "Otra empresa";
+        }
+        const pagesOut = pages.map((p: any) => ({
+          ...p,
+          connected_org_id: takenMap[p.id] || null,
+          connected_org_name: takenMap[p.id] ? (orgNames[takenMap[p.id]] || "Otra empresa") : null,
+        }));
+        return new Response(JSON.stringify({ pages: pagesOut }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -75,10 +99,20 @@ Deno.serve(async (req) => {
       case "save_pages": {
         const { pages } = body; // [{page_id, page_name, page_access_token}]
         const subscriptionResults: { page_id: string; subscribed: boolean; error?: string }[] = [];
+        const blocked: { page_id: string; page_name: string }[] = [];
 
         for (const page of pages) {
+          // Guard: refuse to connect a page that's already connected to a DIFFERENT
+          // organization (would make Meta lead routing ambiguous between orgs).
+          const { data: owned } = await supabase
+            .from("facebook_pages").select("organization_id").eq("page_id", page.page_id).maybeSingle();
+          if (owned?.organization_id && reqOrgId && owned.organization_id !== reqOrgId) {
+            blocked.push({ page_id: page.page_id, page_name: page.page_name });
+            continue;
+          }
+
           await supabase.from("facebook_pages").upsert(
-            { user_id: user.id, page_id: page.page_id, page_name: page.page_name, page_access_token: page.page_access_token },
+            { user_id: user.id, organization_id: reqOrgId, page_id: page.page_id, page_name: page.page_name, page_access_token: page.page_access_token },
             { onConflict: "user_id,page_id" }
           );
 
@@ -109,7 +143,7 @@ Deno.serve(async (req) => {
           }
         }
 
-        return new Response(JSON.stringify({ success: true, subscriptions: subscriptionResults }), {
+        return new Response(JSON.stringify({ success: true, subscriptions: subscriptionResults, blocked }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

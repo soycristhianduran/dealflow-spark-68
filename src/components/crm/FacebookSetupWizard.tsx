@@ -19,7 +19,7 @@ interface FacebookSetupWizardProps {
 
 type Step = "pages" | "forms" | "mapping" | "messenger" | "campaigns" | "done";
 
-interface PageItem { id: string; name: string; access_token: string; category?: string; selected: boolean }
+interface PageItem { id: string; name: string; access_token: string; category?: string; selected: boolean; connected_org_name?: string | null }
 interface FormItem { id: string; name: string; status: string; selected: boolean; pipeline_id?: string; page_id?: string; page_name?: string; questions?: { key: string; label: string; type: string }[] }
 interface PipelineOption { id: string; name: string }
 interface AdAccountItem { id: string; name: string; selected: boolean }
@@ -101,7 +101,7 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   const loadPages = async () => {
     setLoading(true);
     const fetchedPages = await fb.getPages();
-    setPages(fetchedPages.map(p => ({ id: p.id, name: p.name, access_token: p.access_token, category: p.category, selected: false })));
+    setPages(fetchedPages.map(p => ({ id: p.id, name: p.name, access_token: p.access_token, category: p.category, selected: false, connected_org_name: (p as any).connected_org_name ?? null })));
     setLoading(false);
   };
 
@@ -335,23 +335,30 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {pages.map((page) => (
-                    <label key={page.id} className={cn(
-                      "flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition-colors",
-                      page.selected ? "border-primary/30 bg-primary/5" : "hover:bg-muted/50"
-                    )}>
-                      <Checkbox
-                        checked={page.selected}
-                        onCheckedChange={(checked) =>
-                          setPages(prev => prev.map(p => p.id === page.id ? { ...p, selected: !!checked } : p))
-                        }
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground">{page.name}</p>
-                        {page.category && <p className="text-xs text-muted-foreground">{page.category}</p>}
-                      </div>
-                    </label>
-                  ))}
+                  {pages.map((page) => {
+                    const takenElsewhere = !!page.connected_org_name;
+                    return (
+                      <label key={page.id} className={cn(
+                        "flex items-center gap-3 rounded-lg border p-3 transition-colors",
+                        takenElsewhere ? "opacity-60 cursor-not-allowed bg-muted/30"
+                          : page.selected ? "border-primary/30 bg-primary/5 cursor-pointer" : "hover:bg-muted/50 cursor-pointer"
+                      )}>
+                        <Checkbox
+                          checked={page.selected}
+                          disabled={takenElsewhere}
+                          onCheckedChange={(checked) =>
+                            setPages(prev => prev.map(p => p.id === page.id ? { ...p, selected: !!checked } : p))
+                          }
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-foreground">{page.name}</p>
+                          {takenElsewhere ? (
+                            <p className="text-xs text-amber-600">Ya conectada en "{page.connected_org_name}"</p>
+                          ) : page.category && <p className="text-xs text-muted-foreground">{page.category}</p>}
+                        </div>
+                      </label>
+                    );
+                  })}
                 </div>
               )}
               <Button

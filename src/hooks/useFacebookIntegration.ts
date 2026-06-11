@@ -9,6 +9,8 @@ interface FbPage {
   name: string;
   access_token: string;
   category?: string;
+  connected_org_id?: string | null;
+  connected_org_name?: string | null;
 }
 
 interface FbForm {
@@ -233,11 +235,18 @@ export function useFacebookIntegration() {
   }, [organizationId]);
 
   const savePages = useCallback(async (pages: { page_id: string; page_name: string; page_access_token: string }[]) => {
-    const { error } = await supabase.functions.invoke("facebook-api", {
+    const { data, error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "save_pages", pages, organization_id: organizationId },
     });
-    if (error) toast.error("Error al guardar páginas");
-    else toast.success("Páginas guardadas");
+    if (error) { toast.error("Error al guardar páginas"); }
+    else {
+      const blocked = data?.blocked as { page_name: string }[] | undefined;
+      if (blocked && blocked.length) {
+        toast.warning(`${blocked.map(b => `"${b.page_name}"`).join(", ")} ya está conectada en otra empresa y no se conectó aquí.`);
+      } else {
+        toast.success("Páginas guardadas");
+      }
+    }
     checkConnection();
   }, [checkConnection, organizationId]);
 
