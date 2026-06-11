@@ -97,7 +97,7 @@ function evaluateCondition(cfg: any, contact: any): boolean {
  * Returns true if the expression fired at any minute between `since` and `now`.
  * Lookback is capped at 1 hour to avoid re-processing old contacts.
  */
-function isScheduledDue(cronExpr: string, lastTriggeredAt: string | null, now: Date): boolean {
+function isScheduledDue(cronExpr: string, lastTriggeredAt: string | null, now: Date, timeZone = "America/Bogota"): boolean {
   const parts = cronExpr.trim().split(/\s+/);
   if (parts.length !== 5) return false;
 
@@ -122,25 +122,46 @@ function isScheduledDue(cronExpr: string, lastTriggeredAt: string | null, now: D
     return parseInt(field) === value;
   }
 
-  // Step through each minute in [since, now]
+  // Step through each minute in [since, now]. Cron fields are matched against the
+  // wall-clock time in the org's timezone (NOT the server's UTC clock).
   const cursor = new Date(since);
   cursor.setSeconds(0, 0);
   // Advance to next full minute if we landed mid-minute
   if (cursor < since) cursor.setMinutes(cursor.getMinutes() + 1);
 
   while (cursor <= now) {
+    const p = partsInTz(cursor, timeZone);
     if (
-      matchField(parts[0], cursor.getMinutes()) &&
-      matchField(parts[1], cursor.getHours()) &&
-      matchField(parts[2], cursor.getDate()) &&
-      matchField(parts[3], cursor.getMonth() + 1) &&
-      matchField(parts[4], cursor.getDay())
+      matchField(parts[0], p.minute) &&
+      matchField(parts[1], p.hour) &&
+      matchField(parts[2], p.day) &&
+      matchField(parts[3], p.month) &&
+      matchField(parts[4], p.dow)
     ) {
       return true;
     }
     cursor.setMinutes(cursor.getMinutes() + 1);
   }
   return false;
+}
+
+// Wall-clock parts of `date` in a given IANA timezone.
+function partsInTz(date: Date, timeZone: string): { minute: number; hour: number; day: number; month: number; dow: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour12: false, weekday: "short",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  }).formatToParts(date);
+  const m: Record<string, string> = {};
+  for (const x of parts) m[x.type] = x.value;
+  const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  return {
+    minute: +m.minute,
+    hour: m.hour === "24" ? 0 : +m.hour,
+    day: +m.day,
+    month: +m.month,
+    dow: dowMap[m.weekday] ?? 0,
+  };
 }
 
 Deno.serve(async (req) => {
@@ -336,10 +357,22 @@ Deno.serve(async (req) => {
 
     let scheduledEnrolled = 0;
 
+    // Cache org timezones so each scheduled automation is evaluated in its own zone.
+    const orgTzCache = new Map<string, string>();
+    const getOrgTz = async (oid: string | null): Promise<string> => {
+      if (!oid) return "America/Bogota";
+      if (orgTzCache.has(oid)) return orgTzCache.get(oid)!;
+      const { data: org } = await supabase.from("organizations").select("timezone").eq("id", oid).maybeSingle();
+      const tz = org?.timezone || "America/Bogota";
+      orgTzCache.set(oid, tz);
+      return tz;
+    };
+
     for (const auto of (scheduledAutos || [])) {
       const cronExpr: string = (auto.trigger_config?.cron_expression || "").trim();
       if (!cronExpr) continue;
-      if (!isScheduledDue(cronExpr, auto.last_triggered_at, nowDate)) continue;
+      const orgTz = await getOrgTz(auto.organization_id);
+      if (!isScheduledDue(cronExpr, auto.last_triggered_at, nowDate, orgTz)) continue;
 
       // Stamp last_triggered_at BEFORE enrolling to prevent duplicate runs
       // if this cron tick takes longer than 5 minutes
