@@ -203,11 +203,29 @@ Deno.serve(async (req) => {
           .single();
         if (!pageData) throw new Error("Page not found");
 
-        const res = await fetch(`${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data,ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name&access_token=${pageData.page_access_token}`);
-        const data = await res.json();
-        if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
+        // Resolve the connector's organization so imported contacts are scoped.
+        const { data: orgMember } = await supabase
+          .from("organization_members")
+          .select("organization_id")
+          .eq("user_id", user.id)
+          .limit(1)
+          .maybeSingle();
+        const orgId = orgMember?.organization_id ?? null;
 
-        const fbLeads = data.data || [];
+        // Paginate through ALL available leads (Meta retains ~90 days). Cap at
+        // 30 pages × 100 = 3000 to stay within the function timeout.
+        const fbLeads: any[] = [];
+        let nextUrl: string | null =
+          `${GRAPH_API}/${form_id}/leads?fields=id,created_time,field_data,ad_id,ad_name,campaign_id,campaign_name,adset_id,adset_name&limit=100&access_token=${pageData.page_access_token}`;
+        let pageCount = 0;
+        while (nextUrl && pageCount < 30) {
+          const res = await fetch(nextUrl);
+          const data = await res.json();
+          if (!res.ok) throw new Error(`Facebook API error: ${JSON.stringify(data)}`);
+          fbLeads.push(...(data.data || []));
+          nextUrl = data.paging?.next || null;
+          pageCount++;
+        }
 
         // Load user-defined field mappings for this form
         const { data: userMappings } = await supabase
@@ -226,9 +244,17 @@ Deno.serve(async (req) => {
           .eq("form_id", form_id)
           .maybeSingle();
 
-        const { data: pipeline } = formConfig?.pipeline_id
-          ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
-          : await supabase.from("pipelines").select("id").order("created_at", { ascending: true }).limit(1).maybeSingle();
+        // Use the pipeline configured for THIS form (chosen in the wizard); fall
+        // back to the org's first pipeline only if none was set.
+        let pipeline: { id: string } | null = null;
+        if (formConfig?.pipeline_id) {
+          ({ data: pipeline } = await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle());
+        }
+        if (!pipeline) {
+          let pq = supabase.from("pipelines").select("id").order("created_at", { ascending: true }).limit(1);
+          if (orgId) pq = pq.eq("organization_id", orgId);
+          ({ data: pipeline } = await pq.maybeSingle());
+        }
 
         let firstStageId: string | null = null;
         if (pipeline) {
@@ -262,6 +288,7 @@ Deno.serve(async (req) => {
           }
 
           let contactData: Record<string, any> = {
+            organization_id: orgId,
             source: "facebook",
             campaign: lead.campaign_name || lead.campaign_id || form_id,
             adset: lead.adset_name || lead.adset_id || null,
@@ -275,6 +302,11 @@ Deno.serve(async (req) => {
             utm_content:      lead.ad_name || lead.ad_id || null,
             status: "new",
             owner_id: user.id,
+            // Unified Leads+Deals model: the contact IS the pipeline entity, so
+            // assign the form's pipeline + first stage directly on the contact
+            // (this is what makes it show up in the selected pipeline).
+            ...(pipeline ? { pipeline_id: pipeline.id, lead_status: "active" } : {}),
+            ...(firstStageId ? { stage_id: firstStageId } : {}),
           };
           let customFields: Record<string, string> = {};
 
@@ -323,21 +355,15 @@ Deno.serve(async (req) => {
           const email = contactData.primary_email;
           const phone = contactData.primary_phone;
           if (email) {
-            const { data: byEmail } = await supabase
-              .from("contacts")
-              .select("id")
-              .eq("primary_email", email)
-              .limit(1)
-              .maybeSingle();
+            let eq = supabase.from("contacts").select("id").eq("primary_email", email).limit(1);
+            if (orgId) eq = eq.eq("organization_id", orgId);
+            const { data: byEmail } = await eq.maybeSingle();
             existingContactId = byEmail?.id || null;
           }
           if (!existingContactId && phone) {
-            const { data: byPhone } = await supabase
-              .from("contacts")
-              .select("id")
-              .eq("primary_phone", phone)
-              .limit(1)
-              .maybeSingle();
+            let pq2 = supabase.from("contacts").select("id").eq("primary_phone", phone).limit(1);
+            if (orgId) pq2 = pq2.eq("organization_id", orgId);
+            const { data: byPhone } = await pq2.maybeSingle();
             existingContactId = byPhone?.id || null;
           }
 
@@ -355,25 +381,10 @@ Deno.serve(async (req) => {
             continue;
           }
           createdContacts++;
-
-          // Create deal in first pipeline stage
-          if (pipeline && firstStageId) {
-            const { error: dealErr } = await supabase
-              .from("deals")
-              .insert({
-                title: `Lead FB - ${contactData.full_name}`,
-                contact_id: newContact.id,
-                pipeline_id: pipeline.id,
-                stage_id: firstStageId,
-                owner_id: user.id,
-                value: 0,
-                currency: "USD",
-                status: "open",
-                source: "facebook",
-              });
-            if (!dealErr) createdDeals++;
-            else console.error("Error creating deal from FB lead:", dealErr);
-          }
+          // The contact was already inserted with pipeline_id + stage_id above
+          // (unified model), so it shows up in the selected pipeline. No separate
+          // deal row is created.
+          if (pipeline && firstStageId) createdDeals++;
         }
 
         return new Response(JSON.stringify({
