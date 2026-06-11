@@ -304,6 +304,7 @@ Deno.serve(async (req) => {
 
         let createdContacts = 0;
         let createdDeals = 0;
+        let updatedContacts = 0;
 
         for (const lead of fbLeads) {
           const fields: Record<string, string> = {};
@@ -393,7 +394,27 @@ Deno.serve(async (req) => {
             existingContactId = byPhone?.id || null;
           }
 
-          if (existingContactId) continue;
+          if (existingContactId) {
+            // Refresh attribution (names + ids) on the existing lead. Only set
+            // the pipeline if it has none yet — don't move leads already placed.
+            const patch: Record<string, any> = {
+              campaign: contactData.campaign,
+              adset: contactData.adset,
+              ad: contactData.ad,
+              meta_campaign_id: contactData.meta_campaign_id,
+              meta_adset_id: contactData.meta_adset_id,
+              meta_ad_id: contactData.meta_ad_id,
+            };
+            const { data: ex } = await supabase.from("contacts").select("pipeline_id").eq("id", existingContactId).maybeSingle();
+            if (!ex?.pipeline_id && pipeline && firstStageId) {
+              patch.pipeline_id = pipeline.id;
+              patch.stage_id = firstStageId;
+              patch.lead_status = "active";
+            }
+            await supabase.from("contacts").update(patch).eq("id", existingContactId);
+            updatedContacts++;
+            continue;
+          }
 
           // Create new contact
           const { data: newContact, error: contactErr } = await supabase
@@ -415,7 +436,7 @@ Deno.serve(async (req) => {
 
         return new Response(JSON.stringify({
           leads: fbLeads,
-          imported: { contacts: createdContacts, deals: createdDeals },
+          imported: { contacts: createdContacts, updated: updatedContacts, deals: createdDeals },
         }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
