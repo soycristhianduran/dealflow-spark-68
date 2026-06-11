@@ -164,18 +164,31 @@ Deno.serve(async (req) => {
         return new Response(JSON.stringify({ error: "contact not found or has no organization" }), { status: 404, headers: corsHeaders });
       }
 
-      // Find active automations with this trigger type IN THIS ORG ONLY
-      const { data: automations } = await supabase
+      // Find active automations in this org whose trigger set INCLUDES this event.
+      // Multi-trigger: an automation can fire on ANY of several triggers (OR logic),
+      // stored in `triggers` [{type, config}] / `trigger_types` []. We fetch all
+      // active automations for the org (small set) and match in code, falling back
+      // to the legacy single trigger_type for rows not yet migrated.
+      const { data: allAutomations } = await supabase
         .from("automations")
-        .select("id, trigger_type, trigger_config, name, user_id")
-        .eq("trigger_type", trigger_type)
+        .select("id, trigger_type, trigger_config, triggers, name, user_id")
         .eq("is_active", true)
         .eq("organization_id", orgId);
 
+      const automations = (allAutomations || []).filter((a: any) => {
+        const types = Array.isArray(a.triggers) && a.triggers.length
+          ? a.triggers.map((t: any) => t.type)
+          : [a.trigger_type];
+        return types.includes(trigger_type);
+      });
+
       let enrolled = 0;
-      for (const automation of (automations || [])) {
-        // Check trigger_config conditions
-        const cfg = automation.trigger_config || {};
+      for (const automation of automations) {
+        // Use the config of the MATCHING trigger (multi-trigger), falling back to
+        // the legacy single trigger_config.
+        const matchTrigger = (Array.isArray(automation.triggers) ? automation.triggers : [])
+          .find((t: any) => t.type === trigger_type);
+        const cfg = matchTrigger?.config || automation.trigger_config || {};
         if (trigger_type === "landing_form_submitted" && cfg.page_id && cfg.page_id !== trigger_data?.landing_slug) continue;
         if (trigger_type === "email_opened"  && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
         if (trigger_type === "email_clicked" && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;

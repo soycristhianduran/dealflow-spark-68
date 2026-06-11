@@ -147,6 +147,8 @@ interface Automation {
   is_active: boolean;
   trigger_type: string;
   trigger_config: Record<string, any>;
+  triggers?: { type: string; config: Record<string, any> }[];
+  trigger_types?: string[];
   steps: AutomationStep[];
   created_at: string;
   updated_at: string;
@@ -262,10 +264,11 @@ interface FlowActions {
   selectedId: string | null;
   triggerType: string;
   triggerConfig: Record<string, any>;
+  triggers: { type: string; config: Record<string, any> }[];
 }
 const FlowCtx = createContext<FlowActions>({
   onInsertStep: () => {}, onSelectNode: () => {}, onDeleteStep: () => {},
-  selectedId: null, triggerType: "manual", triggerConfig: {},
+  selectedId: null, triggerType: "manual", triggerConfig: {}, triggers: [],
 });
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -345,15 +348,14 @@ function makeEdge(src: string, tgt: string, insertIndex: number): Edge {
 
 // ── Custom: Trigger node ──────────────────────────────────────────────────────
 function TriggerNode(_: NodeProps) {
-  const { selectedId, triggerType, triggerConfig } = useContext(FlowCtx);
+  const { selectedId, triggerType, triggerConfig, triggers } = useContext(FlowCtx);
   const isSelected = selectedId === "trigger";
 
-  const subtitle = triggerType === "meta_lead_form"
-    ? (triggerConfig?.form_name ? `📋 ${triggerConfig.form_name}` : "Sin formulario seleccionado")
-    : triggerType === "tag_added" ? (triggerConfig?.tag ? `Tag: "${triggerConfig.tag}"` : "")
-    : triggerType === "contact_stage_changed" ? (triggerConfig?.stage_name ? `Etapa: "${triggerConfig.stage_name}"` : "")
-    : triggerType === "scheduled" ? (triggerConfig?.cron_expression ? describeCron(triggerConfig.cron_expression) : "Sin configurar")
-    : null;
+  // Multi-trigger: show every configured trigger (OR logic). Fall back to the
+  // single trigger for legacy state.
+  const list = (triggers && triggers.length)
+    ? triggers
+    : [{ type: triggerType, config: triggerConfig }];
 
   return (
     <div
@@ -366,12 +368,27 @@ function TriggerNode(_: NodeProps) {
     >
       <div className="flex items-center gap-2 px-4 py-3 rounded-t-xl" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
         <Zap className="h-4 w-4 text-white" />
-        <span className="text-sm font-semibold text-white">Trigger de inicio</span>
+        <span className="text-sm font-semibold text-white">
+          {list.length > 1 ? "Disparadores (cualquiera)" : "Trigger de inicio"}
+        </span>
         {isSelected && <span className="ml-auto text-xs text-indigo-200">← config</span>}
       </div>
-      <div className="px-4 py-2.5">
-        <p className="text-xs font-semibold text-slate-700">{TRIGGER_LABELS[triggerType] || triggerType}</p>
-        {subtitle && <p className="text-xs text-slate-400 mt-0.5 truncate">{subtitle}</p>}
+      <div className="px-4 py-2.5 space-y-1.5">
+        {list.map((t, i) => {
+          const cfg = t.config || {};
+          const sub = t.type === "meta_lead_form"
+            ? (cfg.form_name ? `📋 ${cfg.form_name}` : "Sin formulario")
+            : t.type === "tag_added" ? (cfg.tag ? `Tag: "${cfg.tag}"` : "")
+            : t.type === "contact_stage_changed" ? (cfg.stage_name ? `Etapa: "${cfg.stage_name}"` : "")
+            : t.type === "scheduled" ? (cfg.cron_expression ? describeCron(cfg.cron_expression) : "Sin configurar")
+            : null;
+          return (
+            <div key={i} className={i > 0 ? "pt-1.5 border-t border-slate-100" : ""}>
+              <p className="text-xs font-semibold text-slate-700">{TRIGGER_LABELS[t.type] || t.type}</p>
+              {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
+            </div>
+          );
+        })}
       </div>
       <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
@@ -945,18 +962,70 @@ function TriggerConfigEditor({
   );
 }
 
+// ── Multi-trigger editor: a flow can fire on ANY of several triggers (OR) ──────
+function MultiTriggerEditor({
+  triggers, onChange,
+}: {
+  triggers: { type: string; config: Record<string, any> }[];
+  onChange: (triggers: { type: string; config: Record<string, any> }[]) => void;
+}) {
+  const list = triggers.length ? triggers : [{ type: "manual", config: {} }];
+  const update = (idx: number, type: string, config: Record<string, any>) =>
+    onChange(list.map((t, i) => (i === idx ? { type, config } : t)));
+  const remove = (idx: number) => {
+    const next = list.filter((_, i) => i !== idx);
+    onChange(next.length ? next : [{ type: "manual", config: {} }]);
+  };
+  const add = () => {
+    const used = new Set(list.map(t => t.type));
+    const avail = Object.keys(TRIGGER_LABELS).find(k => !used.has(k)) || "contact_created";
+    onChange([...list, { type: avail, config: {} }]);
+  };
+
+  return (
+    <div className="space-y-4">
+      {list.length > 1 && (
+        <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-700">
+          El flujo se ejecuta cuando ocurra <strong>cualquiera</strong> de estos disparadores (lógica O).
+        </div>
+      )}
+      {list.map((t, idx) => (
+        <div key={idx} className="rounded-xl border p-3 space-y-3">
+          {list.length > 1 && (
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
+                Disparador {idx + 1}
+              </span>
+              <button onClick={() => remove(idx)} className="text-muted-foreground hover:text-red-600">
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
+          <TriggerConfigEditor
+            triggerType={t.type}
+            triggerConfig={t.config}
+            onChange={(type, config) => update(idx, type, config)}
+          />
+        </div>
+      ))}
+      <Button variant="outline" size="sm" className="w-full gap-2" onClick={add}>
+        <Plus className="h-4 w-4" /> Agregar otro disparador
+      </Button>
+    </div>
+  );
+}
+
 // ── Node config panel ─────────────────────────────────────────────────────────
 function NodeConfigPanel({
-  selectedId, steps, triggerType, triggerConfig,
-  onClose, onStepChange, onTriggerChange,
+  selectedId, steps, triggers,
+  onClose, onStepChange, onTriggersChange,
 }: {
   selectedId: string;
   steps: AutomationStep[];
-  triggerType: string;
-  triggerConfig: Record<string, any>;
+  triggers: { type: string; config: Record<string, any> }[];
   onClose: () => void;
   onStepChange: (step: AutomationStep) => void;
-  onTriggerChange: (type: string, config: Record<string, any>) => void;
+  onTriggersChange: (triggers: { type: string; config: Record<string, any> }[]) => void;
 }) {
   const step = steps.find(s => s.id === selectedId) || null;
   const isTrigger = selectedId === "trigger";
@@ -981,11 +1050,7 @@ function NodeConfigPanel({
       {/* Panel body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isTrigger && (
-          <TriggerConfigEditor
-            triggerType={triggerType}
-            triggerConfig={triggerConfig}
-            onChange={onTriggerChange}
-          />
+          <MultiTriggerEditor triggers={triggers} onChange={onTriggersChange} />
         )}
 
         {step && <StepConfigEditor step={step} onChange={onStepChange} />}
@@ -2044,8 +2109,18 @@ function AutomationBuilder({
   const [name, setName] = useState(automation?.name ?? "Nueva automatización");
   const [description, setDescription] = useState(automation?.description ?? "");
   const [isActive, setIsActive] = useState(automation?.is_active ?? false);
-  const [triggerType, setTriggerType] = useState(automation?.trigger_type ?? "manual");
-  const [triggerConfig, setTriggerConfig] = useState<Record<string, any>>(automation?.trigger_config ?? {});
+  // Multi-trigger: a flow can fire on ANY of several triggers. Initialize from the
+  // automation's `triggers` array, falling back to the legacy single trigger.
+  const [triggers, setTriggers] = useState<{ type: string; config: Record<string, any> }[]>(
+    () => {
+      const t = (automation as any)?.triggers;
+      if (Array.isArray(t) && t.length) return t.map((x: any) => ({ type: x.type, config: x.config ?? {} }));
+      return [{ type: automation?.trigger_type ?? "manual", config: automation?.trigger_config ?? {} }];
+    }
+  );
+  // Primary trigger kept for display / node position (_nodePos lives here).
+  const triggerType = triggers[0]?.type ?? "manual";
+  const triggerConfig = triggers[0]?.config ?? {};
 
   // Steps state (source of truth)
   const [steps, setSteps] = useState<AutomationStep[]>(automation?.steps ?? []);
@@ -2111,8 +2186,8 @@ function AutomationBuilder({
   }, []);
 
   const ctxValue = useMemo(
-    () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig }),
-    [onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig]
+    () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers }),
+    [onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers]
   );
 
   // Handle step picker selection
@@ -2146,13 +2221,22 @@ function AutomationBuilder({
         ...s,
         position: nodePositions[s.id] ?? s.position ?? undefined,
       }));
-      const triggerConfigWithPos = nodePositions["trigger"]
-        ? { ...triggerConfig, _nodePos: nodePositions["trigger"] }
-        : triggerConfig;
+      // Persist the trigger-node position inside the PRIMARY trigger's config.
+      const primaryConfigWithPos = nodePositions["trigger"]
+        ? { ...(triggers[0]?.config ?? {}), _nodePos: nodePositions["trigger"] }
+        : (triggers[0]?.config ?? {});
+      const triggersToSave = triggers.map((t, i) =>
+        i === 0 ? { type: t.type, config: primaryConfigWithPos } : { type: t.type, config: t.config ?? {} }
+      );
 
       const payload = {
         name, description, is_active: isActive,
-        trigger_type: triggerType, trigger_config: triggerConfigWithPos,
+        // Legacy single-trigger fields (kept for backward compatibility) = primary trigger
+        trigger_type: triggersToSave[0]?.type ?? "manual",
+        trigger_config: primaryConfigWithPos,
+        // Multi-trigger fields
+        triggers: triggersToSave,
+        trigger_types: triggersToSave.map(t => t.type),
         steps: stepsWithPos, user_id: user.id, updated_at: new Date().toISOString(),
       };
       let err;
@@ -2246,11 +2330,10 @@ function AutomationBuilder({
             <NodeConfigPanel
               selectedId={selectedId}
               steps={steps}
-              triggerType={triggerType}
-              triggerConfig={triggerConfig}
+              triggers={triggers}
               onClose={() => setSelectedId(null)}
               onStepChange={handleStepChange}
-              onTriggerChange={(t, c) => { setTriggerType(t); setTriggerConfig(c); }}
+              onTriggersChange={setTriggers}
             />
           )}
         </div>
