@@ -390,6 +390,7 @@ function TriggerNode(_: NodeProps) {
             : t.type === "tag_added" ? (cfg.tag ? `Tag: "${cfg.tag}"` : "")
             : t.type === "contact_stage_changed" ? (cfg.stage_name ? `Etapa: "${cfg.stage_name}"` : "")
             : t.type === "scheduled" ? (cfg.cron_expression ? describeCron(cfg.cron_expression) : "Sin configurar")
+            : t.type === "contact_created" ? (cfg.source && cfg.source !== "any" ? `Origen: ${cfg.source}` : "")
             : null;
           return (
             <div key={i} className={i > 0 ? "pt-1.5 border-t border-slate-100" : ""}>
@@ -978,6 +979,27 @@ function TriggerConfigEditor({
           </p>
         </div>
       )}
+      {triggerType === "contact_created" && (
+        <div>
+          <Label>Origen del contacto</Label>
+          <Select value={triggerConfig?.source ?? "any"} onValueChange={v => onChange("contact_created", { ...triggerConfig, source: v })}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any">Cualquier origen</SelectItem>
+              <SelectItem value="api">API (n8n / Zapier / externo)</SelectItem>
+              <SelectItem value="whatsapp">WhatsApp entrante</SelectItem>
+              <SelectItem value="meta_lead_form">Formulario de Meta Lead Ads</SelectItem>
+              <SelectItem value="landing">Landing Page de Klosify</SelectItem>
+              <SelectItem value="embed_form">Formulario web (embed)</SelectItem>
+              <SelectItem value="manual">Creado manualmente</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Dispara solo cuando el contacto se cree por este canal. "Cualquier origen" dispara siempre.
+          </p>
+        </div>
+      )}
+
       {triggerType === "scheduled" && (
         <ScheduledTriggerEditor triggerConfig={triggerConfig} onChange={cfg => onChange("scheduled", cfg)} />
       )}

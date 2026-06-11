@@ -364,6 +364,7 @@ Deno.serve(async (req) => {
                       action: "trigger_event",
                       trigger_type: "contact_created",
                       contact_id: newContact.id,
+                      trigger_data: { origin: "whatsapp" },
                     }),
                   }).catch(e => console.warn("contact_created automation trigger failed:", e));
 

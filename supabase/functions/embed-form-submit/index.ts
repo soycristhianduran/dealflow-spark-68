@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
         body: JSON.stringify({
           action: "trigger_event", trigger_type: "contact_created",
-          contact_id: contactId, trigger_data: { source: "embed_form" },
+          contact_id: contactId, trigger_data: { origin: "embed_form", source: "embed_form" },
         }),
       }).catch(() => {});
     }

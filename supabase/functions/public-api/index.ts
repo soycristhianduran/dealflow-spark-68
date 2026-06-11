@@ -421,7 +421,7 @@ Deno.serve(async (req) => {
         action: "trigger_event",
         trigger_type: "contact_created",
         contact_id: data.id,
-        trigger_data: { source: fields.source ?? "api" },
+        trigger_data: { origin: "api", source: fields.source ?? "api" },
       },
     }).catch((e: Error) => console.warn("contact_created automation trigger failed:", e.message));
 

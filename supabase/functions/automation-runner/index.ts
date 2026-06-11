@@ -249,6 +249,10 @@ Deno.serve(async (req) => {
         const matchTrigger = (Array.isArray(automation.triggers) ? automation.triggers : [])
           .find((t: any) => t.type === trigger_type);
         const cfg = matchTrigger?.config || automation.trigger_config || {};
+        // contact_created: filter by creation origin (api, whatsapp, landing,
+        // embed_form, meta_lead_form, manual). "any"/empty = all origins.
+        if (trigger_type === "contact_created" && cfg.source && cfg.source !== "any"
+            && cfg.source !== trigger_data?.origin) continue;
         if (trigger_type === "landing_form_submitted" && cfg.page_id && cfg.page_id !== trigger_data?.landing_slug) continue;
         if (trigger_type === "email_opened"  && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
         if (trigger_type === "email_clicked" && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;

@@ -293,7 +293,7 @@ export default function PipelinePage() {
     // Fire contact_created automation trigger (fire-and-forget)
     if (newLead?.id) {
       supabase.functions.invoke("automation-runner", {
-        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: newLead.id },
+        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: newLead.id, trigger_data: { origin: "manual" } },
       }).catch(() => {});
     }
 

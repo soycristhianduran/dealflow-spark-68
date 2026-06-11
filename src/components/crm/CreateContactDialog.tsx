@@ -155,7 +155,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
       // Fire contact_created automation trigger (fire-and-forget)
       supabase.functions.invoke("automation-runner", {
-        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: contact.id },
+        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: contact.id, trigger_data: { origin: "manual" } },
       }).catch(() => {});
 
       setForm({ first_name: "", last_name: "", primary_phone: "", primary_email: "", source: "", preferred_channel: "", country: "", city: "", notes: "", company_id: "", birthday: "" });

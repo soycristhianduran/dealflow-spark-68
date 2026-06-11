@@ -438,6 +438,24 @@ async function processLeadgenChange(
     // Non-fatal — log and continue
     console.error("Error triggering automations for lead:", autoErr);
   }
+
+  // Also fire the generic contact_created trigger with origin "meta_lead_form",
+  // so automations that filter "Contacto creado" by source can catch Meta leads.
+  try {
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        action: "trigger_event",
+        trigger_type: "contact_created",
+        contact_id: newContact.id,
+        trigger_data: { origin: "meta_lead_form", form_id: formId },
+      }),
+    }).catch(() => {});
+  } catch (_) { /* non-fatal */ }
 }
 
 // ============================================================================
