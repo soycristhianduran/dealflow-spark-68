@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Loader2, Megaphone, AlertCircle, Image as ImageIcon } from "lucide-react";
 
 interface Creative {
@@ -28,6 +29,7 @@ export function AdPreviewDialog({ open, onOpenChange, adId, adName }: {
   adId: string | null;
   adName?: string | null;
 }) {
+  const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<PreviewData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export function AdPreviewDialog({ open, onOpenChange, adId, adName }: {
   useEffect(() => {
     if (!open || !adId) return;
     setLoading(true); setError(null); setData(null);
-    supabase.functions.invoke("facebook-api", { body: { action: "get_ad_preview", ad_id: adId } })
+    supabase.functions.invoke("facebook-api", { body: { action: "get_ad_preview", ad_id: adId, organization_id: organizationId } })
       .then(({ data: d, error: e }) => {
         if (e || d?.error) { setError(d?.error || e?.message || "No se pudo cargar el anuncio"); return; }
         setData(d);

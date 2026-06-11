@@ -81,11 +81,10 @@ export function useFacebookIntegration() {
       .from("facebook_tokens")
       .select("id, needs_reconnect, token_expires_at, last_refresh_error")
       .eq("user_id", user.id);
-    // Tolerate tokens saved without an organization_id (legacy / pre-multi-org).
-    // Match the current org OR an org-less token so the UI doesn't show
-    // "disconnected" when a valid token exists with organization_id = NULL.
+    // Strict org isolation: only this organization's token counts as connected,
+    // so a Facebook connection in one org never bleeds into another.
     if (organizationId) {
-      query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
+      query = query.eq("organization_id", organizationId);
     }
     const { data } = await query.limit(1).maybeSingle();
     setIsConnected(!!data);
@@ -97,7 +96,7 @@ export function useFacebookIntegration() {
         last_refresh_error: data.last_refresh_error ?? null,
       });
       const { data: statusData } = await supabase.functions.invoke("facebook-api", {
-        body: { action: "status" },
+        body: { action: "status", organization_id: organizationId },
       });
       if (statusData) setStatus(statusData);
     } else {
@@ -215,77 +214,77 @@ export function useFacebookIntegration() {
 
   const disconnect = useCallback(async () => {
     const { error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "disconnect" },
+      body: { action: "disconnect", organization_id: organizationId },
     });
     if (!error) {
       setIsConnected(false);
       setStatus(null);
       toast.success("Facebook desconectado");
     }
-  }, []);
+  }, [organizationId]);
 
   const getPages = useCallback(async (): Promise<FbPage[]> => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "get_pages" },
+      body: { action: "get_pages", organization_id: organizationId },
     });
     if (error) { toast.error("Error al obtener páginas"); return []; }
     if (data?.error) { toast.error(`Error páginas: ${data.error}`); return []; }
     return data.pages || [];
-  }, []);
+  }, [organizationId]);
 
   const savePages = useCallback(async (pages: { page_id: string; page_name: string; page_access_token: string }[]) => {
     const { error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "save_pages", pages },
+      body: { action: "save_pages", pages, organization_id: organizationId },
     });
     if (error) toast.error("Error al guardar páginas");
     else toast.success("Páginas guardadas");
     checkConnection();
-  }, [checkConnection]);
+  }, [checkConnection, organizationId]);
 
   const getLeadForms = useCallback(async (pageId: string): Promise<FbForm[]> => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "get_lead_forms", page_id: pageId },
+      body: { action: "get_lead_forms", page_id: pageId, organization_id: organizationId },
     });
     if (error) { toast.error("Error al obtener formularios"); return []; }
     return data.forms || [];
-  }, []);
+  }, [organizationId]);
 
   const saveLeadForms = useCallback(async (pageId: string, forms: { form_id: string; form_name: string; form_status?: string; pipeline_id?: string }[]) => {
     const { error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "save_lead_forms", page_id: pageId, forms },
+      body: { action: "save_lead_forms", page_id: pageId, forms, organization_id: organizationId },
     });
     if (error) toast.error("Error al guardar formularios");
     else toast.success("Formularios sincronizados");
     checkConnection();
-  }, [checkConnection]);
+  }, [checkConnection, organizationId]);
 
   const saveFieldMappings = useCallback(async (formId: string, mappings: { fb_field_name: string; contact_field: string; is_custom_field: boolean }[]) => {
     const { error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "save_field_mappings", form_id: formId, mappings },
+      body: { action: "save_field_mappings", form_id: formId, mappings, organization_id: organizationId },
     });
     if (error) toast.error("Error al guardar mapeo de campos");
     else toast.success("Mapeo de campos guardado");
-  }, []);
+  }, [organizationId]);
 
   const getConversations = useCallback(async (pageId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "get_conversations", page_id: pageId },
+      body: { action: "get_conversations", page_id: pageId, organization_id: organizationId },
     });
     if (error) { toast.error("Error al obtener conversaciones"); return []; }
     return data.conversations || [];
-  }, []);
+  }, [organizationId]);
 
   const getAdAccounts = useCallback(async (): Promise<FbAdAccount[]> => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "get_ad_accounts" },
+      body: { action: "get_ad_accounts", organization_id: organizationId },
     });
     if (error) { toast.error("Error al obtener cuentas publicitarias"); return []; }
     return data.ad_accounts || [];
-  }, []);
+  }, [organizationId]);
 
   const importCampaigns = useCallback(async (adAccountId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "get_campaigns", ad_account_id: adAccountId },
+      body: { action: "get_campaigns", ad_account_id: adAccountId, organization_id: organizationId },
     });
     if (error) { toast.error("Error al importar campañas"); return null; }
     toast.success(`${data.total} campañas importadas`);
@@ -336,17 +335,17 @@ export function useFacebookIntegration() {
 
   const fetchLeads = useCallback(async (formId: string, pageId: string) => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {
-      body: { action: "fetch_leads", form_id: formId, page_id: pageId },
+      body: { action: "fetch_leads", form_id: formId, page_id: pageId, organization_id: organizationId },
     });
     if (error) { toast.error("Error al importar leads"); return null; }
-    const imported = data?.imported || { contacts: 0, deals: 0 };
-    if (imported.contacts > 0) {
-      toast.success(`${imported.contacts} leads importados, ${imported.deals} deals creados`);
+    const imported = data?.imported || { contacts: 0, updated: 0, deals: 0 };
+    if ((imported.contacts || 0) + (imported.updated || 0) > 0) {
+      toast.success(`${imported.contacts} nuevos, ${imported.updated || 0} actualizados`);
     } else {
       toast.info("No se encontraron leads nuevos para importar");
     }
     return data;
-  }, []);
+  }, [organizationId]);
 
   const subscribeLeadgen = useCallback(async () => {
     const { data, error } = await supabase.functions.invoke("facebook-api", {

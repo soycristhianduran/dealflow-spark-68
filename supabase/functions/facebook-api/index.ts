@@ -17,13 +17,17 @@ async function getUser(req: Request) {
   return { user, supabase };
 }
 
-async function getFbToken(supabase: any, userId: string) {
-  const { data, error } = await supabase
-    .from("facebook_tokens")
-    .select("access_token")
-    .eq("user_id", userId)
-    .single();
-  if (error || !data) throw new Error("Facebook not connected");
+async function getFbToken(supabase: any, userId: string, orgId?: string | null) {
+  // Scope the token to the CURRENT organization so a user who manages Facebook
+  // in multiple orgs uses the right portfolio's token (and they stay isolated).
+  let q = supabase.from("facebook_tokens").select("access_token").eq("user_id", userId);
+  if (orgId) q = q.eq("organization_id", orgId);
+  let { data } = await q.limit(1).maybeSingle();
+  if (!data && orgId) {
+    // Legacy fallback: a token saved before org scoping.
+    ({ data } = await supabase.from("facebook_tokens").select("access_token").eq("user_id", userId).limit(1).maybeSingle());
+  }
+  if (!data) throw new Error("Facebook not connected");
   return data.access_token;
 }
 
@@ -43,9 +47,10 @@ Deno.serve(async (req) => {
       "get_lead_forms", "save_lead_forms", "fetch_leads", "subscribe_leadgen",
       "get_conversations", "get_video_url", "get_ad_preview",
     ];
+    const reqOrgId: string | null = body?.organization_id ?? null;
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
-      fbToken = await getFbToken(supabase, user.id);
+      fbToken = await getFbToken(supabase, user.id, reqOrgId);
     }
 
     switch (action) {
@@ -565,8 +570,11 @@ Deno.serve(async (req) => {
 
       // ===== GET CONNECTION STATUS =====
       case "status": {
-        const { data: pages } = await supabase.from("facebook_pages").select("page_id, page_name").eq("user_id", user.id);
-        const { data: forms } = await supabase.from("facebook_lead_forms").select("form_id, form_name, page_id, is_syncing").eq("user_id", user.id);
+        let pq = supabase.from("facebook_pages").select("page_id, page_name").eq("user_id", user.id);
+        let fq = supabase.from("facebook_lead_forms").select("form_id, form_name, page_id, is_syncing").eq("user_id", user.id);
+        if (reqOrgId) { pq = pq.eq("organization_id", reqOrgId); fq = fq.eq("organization_id", reqOrgId); }
+        const { data: pages } = await pq;
+        const { data: forms } = await fq;
         const { data: campaigns } = await supabase.from("meta_campaigns").select("campaign_id").eq("user_id", user.id);
         return new Response(JSON.stringify({
           connected: true,
@@ -628,15 +636,26 @@ Deno.serve(async (req) => {
 
       // ===== DISCONNECT =====
       case "disconnect": {
-        // Clear ALL Meta/Facebook data for this user on disconnect so that
-        // reconnecting with a different account starts with a clean slate.
-        await supabase.from("facebook_lead_forms").delete().eq("user_id", user.id);
-        await supabase.from("facebook_messages").delete().eq("user_id", user.id);
-        await supabase.from("meta_ads").delete().eq("user_id", user.id);
-        await supabase.from("meta_adsets").delete().eq("user_id", user.id);
-        await supabase.from("meta_campaigns").delete().eq("user_id", user.id);
-        await supabase.from("facebook_pages").delete().eq("user_id", user.id);
-        await supabase.from("facebook_tokens").delete().eq("user_id", user.id);
+        // Disconnect ONLY the current organization so other orgs the same user
+        // manages stay connected (their token/pages are untouched).
+        const scopeDel = (tbl: string) => {
+          let q = supabase.from(tbl).delete().eq("user_id", user.id);
+          if (reqOrgId) q = q.eq("organization_id", reqOrgId);
+          return q;
+        };
+        // Org-scoped tables.
+        await scopeDel("facebook_lead_forms");
+        await scopeDel("facebook_pages");
+        await scopeDel("facebook_field_mappings");
+        await scopeDel("facebook_tokens");
+        // Tables without organization_id: only wipe when NOT org-scoped (single
+        // org) to avoid deleting another org's data.
+        if (!reqOrgId) {
+          await supabase.from("facebook_messages").delete().eq("user_id", user.id);
+          await supabase.from("meta_ads").delete().eq("user_id", user.id);
+          await supabase.from("meta_adsets").delete().eq("user_id", user.id);
+          await supabase.from("meta_campaigns").delete().eq("user_id", user.id);
+        }
         return new Response(JSON.stringify({ success: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
