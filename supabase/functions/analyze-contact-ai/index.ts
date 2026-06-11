@@ -459,8 +459,17 @@ Deno.serve(async (req) => {
         .eq("status", "pending")
         .maybeSingle();
       if (!existing) {
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 1); // +24h
+        // Due "tomorrow" relative to TODAY in the org's timezone (UTC math drifts
+        // a calendar day near local midnight).
+        let aiTz = "America/Bogota";
+        try {
+          const { data: orgRow } = await supabase.from("organizations").select("timezone").eq("id", orgId).maybeSingle();
+          if (orgRow?.timezone) aiTz = orgRow.timezone;
+        } catch (_) { /* default */ }
+        const todayLocal = new Intl.DateTimeFormat("en-CA", { timeZone: aiTz, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+        const dd = new Date(`${todayLocal}T00:00:00Z`);
+        dd.setUTCDate(dd.getUTCDate() + 1);
+        const dueDateStr = dd.toISOString().slice(0, 10);
         const { data: newTask } = await supabase
           .from("tasks")
           .insert({
@@ -468,7 +477,7 @@ Deno.serve(async (req) => {
             description: `Generada por IA. ${next_best_action}`,
             task_type: "follow_up",
             priority: temperature >= 80 ? "high" : "medium",
-            due_date: dueDate.toISOString().slice(0, 10),
+            due_date: dueDateStr,
             status: "pending",
             owner_id: contact.owner_id || effectiveUserId,
             contact_id,

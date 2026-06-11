@@ -145,6 +145,21 @@ function isScheduledDue(cronExpr: string, lastTriggeredAt: string | null, now: D
   return false;
 }
 
+// Calendar date (YYYY-MM-DD) of `date` as seen in a given IANA timezone.
+function localDateStr(date: Date, timeZone: string): string {
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(date);
+}
+
+// Add `days` calendar days to a YYYY-MM-DD string.
+function addDaysToDateStr(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 // Wall-clock parts of `date` in a given IANA timezone.
 function partsInTz(date: Date, timeZone: string): { minute: number; hour: number; day: number; month: number; dow: number } {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -750,7 +765,14 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       const { title, due_in_days, assign_to_owner } = step.config || {};
       if (title) {
         const taskTitle = renderVars(title, ctx);
-        const dueDate = new Date(Date.now() + (due_in_days || 1) * 86_400_000).toISOString().split("T")[0];
+        // Compute the due date relative to TODAY in the org's timezone so it lands
+        // on the correct calendar day (UTC math drifts a day near local midnight).
+        let taskTz = "America/Bogota";
+        try {
+          const { data: org } = await supabase.from("organizations").select("timezone").eq("id", contact.organization_id).maybeSingle();
+          if (org?.timezone) taskTz = org.timezone;
+        } catch (_) { /* default */ }
+        const dueDate = addDaysToDateStr(localDateStr(new Date(), taskTz), due_in_days || 1);
         await supabase.from("tasks").insert({
           title: taskTitle,
           contact_id: contact.id,
