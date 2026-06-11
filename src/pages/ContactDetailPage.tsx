@@ -1014,10 +1014,10 @@ export default function ContactDetailPage() {
                               </div>
                             </div>
                           )}
-                          <InfoItem label="Campaña" value={contact.campaign} />
-                          <InfoItem label="Ad Set" value={contact.adset} />
-                          <InfoItem label="Anuncio" value={contact.ad} />
-                          <InfoItem label="Landing Page" value={contact.landing_page} />
+                          {contact.campaign     && <InfoItem label="Campaña" value={contact.campaign} />}
+                          {contact.adset        && <InfoItem label="Ad Set" value={contact.adset} />}
+                          {contact.ad           && <InfoItem label="Anuncio" value={contact.ad} />}
+                          {contact.landing_page && <InfoItem label="Landing Page" value={contact.landing_page} />}
                         </div>
                       </CardContent>
                     </Card>
