@@ -195,8 +195,11 @@ export function useFacebookIntegration() {
               const code = response?.authResponse?.code;
               if (!code) { setConnecting(false); toast.error("Conexión cancelada."); return; }
               try {
+                // The JS SDK binds the code to a redirect_uri we can't see; pass the
+                // page URL so the backend can try it (plus other variants) on exchange.
+                const pageUrl = window.location.origin + window.location.pathname;
                 const { data, error } = await supabase.functions.invoke("facebook-api", {
-                  body: { action: "fb_exchange_code", code, organization_id: organizationId },
+                  body: { action: "fb_exchange_code", code, organization_id: organizationId, page_url: pageUrl },
                 });
                 // supabase-js hides the edge function's real error behind a generic
                 // "non-2xx status code" message; the actual reason (e.g. the Meta
