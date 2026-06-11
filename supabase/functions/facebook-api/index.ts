@@ -227,6 +227,31 @@ Deno.serve(async (req) => {
           pageCount++;
         }
 
+        // Resolve campaign / adset / ad IDs to their NAMES. The lead object often
+        // returns only the IDs (or nothing), so we batch-look-up the names via the
+        // user token (ads_read). Falls back to the ID when a name isn't available.
+        const nameMap: Record<string, string> = {};
+        const idSet = new Set<string>();
+        for (const l of fbLeads) {
+          for (const id of [l.campaign_id, l.adset_id, l.ad_id]) if (id) idSet.add(String(id));
+        }
+        const allIds = [...idSet];
+        if (fbToken && allIds.length) {
+          for (let i = 0; i < allIds.length; i += 50) {
+            const part = allIds.slice(i, i + 50);
+            try {
+              const r = await fetch(`${GRAPH_API}/?ids=${part.join(",")}&fields=name&access_token=${fbToken}`);
+              const j = await r.json();
+              if (r.ok && j && typeof j === "object") {
+                for (const [id, obj] of Object.entries(j)) {
+                  const nm = (obj as any)?.name;
+                  if (nm) nameMap[id] = nm;
+                }
+              }
+            } catch (_) { /* fall back to IDs */ }
+          }
+        }
+
         // Load user-defined field mappings for this form
         const { data: userMappings } = await supabase
           .from("facebook_field_mappings")
@@ -290,16 +315,17 @@ Deno.serve(async (req) => {
           let contactData: Record<string, any> = {
             organization_id: orgId,
             source: "facebook",
-            campaign: lead.campaign_name || lead.campaign_id || form_id,
-            adset: lead.adset_name || lead.adset_id || null,
-            ad: lead.ad_name || lead.ad_id || null,
+            // Prefer resolved NAMES; fall back to the lead's own name, then the ID.
+            campaign: (lead.campaign_id && nameMap[lead.campaign_id]) || lead.campaign_name || lead.campaign_id || null,
+            adset:    (lead.adset_id && nameMap[lead.adset_id])       || lead.adset_name    || lead.adset_id    || null,
+            ad:       (lead.ad_id && nameMap[lead.ad_id])             || lead.ad_name       || lead.ad_id       || null,
             meta_campaign_id: lead.campaign_id || null,
             meta_ad_id:       lead.ad_id       || null,
             meta_adset_id:    lead.adset_id    || null,
             utm_source:       "facebook",
             utm_medium:       "paid_social",
-            utm_campaign:     lead.campaign_name || lead.campaign_id || null,
-            utm_content:      lead.ad_name || lead.ad_id || null,
+            utm_campaign:     (lead.campaign_id && nameMap[lead.campaign_id]) || lead.campaign_name || lead.campaign_id || null,
+            utm_content:      (lead.ad_id && nameMap[lead.ad_id]) || lead.ad_name || lead.ad_id || null,
             status: "new",
             owner_id: user.id,
             // Unified Leads+Deals model: the contact IS the pipeline entity, so
