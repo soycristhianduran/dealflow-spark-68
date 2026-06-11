@@ -523,10 +523,22 @@ ${fieldsHtml}
     var form=document.getElementById('lead-form');
     if(!form)return;
     var btn=form.querySelector('button[type="submit"]');
+    // Auto-capture UTMs (+ ad click ids) from the URL on first load and persist
+    // them so they survive navigation within the landing.
+    var UTM_KEYS=['utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid'];
+    try{
+      var sp=new URLSearchParams(window.location.search);
+      UTM_KEYS.forEach(function(k){var val=sp.get(k);if(val){try{localStorage.setItem('kl_'+k,val);}catch(_){}}});
+    }catch(_){}
+    function getUtm(k){
+      try{var sp=new URLSearchParams(window.location.search);var u=sp.get(k);if(u)return u;}catch(_){}
+      try{return localStorage.getItem('kl_'+k)||'';}catch(_){return '';}
+    }
     form.addEventListener('submit',async function(e){
       e.preventDefault();
       btn.disabled=true;btn.textContent='Enviando...';
       var data={page_id:form.dataset.pageId,source:window.location.href};
+      UTM_KEYS.forEach(function(k){var v=getUtm(k);if(v)data[k]=v;});
       new FormData(form).forEach(function(v,k){if(k!=='')data[k]=v;});
       try{
         var res=await fetch(form.action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
