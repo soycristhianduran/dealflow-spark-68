@@ -147,6 +147,13 @@ async function processLeadgenChange(
   const isTestLead = String(leadgenId).startsWith("TEST_");
   let fields: Record<string, string> = {};
 
+  // Ad attribution (ids + names). Populated from the lead object, then resolved
+  // to readable names below.
+  let adId: string | null = change.value?.ad_id || null;
+  let adsetId: string | null = change.value?.adgroup_id || null;
+  let campaignId: string | null = change.value?.campaign_id || null;
+  let campaignName: string | null = null, adsetName: string | null = null, adName: string | null = null;
+
   if (isTestLead) {
     console.log("Test lead detected — using placeholder data");
     fields = {
@@ -157,7 +164,8 @@ async function processLeadgenChange(
       phone_number: "+0000000000",
     };
   } else {
-    const leadRes = await fetch(`${GRAPH_API}/${leadgenId}?access_token=${pageToken}`);
+    // Request the ad metadata alongside field_data so we can attribute the lead.
+    const leadRes = await fetch(`${GRAPH_API}/${leadgenId}?fields=id,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name&access_token=${pageToken}`);
     const leadData = await leadRes.json();
     if (!leadRes.ok) {
       console.error(`Graph API error fetching lead ${leadgenId}:`, JSON.stringify(leadData));
@@ -166,6 +174,36 @@ async function processLeadgenChange(
     for (const fd of leadData.field_data || []) {
       fields[(fd.name || "").toLowerCase()] = (fd.values || [])[0] || "";
     }
+    adId = leadData.ad_id || adId;
+    adsetId = leadData.adset_id || adsetId;
+    campaignId = leadData.campaign_id || campaignId;
+    campaignName = leadData.campaign_name || null;
+    adsetName = leadData.adset_name || null;
+    adName = leadData.ad_name || null;
+  }
+
+  // Resolve any missing names (campaign/adset/ad) to readable names via the
+  // connector's user token (ads_read), so the lead shows names, not IDs.
+  const idsToResolve = [
+    campaignId && !campaignName ? campaignId : null,
+    adsetId && !adsetName ? adsetId : null,
+    adId && !adName ? adId : null,
+  ].filter(Boolean) as string[];
+  if (idsToResolve.length) {
+    try {
+      const { data: tok } = await supabase
+        .from("facebook_tokens").select("access_token").eq("user_id", userId).maybeSingle();
+      const userToken = tok?.access_token;
+      if (userToken) {
+        const r = await fetch(`${GRAPH_API}/?ids=${idsToResolve.join(",")}&fields=name&access_token=${userToken}`);
+        const j = await r.json();
+        if (r.ok && j && typeof j === "object") {
+          if (campaignId && j[campaignId]?.name) campaignName = j[campaignId].name;
+          if (adsetId && j[adsetId]?.name) adsetName = j[adsetId].name;
+          if (adId && j[adId]?.name) adName = j[adId].name;
+        }
+      }
+    } catch (_) { /* fall back to IDs */ }
   }
 
   // Check if this form has a specific pipeline configured
@@ -186,9 +224,12 @@ async function processLeadgenChange(
 
   const contactData: Record<string, any> = {
     source: "facebook_ads",
-    campaign: change.value?.campaign_name || change.value?.campaign_id || formId,
-    adset: change.value?.adset_name || change.value?.adset_id || null,
-    ad: change.value?.ad_name || change.value?.ad_id || null,
+    campaign: campaignName || campaignId || null,
+    adset: adsetName || adsetId || null,
+    ad: adName || adId || null,
+    meta_campaign_id: campaignId,
+    meta_adset_id: adsetId,
+    meta_ad_id: adId,
     status: "new",
     owner_id: userId,
     organization_id: organizationId,
