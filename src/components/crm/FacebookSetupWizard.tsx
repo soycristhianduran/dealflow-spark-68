@@ -20,7 +20,7 @@ interface FacebookSetupWizardProps {
 type Step = "pages" | "forms" | "mapping" | "messenger" | "campaigns" | "done";
 
 interface PageItem { id: string; name: string; access_token: string; category?: string; selected: boolean }
-interface FormItem { id: string; name: string; status: string; selected: boolean; pipeline_id?: string; questions?: { key: string; label: string; type: string }[] }
+interface FormItem { id: string; name: string; status: string; selected: boolean; pipeline_id?: string; page_id?: string; page_name?: string; questions?: { key: string; label: string; type: string }[] }
 interface PipelineOption { id: string; name: string }
 interface AdAccountItem { id: string; name: string; selected: boolean }
 interface FieldMapping { fb_field_name: string; fb_field_label: string; contact_field: string; is_custom_field: boolean }
@@ -111,7 +111,17 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     setLoading(true);
     await fb.savePages(selected.map(p => ({ page_id: p.id, page_name: p.name, page_access_token: p.access_token })));
     setSelectedPageId(selected[0].id);
-    const fetchedForms = await fb.getLeadForms(selected[0].id);
+
+    // Fetch forms for EVERY selected page (not just the first), tagging each form
+    // with the page it belongs to, so multi-page connections show all forms.
+    const allForms: FormItem[] = [];
+    for (const pg of selected) {
+      const pageForms = await fb.getLeadForms(pg.id);
+      for (const f of pageForms) {
+        allForms.push({ id: f.id, name: f.name, status: f.status, selected: false, page_id: pg.id, page_name: pg.name, questions: f.questions });
+      }
+    }
+
     // Merge the saved pipeline mapping so previously-chosen pipelines are kept
     // (getLeadForms returns the LIVE FB forms, without the saved pipeline_id).
     const { data: savedForms } = await supabase
@@ -119,13 +129,11 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
       .select("form_id, pipeline_id");
     const savedMap = new Map<string, string | null>((savedForms || []).map((s: any) => [s.form_id, s.pipeline_id]));
     // Pre-select ONLY the forms that were already integrated (saved). On a
-    // first-time setup nothing is pre-selected so the user picks what they want,
-    // instead of all forms appearing selected.
+    // first-time setup nothing is pre-selected so the user picks what they want.
     const hasSaved = savedMap.size > 0;
-    setForms(fetchedForms.map(f => ({
-      id: f.id, name: f.name, status: f.status,
+    setForms(allForms.map(f => ({
+      ...f,
       selected: hasSaved ? savedMap.has(f.id) : false,
-      questions: f.questions,
       pipeline_id: savedMap.get(f.id) ?? undefined,
     })));
     setLoading(false);
@@ -133,10 +141,17 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   };
 
   const handleSaveForms = async () => {
-    if (!selectedPageId) return;
     setLoading(true);
     const selected = forms.filter(f => f.selected);
-    await fb.saveLeadForms(selectedPageId, selected.map(f => ({ form_id: f.id, form_name: f.name, form_status: f.status, pipeline_id: f.pipeline_id })));
+    // Save grouped BY PAGE so each page's deselected forms are correctly removed
+    // (the backend replaces the selection per page). Iterate every page that has
+    // forms — even with none selected — so deselecting all of a page un-integrates it.
+    const pageIds = [...new Set(forms.map(f => f.page_id).filter(Boolean) as string[])];
+    const pagesToSave = pageIds.length ? pageIds : (selectedPageId ? [selectedPageId] : []);
+    for (const pid of pagesToSave) {
+      const pageForms = selected.filter(f => (f.page_id ?? selectedPageId) === pid);
+      await fb.saveLeadForms(pid, pageForms.map(f => ({ form_id: f.id, form_name: f.name, form_status: f.status, pipeline_id: f.pipeline_id })));
+    }
 
     // Initialize mappings for each selected form from its questions
     const mappingsInit: Record<string, FieldMapping[]> = {};
@@ -404,9 +419,10 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-foreground">{form.name}</p>
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                               <Badge variant="outline" className="text-xs">{form.status}</Badge>
                               {form.questions && <span className="text-xs text-muted-foreground">{form.questions.length} campos</span>}
+                              {form.page_name && <span className="text-xs text-blue-500/80">· {form.page_name}</span>}
                             </div>
                           </div>
                         </label>
