@@ -164,6 +164,16 @@ Deno.serve(async (req) => {
 
     const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
 
+    // If the OAuth state didn't carry the org, resolve it from the user's
+    // membership so the token is NEVER saved with organization_id = NULL (which
+    // would break org-scoped connection checks).
+    if (!organizationId) {
+      const { data: mem } = await supabase
+        .from("organization_members").select("organization_id")
+        .eq("user_id", userId).limit(1).maybeSingle();
+      if (mem?.organization_id) organizationId = mem.organization_id;
+    }
+
     // Upsert scoped by (user_id, organization_id) so each org has its own token.
     // Falls back to upsert by user_id alone when org is unknown (backward compat).
     if (organizationId) {
