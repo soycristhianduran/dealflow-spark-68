@@ -177,59 +177,15 @@ export function useFacebookIntegration() {
       return;
     }
 
-    // MODERN FLOW — Facebook Login for Business with a config_id. Gives a clean,
-    // per-connection asset selection (no cross-org page pre-selection). Falls back
-    // to the classic OAuth redirect below when no config_id is configured.
-    if (fbConfigId) {
-      setConnecting(true);
-      try {
-        await loadFacebookSdk(metaAppId);
-        const FB = (window as any).FB;
-        if (!FB) throw new Error("No se pudo cargar el SDK de Facebook.");
-        // The FB SDK rejects an async callback ("Expression is of type
-        // asyncfunction, not function"), so the handler is a plain function that
-        // kicks off the async work internally.
-        FB.login(
-          (response: any) => {
-            void (async () => {
-              const code = response?.authResponse?.code;
-              if (!code) { setConnecting(false); toast.error("Conexión cancelada."); return; }
-              try {
-                // The JS SDK binds the code to a redirect_uri we can't see; pass the
-                // page URL so the backend can try it (plus other variants) on exchange.
-                const pageUrl = window.location.origin + window.location.pathname;
-                const { data, error } = await supabase.functions.invoke("facebook-api", {
-                  body: { action: "fb_exchange_code", code, organization_id: organizationId, page_url: pageUrl },
-                });
-                // supabase-js hides the edge function's real error behind a generic
-                // "non-2xx status code" message; the actual reason (e.g. the Meta
-                // token-exchange error) is in the response body. Surface it.
-                if (error || data?.error) {
-                  let detail = data?.error || error?.message || "Error al conectar Facebook";
-                  try {
-                    const ctx = (error as any)?.context;
-                    if (ctx && typeof ctx.json === "function") {
-                      const body = await ctx.json();
-                      if (body?.error) detail = body.error;
-                    }
-                  } catch (_) { /* keep generic detail */ }
-                  throw new Error(detail);
-                }
-                toast.success("Facebook conectado exitosamente");
-                await checkConnection();
-              } catch (e: any) {
-                toast.error(e?.message || "Error al conectar Facebook");
-              } finally { setConnecting(false); }
-            })();
-          },
-          { config_id: fbConfigId, response_type: "code", override_default_response_type: true },
-        );
-      } catch (e: any) {
-        setConnecting(false);
-        toast.error(e?.message || "No se pudo iniciar la conexión.");
-      }
-      return;
-    }
+    // MODERN FLOW — Facebook Login for Business via the OAuth REDIRECT (not the JS
+    // SDK popup). When a config_id is configured we append it to the dialog URL so
+    // the user gets the Login-for-Business experience, while the redirect_uri stays
+    // the fixed Supabase callback that's already whitelisted in "Valid OAuth Redirect
+    // URIs". This sidesteps the SDK-popup dead end: Meta force-enables strict
+    // redirect mode, and the SDK binds the code to an unguessable/dynamic redirect_uri
+    // we can never list — so the popup code exchange always failed (36008 / 191).
+    // The redirect flow exchanges with the same listed callback, so strict mode is happy.
+    const configIdParam = fbConfigId ? `&config_id=${encodeURIComponent(fbConfigId)}` : "";
 
     setConnecting(true);
 
@@ -257,7 +213,7 @@ export function useFacebookIntegration() {
         "instagram_basic","instagram_manage_messages",
         "instagram_manage_comments","instagram_manage_insights",
       ].join(",");
-      const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(fallbackState)}&response_type=code`;
+      const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(fallbackState)}&response_type=code${configIdParam}`;
       window.location.href = oauthUrl;
       return;
     }
@@ -285,7 +241,7 @@ export function useFacebookIntegration() {
       "instagram_manage_insights",
     ].join(",");
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code`;
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code${configIdParam}`;
 
     // Use direct redirect instead of popup (cross-origin popup doesn't work)
     window.location.href = oauthUrl;
