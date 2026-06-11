@@ -198,7 +198,20 @@ export function useFacebookIntegration() {
                 const { data, error } = await supabase.functions.invoke("facebook-api", {
                   body: { action: "fb_exchange_code", code, organization_id: organizationId },
                 });
-                if (error || data?.error) throw new Error(data?.error || error?.message);
+                // supabase-js hides the edge function's real error behind a generic
+                // "non-2xx status code" message; the actual reason (e.g. the Meta
+                // token-exchange error) is in the response body. Surface it.
+                if (error || data?.error) {
+                  let detail = data?.error || error?.message || "Error al conectar Facebook";
+                  try {
+                    const ctx = (error as any)?.context;
+                    if (ctx && typeof ctx.json === "function") {
+                      const body = await ctx.json();
+                      if (body?.error) detail = body.error;
+                    }
+                  } catch (_) { /* keep generic detail */ }
+                  throw new Error(detail);
+                }
                 toast.success("Facebook conectado exitosamente");
                 await checkConnection();
               } catch (e: any) {
