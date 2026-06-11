@@ -176,29 +176,27 @@ Deno.serve(async (req) => {
 
     // Upsert scoped by (user_id, organization_id) so each org has its own token.
     // Falls back to upsert by user_id alone when org is unknown (backward compat).
-    if (organizationId) {
-      await supabase.from("facebook_tokens").upsert(
-        {
-          user_id: userId,
-          organization_id: organizationId,
-          access_token: longLivedToken,
-          token_expires_at: expiresAt,
-          fb_user_id: fbUserId,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,organization_id" }
-      );
-    } else {
-      await supabase.from("facebook_tokens").upsert(
-        {
-          user_id: userId,
-          access_token: longLivedToken,
-          token_expires_at: expiresAt,
-          fb_user_id: fbUserId,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id" }
-      );
+    // IMPORTANT: check the upsert error. A silent failure here (e.g. a missing
+    // ON CONFLICT constraint) previously let us redirect "connected" while saving
+    // nothing — surface it as fb_error instead of a false success.
+    const upsertRow: Record<string, any> = {
+      user_id: userId,
+      access_token: longLivedToken,
+      token_expires_at: expiresAt,
+      fb_user_id: fbUserId,
+      updated_at: new Date().toISOString(),
+    };
+    if (organizationId) upsertRow.organization_id = organizationId;
+    const { error: upsertErr } = await supabase
+      .from("facebook_tokens")
+      .upsert(upsertRow, { onConflict: organizationId ? "user_id,organization_id" : "user_id" });
+    if (upsertErr) {
+      console.error("facebook_tokens upsert failed:", upsertErr);
+      const slug = await resolveOrgSlug(supabase, userId);
+      return new Response(null, {
+        status: 302,
+        headers: { ...corsHeaders, "Location": buildRedirect(appUrl, slug, "fb_error=token_save_failed") },
+      });
     }
 
     // Redirect using the org from the state, or resolve it as fallback
