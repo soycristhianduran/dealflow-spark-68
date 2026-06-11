@@ -13,7 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download, Upload } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -22,6 +22,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
+import { ImportContactsDialog } from "@/components/crm/ImportContactsDialog";
 import { TemplatePicker } from "@/components/whatsapp/TemplatePicker";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
@@ -127,6 +128,7 @@ export default function ContactsPage() {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -907,6 +909,10 @@ export default function ContactsPage() {
     <AppLayout>
       <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
         <div className="flex items-center gap-1.5 md:gap-2">
+          <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={() => setImportOpen(true)}>
+            <Upload className="h-4 w-4" />
+            <span className="hidden md:inline">Importar CSV</span>
+          </Button>
           <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={exportToCSV} disabled={exportLoading}>
             {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             <span className="hidden md:inline">Exportar CSV</span>
@@ -1449,6 +1455,8 @@ export default function ContactsPage() {
       </main>
 
       <CreateContactDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={fetchContacts} />
+
+      <ImportContactsDialog open={importOpen} onOpenChange={setImportOpen} onImported={fetchContacts} />
 
       {/* ── Reasignar ─────────────────────────────────────────────────── */}
       <Dialog open={reassignOpen} onOpenChange={setReassignOpen}>
