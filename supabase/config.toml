@@ -59,3 +59,6 @@ verify_jwt = false
 
 [functions.email-domains]
 verify_jwt = true
+
+[functions.embed-form-submit]
+verify_jwt = false

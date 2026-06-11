@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
 import { EmailDomainsSettings } from "@/components/settings/EmailDomainsSettings";
+import { EmbedFormGenerator } from "@/components/settings/EmbedFormGenerator";
 import { validateSlug, toSlug, buildWorkspaceUrl } from "@/lib/subdomain";
 
 const stageColorOptions = [
@@ -476,11 +477,16 @@ export default function SettingsPage() {
             <TabsTrigger value="tags">Tags</TabsTrigger>
             <TabsTrigger value="campos">Campos</TabsTrigger>
             <TabsTrigger value="email">Email</TabsTrigger>
+            <TabsTrigger value="formulario">Formulario web</TabsTrigger>
             <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
 
           <TabsContent value="email" className="space-y-4">
             <EmailDomainsSettings />
+          </TabsContent>
+
+          <TabsContent value="formulario" className="space-y-4">
+            <EmbedFormGenerator />
           </TabsContent>
 
           <TabsContent value="pipeline" className="space-y-4">
