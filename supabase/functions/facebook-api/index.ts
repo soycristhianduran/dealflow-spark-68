@@ -54,6 +54,45 @@ Deno.serve(async (req) => {
     }
 
     switch (action) {
+      // ===== EXCHANGE CODE FROM FACEBOOK LOGIN FOR BUSINESS (popup/config_id) =====
+      case "fb_exchange_code": {
+        const code = body.code;
+        if (!code) throw new Error("Missing code");
+        const APP_ID = Deno.env.get("META_APP_ID");
+        const APP_SECRET = Deno.env.get("META_APP_SECRET");
+        // SDK code exchange uses no redirect_uri.
+        const tRes = await fetch(`${GRAPH_API}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&code=${encodeURIComponent(code)}`);
+        const tData = await tRes.json();
+        if (!tData.access_token) throw new Error(`Token exchange failed: ${JSON.stringify(tData)}`);
+        // Exchange for a long-lived token.
+        const lRes = await fetch(`${GRAPH_API}/oauth/access_token?grant_type=fb_exchange_token&client_id=${APP_ID}&client_secret=${APP_SECRET}&fb_exchange_token=${tData.access_token}`);
+        const lData = await lRes.json();
+        const longToken = lData.access_token || tData.access_token;
+        const expiresIn = lData.expires_in || tData.expires_in || 5184000;
+        const meRes = await fetch(`${GRAPH_API}/me?fields=id&access_token=${longToken}`);
+        const me = await meRes.json();
+        const fbUserId = me.id || null;
+
+        // Resolve org (request → membership fallback) so token is never org-less.
+        let orgId = reqOrgId;
+        if (!orgId) {
+          const { data: mem } = await supabase.from("organization_members").select("organization_id").eq("user_id", user.id).limit(1).maybeSingle();
+          orgId = mem?.organization_id ?? null;
+        }
+        const row: Record<string, any> = {
+          user_id: user.id, access_token: longToken,
+          token_expires_at: new Date(Date.now() + expiresIn * 1000).toISOString(),
+          fb_user_id: fbUserId, updated_at: new Date().toISOString(),
+        };
+        if (orgId) {
+          row.organization_id = orgId;
+          await supabase.from("facebook_tokens").upsert(row, { onConflict: "user_id,organization_id" });
+        } else {
+          await supabase.from("facebook_tokens").upsert(row, { onConflict: "user_id" });
+        }
+        return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+
       // ===== GET PAGES =====
       case "get_pages": {
         const res = await fetch(`${GRAPH_API}/me/accounts?fields=id,name,access_token,category&access_token=${fbToken}`);

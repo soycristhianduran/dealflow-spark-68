@@ -40,6 +40,26 @@ interface FbTokenHealth {
   last_refresh_error: string | null;
 }
 
+// Lazy-load the Facebook JS SDK once (needed for FB.login with a config_id).
+let fbSdkPromise: Promise<void> | null = null;
+function loadFacebookSdk(appId: string): Promise<void> {
+  if (fbSdkPromise) return fbSdkPromise;
+  fbSdkPromise = new Promise<void>((resolve) => {
+    const w = window as any;
+    if (w.FB) { resolve(); return; }
+    w.fbAsyncInit = function () {
+      w.FB.init({ appId, autoLogAppEvents: true, xfbml: false, version: "v21.0" });
+      resolve();
+    };
+    const id = "facebook-jssdk";
+    if (document.getElementById(id)) { resolve(); return; }
+    const js = document.createElement("script");
+    js.id = id; js.src = "https://connect.facebook.net/en_US/sdk.js"; js.async = true; js.defer = true;
+    document.body.appendChild(js);
+  });
+  return fbSdkPromise;
+}
+
 export function useFacebookIntegration() {
   const { user } = useAuth();
   const { organizationId } = useOrganizationContext();
@@ -49,6 +69,7 @@ export function useFacebookIntegration() {
   const [status, setStatus] = useState<FbStatus | null>(null);
   const [tokenHealth, setTokenHealth] = useState<FbTokenHealth | null>(null);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
+  const [fbConfigId, setFbConfigId] = useState<string | null>(null);
   const [metaAppIdLoading, setMetaAppIdLoading] = useState(true);
 
   // Fetch META_APP_ID from an edge function on mount; retry once on failure
@@ -58,6 +79,7 @@ export function useFacebookIntegration() {
       const { data, error } = await supabase.functions.invoke("facebook-get-app-id");
       if (data?.app_id) {
         setMetaAppId(data.app_id);
+        if (data.fb_config_id) setFbConfigId(data.fb_config_id);
       } else {
         console.warn("facebook-get-app-id returned no app_id:", error || data);
       }
@@ -154,6 +176,40 @@ export function useFacebookIntegration() {
       toast.error("No se pudo cargar la configuración de Meta. Verifica la conexión e intenta de nuevo.");
       return;
     }
+
+    // MODERN FLOW — Facebook Login for Business with a config_id. Gives a clean,
+    // per-connection asset selection (no cross-org page pre-selection). Falls back
+    // to the classic OAuth redirect below when no config_id is configured.
+    if (fbConfigId) {
+      setConnecting(true);
+      try {
+        await loadFacebookSdk(metaAppId);
+        const FB = (window as any).FB;
+        if (!FB) throw new Error("No se pudo cargar el SDK de Facebook.");
+        FB.login(
+          async (response: any) => {
+            const code = response?.authResponse?.code;
+            if (!code) { setConnecting(false); toast.error("Conexión cancelada."); return; }
+            try {
+              const { data, error } = await supabase.functions.invoke("facebook-api", {
+                body: { action: "fb_exchange_code", code, organization_id: organizationId },
+              });
+              if (error || data?.error) throw new Error(data?.error || error?.message);
+              toast.success("Facebook conectado exitosamente");
+              await checkConnection();
+            } catch (e: any) {
+              toast.error(e?.message || "Error al conectar Facebook");
+            } finally { setConnecting(false); }
+          },
+          { config_id: fbConfigId, response_type: "code", override_default_response_type: true },
+        );
+      } catch (e: any) {
+        setConnecting(false);
+        toast.error(e?.message || "No se pudo iniciar la conexión.");
+      }
+      return;
+    }
+
     setConnecting(true);
 
     // Request a single-use, server-bound nonce for the OAuth `state` param.
@@ -212,7 +268,7 @@ export function useFacebookIntegration() {
 
     // Use direct redirect instead of popup (cross-origin popup doesn't work)
     window.location.href = oauthUrl;
-  }, [user, metaAppId, metaAppIdLoading, fetchMetaAppId]);
+  }, [user, metaAppId, metaAppIdLoading, fetchMetaAppId, fbConfigId, organizationId, checkConnection]);
 
   const disconnect = useCallback(async () => {
     const { error } = await supabase.functions.invoke("facebook-api", {
