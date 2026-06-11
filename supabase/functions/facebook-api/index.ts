@@ -60,8 +60,11 @@ Deno.serve(async (req) => {
         if (!code) throw new Error("Missing code");
         const APP_ID = Deno.env.get("META_APP_ID");
         const APP_SECRET = Deno.env.get("META_APP_SECRET");
-        // SDK code exchange uses no redirect_uri.
-        const tRes = await fetch(`${GRAPH_API}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&code=${encodeURIComponent(code)}`);
+        // Code returned by the JS SDK (FB.login with response_type=code) is bound
+        // to an EMPTY redirect_uri. The exchange must include redirect_uri present
+        // but empty — omitting it entirely triggers OAuthException code 100 /
+        // subcode 36008 ("redirect_uri is not identical to the OAuth dialog").
+        const tRes = await fetch(`${GRAPH_API}/oauth/access_token?client_id=${APP_ID}&client_secret=${APP_SECRET}&redirect_uri=&code=${encodeURIComponent(code)}`);
         const tData = await tRes.json();
         if (!tData.access_token) throw new Error(`Token exchange failed: ${JSON.stringify(tData)}`);
         // Exchange for a long-lived token.
