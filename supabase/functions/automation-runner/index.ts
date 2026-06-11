@@ -27,6 +27,30 @@ function renderVars(template: string, ctx: Record<string, any>): string {
   });
 }
 
+// Offset (ms) that `timeZone` is ahead of UTC at the given instant.
+function tzOffsetMs(timeZone: string, date: Date): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  }).formatToParts(date);
+  const m: Record<string, string> = {};
+  for (const p of parts) m[p.type] = p.value;
+  const hour = m.hour === "24" ? "00" : m.hour;
+  const asUTC = Date.UTC(+m.year, +m.month - 1, +m.day, +hour, +m.minute, +m.second);
+  return asUTC - date.getTime();
+}
+
+// Interpret a wall-clock datetime string ("2026-12-25T10:00") as local time in
+// `timeZone` and return the corresponding UTC instant.
+function zonedWallTimeToUtc(localStr: string, timeZone: string): Date | null {
+  const s = localStr.length === 16 ? `${localStr}:00` : localStr;
+  const naive = new Date(`${s}Z`); // treat the wall time as if it were UTC
+  if (isNaN(naive.getTime())) return null;
+  const offset = tzOffsetMs(timeZone, naive);
+  return new Date(naive.getTime() - offset);
+}
+
 /**
  * Evaluates an If/Else condition step against the contact.
  * Returns true if the condition passes, false if it fails.
@@ -813,13 +837,23 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     const wcfg = nextStep.config || {};
     nextStatus = "waiting";
     if (wcfg.mode === "until_date" && wcfg.until_date) {
-      // Wait until a specific calendar date/time. If it's already in the past,
-      // continue on the next cron pass instead of getting stuck.
-      const target = new Date(wcfg.until_date);
-      nextRunAt = isNaN(target.getTime()) || target.getTime() < Date.now()
+      // Wait until a specific calendar date/time, interpreted in the org's
+      // configured timezone. If it's already in the past, continue on the next
+      // cron pass instead of getting stuck.
+      let tz = "America/Bogota";
+      try {
+        const { data: org } = await supabase
+          .from("organizations")
+          .select("timezone")
+          .eq("id", contact.organization_id)
+          .maybeSingle();
+        if (org?.timezone) tz = org.timezone;
+      } catch (_) { /* default tz */ }
+      const target = zonedWallTimeToUtc(String(wcfg.until_date), tz) ?? new Date(wcfg.until_date);
+      nextRunAt = (!target || isNaN(target.getTime()) || target.getTime() < Date.now())
         ? new Date()
         : target;
-      logs = addLog(`Esperando hasta ${nextRunAt.toLocaleString()}`);
+      logs = addLog(`Esperando hasta ${wcfg.until_date} (${tz})`);
     } else {
       const delay_value = wcfg.delay_value ?? 1;
       const delay_unit = wcfg.delay_unit ?? "days";

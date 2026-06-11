@@ -164,6 +164,9 @@ export default function SettingsPage() {
         if (data?.org?.name && !orgName) {
           setOrgName(data.org.name);
         }
+        if (data?.org?.timezone) {
+          setTimezone(data.org.timezone);
+        }
       } catch (_) {
         // fallback to context if edge function fails
         if (organization?.slug) {
@@ -371,8 +374,16 @@ export default function SettingsPage() {
     toast.success("Tag eliminado");
   };
 
-  const handleSaveGeneral = () => {
-    toast.success("Configuración guardada");
+  const handleSaveGeneral = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke("org-invitations", {
+        body: { action: "save_general", name: orgName.trim() || undefined, timezone },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      toast.success("Configuración guardada");
+    } catch (e: any) {
+      toast.error(e.message || "No se pudo guardar la configuración");
+    }
   };
 
   const handleSaveSlug = async () => {

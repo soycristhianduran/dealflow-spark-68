@@ -256,7 +256,7 @@ Deno.serve(async (req) => {
 
     const { data: org } = await supabase
       .from("organizations")
-      .select("id, name, slug")
+      .select("id, name, slug, timezone")
       .eq("id", membership.organization_id)
       .maybeSingle();
 
@@ -360,6 +360,28 @@ Deno.serve(async (req) => {
   }
 
   // ── Save workspace slug ────────────────────────────────────────────────────
+  // ── Save general org settings (name, timezone) ────────────────────────────
+  if (action === "save_general") {
+    const { name, timezone } = body;
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle();
+    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const patch: Record<string, unknown> = {};
+    if (typeof name === "string" && name.trim()) patch.name = name.trim();
+    if (typeof timezone === "string" && timezone.trim()) patch.timezone = timezone.trim();
+    if (Object.keys(patch).length === 0) {
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const { error: upErr } = await supabase.from("organizations").update(patch).eq("id", membership.organization_id);
+    if (upErr) return new Response(JSON.stringify({ error: upErr.message }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   if (action === "save_slug") {
     const { slug } = body;
     if (!slug) return new Response(JSON.stringify({ error: "Slug requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });

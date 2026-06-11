@@ -1887,7 +1887,8 @@ function StepConfigEditor({ step, onChange }: {
               onChange={e => set("until_date", e.target.value)}
             />
             <p className="text-xs text-muted-foreground mt-1">
-              El flujo se pausa hasta esta fecha y hora, luego continúa. Si la fecha ya pasó, continúa de inmediato.
+              Se usa la zona horaria de tu organización (Configuración → General). El flujo se pausa hasta
+              esa fecha y hora, luego continúa. Si la fecha ya pasó, continúa de inmediato.
             </p>
           </div>
         ) : (
