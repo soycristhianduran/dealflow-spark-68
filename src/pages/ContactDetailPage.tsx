@@ -12,7 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio } from "lucide-react";
+import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
+import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
@@ -84,6 +85,7 @@ export default function ContactDetailPage() {
   const [savingPpl, setSavingPpl] = useState(false);
   const [budgetEditing, setBudgetEditing] = useState(false);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
+  const [adPreviewOpen, setAdPreviewOpen] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
   const [pickerPipelineId, setPickerPipelineId] = useState("");
   const [stagesForPicker, setStagesForPicker] = useState<{ id: string; name: string; color: string; order: number }[]>([]);
@@ -1016,7 +1018,22 @@ export default function ContactDetailPage() {
                           )}
                           {contact.campaign     && <InfoItem label="Campaña" value={contact.campaign} />}
                           {contact.adset        && <InfoItem label="Ad Set" value={contact.adset} />}
-                          {contact.ad           && <InfoItem label="Anuncio" value={contact.ad} />}
+                          {contact.ad && (
+                            <div className="flex flex-col gap-1">
+                              <span className="text-[11px] font-medium text-muted-foreground">Anuncio</span>
+                              {contact.meta_ad_id ? (
+                                <button
+                                  onClick={() => setAdPreviewOpen(true)}
+                                  className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:underline text-left flex items-center gap-1.5 group"
+                                >
+                                  <span className="truncate">{contact.ad}</span>
+                                  <Eye className="h-3.5 w-3.5 shrink-0 opacity-60 group-hover:opacity-100" />
+                                </button>
+                              ) : (
+                                <span className="text-sm">{contact.ad}</span>
+                              )}
+                            </div>
+                          )}
                           {contact.landing_page && <InfoItem label="Landing Page" value={contact.landing_page} />}
                         </div>
                       </CardContent>
@@ -1134,6 +1151,13 @@ export default function ContactDetailPage() {
         onOpenChange={setMeetingDialogOpen}
         onCreated={fetchRelated}
         defaultContactId={id}
+      />
+
+      <AdPreviewDialog
+        open={adPreviewOpen}
+        onOpenChange={setAdPreviewOpen}
+        adId={(contact as any)?.meta_ad_id ?? null}
+        adName={(contact as any)?.ad ?? null}
       />
     </AppLayout>
   );

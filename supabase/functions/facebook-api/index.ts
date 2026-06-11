@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
       "update_campaign_status", "get_ads_structure", "update_entity_status",
       "create_campaign", "create_adset", "create_ad",
       "get_lead_forms", "save_lead_forms", "fetch_leads", "subscribe_leadgen",
-      "get_conversations", "get_video_url",
+      "get_conversations", "get_video_url", "get_ad_preview",
     ];
     let fbToken: string | null = null;
     if (actionsNeedingToken.includes(action)) {
@@ -417,6 +417,51 @@ Deno.serve(async (req) => {
           leads: fbLeads,
           imported: { contacts: createdContacts, deals: createdDeals },
         }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ===== GET AD PREVIEW (iframe) + creative caption =====
+      case "get_ad_preview": {
+        const { ad_id } = body;
+        if (!ad_id) throw new Error("ad_id is required");
+
+        // 1) Rendered preview iframes for the common placements.
+        const formats = ["MOBILE_FEED_STANDARD", "INSTAGRAM_STANDARD", "DESKTOP_FEED_STANDARD"];
+        const previews: { format: string; body: string }[] = [];
+        for (const fmt of formats) {
+          try {
+            const r = await fetch(`${GRAPH_API}/${ad_id}/previews?ad_format=${fmt}&access_token=${fbToken}`);
+            const j = await r.json();
+            const html = j?.data?.[0]?.body;
+            if (r.ok && html) previews.push({ format: fmt, body: html });
+          } catch (_) { /* skip format */ }
+        }
+
+        // 2) Creative details for caption + media (fallback / extra info).
+        let creative: any = null;
+        try {
+          const cr = await fetch(
+            `${GRAPH_API}/${ad_id}?fields=name,creative{body,title,image_url,thumbnail_url,video_id,object_story_spec}&access_token=${fbToken}`,
+          );
+          const cj = await cr.json();
+          if (cr.ok) {
+            const c = cj.creative || {};
+            const spec = c.object_story_spec || {};
+            const linkData = spec.link_data || {};
+            const videoData = spec.video_data || {};
+            creative = {
+              name: cj.name || null,
+              caption: c.body || linkData.message || videoData.message || c.title || null,
+              title: c.title || linkData.name || null,
+              image_url: c.image_url || linkData.picture || c.thumbnail_url || null,
+              video_id: c.video_id || videoData.video_id || null,
+              child_attachments: linkData.child_attachments || null, // carousel
+            };
+          }
+        } catch (_) { /* no creative */ }
+
+        return new Response(JSON.stringify({ previews, creative }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
