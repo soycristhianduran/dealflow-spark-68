@@ -68,11 +68,11 @@ export function useFacebookIntegration() {
 
   useEffect(() => { fetchMetaAppId(); }, [fetchMetaAppId]);
 
-  const checkConnection = useCallback(async () => {
+  const checkConnection = useCallback(async (): Promise<boolean> => {
     if (!user) {
       setIsConnected(false);
       setLoading(false);
-      return;
+      return false;
     }
     // Pull token health alongside the existence check so the UI can show a
     // "Reconnect Facebook" banner BEFORE the user notices things broken.
@@ -101,7 +101,8 @@ export function useFacebookIntegration() {
       setTokenHealth(null);
     }
     setLoading(false);
-  }, [user]);
+    return !!data;
+  }, [user, organizationId]);
 
   useEffect(() => {
     checkConnection();
@@ -116,7 +117,17 @@ export function useFacebookIntegration() {
       const url = new URL(window.location.href);
       url.searchParams.delete("fb_connected");
       window.history.replaceState({}, "", url.pathname + url.search);
-      checkConnection();
+      // Retry: the token row may still be committing right after the OAuth
+      // redirect, so a single check can miss it and show "not connected".
+      // Keep the optimistic connected state and re-verify a few times.
+      (async () => {
+        for (let i = 0; i < 6; i++) {
+          const ok = await checkConnection();
+          if (ok) return;
+          setIsConnected(true); // hold optimistic state between retries
+          await new Promise((r) => setTimeout(r, 1500));
+        }
+      })();
     } else if (params.get("fb_error")) {
       setConnecting(false);
       toast.error("Error al conectar con Facebook: " + params.get("fb_error"));

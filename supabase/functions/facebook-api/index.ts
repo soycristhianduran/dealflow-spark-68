@@ -157,6 +157,23 @@ Deno.serve(async (req) => {
       // ===== SAVE SELECTED FORMS =====
       case "save_lead_forms": {
         const { forms, page_id } = body; // [{form_id, form_name, form_status, pipeline_id?}]
+
+        // Replace the selection for this page: remove forms that are no longer
+        // selected, so deselecting a form actually un-integrates it.
+        const keepIds = new Set((forms || []).map((f: any) => f.form_id));
+        const { data: existingForms } = await supabase
+          .from("facebook_lead_forms")
+          .select("form_id")
+          .eq("user_id", user.id)
+          .eq("page_id", page_id);
+        const toDelete = (existingForms || [])
+          .map((e: any) => e.form_id)
+          .filter((id: string) => !keepIds.has(id));
+        if (toDelete.length) {
+          await supabase.from("facebook_lead_forms")
+            .delete().eq("user_id", user.id).in("form_id", toDelete);
+        }
+
         for (const form of forms) {
           const row: Record<string, any> = {
             user_id: user.id,
@@ -164,8 +181,10 @@ Deno.serve(async (req) => {
             form_id: form.form_id,
             form_name: form.form_name,
             form_status: form.form_status || "active",
+            // Persist pipeline_id even when cleared (null) so re-saving without a
+            // pipeline doesn't keep a stale one.
+            pipeline_id: form.pipeline_id ?? null,
           };
-          if (form.pipeline_id) row.pipeline_id = form.pipeline_id;
           await supabase.from("facebook_lead_forms").upsert(row, { onConflict: "user_id,form_id" });
         }
         return new Response(JSON.stringify({ success: true }), {

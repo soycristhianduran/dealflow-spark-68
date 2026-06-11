@@ -118,8 +118,14 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
       .from("facebook_lead_forms")
       .select("form_id, pipeline_id");
     const savedMap = new Map<string, string | null>((savedForms || []).map((s: any) => [s.form_id, s.pipeline_id]));
+    // Pre-select ONLY the forms that were already integrated (saved). On a
+    // first-time setup nothing is pre-selected so the user picks what they want,
+    // instead of all forms appearing selected.
+    const hasSaved = savedMap.size > 0;
     setForms(fetchedForms.map(f => ({
-      id: f.id, name: f.name, status: f.status, selected: true, questions: f.questions,
+      id: f.id, name: f.name, status: f.status,
+      selected: hasSaved ? savedMap.has(f.id) : false,
+      questions: f.questions,
       pipeline_id: savedMap.get(f.id) ?? undefined,
     })));
     setLoading(false);
