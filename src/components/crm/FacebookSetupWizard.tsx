@@ -112,7 +112,16 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     await fb.savePages(selected.map(p => ({ page_id: p.id, page_name: p.name, page_access_token: p.access_token })));
     setSelectedPageId(selected[0].id);
     const fetchedForms = await fb.getLeadForms(selected[0].id);
-    setForms(fetchedForms.map(f => ({ id: f.id, name: f.name, status: f.status, selected: true, questions: f.questions })));
+    // Merge the saved pipeline mapping so previously-chosen pipelines are kept
+    // (getLeadForms returns the LIVE FB forms, without the saved pipeline_id).
+    const { data: savedForms } = await supabase
+      .from("facebook_lead_forms")
+      .select("form_id, pipeline_id");
+    const savedMap = new Map<string, string | null>((savedForms || []).map((s: any) => [s.form_id, s.pipeline_id]));
+    setForms(fetchedForms.map(f => ({
+      id: f.id, name: f.name, status: f.status, selected: true, questions: f.questions,
+      pipeline_id: savedMap.get(f.id) ?? undefined,
+    })));
     setLoading(false);
     setStep("forms");
   };
