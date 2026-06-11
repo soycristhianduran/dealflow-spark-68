@@ -810,11 +810,23 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   let nextStatus = "active";
 
   if (nextStep.type === "wait") {
-    const { delay_value = 1, delay_unit = "days" } = nextStep.config || {};
-    const ms = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 }[delay_unit as string] ?? 86_400_000;
-    nextRunAt = new Date(Date.now() + delay_value * ms);
+    const wcfg = nextStep.config || {};
     nextStatus = "waiting";
-    logs = addLog(`Esperando ${delay_value} ${delay_unit} hasta ${nextRunAt.toLocaleString()}`);
+    if (wcfg.mode === "until_date" && wcfg.until_date) {
+      // Wait until a specific calendar date/time. If it's already in the past,
+      // continue on the next cron pass instead of getting stuck.
+      const target = new Date(wcfg.until_date);
+      nextRunAt = isNaN(target.getTime()) || target.getTime() < Date.now()
+        ? new Date()
+        : target;
+      logs = addLog(`Esperando hasta ${nextRunAt.toLocaleString()}`);
+    } else {
+      const delay_value = wcfg.delay_value ?? 1;
+      const delay_unit = wcfg.delay_unit ?? "days";
+      const ms = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 }[delay_unit as string] ?? 86_400_000;
+      nextRunAt = new Date(Date.now() + delay_value * ms);
+      logs = addLog(`Esperando ${delay_value} ${delay_unit} hasta ${nextRunAt.toLocaleString()}`);
+    }
   }
 
   await supabase.from("automation_enrollments").update({

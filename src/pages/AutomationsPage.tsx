@@ -237,7 +237,9 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
 function stepSummary(step: AutomationStep): string {
   const c = step.config || {};
   switch (step.type) {
-    case "wait":           return `${c.delay_value} ${c.delay_unit}`;
+    case "wait":           return c.mode === "until_date"
+                             ? (c.until_date ? `Hasta ${new Date(c.until_date).toLocaleString()}` : "Sin fecha")
+                             : `${c.delay_value} ${c.delay_unit}`;
     case "send_email":     return c.subject ? `"${c.subject}"` : "(sin asunto)";
     case "send_whatsapp":  return c.template_name || "(sin plantilla)";
     case "add_tag":             return c.tag ? `"${c.tag}"` : "(sin tag)";
@@ -1860,22 +1862,53 @@ function StepConfigEditor({ step, onChange }: {
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
-  if (step.type === "wait") return (
-    <div>
-      <Label>Duración de la espera</Label>
-      <div className="flex gap-2 mt-1">
-        <Input type="number" min={1} value={c.delay_value ?? 1} onChange={e => set("delay_value", Number(e.target.value))} className="w-24" />
-        <Select value={c.delay_unit ?? "days"} onValueChange={v => set("delay_unit", v)}>
-          <SelectTrigger><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="minutes">Minutos</SelectItem>
-            <SelectItem value="hours">Horas</SelectItem>
-            <SelectItem value="days">Días</SelectItem>
-          </SelectContent>
-        </Select>
+  if (step.type === "wait") {
+    const waitMode = c.mode ?? "duration";
+    return (
+      <div className="space-y-3">
+        <div>
+          <Label>Tipo de espera</Label>
+          <Select value={waitMode} onValueChange={v => set("mode", v)}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="duration">Esperar un tiempo (relativo)</SelectItem>
+              <SelectItem value="until_date">Esperar hasta una fecha específica</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {waitMode === "until_date" ? (
+          <div>
+            <Label>Esperar hasta</Label>
+            <Input
+              type="datetime-local"
+              className="mt-1"
+              value={c.until_date ?? ""}
+              onChange={e => set("until_date", e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              El flujo se pausa hasta esta fecha y hora, luego continúa. Si la fecha ya pasó, continúa de inmediato.
+            </p>
+          </div>
+        ) : (
+          <div>
+            <Label>Duración de la espera</Label>
+            <div className="flex gap-2 mt-1">
+              <Input type="number" min={1} value={c.delay_value ?? 1} onChange={e => set("delay_value", Number(e.target.value))} className="w-24" />
+              <Select value={c.delay_unit ?? "days"} onValueChange={v => set("delay_unit", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="minutes">Minutos</SelectItem>
+                  <SelectItem value="hours">Horas</SelectItem>
+                  <SelectItem value="days">Días</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
       </div>
-    </div>
-  );
+    );
+  }
 
   if (step.type === "send_email") return <EmailStepEditor step={step} onChange={onChange} />;
 
