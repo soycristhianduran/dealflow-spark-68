@@ -81,10 +81,13 @@ export function useFacebookIntegration() {
       .from("facebook_tokens")
       .select("id, needs_reconnect, token_expires_at, last_refresh_error")
       .eq("user_id", user.id);
+    // Tolerate tokens saved without an organization_id (legacy / pre-multi-org).
+    // Match the current org OR an org-less token so the UI doesn't show
+    // "disconnected" when a valid token exists with organization_id = NULL.
     if (organizationId) {
-      query = query.eq("organization_id", organizationId);
+      query = query.or(`organization_id.eq.${organizationId},organization_id.is.null`);
     }
-    const { data } = await query.maybeSingle();
+    const { data } = await query.limit(1).maybeSingle();
     setIsConnected(!!data);
 
     if (data) {
