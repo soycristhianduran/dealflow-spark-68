@@ -186,20 +186,25 @@ export function useFacebookIntegration() {
         await loadFacebookSdk(metaAppId);
         const FB = (window as any).FB;
         if (!FB) throw new Error("No se pudo cargar el SDK de Facebook.");
+        // The FB SDK rejects an async callback ("Expression is of type
+        // asyncfunction, not function"), so the handler is a plain function that
+        // kicks off the async work internally.
         FB.login(
-          async (response: any) => {
-            const code = response?.authResponse?.code;
-            if (!code) { setConnecting(false); toast.error("Conexión cancelada."); return; }
-            try {
-              const { data, error } = await supabase.functions.invoke("facebook-api", {
-                body: { action: "fb_exchange_code", code, organization_id: organizationId },
-              });
-              if (error || data?.error) throw new Error(data?.error || error?.message);
-              toast.success("Facebook conectado exitosamente");
-              await checkConnection();
-            } catch (e: any) {
-              toast.error(e?.message || "Error al conectar Facebook");
-            } finally { setConnecting(false); }
+          (response: any) => {
+            void (async () => {
+              const code = response?.authResponse?.code;
+              if (!code) { setConnecting(false); toast.error("Conexión cancelada."); return; }
+              try {
+                const { data, error } = await supabase.functions.invoke("facebook-api", {
+                  body: { action: "fb_exchange_code", code, organization_id: organizationId },
+                });
+                if (error || data?.error) throw new Error(data?.error || error?.message);
+                toast.success("Facebook conectado exitosamente");
+                await checkConnection();
+              } catch (e: any) {
+                toast.error(e?.message || "Error al conectar Facebook");
+              } finally { setConnecting(false); }
+            })();
           },
           { config_id: fbConfigId, response_type: "code", override_default_response_type: true },
         );
