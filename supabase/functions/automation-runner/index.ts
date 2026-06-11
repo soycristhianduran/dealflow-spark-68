@@ -891,24 +891,54 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   if (nextStep.type === "wait") {
     const wcfg = nextStep.config || {};
     nextStatus = "waiting";
-    if (wcfg.mode === "until_date" && wcfg.until_date) {
-      // Wait until a specific calendar date/time, interpreted in the org's
-      // configured timezone. If it's already in the past, continue on the next
-      // cron pass instead of getting stuck.
-      let tz = "America/Bogota";
+
+    // Resolve org timezone once (used by date-based wait modes).
+    const getTz = async () => {
       try {
         const { data: org } = await supabase
-          .from("organizations")
-          .select("timezone")
-          .eq("id", contact.organization_id)
-          .maybeSingle();
-        if (org?.timezone) tz = org.timezone;
-      } catch (_) { /* default tz */ }
+          .from("organizations").select("timezone")
+          .eq("id", contact.organization_id).maybeSingle();
+        return org?.timezone || "America/Bogota";
+      } catch (_) { return "America/Bogota"; }
+    };
+
+    if (wcfg.mode === "until_date" && wcfg.until_date) {
+      // Wait until a specific calendar date/time, in the org's timezone.
+      const tz = await getTz();
       const target = zonedWallTimeToUtc(String(wcfg.until_date), tz) ?? new Date(wcfg.until_date);
       nextRunAt = (!target || isNaN(target.getTime()) || target.getTime() < Date.now())
-        ? new Date()
-        : target;
+        ? new Date() : target;
       logs = addLog(`Esperando hasta ${wcfg.until_date} (${tz})`);
+    } else if (wcfg.mode === "contact_date" && wcfg.date_field) {
+      // Wait until a DATE stored on the contact (e.g. birthday, expected_close_date,
+      // or a custom date field prefixed "custom:"), with an optional day offset,
+      // a send hour, and an optional "annual" mode (next upcoming month/day).
+      const tz = await getTz();
+      const field: string = wcfg.date_field;
+      const raw = field.startsWith("custom:")
+        ? contact.custom_fields?.[field.slice(7)]
+        : contact[field];
+
+      if (!raw) {
+        nextRunAt = new Date(); // no date on contact → skip the wait
+        logs = addLog(`El contacto no tiene fecha en "${field}" — se omite la espera`);
+      } else {
+        let dateStr = String(raw).slice(0, 10); // YYYY-MM-DD
+        if (wcfg.annual) {
+          const today = localDateStr(new Date(), tz); // YYYY-MM-DD (org-local)
+          const mmdd = dateStr.slice(5); // MM-DD
+          let year = +today.slice(0, 4);
+          if (`${year}-${mmdd}` < today) year += 1; // already passed this year → next year
+          dateStr = `${year}-${mmdd}`;
+        }
+        const off = Number(wcfg.offset_value || 0) * (wcfg.offset_dir === "before" ? -1 : 1);
+        if (off) dateStr = addDaysToDateStr(dateStr, off);
+        const hour = Math.min(23, Math.max(0, Number(wcfg.send_hour ?? 9)));
+        const target = zonedWallTimeToUtc(`${dateStr}T${String(hour).padStart(2, "0")}:00`, tz);
+        nextRunAt = (!target || isNaN(target.getTime()) || target.getTime() < Date.now())
+          ? new Date() : target;
+        logs = addLog(`Esperando hasta la fecha del contacto: ${dateStr} ${String(hour).padStart(2, "0")}:00 (${tz})`);
+      }
     } else {
       const delay_value = wcfg.delay_value ?? 1;
       const delay_unit = wcfg.delay_unit ?? "days";
