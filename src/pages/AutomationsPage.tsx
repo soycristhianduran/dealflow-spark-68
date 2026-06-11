@@ -37,7 +37,7 @@ import {
   Clock, Tag, User, X, ChevronDown,
   Info, Settings2, FileText, Search,
   Bell, UserCheck, Timer, PhoneCall,
-  CheckSquare2, CheckCircle2, Mail,
+  CheckSquare2, CheckCircle2, Mail, Share2, Cake,
 } from "lucide-react";
 
 // ── Brand / custom SVG icons ──────────────────────────────────────────────────
@@ -134,7 +134,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation";
   config: Record<string, any>;
   // Optional free-canvas position (ignored by automation-runner)
   position?: { x: number; y: number };
@@ -185,6 +185,7 @@ const STEP_META: Record<string, {
   send_webhook:        { label: "Webhook / HTTP",       description: "Llama a una URL externa (n8n, Zapier, Make…)", icon: IconWebhook,   color: "#374151", bg: "#f9fafb", border: "#e5e7eb", ring: "#f3f4f6" },
   notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",       icon: IconNotify,    color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
   make_call:           { label: "Llamar al contacto",   description: "El agente IA llama al contacto automáticamente", icon: PhoneCall,     color: "#0f766e", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
+  enroll_automation:   { label: "Ir a otra automatización", description: "Envía el contacto a otra automatización",    icon: Share2,        color: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", ring: "#f3e8ff" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
@@ -193,6 +194,7 @@ const STEP_GROUPS: { label: string; types: string[] }[] = [
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
+  { label: "Flujo",         types: ["enroll_automation"] },
 ];
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -202,6 +204,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   contact_stage_changed:   "Etapa de lead cambiada",
   whatsapp_incoming:       "WhatsApp entrante",
   scheduled:               "Programado",
+  contact_date:            "Fecha del contacto (cumpleaños / renovación)",
   meta_lead_form:          "Formulario de Meta Lead Ads",
   landing_form_submitted:  "Formulario de Landing Page",
   email_opened:            "Email abierto",
@@ -230,6 +233,7 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "send_webhook":        return { url: "", method: "POST", include_contact: true };
     case "notify_owner":        return { message: "Nuevo evento en contacto {{contact.name}}" };
     case "make_call":           return { calling_agent_id: "" };
+    case "enroll_automation":   return { automation_id: "", automation_name: "" };
     default:                    return {};
   }
 }
@@ -256,6 +260,7 @@ function stepSummary(step: AutomationStep): string {
     case "send_webhook":        return c.url ? c.url.replace(/^https?:\/\//, "") : "(sin URL)";
     case "notify_owner":        return "Email al vendedor asignado";
     case "make_call":           return c.calling_agent_id ? "Agente configurado" : "(sin agente)";
+    case "enroll_automation":   return c.automation_name ? `→ ${c.automation_name}` : "(sin seleccionar)";
     default:                    return "";
   }
 }
@@ -702,6 +707,20 @@ function TriggerConfigEditor({
   const [loadingLandings, setLoadingLandings] = useState(false);
   const [emailCampaigns, setEmailCampaigns] = useState<{ id: string; name: string }[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+  const [dateFields, setDateFields] = useState<{ value: string; label: string }[]>([
+    { value: "birthday", label: "Cumpleaños" },
+    { value: "expected_close_date", label: "Fecha de cierre esperada" },
+  ]);
+  useEffect(() => {
+    if (triggerType !== "contact_date") return;
+    supabase.from("custom_field_definitions").select("key, label, field_type").ilike("field_type", "%date%")
+      .then(({ data }) => {
+        if (data?.length) setDateFields(prev => {
+          const base = prev.filter(p => !p.value.startsWith("custom:"));
+          return [...base, ...data.map((f: any) => ({ value: `custom:${f.key}`, label: f.label }))];
+        });
+      });
+  }, [triggerType]);
 
   // Load Meta forms from DB when trigger type is meta_lead_form
   useEffect(() => {
@@ -961,6 +980,53 @@ function TriggerConfigEditor({
       )}
       {triggerType === "scheduled" && (
         <ScheduledTriggerEditor triggerConfig={triggerConfig} onChange={cfg => onChange("scheduled", cfg)} />
+      )}
+
+      {triggerType === "contact_date" && (
+        <div className="space-y-3">
+          <div>
+            <Label className="flex items-center gap-1.5"><Cake className="h-3.5 w-3.5 text-pink-500" /> Campo de fecha</Label>
+            <Select value={triggerConfig?.date_field ?? ""} onValueChange={v => onChange("contact_date", { ...triggerConfig, date_field: v })}>
+              <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar campo..." /></SelectTrigger>
+              <SelectContent>
+                {dateFields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Cuándo disparar</Label>
+            <div className="flex gap-2 mt-1 items-center">
+              <Input type="number" min={0} className="w-20"
+                value={triggerConfig?.offset_value ?? 0}
+                onChange={e => onChange("contact_date", { ...triggerConfig, offset_value: Number(e.target.value) })} />
+              <span className="text-sm text-muted-foreground">días</span>
+              <Select value={triggerConfig?.offset_dir ?? "on"} onValueChange={v => onChange("contact_date", { ...triggerConfig, offset_dir: v })}>
+                <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="before">antes</SelectItem>
+                  <SelectItem value="on">el mismo día</SelectItem>
+                  <SelectItem value="after">después</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div>
+            <Label>Hora del disparo</Label>
+            <Input type="number" min={0} max={23} className="w-24 mt-1"
+              value={triggerConfig?.send_hour ?? 9}
+              onChange={e => onChange("contact_date", { ...triggerConfig, send_hour: Number(e.target.value) })} />
+            <span className="text-xs text-muted-foreground ml-2">hora local (0–23)</span>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={triggerConfig?.annual ?? true}
+              onChange={e => onChange("contact_date", { ...triggerConfig, annual: e.target.checked })} />
+            Fecha anual (cumpleaños / aniversario) — se repite cada año
+          </label>
+          <div className="rounded-lg border border-pink-200 bg-pink-50 p-3 text-xs text-pink-700">
+            Cada día, el sistema busca contactos cuya fecha coincida (con el ajuste de días) y los inscribe
+            automáticamente en este flujo. Atrapa a todos tus contactos, incluso los que ya existían.
+          </div>
+        </div>
       )}
     </div>
   );
@@ -1994,6 +2060,51 @@ function WaitStepEditor({ step, onChange }: {
   );
 }
 
+// ── "Ir a otra automatización" editor ─────────────────────────────────────────
+function EnrollAutomationEditor({ step, onChange }: {
+  step: AutomationStep;
+  onChange: (updated: AutomationStep) => void;
+}) {
+  const c = step.config;
+  const [autos, setAutos] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
+  useEffect(() => {
+    supabase
+      .from("automations")
+      .select("id, name, is_active")
+      .order("name", { ascending: true })
+      .then(({ data }) => setAutos(data || []));
+  }, []);
+
+  return (
+    <div className="space-y-3">
+      <div>
+        <Label>Automatización destino</Label>
+        <Select
+          value={c.automation_id ?? ""}
+          onValueChange={v => {
+            const a = autos.find(x => x.id === v);
+            onChange({ ...step, config: { ...c, automation_id: v, automation_name: a?.name ?? "" } });
+          }}
+        >
+          <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar automatización..." /></SelectTrigger>
+          <SelectContent>
+            {autos.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay otras automatizaciones</div>}
+            {autos.map(a => (
+              <SelectItem key={a.id} value={a.id}>
+                {a.name}{!a.is_active && <span className="text-muted-foreground ml-1 text-xs">(inactiva)</span>}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700">
+        El contacto será inscrito en la automatización seleccionada y empezará su flujo desde el primer paso.
+        Si ya está activo en ella, no se duplica.
+      </div>
+    </div>
+  );
+}
+
 // ── Step config fields ────────────────────────────────────────────────────────
 function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
@@ -2085,6 +2196,10 @@ function StepConfigEditor({ step, onChange }: {
 
   if (step.type === "make_call") return (
     <MakeCallStepEditor step={step} onChange={onChange} />
+  );
+
+  if (step.type === "enroll_automation") return (
+    <EnrollAutomationEditor step={step} onChange={onChange} />
   );
 
   if (step.type === "condition") return (

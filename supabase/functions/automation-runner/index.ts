@@ -435,7 +435,74 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ processed, completed, errors, scheduled_enrolled: scheduledEnrolled }), {
+    // ── Date-based triggers (birthday / anniversary / renewal) — daily scan ──
+    // For each active automation triggered by a contact date field, find contacts
+    // whose date matches today ± offset (in the org timezone) and enroll them.
+    // Runs once per org-local day, gated by send_hour, deduped via last_triggered_at.
+    let dateEnrolled = 0;
+    const { data: allActive } = await supabase
+      .from("automations")
+      .select("id, name, organization_id, user_id, trigger_type, trigger_config, triggers, last_triggered_at")
+      .eq("is_active", true);
+
+    const dateAutos = (allActive || []).filter((a: any) => {
+      const types = Array.isArray(a.triggers) && a.triggers.length ? a.triggers.map((t: any) => t.type) : [a.trigger_type];
+      return types.includes("contact_date");
+    });
+
+    for (const auto of dateAutos) {
+      const trig = (Array.isArray(auto.triggers) ? auto.triggers : []).find((t: any) => t.type === "contact_date");
+      const cfg = trig?.config || auto.trigger_config || {};
+      const field: string = cfg.date_field;
+      if (!field) continue;
+
+      const tz = await getOrgTz(auto.organization_id);
+      const today = localDateStr(nowDate, tz);                 // YYYY-MM-DD org-local
+      const nowHour = partsInTz(nowDate, tz).hour;
+      const sendHour = Math.min(23, Math.max(0, Number(cfg.send_hour ?? 9)));
+
+      if (nowHour < sendHour) continue;                        // too early today
+      if (auto.last_triggered_at && localDateStr(new Date(auto.last_triggered_at), tz) === today) continue; // already ran today
+
+      // The date value we're looking for among contacts: today shifted opposite to
+      // the offset direction (e.g. "3 days before" → match contacts whose date is today+3).
+      const off = Number(cfg.offset_value || 0) * (cfg.offset_dir === "after" ? -1 : 1);
+      const targetDate = addDaysToDateStr(today, off);         // YYYY-MM-DD
+      const targetMMDD = targetDate.slice(5);
+
+      // Fetch candidate contacts. Standard column → filter server-side where possible.
+      let q = supabase.from("contacts").select("id, birthday, expected_close_date, custom_fields")
+        .eq("organization_id", auto.organization_id).limit(3000);
+      const { data: cands } = await q;
+
+      for (const ct of (cands || [])) {
+        const raw = field.startsWith("custom:") ? ct.custom_fields?.[field.slice(7)] : ct[field];
+        if (!raw) continue;
+        const dStr = String(raw).slice(0, 10);
+        const matches = cfg.annual ? dStr.slice(5) === targetMMDD : dStr === targetDate;
+        if (!matches) continue;
+
+        const { data: existing } = await supabase
+          .from("automation_enrollments").select("id")
+          .eq("automation_id", auto.id).eq("contact_id", ct.id)
+          .in("status", ["active", "waiting"]).maybeSingle();
+        if (existing) continue;
+
+        const { data: inserted } = await supabase
+          .from("automation_enrollments")
+          .insert({
+            automation_id: auto.id, contact_id: ct.id, user_id: auto.user_id,
+            organization_id: auto.organization_id, status: "active",
+            current_step_index: 0, next_run_at: nowDate.toISOString(),
+          })
+          .select("*, automations(*), contacts(*)").single();
+        if (inserted) { try { await processEnrollment(inserted, supabase); } catch (_) {} dateEnrolled++; }
+      }
+
+      await supabase.from("automations").update({ last_triggered_at: nowDate.toISOString() }).eq("id", auto.id);
+    }
+
+    return new Response(JSON.stringify({ processed, completed, errors, scheduled_enrolled: scheduledEnrolled, date_enrolled: dateEnrolled }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e: any) {
@@ -851,6 +918,51 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           logs = addLog(`Notificación enviada a ${ownerEmail}`);
         } else {
           logs = addLog("Vendedor sin email configurado — notificación omitida");
+        }
+      }
+    }
+
+    else if (step.type === "enroll_automation") {
+      const targetId: string | undefined = step.config?.automation_id;
+      if (!targetId || targetId === enr.automation_id) {
+        logs = addLog("Automatización destino inválida — paso omitido");
+      } else {
+        // Skip if the contact is already running in the target automation (prevents
+        // duplicates and A→B→A loops).
+        const { data: existingEnr } = await supabase
+          .from("automation_enrollments")
+          .select("id")
+          .eq("automation_id", targetId)
+          .eq("contact_id", contact.id)
+          .in("status", ["active", "waiting"])
+          .maybeSingle();
+        if (existingEnr) {
+          logs = addLog("El contacto ya está en la automatización destino — omitido");
+        } else {
+          const { data: target } = await supabase
+            .from("automations")
+            .select("id, is_active, organization_id, user_id, name")
+            .eq("id", targetId)
+            .maybeSingle();
+          if (target?.is_active && target.organization_id === contact.organization_id) {
+            const { data: ins } = await supabase
+              .from("automation_enrollments")
+              .insert({
+                automation_id: targetId,
+                contact_id: contact.id,
+                user_id: target.user_id,
+                organization_id: contact.organization_id,
+                status: "active",
+                current_step_index: 0,
+                next_run_at: new Date().toISOString(),
+              })
+              .select("*, automations(*), contacts(*)")
+              .single();
+            if (ins) { try { await processEnrollment(ins, supabase, depth + 1); } catch (_) { /* non-fatal */ } }
+            logs = addLog(`Contacto enviado a la automatización "${target.name}"`);
+          } else {
+            logs = addLog("Automatización destino no encontrada o inactiva — paso omitido");
+          }
         }
       }
     }
