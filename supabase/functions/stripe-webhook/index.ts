@@ -455,7 +455,21 @@ Deno.serve(async (req) => {
       case "customer.subscription.created":
       case "customer.subscription.updated":
       case "customer.subscription.deleted": {
-        const sub = event.data.object as Stripe.Subscription;
+        const evtSub = event.data.object as Stripe.Subscription;
+        // Re-fetch the LIVE subscription so we sync its CURRENT status. Event
+        // payloads carry the status at the moment the event fired — a resent/
+        // replayed `subscription.created` still says "incomplete" (its creation-
+        // time state) even though the payment later succeeded, which would leave
+        // a paid customer stuck. Deleted subs can't be re-fetched meaningfully, so
+        // use the event payload for those.
+        let sub = evtSub;
+        if (event.type !== "customer.subscription.deleted") {
+          try {
+            sub = await stripe.subscriptions.retrieve(evtSub.id);
+          } catch (e) {
+            console.warn("Could not re-fetch subscription, using event payload:", e);
+          }
+        }
         await upsertSubscriptionFromStripe(supabase, sub);
         break;
       }
