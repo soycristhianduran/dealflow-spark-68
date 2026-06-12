@@ -20,7 +20,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { useOrgTags } from "@/hooks/useOrgTags";
+import { useOrgTags, tagChipStyle } from "@/hooks/useOrgTags";
 import { TagPicker } from "@/components/TagPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
@@ -141,7 +141,7 @@ export default function ContactsPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
-  const { addTag: addOrgTag } = useOrgTags();
+  const { addTag: addOrgTag, colorOf } = useOrgTags();
   const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
 
   // Bulk action dialog state
@@ -1456,7 +1456,7 @@ export default function ContactsPage() {
                               <td key="tags" className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
                                 <div className="flex gap-1 flex-wrap">
                                   {(contact.tags || []).slice(0, 2).map(tag => (
-                                    <Badge key={tag} variant="secondary" className="text-xs">{tag}</Badge>
+                                    <Badge key={tag} variant="outline" className="text-xs border" style={tagChipStyle(colorOf(tag))}>{tag}</Badge>
                                   ))}
                                 </div>
                               </td>

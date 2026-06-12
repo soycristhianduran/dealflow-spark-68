@@ -15,7 +15,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { defaultStages } from "@/data/mock-data";
 import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power, Lock } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useOrgTags } from "@/hooks/useOrgTags";
+import { useOrgTags, TAG_PALETTE, tagChipStyle } from "@/hooks/useOrgTags";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
@@ -105,7 +106,7 @@ export default function SettingsPage() {
   const { isOwnerOrAdmin, myUserId } = usePermissions();
 
   // Tags — persisted org-wide catalog (shared with automations & Leads dropdowns)
-  const { tags, addTag: addOrgTag, renameTag: renameOrgTag, removeTag: removeOrgTag } = useOrgTags();
+  const { tags, colorOf, addTag: addOrgTag, setTagColor, renameTag: renameOrgTag, removeTag: removeOrgTag } = useOrgTags();
   const [newTag, setNewTag] = useState("");
   const [editingTag, setEditingTag] = useState<string | null>(null);
   const [editTagValue, setEditTagValue] = useState("");
@@ -795,12 +796,30 @@ export default function SettingsPage() {
                       <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditingTag(null); setEditTagValue(""); }}>Cancelar</Button>
                     </div>
                   ) : (
-                    <Badge key={tag} variant="secondary" className="text-sm gap-1 pr-1.5">
+                    <Badge key={tag} variant="outline" className="text-sm gap-1.5 pr-1.5 border" style={tagChipStyle(colorOf(tag))}>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ backgroundColor: colorOf(tag) }} title="Cambiar color" />
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-2" align="start">
+                          <div className="grid grid-cols-5 gap-1.5">
+                            {TAG_PALETTE.map(c => (
+                              <button
+                                key={c}
+                                className="h-5 w-5 rounded-full ring-1 ring-black/10 hover:scale-110 transition-transform"
+                                style={{ backgroundColor: c }}
+                                onClick={() => setTagColor(tag, c)}
+                                title={c}
+                              />
+                            ))}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       {tag}
-                      <button onClick={() => { setEditingTag(tag); setEditTagValue(tag); }} className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5" title="Renombrar">
+                      <button onClick={() => { setEditingTag(tag); setEditTagValue(tag); }} className="ml-0.5 rounded-full hover:bg-black/10 p-0.5" title="Renombrar">
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button onClick={() => handleRemoveTag(tag)} className="rounded-full hover:bg-muted-foreground/20 p-0.5" title="Eliminar">
+                      <button onClick={() => handleRemoveTag(tag)} className="rounded-full hover:bg-black/10 p-0.5" title="Eliminar">
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>

@@ -23,7 +23,7 @@ interface TagPickerProps {
 }
 
 export function TagPicker({ value, onChange, placeholder, allowCreate = true }: TagPickerProps) {
-  const { tags, addTag } = useOrgTags();
+  const { tags, addTag, colorOf } = useOrgTags();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -47,7 +47,8 @@ export function TagPicker({ value, onChange, placeholder, allowCreate = true }: 
           aria-expanded={open}
           className="mt-1 w-full justify-between font-normal"
         >
-          <span className={cn(!value && "text-muted-foreground")}>
+          <span className={cn("flex items-center gap-2 truncate", !value && "text-muted-foreground")}>
+            {value && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: colorOf(value) }} />}
             {value || placeholder || "Elige una etiqueta"}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -64,6 +65,7 @@ export function TagPicker({ value, onChange, placeholder, allowCreate = true }: 
               {tags.map(tag => (
                 <CommandItem key={tag} value={tag} onSelect={() => select(tag)}>
                   <Check className={cn("mr-2 h-4 w-4", value === tag ? "opacity-100" : "opacity-0")} />
+                  <span className="mr-2 h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colorOf(tag) }} />
                   {tag}
                 </CommandItem>
               ))}
