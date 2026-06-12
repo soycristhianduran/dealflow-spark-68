@@ -89,6 +89,19 @@ async function upsertSubscriptionFromStripe(
     console.error(`Could not map price_id ${priceId} to any plan in DB. Webhook saved as-is.`);
   }
 
+  // Stripe API 2025-04-30.basil moved current_period_start/end OFF the
+  // subscription object and ONTO each subscription item. Reading the old
+  // location returns undefined → new Date(undefined*1000) is Invalid Date →
+  // .toISOString() throws → the webhook 500s on subscription.created/updated.
+  // Read from the item first, fall back to the subscription (older API versions),
+  // and guard against missing values so the upsert never crashes.
+  const periodStartUnix =
+    (item as any)?.current_period_start ?? (stripeSub as any).current_period_start ?? null;
+  const periodEndUnix =
+    (item as any)?.current_period_end ?? (stripeSub as any).current_period_end ?? null;
+  const toIso = (unix: number | null) =>
+    unix && Number.isFinite(unix) ? new Date(unix * 1000).toISOString() : null;
+
   await supabase.from("subscriptions").upsert(
     {
       organization_id: orgId,
@@ -97,8 +110,8 @@ async function upsertSubscriptionFromStripe(
       stripe_customer_id: stripeSub.customer as string,
       stripe_subscription_id: stripeSub.id,
       billing_interval: planMatch?.billing_interval ?? null,
-      current_period_start: new Date(stripeSub.current_period_start * 1000).toISOString(),
-      current_period_end: new Date(stripeSub.current_period_end * 1000).toISOString(),
+      current_period_start: toIso(periodStartUnix),
+      current_period_end: toIso(periodEndUnix),
       cancel_at_period_end: stripeSub.cancel_at_period_end,
       trial_ends_at: stripeSub.trial_end ? new Date(stripeSub.trial_end * 1000).toISOString() : null,
       updated_at: new Date().toISOString(),
