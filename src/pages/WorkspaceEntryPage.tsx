@@ -40,6 +40,7 @@ import CallingAgentPage from "./CallingAgentPage";
 import NotFound from "./NotFound";
 import { LockoutScreen } from "@/components/billing/LockoutScreen";
 import { useSubscription } from "@/hooks/useSubscription";
+import { CrmAssistant } from "@/components/CrmAssistant";
 
 function P({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
@@ -135,6 +136,7 @@ export default function WorkspaceEntryPage() {
     }
 
     return (
+      <>
       <Routes>
         <Route index element={<P><DashboardPage /></P>} />
         <Route path="contacts" element={<P><ContactsPage /></P>} />
@@ -167,6 +169,8 @@ export default function WorkspaceEntryPage() {
         <Route path="more" element={<P><MorePage /></P>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      <CrmAssistant />
+      </>
     );
   }
 

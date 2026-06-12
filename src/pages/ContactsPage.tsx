@@ -17,7 +17,7 @@ import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Spa
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useOrgTags, tagChipStyle } from "@/hooks/useOrgTags";
@@ -139,6 +139,29 @@ export default function ContactsPage() {
   const [bulkWorking, setBulkWorking] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // Apply filters arriving from the CRM assistant (?ai=1&temperature=hot&...).
+  useEffect(() => {
+    if (searchParams.get("ai") !== "1") return;
+    const temp = searchParams.get("temperature");
+    const status = searchParams.get("status");
+    const source = searchParams.get("source");
+    const q = searchParams.get("search");
+    const sinceDays = searchParams.get("since_days");
+    if (temp) setScoreFilter(temp);
+    if (status) setStatusFilter(status);
+    if (source) setSourceFilter(source);
+    if (q) setSearch(q);
+    if (sinceDays) {
+      const d = new Date(Date.now() - Number(sinceDays) * 86400000);
+      setDateFrom(d.toISOString().slice(0, 10));
+    }
+    setCurrentPage(0);
+    // Clear the params so refreshes/manual changes aren't overridden.
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
   const { addTag: addOrgTag, colorOf } = useOrgTags();
