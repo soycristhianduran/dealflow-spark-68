@@ -166,7 +166,7 @@ export default function ContactsPage() {
   }, []);
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
-  const { addTag: addOrgTag, colorOf } = useOrgTags();
+  const { tags: orgCatalogTags, colorOf } = useOrgTags();
   const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
 
   // Bulk action dialog state
@@ -805,10 +805,12 @@ export default function ContactsPage() {
   };
 
   const addPendingTag = () => {
-    const t = tagInput.trim().toLowerCase();
-    if (!t) return;
-    if (!pendingTags.includes(t)) setPendingTags(prev => [...prev, t]);
-    void addOrgTag(t); // keep the central tag catalog in sync
+    const raw = tagInput.trim();
+    if (!raw) return;
+    // Use the catalog's canonical casing so we never create case-variant duplicates
+    // (e.g. "reserva 54" vs "Reserva 54").
+    const canonical = orgCatalogTags.find(t => t.toLowerCase() === raw.toLowerCase()) || raw;
+    if (!pendingTags.includes(canonical)) setPendingTags(prev => [...prev, canonical]);
     setTagInput("");
   };
 
