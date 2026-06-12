@@ -76,10 +76,14 @@ export function CrmAssistant() {
     return (
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform"
+        className="group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 text-white shadow-lg shadow-primary/30 ring-1 ring-white/25 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-primary/50"
         title="Asistente Klosify"
       >
-        <Sparkles className="h-6 w-6" />
+        {/* soft pulsing halo */}
+        <span className="absolute inset-0 -z-10 rounded-2xl bg-primary/40 blur-md animate-pulse" />
+        <Sparkles className="h-6 w-6 drop-shadow transition-transform duration-300 group-hover:rotate-12" />
+        {/* little online dot */}
+        <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-card" />
       </button>
     );
   }
@@ -88,8 +92,8 @@ export function CrmAssistant() {
     <div className="fixed bottom-6 right-6 z-50 flex h-[34rem] w-[26rem] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border bg-card shadow-2xl">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-            <Sparkles className="h-4 w-4 text-primary" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 ring-1 ring-white/25 shadow-sm">
+            <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
             <p className="text-sm font-semibold leading-none">Asistente Klosify</p>
