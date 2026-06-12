@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { defaultStages } from "@/data/mock-data";
 import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power, Lock } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useOrgTags } from "@/hooks/useOrgTags";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
@@ -103,8 +104,8 @@ export default function SettingsPage() {
   const [cancelingInvite, setCancelingInvite] = useState<string | null>(null);
   const { isOwnerOrAdmin, myUserId } = usePermissions();
 
-  // Tags state
-  const [tags, setTags] = useState(["vip", "real-estate", "healthcare", "education", "enterprise", "new", "hot-lead"]);
+  // Tags — persisted org-wide catalog (shared with automations & Leads dropdowns)
+  const { tags, addTag: addOrgTag, removeTag: removeOrgTag } = useOrgTags();
   const [newTag, setNewTag] = useState("");
 
   // Pipeline state
@@ -361,17 +362,17 @@ export default function SettingsPage() {
     toast.success("Logo eliminado");
   };
 
-  const handleAddTag = () => {
-    const tag = newTag.trim().toLowerCase();
+  const handleAddTag = async () => {
+    const tag = newTag.trim();
     if (!tag) return;
-    if (tags.includes(tag)) { toast.error("El tag ya existe"); return; }
-    setTags(prev => [...prev, tag]);
-    setNewTag("");
-    toast.success("Tag agregado");
+    if (tags.some(t => t.toLowerCase() === tag.toLowerCase())) { toast.error("El tag ya existe"); return; }
+    const added = await addOrgTag(tag);
+    if (added) { setNewTag(""); toast.success("Tag agregado"); }
+    else toast.error("No se pudo agregar el tag");
   };
 
-  const handleRemoveTag = (tag: string) => {
-    setTags(prev => prev.filter(t => t !== tag));
+  const handleRemoveTag = async (tag: string) => {
+    await removeOrgTag(tag);
     toast.success("Tag eliminado");
   };
 

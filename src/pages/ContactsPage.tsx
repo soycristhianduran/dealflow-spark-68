@@ -20,6 +20,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useOrgTags } from "@/hooks/useOrgTags";
+import { TagPicker } from "@/components/TagPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
 import { ImportContactsDialog } from "@/components/crm/ImportContactsDialog";
@@ -139,6 +141,7 @@ export default function ContactsPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
+  const { addTag: addOrgTag } = useOrgTags();
   const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
 
   // Bulk action dialog state
@@ -780,6 +783,7 @@ export default function ContactsPage() {
     const t = tagInput.trim().toLowerCase();
     if (!t) return;
     if (!pendingTags.includes(t)) setPendingTags(prev => [...prev, t]);
+    void addOrgTag(t); // keep the central tag catalog in sync
     setTagInput("");
   };
 
@@ -1672,14 +1676,16 @@ export default function ContactsPage() {
             </div>
             <div>
               <Label>Etiquetas</Label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  value={tagInput}
-                  onChange={e => setTagInput(e.target.value)}
-                  placeholder="Escribe una etiqueta..."
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPendingTag(); } }}
-                  className="flex-1"
-                />
+              <div className="flex gap-2 mt-1 items-start">
+                <div className="flex-1">
+                  <TagPicker
+                    value={tagInput}
+                    onChange={setTagInput}
+                    placeholder="Elige o crea una etiqueta..."
+                    allowCreate={false}
+                    className=""
+                  />
+                </div>
                 <Button type="button" variant="outline" size="sm" onClick={addPendingTag}>Agregar</Button>
               </div>
               {pendingTags.length > 0 && (

@@ -750,10 +750,16 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     else if (step.type === "add_tag") {
       const tag = renderVars(step.config?.tag || "", ctx);
       if (tag) {
-        const { data: cont } = await supabase.from("contacts").select("tags").eq("id", contact.id).single();
+        const { data: cont } = await supabase.from("contacts").select("tags, organization_id").eq("id", contact.id).single();
         const existing: string[] = cont?.tags || [];
         if (!existing.includes(tag)) {
           await supabase.from("contacts").update({ tags: [...existing, tag] }).eq("id", contact.id);
+        }
+        // Keep the org's central tag catalog in sync so tags applied by an
+        // automation also show up in Settings/dropdowns.
+        if (cont?.organization_id) {
+          await supabase.from("organization_tags")
+            .upsert({ organization_id: cont.organization_id, name: tag }, { onConflict: "organization_id,name" });
         }
         logs = addLog(`Tag "${tag}" añadido`);
       }

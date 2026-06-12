@@ -15,6 +15,7 @@ import {
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { TagPicker } from "@/components/TagPicker";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -957,11 +958,10 @@ function TriggerConfigEditor({
       {triggerType === "tag_added" && (
         <div>
           <Label>Tag disparador</Label>
-          <Input
-            className="mt-1"
+          <TagPicker
             value={triggerConfig?.tag ?? ""}
-            onChange={e => onChange(triggerType, { ...triggerConfig, tag: e.target.value })}
-            placeholder="nuevo-lead"
+            onChange={v => onChange(triggerType, { ...triggerConfig, tag: v })}
+            placeholder="Elige o crea una etiqueta"
           />
         </div>
       )}
@@ -2144,7 +2144,7 @@ function StepConfigEditor({ step, onChange }: {
   if (step.type === "add_tag") return (
     <div>
       <Label>Tag a añadir</Label>
-      <Input className="mt-1" value={c.tag ?? ""} onChange={e => set("tag", e.target.value)} placeholder="cliente-vip" />
+      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder="Elige o crea una etiqueta" />
     </div>
   );
 
@@ -2157,7 +2157,7 @@ function StepConfigEditor({ step, onChange }: {
   if (step.type === "remove_tag") return (
     <div>
       <Label>Tag a eliminar</Label>
-      <Input className="mt-1" value={c.tag ?? ""} onChange={e => set("tag", e.target.value)} placeholder="ej: prospecto-frio" />
+      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder="Elige una etiqueta" allowCreate={false} />
     </div>
   );
 
