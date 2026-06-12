@@ -513,6 +513,11 @@ Deno.serve(async (req) => {
     });
   } catch (e: any) {
     console.error("automation-runner error:", e);
+    try {
+      await supabase.from("error_logs").insert({
+        source: "automation-runner", level: "error", message: e?.message ?? String(e),
+      });
+    } catch (_) { /* ignore */ }
     return new Response(JSON.stringify({ error: e.message }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
     });

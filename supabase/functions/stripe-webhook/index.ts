@@ -559,6 +559,15 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error(`Error handling ${event.type} (${event.id}):`, e);
+    // Persist the failure so it's visible (this whole class of error went
+    // unnoticed for weeks before). Best-effort — never let logging throw.
+    try {
+      await supabase.from("error_logs").insert({
+        source: "stripe-webhook", level: "error",
+        message: e instanceof Error ? e.message : "Unknown error",
+        context: { event_type: event?.type, event_id: event?.id },
+      });
+    } catch (_) { /* ignore */ }
     // Return 500 so Stripe retries (within reason — Stripe gives up after 3 days)
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
