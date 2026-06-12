@@ -28,6 +28,9 @@ type RequestBody = {
   // Where to redirect after success / cancel — relative paths inside the app
   success_path?: string;
   cancel_path?: string;
+  // The workspace the purchase is for. Required to bill the correct org when the
+  // user belongs to more than one. Falls back to the user's membership if omitted.
+  organization_id?: string;
 };
 
 Deno.serve(async (req) => {
@@ -87,13 +90,32 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Resolve user's organization (service-role to bypass RLS for member lookup) ──
+    // ── Resolve the target organization (service-role to bypass RLS) ──
+    // Prefer the org the client explicitly sent (the active workspace), verifying
+    // the user is actually a member of it. This bills the CORRECT org for users
+    // who belong to several. Fall back to the user's membership otherwise — using
+    // limit(1) (NOT maybeSingle, which errors when the user has multiple orgs).
     const adminClient = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const { data: membership } = await adminClient
-      .from("organization_members")
-      .select("organization_id, organizations(name, slug)")
-      .eq("user_id", user.id)
-      .maybeSingle();
+    let membership: any = null;
+    if (body.organization_id) {
+      const { data } = await adminClient
+        .from("organization_members")
+        .select("organization_id, organizations(name, slug)")
+        .eq("user_id", user.id)
+        .eq("organization_id", body.organization_id)
+        .limit(1)
+        .maybeSingle();
+      membership = data;
+    }
+    if (!membership) {
+      const { data } = await adminClient
+        .from("organization_members")
+        .select("organization_id, organizations(name, slug)")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle();
+      membership = data;
+    }
 
     if (!membership?.organization_id) {
       return new Response(

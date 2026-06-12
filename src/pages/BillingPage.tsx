@@ -133,7 +133,7 @@ export default function BillingPage() {
     setPurchasingBoost(price_id);
     try {
       const { data, error } = await supabase.functions.invoke("stripe-create-checkout-session", {
-        body: { mode: "payment", price_id, success_path: "/billing", cancel_path: "/billing" },
+        body: { mode: "payment", price_id, success_path: "/billing", cancel_path: "/billing", organization_id: organizationId },
       });
       if (error || !data?.url) {
         toast.error(`No se pudo iniciar el pago de ${label}`);

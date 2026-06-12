@@ -127,12 +127,18 @@ function WorkspaceRoutes() {
   useLeadNotifier();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
 
-  // If the trial expired without payment or subscription is canceled,
-  // replace the entire workspace with the lockout screen. The user can
-  // still reach /billing through the lockout's "Elegir un plan" button
-  // (which routes outside this WorkspaceRoutes via the public /pricing).
+  // If the trial expired without payment or subscription is canceled, lock the
+  // workspace — BUT keep the billing route reachable so the user can actually pay
+  // (the "Elegir un plan" button routes here). Billing renders inside the
+  // workspace so it keeps the org context (correct org billed via slug). Every
+  // other route shows the lockout screen.
   if (locked) {
-    return <LockoutScreen />;
+    return (
+      <Routes>
+        <Route path="billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
+        <Route path="*" element={<LockoutScreen />} />
+      </Routes>
+    );
   }
 
   return (
