@@ -2,6 +2,7 @@
 //  AutomationsPage — Visual Flow Builder (n8n-style)
 // ══════════════════════════════════════════════════════════════════════
 import "@xyflow/react/dist/style.css";
+import { useSearchParams } from "react-router-dom";
 
 import React, { useState, useEffect, useCallback, useContext, createContext, useMemo } from "react";
 import {
@@ -2722,6 +2723,16 @@ export default function AutomationsPage() {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Deep-link: ?open=<id> (used by the AI assistant after creating a draft) opens
+  // that automation's builder for review.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const openId = searchParams.get("open");
+    if (!openId || !automations.length) return;
+    const a = automations.find(x => x.id === openId);
+    if (a) { setEditTarget(a); setView("builder"); setSearchParams({}, { replace: true }); }
+  }, [automations, searchParams, setSearchParams]);
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

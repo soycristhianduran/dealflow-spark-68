@@ -19,6 +19,7 @@ const SYSTEM_PROMPT = `Eres el asistente de Klosify CRM. Ayudas al usuario a con
 - Responde SIEMPRE en español, breve y claro.
 - Cuando el usuario quiera ver/filtrar leads (ej. "los más calientes", "sin asignar", "de tal campaña", "de esta semana"), llama a la herramienta filter_leads. "Caliente" = score alto (hot), "tibio" = warm, "frío" = cold.
 - Para un panorama del pipeline usa pipeline_summary. Para encontrar a alguien usa search_contact.
+- Si el usuario describe un flujo/automatización ("crea una automatización que...", "cuando llegue un lead haz..."), usa create_automation. SIEMPRE queda como BORRADOR desactivado; dile al usuario que la revise y la active. Usa solo los triggers/pasos soportados.
 - NO inventes datos: usa solo lo que devuelven las herramientas.
 - Tras filtrar, resume el resultado en 1-2 frases (cuántos hay y un par de ejemplos) e invita a verlos en Leads.`;
 
@@ -48,6 +49,46 @@ const TOOLS = [
       name: "pipeline_summary",
       description: "Resumen del pipeline: cuántos leads hay por etapa.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_automation",
+      description: `Crea un BORRADOR de automatización (queda DESACTIVADA para que el usuario la revise y active). Construye trigger + pasos desde la descripción del usuario.
+TRIGGERS válidos (usa exactamente estos type y config):
+- contact_created { source?: "meta_lead_form"|"whatsapp"|"manual"|"api"|"landing"|"embed_form" }
+- meta_lead_form { form_name?: string }
+- tag_added { tag: string }
+- contact_stage_changed { stage_name?: string }
+PASOS válidos (type y config):
+- add_tag { tag: string }
+- remove_tag { tag: string }
+- wait { delay_value: number, delay_unit: "minutes"|"hours"|"days" }
+- create_task { title: string, due_in_days: number, assign_to_owner: boolean }
+- notify_owner { message: string }
+- send_whatsapp { template_name: string, language: "es" }
+Para etiquetas usa las del catálogo cuando aplique.`,
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Nombre corto del flujo" },
+          trigger: {
+            type: "object",
+            properties: { type: { type: "string" }, config: { type: "object" } },
+            required: ["type"],
+          },
+          steps: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { type: { type: "string" }, config: { type: "object" } },
+              required: ["type"],
+            },
+          },
+        },
+        required: ["name", "trigger", "steps"],
+      },
     },
   },
   {
@@ -92,7 +133,49 @@ function buildLeadsQuery(supabase: any, orgId: string, args: any, selectExpr: st
   return q;
 }
 
-async function runTool(name: string, args: any, supabase: any, orgId: string): Promise<{ result: any; action?: any }> {
+const ALLOWED_TRIGGERS = new Set(["contact_created", "meta_lead_form", "tag_added", "contact_stage_changed"]);
+const ALLOWED_STEPS = new Set(["add_tag", "remove_tag", "wait", "create_task", "notify_owner", "send_whatsapp"]);
+
+async function runTool(name: string, args: any, supabase: any, orgId: string, userId: string): Promise<{ result: any; action?: any }> {
+  if (name === "create_automation") {
+    const tType = args?.trigger?.type;
+    if (!tType || !ALLOWED_TRIGGERS.has(tType)) return { result: { error: "Trigger no soportado." } };
+    const tConfig = (args.trigger.config && typeof args.trigger.config === "object") ? args.trigger.config : {};
+
+    const rawSteps = Array.isArray(args.steps) ? args.steps : [];
+    const steps: any[] = [];
+    for (let i = 0; i < rawSteps.length; i++) {
+      const s = rawSteps[i];
+      if (!s || !ALLOWED_STEPS.has(s.type)) continue;
+      let config = (s.config && typeof s.config === "object") ? s.config : {};
+      // Normalize tags to the catalog's canonical casing (create if new).
+      if ((s.type === "add_tag" || s.type === "remove_tag") && config.tag) {
+        const { data: existing } = await supabase.from("organization_tags")
+          .select("name").eq("organization_id", orgId).ilike("name", config.tag).limit(1).maybeSingle();
+        if (existing?.name) config = { ...config, tag: existing.name };
+        else if (s.type === "add_tag") await supabase.from("organization_tags").insert({ organization_id: orgId, name: config.tag });
+      }
+      steps.push({ id: crypto.randomUUID().slice(0, 8), type: s.type, config, position: { x: 0, y: i * 140 } });
+    }
+    if (!steps.length) return { result: { error: "No se generaron pasos válidos." } };
+
+    const { data: created, error } = await supabase.from("automations").insert({
+      name: args.name || "Flujo creado por IA",
+      organization_id: orgId,
+      user_id: userId,
+      trigger_type: tType,
+      trigger_config: tConfig,
+      triggers: [{ type: tType, config: tConfig }],
+      steps,
+      is_active: false, // ALWAYS a draft — the user reviews and activates.
+    }).select("id, name").single();
+    if (error) return { result: { error: error.message } };
+    return {
+      result: { created: true, id: created.id, name: created.name, steps_count: steps.length, note: "Creada DESACTIVADA. El usuario debe revisarla y activarla." },
+      action: { type: "open_automation", id: created.id, name: created.name },
+    };
+  }
+
   if (name === "filter_leads") {
     const { count } = await buildLeadsQuery(supabase, orgId, args, "id", { count: true })
       .limit(1);
@@ -200,7 +283,7 @@ Deno.serve(async (req) => {
         for (const tc of msg.tool_calls) {
           let args: any = {};
           try { args = JSON.parse(tc.function.arguments || "{}"); } catch (_) { /* ignore */ }
-          const { result, action: a } = await runTool(tc.function.name, args, supabase, resolvedOrg);
+          const { result, action: a } = await runTool(tc.function.name, args, supabase, resolvedOrg, user.id);
           if (a) action = a;
           messages.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(result) });
         }

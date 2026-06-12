@@ -32,6 +32,7 @@ export function CrmAssistant() {
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages, loading]);
 
   const openContact = (id: string) => { navigate(path(`/contacts/${id}`)); setOpen(false); };
+  const openAutomation = (id: string) => { navigate(`${path("/automations")}?open=${id}`); setOpen(false); };
 
   const applyAction = (action: any) => {
     if (action?.type !== "navigate_leads") return;
@@ -106,6 +107,11 @@ export function CrmAssistant() {
               {m.action?.type === "navigate_leads" && (
                 <button onClick={() => applyAction(m.action)} className="mt-2 inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
                   Ver leads <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+              {m.action?.type === "open_automation" && (
+                <button onClick={() => openAutomation(m.action.id)} className="mt-2 inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
+                  Ver flujo <ArrowRight className="h-3 w-3" />
                 </button>
               )}
               {m.action?.type === "open_contact" && (
