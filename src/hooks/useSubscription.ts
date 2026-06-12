@@ -120,6 +120,22 @@ export function useSubscription(): UseSubscriptionReturn {
     fetchSubscription();
   }, [fetchSubscription]);
 
+  // Revalidate the subscription so an expired trial locks the user out WITHOUT a
+  // manual page reload. Klosify is a SPA, so without this a tab opened during the
+  // trial keeps its (stale) "active" state indefinitely and the lockout never
+  // fires. Refetch on window focus and on a 5-minute interval.
+  useEffect(() => {
+    const onFocus = () => fetchSubscription();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    const interval = window.setInterval(fetchSubscription, 5 * 60 * 1000);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      window.clearInterval(interval);
+    };
+  }, [fetchSubscription]);
+
   // Derived UI state
   let daysLeftInTrial: number | null = null;
   if (
