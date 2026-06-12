@@ -7,7 +7,7 @@
  * Leads list with that filter applied (via URL params ContactsPage reads).
  */
 import { useState, useRef, useEffect } from "react";
-import { Sparkles, X, Send, Loader2, ArrowRight } from "lucide-react";
+import { BotMessageSquare, X, Send, Loader2, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -81,7 +81,7 @@ export function CrmAssistant() {
       >
         {/* soft pulsing halo */}
         <span className="absolute inset-0 -z-10 rounded-2xl bg-primary/40 blur-md animate-pulse" />
-        <Sparkles className="h-6 w-6 drop-shadow transition-transform duration-300 group-hover:rotate-12" />
+        <BotMessageSquare className="h-6 w-6 drop-shadow transition-transform duration-300 group-hover:scale-110" />
         {/* little online dot */}
         <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-card" />
       </button>
@@ -93,7 +93,7 @@ export function CrmAssistant() {
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 ring-1 ring-white/25 shadow-sm">
-            <Sparkles className="h-4 w-4 text-white" />
+            <BotMessageSquare className="h-4 w-4 text-white" />
           </div>
           <div>
             <p className="text-sm font-semibold leading-none">Asistente Klosify</p>
