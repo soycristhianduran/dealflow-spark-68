@@ -552,11 +552,23 @@ export default function ContactsPage() {
     let sent = 0; let failed = 0;
     const sends: any[] = [];
 
+    // Resolve personalization tokens ({{nombre}}, {{empresa}}, ...) per contact so
+    // each recipient gets their own data instead of one static value for everyone.
+    const resolveTokens = (val: string, c: ContactRow): string => {
+      const full = (c.full_name || "").trim();
+      const first = full.split(/\s+/)[0] || "";
+      return (val || "")
+        .replace(/\{\{\s*nombre_completo\s*\}\}/gi, full)
+        .replace(/\{\{\s*nombre\s*\}\}/gi, first)
+        .replace(/\{\{\s*empresa\s*\}\}/gi, (c.company_name || "").trim());
+    };
+
     for (const c of targets) {
       try {
         const phone = c.primary_phone!.replace(/[^0-9]/g, "");
+        const resolvedVars = vars.map(v => resolveTokens(v, c));
         const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-          body: { action: "send_template", phone, template_name: templateName, language, variables: vars, header_media_id: mediaId || undefined, contact_id: c.id, organization_id: organizationId ?? null },
+          body: { action: "send_template", phone, template_name: templateName, language, variables: resolvedVars, header_media_id: mediaId || undefined, contact_id: c.id, organization_id: organizationId ?? null },
         });
         if (error || data?.error) throw new Error(data?.error || error?.message);
         sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null, user_id: myUserId });

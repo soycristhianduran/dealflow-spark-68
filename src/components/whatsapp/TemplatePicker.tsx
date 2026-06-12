@@ -10,6 +10,13 @@ import type { WaTemplateButton } from "@/hooks/useWhatsAppTemplates";
 import { MediaUploadZone } from "./MediaUploadZone";
 import { MEDIA_HEADER_TYPES } from "./helpers";
 
+// Personalization tokens resolved per-contact on bulk send (see ContactsPage.handleWaBlast).
+const PERSONALIZATION_TOKENS = [
+  { label: "Nombre", token: "{{nombre}}" },
+  { label: "Nombre completo", token: "{{nombre_completo}}" },
+  { label: "Empresa", token: "{{empresa}}" },
+];
+
 /**
  * Modal that lets the user pick + send a Meta-approved WhatsApp template.
  * Used both:
@@ -115,22 +122,46 @@ export function TemplatePicker({
             <div className="space-y-2">
               <Label>Variables</Label>
               {varNums.map((n, i) => (
-                <div key={n} className="flex items-center gap-2">
-                  <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
-                  <Input
-                    placeholder={`Valor para {{${n}}}`}
-                    value={vars[i] || ""}
-                    onChange={(e) =>
-                      setVars((v) => {
-                        const nv = [...v];
-                        nv[i] = e.target.value;
-                        return nv;
-                      })
-                    }
-                    className="h-8 text-sm"
-                  />
+                <div key={n} className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
+                    <Input
+                      placeholder={requireCampaignName ? "Texto fijo o usa un campo →" : `Valor para {{${n}}}`}
+                      value={vars[i] || ""}
+                      onChange={(e) =>
+                        setVars((v) => {
+                          const nv = [...v];
+                          nv[i] = e.target.value;
+                          return nv;
+                        })
+                      }
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                  {requireCampaignName && (
+                    <div className="flex flex-wrap gap-1 pl-10">
+                      {PERSONALIZATION_TOKENS.map((t) => (
+                        <button
+                          key={t.token}
+                          type="button"
+                          onClick={() =>
+                            setVars((v) => { const nv = [...v]; nv[i] = ((nv[i] || "") + t.token); return nv; })
+                          }
+                          className="rounded-full border bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
+                          title={`Inserta ${t.token}`}
+                        >
+                          + {t.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
+              {requireCampaignName && (
+                <p className="text-[11px] text-muted-foreground pl-10">
+                  Los campos como <span className="font-mono">{"{{nombre}}"}</span> se reemplazan por el dato de cada contacto al enviar.
+                </p>
+              )}
             </div>
           )}
 
