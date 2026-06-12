@@ -121,65 +121,10 @@ function RootRoute() {
   return <HomePage />;
 }
 
-function WorkspaceRoutes() {
-  const { session, loading } = useAuth();
-  const { locked } = useSubscription();
-  useLeadNotifier();
-  if (loading) return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
-
-  // If the trial expired without payment or subscription is canceled, lock the
-  // workspace — BUT keep the billing route reachable so the user can actually pay
-  // (the "Elegir un plan" button routes here). Billing renders inside the
-  // workspace so it keeps the org context (correct org billed via slug). Every
-  // other route shows the lockout screen.
-  if (locked) {
-    return (
-      <Routes>
-        <Route path="billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
-        <Route path="*" element={<LockoutScreen />} />
-      </Routes>
-    );
-  }
-
-  return (
-    <>
-      <TrialBanner />
-      <Routes>
-        {/* workspace root = dashboard */}
-        <Route index element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
-        <Route path="contacts" element={<ProtectedRoute><ContactsPage /></ProtectedRoute>} />
-        <Route path="contacts/:id" element={<ProtectedRoute><ContactDetailPage /></ProtectedRoute>} />
-        <Route path="companies" element={<ProtectedRoute><CompaniesPage /></ProtectedRoute>} />
-        <Route path="companies/:id" element={<ProtectedRoute><CompanyDetailPage /></ProtectedRoute>} />
-        <Route path="leads" element={<Navigate to="../contacts" replace />} />
-        <Route path="leads/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
-        <Route path="deals" element={<Navigate to="../contacts" replace />} />
-        <Route path="deals/:id" element={<ProtectedRoute><DealDetailPage /></ProtectedRoute>} />
-        <Route path="pipeline" element={<ProtectedRoute><PipelinePage /></ProtectedRoute>} />
-        <Route path="calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
-        <Route path="tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
-        <Route path="settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
-        <Route path="profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-        <Route path="billing" element={<ProtectedRoute><BillingPage /></ProtectedRoute>} />
-        <Route path="ai-agent" element={<ProtectedRoute><AIAgentPage /></ProtectedRoute>} />
-        <Route path="calling-agent" element={<ProtectedRoute><CallingAgentPage /></ProtectedRoute>} />
-        <Route path="integrations" element={<ProtectedRoute><IntegrationsPage /></ProtectedRoute>} />
-        <Route path="meta-ads" element={<ProtectedRoute><MetaAdsPage /></ProtectedRoute>} />
-        <Route path="whatsapp/templates" element={<ProtectedRoute><WhatsAppTemplatesPage /></ProtectedRoute>} />
-        <Route path="whatsapp/inbox" element={<ProtectedRoute><WhatsAppInboxPage /></ProtectedRoute>} />
-        <Route path="instagram/inbox" element={<ProtectedRoute><InstagramInboxPage /></ProtectedRoute>} />
-        <Route path="instagram/automations" element={<ProtectedRoute><InstagramAutomationsPage /></ProtectedRoute>} />
-        <Route path="conversations" element={<ProtectedRoute><ConversationsPage /></ProtectedRoute>} />
-        <Route path="email-campaigns" element={<ProtectedRoute><EmailCampaignsPage /></ProtectedRoute>} />
-        <Route path="email-builder" element={<ProtectedRoute><EmailBuilderPage /></ProtectedRoute>} />
-        <Route path="landing-builder" element={<ProtectedRoute><LandingBuilderPage /></ProtectedRoute>} />
-        <Route path="automations" element={<ProtectedRoute><AutomationsPage /></ProtectedRoute>} />
-        <Route path="more" element={<ProtectedRoute><MorePage /></ProtectedRoute>} />
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
-  );
-}
+// NOTE: The workspace routes + the billing lockout gate live in
+// WorkspaceEntryPage (the component actually mounted at /w/:slug/*). A previous
+// duplicate "WorkspaceRoutes" here was dead code AND held the only lockout check,
+// so the lockout never ran. It has been removed to avoid that trap recurring.
 
 function AppRoutes() {
   return (
