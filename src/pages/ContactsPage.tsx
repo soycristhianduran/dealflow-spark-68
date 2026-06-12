@@ -96,7 +96,8 @@ interface ProfileOption {
   full_name: string;
 }
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
+const SELECT_ALL_CAP = 10000; // safety cap for "select all across pages"
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
@@ -126,7 +127,10 @@ export default function ContactsPage() {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(50);
   const [totalCount, setTotalCount] = useState(0);
+  // True when the user chose "select all N across every page" (not just this page).
+  const [allMatchingSelected, setAllMatchingSelected] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -215,14 +219,9 @@ export default function ContactsPage() {
   const [voiceCampaignLoading, setVoiceCampaignLoading] = useState(false);
   const [callingAgents, setCallingAgents] = useState<{ id: string; name: string }[]>([]);
 
-  const fetchContacts = useCallback(async () => {
-    setLoading(true);
-    const from = currentPage * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-    let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, company_name, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, to);
+  // Apply the active filters to any contacts query (shared by the paged fetch
+  // and by "select all across pages" so both operate on the same result set).
+  const applyFilters = useCallback((query: any) => {
     if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
     else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
@@ -246,13 +245,37 @@ export default function ContactsPage() {
     } else if (isOwnerOrAdmin && ownerFilter !== "all") {
       query = query.eq("owner_id", ownerFilter);
     }
+    return query;
+  }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
+
+  const fetchContacts = useCallback(async () => {
+    setLoading(true);
+    const from = currentPage * pageSize;
+    const to = from + pageSize - 1;
+    let query = supabase.from("contacts")
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, company_name, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    query = applyFilters(query);
     const { data, error, count } = await query;
     if (!error && data) {
       setContacts(data as unknown as ContactRow[]);
       setTotalCount(count ?? 0);
     }
     setLoading(false);
-  }, [currentPage, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
+  }, [currentPage, pageSize, applyFilters]);
+
+  // Select EVERY lead matching the current filters (across all pages), capped for
+  // safety. Sets a flag so the UI can show "all N selected".
+  const selectAllAcrossPages = useCallback(async () => {
+    let query = supabase.from("contacts").select("id").order("created_at", { ascending: false }).limit(SELECT_ALL_CAP);
+    query = applyFilters(query);
+    const { data, error } = await query;
+    if (!error && data) {
+      setSelected(new Set((data as { id: string }[]).map(r => r.id)));
+      setAllMatchingSelected(true);
+    }
+  }, [applyFilters]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
@@ -264,7 +287,9 @@ export default function ContactsPage() {
     return () => { supabase.removeChannel(channel); };
   }, [fetchContacts]);
 
-  useEffect(() => { setSelected(new Set()); }, [statusFilter, search, ownerFilter]);
+  useEffect(() => { setSelected(new Set()); setAllMatchingSelected(false); }, [statusFilter, search, ownerFilter]);
+  // Changing page size resets to the first page so ranges stay consistent.
+  useEffect(() => { setCurrentPage(0); }, [pageSize]);
 
   // Reset to page 0 whenever any filter changes
   useEffect(() => {
@@ -382,11 +407,13 @@ export default function ContactsPage() {
   const someChecked = selected.size > 0;
 
   const toggleAll = () => {
+    setAllMatchingSelected(false);
     if (allChecked) setSelected(new Set());
     else setSelected(new Set(visibleIds));
   };
 
   const toggleOne = (id: string) => {
+    setAllMatchingSelected(false);
     setSelected(prev => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
@@ -1243,9 +1270,30 @@ export default function ContactsPage() {
             )}
 
             <div className="h-4 w-px bg-border" />
-            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelected(new Set())}>
+            <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelected(new Set()); setAllMatchingSelected(false); }}>
               Cancelar
             </Button>
+          </div>
+        )}
+
+        {/* Select-all-across-pages banner */}
+        {someChecked && totalCount > visibleIds.length && (
+          <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-xs text-center">
+            {allMatchingSelected ? (
+              <>
+                <span className="font-medium">Se seleccionaron los {totalCount.toLocaleString()} leads de todas las páginas.</span>
+                <button className="font-semibold text-primary underline underline-offset-2" onClick={() => { setSelected(new Set()); setAllMatchingSelected(false); }}>
+                  Limpiar selección
+                </button>
+              </>
+            ) : allChecked ? (
+              <>
+                <span>Seleccionaste los {visibleIds.length} de esta página.</span>
+                <button className="font-semibold text-primary underline underline-offset-2" onClick={selectAllAcrossPages}>
+                  Seleccionar los {totalCount.toLocaleString()} de todas las páginas
+                </button>
+              </>
+            ) : null}
           </div>
         )}
 
@@ -1422,11 +1470,26 @@ export default function ContactsPage() {
         })()}
 
         {/* Pagination controls */}
-        {totalCount > PAGE_SIZE && (
-          <div className="flex items-center justify-between px-1 py-1">
-            <p className="text-xs text-muted-foreground">
-              Mostrando {currentPage * PAGE_SIZE + 1}–{Math.min((currentPage + 1) * PAGE_SIZE, totalCount)} de {totalCount} leads
-            </p>
+        {totalCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
+            <div className="flex items-center gap-3">
+              <p className="text-xs text-muted-foreground">
+                Mostrando {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, totalCount)} de {totalCount} leads
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">Por página:</span>
+                <Select value={String(pageSize)} onValueChange={v => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[72px] text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAGE_SIZE_OPTIONS.map(opt => (
+                      <SelectItem key={opt} value={String(opt)} className="text-xs">{opt}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
@@ -1438,13 +1501,13 @@ export default function ContactsPage() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs text-muted-foreground px-2">
-                Página {currentPage + 1} de {Math.ceil(totalCount / PAGE_SIZE)}
+                Página {currentPage + 1} de {Math.max(1, Math.ceil(totalCount / pageSize))}
               </span>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-8 w-8 p-0"
-                disabled={(currentPage + 1) * PAGE_SIZE >= totalCount}
+                disabled={(currentPage + 1) * pageSize >= totalCount}
                 onClick={() => setCurrentPage(p => p + 1)}
               >
                 <ChevronRight className="h-4 w-4" />
