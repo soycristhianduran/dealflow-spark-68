@@ -21,6 +21,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useOrgTags, tagChipStyle } from "@/hooks/useOrgTags";
+import { SendingLoader3D } from "@/components/whatsapp/SendingLoader3D";
 import { TagPicker } from "@/components/TagPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
@@ -1886,10 +1887,7 @@ export default function ContactsPage() {
         requireCampaignName
       />
       {waBlastProgress && (
-        <div className="fixed bottom-6 right-6 z-50 bg-card border rounded-xl px-5 py-3 shadow-lg flex items-center gap-3 text-sm">
-          <Loader2 className="h-4 w-4 animate-spin text-green-600" />
-          <span>Enviando WhatsApp… {waBlastProgress.done}/{waBlastProgress.total}</span>
-        </div>
+        <SendingLoader3D done={waBlastProgress.done} total={waBlastProgress.total} />
       )}
 
       {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
