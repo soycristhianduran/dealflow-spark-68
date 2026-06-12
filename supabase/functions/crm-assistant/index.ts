@@ -61,14 +61,19 @@ TRIGGERS válidos (usa exactamente estos type y config):
 - meta_lead_form { form_name?: string }
 - tag_added { tag: string }
 - contact_stage_changed { stage_name?: string }
-PASOS válidos (type y config):
+PASOS válidos (type y config). INCLUYE TODOS los pasos que el usuario pida, en el ORDEN que los pida:
 - add_tag { tag: string }
 - remove_tag { tag: string }
 - wait { delay_value: number, delay_unit: "minutes"|"hours"|"days" }
 - create_task { title: string, due_in_days: number, assign_to_owner: boolean }
 - notify_owner { message: string }
 - send_whatsapp { template_name: string, language: "es" }
-Para etiquetas usa las del catálogo cuando aplique.`,
+- send_email { subject: string }
+- update_contact { field: string, value: string }
+- condition { field: string, operator: string, value: string }
+- assign_owner { mode: "specific", owner_name?: string }
+- move_pipeline_stage { stage_name?: string }
+Para etiquetas usa las del catálogo cuando aplique. Si falta un dato (plantilla, vendedor, etapa exactos), créalo igual con lo que tengas — el usuario lo completará al revisar.`,
       parameters: {
         type: "object",
         properties: {
@@ -133,8 +138,11 @@ function buildLeadsQuery(supabase: any, orgId: string, args: any, selectExpr: st
   return q;
 }
 
-const ALLOWED_TRIGGERS = new Set(["contact_created", "meta_lead_form", "tag_added", "contact_stage_changed"]);
-const ALLOWED_STEPS = new Set(["add_tag", "remove_tag", "wait", "create_task", "notify_owner", "send_whatsapp"]);
+const ALLOWED_TRIGGERS = new Set(["contact_created", "meta_lead_form", "tag_added", "contact_stage_changed", "landing_form_submitted"]);
+const ALLOWED_STEPS = new Set([
+  "add_tag", "remove_tag", "wait", "create_task", "notify_owner", "send_whatsapp",
+  "send_email", "update_contact", "condition", "assign_owner", "move_pipeline_stage",
+]);
 
 async function runTool(name: string, args: any, supabase: any, orgId: string, userId: string): Promise<{ result: any; action?: any }> {
   if (name === "create_automation") {
@@ -144,9 +152,10 @@ async function runTool(name: string, args: any, supabase: any, orgId: string, us
 
     const rawSteps = Array.isArray(args.steps) ? args.steps : [];
     const steps: any[] = [];
+    const skipped: string[] = [];
     for (let i = 0; i < rawSteps.length; i++) {
       const s = rawSteps[i];
-      if (!s || !ALLOWED_STEPS.has(s.type)) continue;
+      if (!s || !ALLOWED_STEPS.has(s.type)) { if (s?.type) skipped.push(s.type); continue; }
       let config = (s.config && typeof s.config === "object") ? s.config : {};
       // Normalize tags to the catalog's canonical casing (create if new).
       if ((s.type === "add_tag" || s.type === "remove_tag") && config.tag) {
@@ -171,7 +180,12 @@ async function runTool(name: string, args: any, supabase: any, orgId: string, us
     }).select("id, name").single();
     if (error) return { result: { error: error.message } };
     return {
-      result: { created: true, id: created.id, name: created.name, steps_count: steps.length, note: "Creada DESACTIVADA. El usuario debe revisarla y activarla." },
+      result: {
+        created: true, id: created.id, name: created.name,
+        trigger: tType, steps: steps.map((s: any) => s.type), steps_count: steps.length,
+        skipped_unsupported: skipped,
+        note: "Creada DESACTIVADA. Resume al usuario el trigger y los pasos creados (en orden); si hubo pasos no soportados, avísale. Indícale que la revise y active.",
+      },
       action: { type: "open_automation", id: created.id, name: created.name },
     };
   }
