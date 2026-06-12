@@ -54,7 +54,7 @@ export function LockoutScreen() {
           <Button
             className="w-full"
             size="lg"
-            onClick={() => navigate(`${path}/billing`)}
+            onClick={() => navigate(path("/billing"))}
           >
             Elegir un plan
           </Button>
