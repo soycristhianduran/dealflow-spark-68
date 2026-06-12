@@ -15,7 +15,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  Play, Pause, Loader2, AlertCircle, Send,
+  Play, Pause, Loader2, AlertCircle, Send, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
