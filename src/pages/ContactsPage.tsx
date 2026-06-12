@@ -1681,9 +1681,8 @@ export default function ContactsPage() {
                   <TagPicker
                     value={tagInput}
                     onChange={setTagInput}
-                    placeholder="Elige o crea una etiqueta..."
+                    placeholder="Elige una etiqueta..."
                     allowCreate={false}
-                    className=""
                   />
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={addPendingTag}>Agregar</Button>

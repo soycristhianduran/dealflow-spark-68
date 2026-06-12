@@ -1,39 +1,84 @@
 /**
- * TagPicker — type-ahead dropdown backed by the org's central tag catalog
- * (Settings → Tags / useOrgTags). Picking from the list or typing a new tag both
- * work; a newly typed tag is persisted to the catalog so it shows up everywhere
- * (Settings, automations, Leads).
+ * TagPicker — a real dropdown combobox backed by the org's central tag catalog
+ * (Settings → Tags / useOrgTags). Always shows ALL catalog tags, supports search,
+ * and (optionally) creating a new tag inline — which persists to the catalog so it
+ * appears everywhere (Settings, automations, Leads).
  */
-import { useId } from "react";
-import { Input } from "@/components/ui/input";
+import { useState } from "react";
+import { Check, ChevronsUpDown, Plus } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
+  Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList,
+} from "@/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
 import { useOrgTags } from "@/hooks/useOrgTags";
 
 interface TagPickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  /** When true (default) a typed-in tag not yet in the catalog is created/persisted. */
+  /** When true (default) a typed-in tag not yet in the catalog can be created. */
   allowCreate?: boolean;
-  className?: string;
 }
 
-export function TagPicker({ value, onChange, placeholder, allowCreate = true, className }: TagPickerProps) {
+export function TagPicker({ value, onChange, placeholder, allowCreate = true }: TagPickerProps) {
   const { tags, addTag } = useOrgTags();
-  const listId = useId();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const term = search.trim();
+  const exactExists = tags.some(t => t.toLowerCase() === term.toLowerCase());
+
+  const select = (tag: string) => { onChange(tag); setOpen(false); setSearch(""); };
+
+  const create = async () => {
+    const created = await addTag(term);
+    if (created) select(created);
+  };
 
   return (
-    <>
-      <Input
-        list={listId}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        onBlur={() => { if (allowCreate && value.trim()) void addTag(value.trim()); }}
-        placeholder={placeholder}
-        className={className ?? "mt-1"}
-      />
-      <datalist id={listId}>
-        {tags.map(t => <option key={t} value={t} />)}
-      </datalist>
-    </>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="mt-1 w-full justify-between font-normal"
+        >
+          <span className={cn(!value && "text-muted-foreground")}>
+            {value || placeholder || "Elige una etiqueta"}
+          </span>
+          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+        <Command>
+          <CommandInput placeholder="Buscar o crear..." value={search} onValueChange={setSearch} />
+          <CommandList>
+            {tags.length === 0 && !term && (
+              <CommandEmpty>No hay etiquetas. Escribe para crear una.</CommandEmpty>
+            )}
+            <CommandGroup>
+              {tags.map(tag => (
+                <CommandItem key={tag} value={tag} onSelect={() => select(tag)}>
+                  <Check className={cn("mr-2 h-4 w-4", value === tag ? "opacity-100" : "opacity-0")} />
+                  {tag}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {allowCreate && term && !exactExists && (
+              <CommandGroup>
+                <CommandItem value={`__create__${term}`} onSelect={create}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Crear "{term}"
+                </CommandItem>
+              </CommandGroup>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   );
 }
