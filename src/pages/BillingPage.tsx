@@ -32,6 +32,7 @@ interface UsageRow {
   automated_messages_used: number;
   email_sends_used: number;
   ai_agent_conversations_used: number;
+  ai_assistant_used: number;
 }
 
 export default function BillingPage() {
@@ -83,7 +84,7 @@ export default function BillingPage() {
       const [usageRes, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
         supabase
           .from("usage_counters")
-          .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used")
+          .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used, ai_assistant_used")
           .eq("organization_id", organizationId)
           .eq("period_start", monthStart)
           .maybeSingle(),
@@ -110,7 +111,7 @@ export default function BillingPage() {
         setUsage(null);
       } else {
         // null means no row yet this month → user hasn't consumed anything, true zero
-        setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0 });
+        setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0, ai_assistant_used: 0 });
       }
 
       setBoostCredits((boosts ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
@@ -214,6 +215,14 @@ export default function BillingPage() {
       icon: Bot,
       color: "text-violet-500",
       show: subscription.featureAiAgent,
+    },
+    {
+      label: "Asistente IA",
+      used: usage?.ai_assistant_used ?? 0,
+      limit: subscription.monthlyAiAssistant,
+      icon: Sparkles,
+      color: "text-primary",
+      show: true,
     },
   ].filter((i) => i.show);
 

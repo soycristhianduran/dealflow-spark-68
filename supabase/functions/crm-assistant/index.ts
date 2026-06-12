@@ -160,6 +160,15 @@ Deno.serve(async (req) => {
     if (!resolvedOrg || !memberOrgs.includes(resolvedOrg)) resolvedOrg = memberOrgs[0] ?? null;
     if (!resolvedOrg) return new Response(JSON.stringify({ error: "Sin organización" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Enforce the plan's monthly assistant quota (anti-abuse + upsell lever).
+    const { data: allowed } = await supabase.rpc("consume_ai_assistant_quota", { p_org_id: resolvedOrg });
+    if (allowed === false) {
+      return new Response(JSON.stringify({
+        reply: "Alcanzaste el límite mensual de consultas del Asistente IA de tu plan. Sube de plan para seguir usándolo este mes. 🚀",
+        limitReached: true,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     // Give the model the org's real tags and sources so it can map fuzzy mentions
     // ("verdanzza") to the exact catalog value ("Lanzamiento Verdanzza").
     const [{ data: tagRows }, { data: srcRows }] = await Promise.all([

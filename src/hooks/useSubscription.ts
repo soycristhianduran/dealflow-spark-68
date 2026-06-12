@@ -46,6 +46,7 @@ export interface SubscriptionInfo {
   monthlyAutomatedMessages: number | null;
   monthlyEmailSends: number | null;
   monthlyAiAgentConversations: number | null;
+  monthlyAiAssistant: number | null;
 
   // Feature flags
   featureMetaAds: boolean;
@@ -108,6 +109,7 @@ export function useSubscription(): UseSubscriptionReturn {
       monthlyAutomatedMessages: row.monthly_automated_messages,
       monthlyEmailSends: row.monthly_email_sends,
       monthlyAiAgentConversations: row.monthly_ai_agent_conversations ?? null,
+      monthlyAiAssistant: row.monthly_ai_assistant ?? null,
       featureMetaAds: !!row.feature_meta_ads,
       featureAiAgent: !!row.feature_ai_agent,
       featureEmailCampaigns: !!row.feature_email_campaigns,
