@@ -34,6 +34,7 @@ const TOOLS = [
           temperature: { type: "string", enum: ["hot", "warm", "cold"], description: "Temperatura por score: hot(>=61), warm(31-60), cold(<=30)" },
           status: { type: "string", enum: ["all", "active", "won", "lost", "unassigned"], description: "Estado del lead" },
           source: { type: "string", description: "Origen exacto, ej. facebook_ads, whatsapp, manual" },
+          tag: { type: "string", description: "Etiqueta EXACTA del catálogo de la organización (usa una de las disponibles que te di)" },
           search: { type: "string", description: "Texto a buscar en nombre o email" },
           created_since_days: { type: "number", description: "Solo leads creados en los últimos N días" },
         },
@@ -79,6 +80,7 @@ function buildLeadsQuery(supabase: any, orgId: string, args: any, selectExpr: st
   if (status === "unassigned") q = q.is("pipeline_id", null);
   else if (status && status !== "all") q = q.eq("lead_status", status);
   if (args.source) q = q.eq("source", args.source);
+  if (args.tag) q = q.contains("tags", [args.tag]);
   if (args.search) q = q.or(`full_name.ilike.%${args.search}%,primary_email.ilike.%${args.search}%`);
   const tr = tempRange(args.temperature);
   if (tr.gte != null) q = q.gte("score", tr.gte);
@@ -102,6 +104,7 @@ async function runTool(name: string, args: any, supabase: any, orgId: string): P
         temperature: args.temperature ?? null,
         status: args.status ?? null,
         source: args.source ?? null,
+        tag: args.tag ?? null,
         search: args.search ?? null,
         created_since_days: args.created_since_days ?? null,
       } },
@@ -153,8 +156,18 @@ Deno.serve(async (req) => {
     if (!resolvedOrg || !memberOrgs.includes(resolvedOrg)) resolvedOrg = memberOrgs[0] ?? null;
     if (!resolvedOrg) return new Response(JSON.stringify({ error: "Sin organización" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Give the model the org's real tags and sources so it can map fuzzy mentions
+    // ("verdanzza") to the exact catalog value ("Lanzamiento Verdanzza").
+    const [{ data: tagRows }, { data: srcRows }] = await Promise.all([
+      supabase.from("organization_tags").select("name").eq("organization_id", resolvedOrg).limit(100),
+      supabase.from("contacts").select("source").eq("organization_id", resolvedOrg).not("source", "is", null).limit(1000),
+    ]);
+    const availableTags = [...new Set((tagRows || []).map((t: any) => t.name))];
+    const availableSources = [...new Set((srcRows || []).map((s: any) => s.source).filter(Boolean))];
+    const contextNote = `\n\nEtiquetas disponibles en esta organización: ${availableTags.length ? availableTags.join(", ") : "(ninguna)"}.\nOrígenes (source) disponibles: ${availableSources.length ? availableSources.join(", ") : "(ninguno)"}.\nCuando el usuario mencione una etiqueta de forma aproximada, mapéala a la etiqueta EXACTA de la lista y usa filter_leads con el parámetro tag.`;
+
     const history = Array.isArray(body.messages) ? body.messages.slice(-12) : [];
-    const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT }, ...history];
+    const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT + contextNote }, ...history];
 
     let action: any = null;
 

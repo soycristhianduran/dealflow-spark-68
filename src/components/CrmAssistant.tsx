@@ -39,6 +39,7 @@ export function CrmAssistant() {
     if (f.temperature) p.set("temperature", f.temperature);
     if (f.status) p.set("status", f.status);
     if (f.source) p.set("source", f.source);
+    if (f.tag) p.set("tag", f.tag);
     if (f.search) p.set("search", f.search);
     if (f.created_since_days) p.set("since_days", String(f.created_since_days));
     navigate(`${path("/contacts")}?${p.toString()}`);

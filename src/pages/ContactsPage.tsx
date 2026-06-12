@@ -147,11 +147,13 @@ export default function ContactsPage() {
     const temp = searchParams.get("temperature");
     const status = searchParams.get("status");
     const source = searchParams.get("source");
+    const tag = searchParams.get("tag");
     const q = searchParams.get("search");
     const sinceDays = searchParams.get("since_days");
     if (temp) setScoreFilter(temp);
     if (status) setStatusFilter(status);
     if (source) setSourceFilter(source);
+    if (tag) setTagFilter(tag);
     if (q) setSearch(q);
     if (sinceDays) {
       const d = new Date(Date.now() - Number(sinceDays) * 86400000);
