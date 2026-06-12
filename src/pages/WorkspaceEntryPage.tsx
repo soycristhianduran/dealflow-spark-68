@@ -38,6 +38,8 @@ import BillingPage from "./BillingPage";
 import AIAgentPage from "./AIAgentPage";
 import CallingAgentPage from "./CallingAgentPage";
 import NotFound from "./NotFound";
+import { LockoutScreen } from "@/components/billing/LockoutScreen";
+import { useSubscription } from "@/hooks/useSubscription";
 
 function P({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
@@ -50,6 +52,8 @@ export default function WorkspaceEntryPage() {
   const [status, setStatus] = useState<"loading" | "allowed" | "denied" | "not_found">("loading");
   // true = user has already confirmed their workspace URL; false = must confirm first
   const [slugConfirmed, setSlugConfirmed] = useState<boolean>(true);
+  // Billing gate — trial expired / canceled / unpaid → lock the workspace.
+  const { locked } = useSubscription();
 
   useEffect(() => {
     if (authLoading) return;
@@ -114,6 +118,18 @@ export default function WorkspaceEntryPage() {
         <Routes>
           <Route path="settings" element={<P><SettingsPage /></P>} />
           <Route path="*" element={<Navigate to="settings?setup=1" replace />} />
+        </Routes>
+      );
+    }
+
+    // ── Billing lockout gate ──────────────────────────────────────────────────
+    // Trial expired without payment / subscription canceled / unpaid → block the
+    // whole workspace, but keep /billing reachable so the user can pay (Stripe).
+    if (locked) {
+      return (
+        <Routes>
+          <Route path="billing" element={<P><BillingPage /></P>} />
+          <Route path="*" element={<LockoutScreen />} />
         </Routes>
       );
     }
