@@ -528,9 +528,27 @@ export default function ContactsPage() {
     done(`${rows.length} tarea${rows.length !== 1 ? "s" : ""} creada${rows.length !== 1 ? "s" : ""}`);
   };
 
+  // Fetch the FULL set of selected contacts (across all pages), not just the page
+  // currently loaded in memory — bulk sends were only hitting the visible page.
+  const fetchSelectedContacts = async (): Promise<ContactRow[]> => {
+    const ids = [...selected];
+    if (ids.length === 0) return [];
+    const loaded = contacts.filter(c => selected.has(c.id));
+    if (loaded.length === ids.length) return loaded; // all already in memory
+    const out: ContactRow[] = [];
+    for (let i = 0; i < ids.length; i += 500) {
+      const { data } = await supabase.from("contacts")
+        .select("id, full_name, primary_phone, primary_email, company_name")
+        .in("id", ids.slice(i, i + 500));
+      if (data) out.push(...(data as unknown as ContactRow[]));
+    }
+    return out;
+  };
+
   // ── Bulk WhatsApp template blast ──────────────────────────────────────────
   const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string, campaignName?: string) => {
-    const targets = contacts.filter(c => selected.has(c.id) && c.primary_phone);
+    const allSelected = await fetchSelectedContacts();
+    const targets = allSelected.filter(c => c.primary_phone);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); return; }
 
     const campName = (campaignName || waCampaignName || "").trim();
@@ -604,7 +622,7 @@ export default function ContactsPage() {
     if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
     if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
     if (!fromEmail.trim()) { toast.error("El email del remitente es obligatorio. Configúralo en Ajustes → Remitente de emails."); return; }
-    const targets = contacts.filter(c => selected.has(c.id) && c.primary_email);
+    const targets = (await fetchSelectedContacts()).filter(c => c.primary_email);
     if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
 
     const senderEmail = fromEmail.trim();
@@ -1897,7 +1915,7 @@ export default function ContactsPage() {
           <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
             <Mail className="h-5 w-5 text-blue-600 shrink-0" />
             <div className="flex-1">
-              <h2 className="text-base font-semibold">Enviar email a {contacts.filter(c => selected.has(c.id) && c.primary_email).length} leads</h2>
+              <h2 className="text-base font-semibold">Enviar email a {selected.size} leads seleccionados</h2>
               <p className="text-xs text-muted-foreground">
                 Usa <code className="bg-muted px-1 rounded">{"{{nombre}}"}</code> para personalizar automáticamente
               </p>
