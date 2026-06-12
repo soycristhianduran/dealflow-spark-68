@@ -538,6 +538,7 @@ Deno.serve(async (req) => {
       await supabase.from("channels").upsert(
         {
           user_id: user.id,
+          organization_id: orgId,
           type: "whatsapp",
           provider: "meta",
           waba_id,
@@ -633,6 +634,7 @@ Deno.serve(async (req) => {
       await supabase.from("channels").upsert(
         {
           user_id: user.id,
+          organization_id: orgId,
           type: "whatsapp",
           provider: "meta",
           waba_id,

@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   const now = new Date().toISOString();
   const { data: tokens, error: tokensErr } = await supabase
     .from("facebook_tokens")
-    .select("user_id, access_token, token_expires_at, needs_reconnect")
+    .select("user_id, organization_id, access_token, token_expires_at, needs_reconnect")
     .or(`token_expires_at.is.null,token_expires_at.gt.${now}`)
     .neq("needs_reconnect", true);
 
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
 
   // ── 2. Process each user ──────────────────────────────────────────────────
   for (const tokenRow of validTokens) {
-    const { user_id, access_token } = tokenRow;
+    const { user_id, organization_id, access_token } = tokenRow;
 
     try {
       // ── 2a. Find distinct ad_account_ids for this user from meta_campaigns ──
@@ -119,6 +119,7 @@ Deno.serve(async (req) => {
             const spend       = insights.spend ? Number(insights.spend) : 0;
             return {
               user_id,
+              organization_id,
               campaign_id:     c.id,
               campaign_name:   c.name,
               status:          c.status,
@@ -141,6 +142,7 @@ Deno.serve(async (req) => {
             .from("meta_campaigns")
             .delete()
             .eq("user_id", user_id)
+            .eq("organization_id", organization_id)
             .eq("ad_account_id", ad_account_id);
 
           for (const campaign of campaigns) {
