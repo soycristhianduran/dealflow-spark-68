@@ -127,7 +127,11 @@ async function runTool(name: string, args: any, supabase: any, orgId: string): P
       .eq("organization_id", orgId)
       .or(`full_name.ilike.%${args.query}%,primary_email.ilike.%${args.query}%,primary_phone.ilike.%${args.query}%`)
       .limit(10);
-    return { result: { matches: (data || []).map((c: any) => ({ id: c.id, name: c.full_name, phone: c.primary_phone, score: c.score })) } };
+    const matches = (data || []).map((c: any) => ({ id: c.id, name: c.full_name, phone: c.primary_phone, score: c.score }));
+    return {
+      result: { matches },
+      action: matches.length ? { type: "open_contact", matches: matches.map((m: any) => ({ id: m.id, name: m.name })) } : undefined,
+    };
   }
   return { result: { error: "unknown tool" } };
 }

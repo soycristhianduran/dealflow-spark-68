@@ -31,6 +31,8 @@ export function CrmAssistant() {
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages, loading]);
 
+  const openContact = (id: string) => { navigate(path(`/contacts/${id}`)); setOpen(false); };
+
   const applyAction = (action: any) => {
     if (action?.type !== "navigate_leads") return;
     const f = action.filters || {};
@@ -105,6 +107,15 @@ export function CrmAssistant() {
                 <button onClick={() => applyAction(m.action)} className="mt-2 inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
                   Ver leads <ArrowRight className="h-3 w-3" />
                 </button>
+              )}
+              {m.action?.type === "open_contact" && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {(m.action.matches || []).slice(0, 5).map((c: any) => (
+                    <button key={c.id} onClick={() => openContact(c.id)} className="inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
+                      Abrir {c.name} <ArrowRight className="h-3 w-3" />
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>
