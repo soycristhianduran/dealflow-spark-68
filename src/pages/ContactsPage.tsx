@@ -160,10 +160,12 @@ export default function ContactsPage() {
       setDateFrom(d.toISOString().slice(0, 10));
     }
     setCurrentPage(0);
-    // Clear the params so refreshes/manual changes aren't overridden.
+    // Clear the params so refreshes/manual changes aren't overridden. Depending on
+    // searchParams (not []) makes this also fire when the assistant navigates here
+    // while the page is ALREADY mounted (same /contacts route, new query).
     setSearchParams({}, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams]);
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
   const { tags: orgCatalogTags, colorOf } = useOrgTags();
