@@ -431,53 +431,28 @@ async function processLeadgenChange(
   }
 
   // ── Trigger automations with trigger_type = "meta_lead_form" ────────────────
+  // Route through the automation-runner's trigger_event path (same as
+  // contact_created) so enrollment AND the first steps (e.g. add_tag) run
+  // immediately and org-scoped. The runner matches meta_lead_form automations and
+  // filters by form_id from trigger_data. (Previously we inserted enrollments
+  // directly and called the runner with an empty body, which created the
+  // enrollment but never executed the steps — tags were never applied.)
   try {
-    const { data: automations } = await supabase
-      .from("automations")
-      .select("id, trigger_config")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .eq("trigger_type", "meta_lead_form");
-
-    const matching = (automations || []).filter((a: any) => {
-      const cfg = a.trigger_config || {};
-      // Fire if no form_id configured (catch-all) OR form_id matches
-      return !cfg.form_id || cfg.form_id === formId;
-    });
-
-    if (matching.length > 0) {
-      const enrollments = matching.map((a: any) => ({
-        automation_id: a.id,
+    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        action: "trigger_event",
+        trigger_type: "meta_lead_form",
         contact_id: newContact.id,
-        user_id: userId,
-        status: "active",
-        current_step_index: 0,
-        next_run_at: new Date().toISOString(),
-      }));
-      const { data: inserted, error: enrollErr } = await supabase
-        .from("automation_enrollments")
-        .insert(enrollments)
-        .select("*, automations(*), contacts(*)");
-      if (enrollErr) {
-        console.error("Error enrolling contact in automations:", enrollErr);
-      } else {
-        console.log(`Enrolled contact ${newContact.id} in ${matching.length} automation(s)`);
-        // Fire first step immediately — the automation runner cron is the fallback,
-        // but we want instant execution when a lead arrives.
-        const runnerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`;
-        fetch(runnerUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-          },
-          body: JSON.stringify({}),
-        }).catch((e) => console.error("Could not trigger automation-runner:", e));
-      }
-    }
+        trigger_data: { form_id: formId, page_id: pageId },
+      }),
+    }).catch((e) => console.error("Could not trigger automation-runner (meta_lead_form):", e));
   } catch (autoErr) {
-    // Non-fatal — log and continue
-    console.error("Error triggering automations for lead:", autoErr);
+    console.error("Error triggering meta_lead_form automations:", autoErr);
   }
 
   // Also fire the generic contact_created trigger with origin "meta_lead_form",

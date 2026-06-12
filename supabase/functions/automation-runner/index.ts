@@ -253,6 +253,8 @@ Deno.serve(async (req) => {
         // embed_form, meta_lead_form, manual). "any"/empty = all origins.
         if (trigger_type === "contact_created" && cfg.source && cfg.source !== "any"
             && cfg.source !== trigger_data?.origin) continue;
+        // meta_lead_form: filter by specific Meta form_id (empty = any form)
+        if (trigger_type === "meta_lead_form" && cfg.form_id && cfg.form_id !== trigger_data?.form_id) continue;
         if (trigger_type === "landing_form_submitted" && cfg.page_id && cfg.page_id !== trigger_data?.landing_slug) continue;
         if (trigger_type === "email_opened"  && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
         if (trigger_type === "email_clicked" && cfg.campaign_id && cfg.campaign_id !== trigger_data?.campaign_id) continue;
