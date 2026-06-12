@@ -676,6 +676,45 @@ Deno.serve(async (req) => {
               if (updateErr) {
                 console.error("Failed to update message status:", status.id, updateErr.message);
               }
+
+              // ── Also reflect the status on the campaign send record + metrics ──
+              // (Previously only whatsapp_messages was updated, so campaign
+              // delivered/read counts stayed at 0 — the stats were wrong.)
+              try {
+                const RANK: Record<string, number> = { sent: 1, delivered: 2, read: 3 };
+                const { data: sendRow } = await supabase
+                  .from("whatsapp_sends")
+                  .select("id, campaign_id, status")
+                  .eq("wa_message_id", status.id)
+                  .maybeSingle();
+                if (sendRow) {
+                  const ts = status.timestamp ? new Date(Number(status.timestamp) * 1000).toISOString() : new Date().toISOString();
+                  const cur = RANK[sendRow.status] ?? 0;
+                  const next = RANK[status.status] ?? 0;
+                  const patch: Record<string, any> = {};
+                  // Don't downgrade (out-of-order webhooks); 'failed' always wins.
+                  if (status.status === "failed") { patch.status = "failed"; if (errStr) patch.error_message = errStr; }
+                  else if (next > cur) patch.status = status.status;
+                  if (status.status === "delivered") patch.delivered_at = ts;
+                  if (status.status === "read") { patch.read_at = ts; patch.delivered_at = patch.delivered_at ?? ts; }
+                  if (Object.keys(patch).length) {
+                    await supabase.from("whatsapp_sends").update(patch).eq("id", sendRow.id);
+                  }
+                  // Recompute campaign counters from the source of truth.
+                  if (sendRow.campaign_id) {
+                    const { data: rows } = await supabase.from("whatsapp_sends").select("status").eq("campaign_id", sendRow.campaign_id);
+                    const all = rows || [];
+                    const delivered = all.filter((r: any) => r.status === "delivered" || r.status === "read").length;
+                    const read = all.filter((r: any) => r.status === "read").length;
+                    const failed = all.filter((r: any) => r.status === "failed").length;
+                    await supabase.from("whatsapp_campaigns")
+                      .update({ delivered_count: delivered, read_count: read, failed_count: failed })
+                      .eq("id", sendRow.campaign_id);
+                  }
+                }
+              } catch (e) {
+                console.error("campaign metric update failed:", e);
+              }
             }
           }
         }
