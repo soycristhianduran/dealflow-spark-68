@@ -44,6 +44,22 @@ export function useOrgTags() {
     return name;
   }, [organizationId, tags]);
 
+  // Rename a tag everywhere (catalog, contacts, automations) via the RPC.
+  // Returns true on success.
+  const renameTag = useCallback(async (oldName: string, rawNew: string): Promise<boolean> => {
+    const newName = rawNew.trim();
+    if (!newName || !organizationId || oldName === newName) return false;
+    if (tags.some(t => t.toLowerCase() === newName.toLowerCase() && t.toLowerCase() !== oldName.toLowerCase())) {
+      return false; // would collide with an existing tag
+    }
+    const { error } = await supabase.rpc("rename_org_tag", {
+      p_org_id: organizationId, p_old: oldName, p_new: newName,
+    });
+    if (error) return false;
+    setTags(prev => prev.map(t => (t === oldName ? newName : t)).sort((a, b) => a.localeCompare(b)));
+    return true;
+  }, [organizationId, tags]);
+
   const removeTag = useCallback(async (name: string) => {
     if (!organizationId) return;
     await supabase
@@ -54,5 +70,5 @@ export function useOrgTags() {
     setTags(prev => prev.filter(t => t !== name));
   }, [organizationId]);
 
-  return { tags, loading, addTag, removeTag, refetch: fetchTags };
+  return { tags, loading, addTag, renameTag, removeTag, refetch: fetchTags };
 }

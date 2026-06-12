@@ -105,8 +105,17 @@ export default function SettingsPage() {
   const { isOwnerOrAdmin, myUserId } = usePermissions();
 
   // Tags — persisted org-wide catalog (shared with automations & Leads dropdowns)
-  const { tags, addTag: addOrgTag, removeTag: removeOrgTag } = useOrgTags();
+  const { tags, addTag: addOrgTag, renameTag: renameOrgTag, removeTag: removeOrgTag } = useOrgTags();
   const [newTag, setNewTag] = useState("");
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [editTagValue, setEditTagValue] = useState("");
+
+  const handleRenameTag = async () => {
+    if (!editingTag) return;
+    const ok = await renameOrgTag(editingTag, editTagValue);
+    if (ok) { toast.success("Tag renombrado"); setEditingTag(null); setEditTagValue(""); }
+    else toast.error("No se pudo renombrar (¿nombre vacío o ya existe?)");
+  };
 
   // Pipeline state
   const [stages, setStages] = useState<PipelineStage[]>([...defaultStages]);
@@ -769,13 +778,33 @@ export default function SettingsPage() {
                 </div>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
+                {tags.length === 0 && (
+                  <p className="text-sm text-muted-foreground">Aún no hay etiquetas. Agrega la primera arriba.</p>
+                )}
                 {tags.map(tag => (
-                  <Badge key={tag} variant="secondary" className="text-sm gap-1.5 pr-1.5">
-                    {tag}
-                    <button onClick={() => handleRemoveTag(tag)} className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5">
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
+                  editingTag === tag ? (
+                    <div key={tag} className="flex items-center gap-1">
+                      <Input
+                        autoFocus
+                        value={editTagValue}
+                        onChange={e => setEditTagValue(e.target.value)}
+                        onKeyDown={e => { if (e.key === "Enter") handleRenameTag(); if (e.key === "Escape") { setEditingTag(null); setEditTagValue(""); } }}
+                        className="h-8 w-40 text-sm"
+                      />
+                      <Button size="sm" variant="outline" className="h-8 px-2" onClick={handleRenameTag}>Guardar</Button>
+                      <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditingTag(null); setEditTagValue(""); }}>Cancelar</Button>
+                    </div>
+                  ) : (
+                    <Badge key={tag} variant="secondary" className="text-sm gap-1 pr-1.5">
+                      {tag}
+                      <button onClick={() => { setEditingTag(tag); setEditTagValue(tag); }} className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5" title="Renombrar">
+                        <Pencil className="h-3 w-3" />
+                      </button>
+                      <button onClick={() => handleRemoveTag(tag)} className="rounded-full hover:bg-muted-foreground/20 p-0.5" title="Eliminar">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )
                 ))}
               </CardContent>
             </Card>
