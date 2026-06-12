@@ -748,18 +748,24 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
 
     else if (step.type === "add_tag") {
-      const tag = renderVars(step.config?.tag || "", ctx);
+      let tag = renderVars(step.config?.tag || "", ctx);
       if (tag) {
         const { data: cont } = await supabase.from("contacts").select("tags, organization_id").eq("id", contact.id).single();
+        // Normalize to the catalog's canonical casing (case-insensitive) so we
+        // don't create "reserva 54" alongside an existing "Reserva 54". If it's a
+        // new tag, register it in the catalog so it shows up in Settings/dropdowns.
+        if (cont?.organization_id) {
+          const { data: existingTag } = await supabase.from("organization_tags")
+            .select("name").eq("organization_id", cont.organization_id).ilike("name", tag).limit(1).maybeSingle();
+          if (existingTag?.name) {
+            tag = existingTag.name;
+          } else {
+            await supabase.from("organization_tags").insert({ organization_id: cont.organization_id, name: tag });
+          }
+        }
         const existing: string[] = cont?.tags || [];
         if (!existing.includes(tag)) {
           await supabase.from("contacts").update({ tags: [...existing, tag] }).eq("id", contact.id);
-        }
-        // Keep the org's central tag catalog in sync so tags applied by an
-        // automation also show up in Settings/dropdowns.
-        if (cont?.organization_id) {
-          await supabase.from("organization_tags")
-            .upsert({ organization_id: cont.organization_id, name: tag }, { onConflict: "organization_id,name" });
         }
         logs = addLog(`Tag "${tag}" añadido`);
       }
