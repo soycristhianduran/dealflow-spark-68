@@ -25,17 +25,21 @@ export function TemplatePicker({
   onClose,
   onSend,
   sending,
+  requireCampaignName = false,
 }: {
   open: boolean;
   onClose: () => void;
-  onSend: (name: string, lang: string, vars: string[], mediaId: string) => void;
+  onSend: (name: string, lang: string, vars: string[], mediaId: string, campaignName?: string) => void;
   sending: boolean;
+  /** When true (bulk send), show + require a campaign name field. */
+  requireCampaignName?: boolean;
 }) {
   const { templates, fetchTemplates } = useWhatsAppTemplates();
   const approved = templates.filter((t) => t.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
   const [mediaId, setMediaId] = useState("");
+  const [campaignName, setCampaignName] = useState("");
 
   useEffect(() => {
     if (open) fetchTemplates();
@@ -60,7 +64,7 @@ export function TemplatePicker({
       )
     : "";
 
-  const canSend = selected && (!needsMedia || mediaId.trim());
+  const canSend = selected && (!needsMedia || mediaId.trim()) && (!requireCampaignName || campaignName.trim());
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -69,6 +73,16 @@ export function TemplatePicker({
           <DialogTitle>Enviar plantilla</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
+          {requireCampaignName && (
+            <div className="space-y-1.5">
+              <Label>Nombre de la campaña <span className="text-red-500">*</span></Label>
+              <Input
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                placeholder="Ej: Lanzamiento Verdanzza junio"
+              />
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Plantilla aprobada</Label>
             <Select value={selected} onValueChange={setSelected}>
@@ -156,7 +170,7 @@ export function TemplatePicker({
           </Button>
           <Button
             disabled={!canSend || sending}
-            onClick={() => tpl && onSend(tpl.name, tpl.language, vars, mediaId)}
+            onClick={() => tpl && onSend(tpl.name, tpl.language, vars, mediaId, campaignName.trim() || undefined)}
           >
             {sending ? (
               <>

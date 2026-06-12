@@ -1871,6 +1871,7 @@ export default function ContactsPage() {
         onClose={() => !waBlastSending && setWaBlastOpen(false)}
         sending={waBlastSending}
         onSend={handleWaBlast}
+        requireCampaignName
       />
       {waBlastProgress && (
         <div className="fixed bottom-6 right-6 z-50 bg-card border rounded-xl px-5 py-3 shadow-lg flex items-center gap-3 text-sm">
