@@ -84,7 +84,9 @@ ${
 - CORREO para la invitación:${opts.contactEmail ? ` ya tenemos registrado el correo "${opts.contactEmail}". NO lo pidas de nuevo: confírmalo con el cliente ("¿Te envío la invitación a ${opts.contactEmail}?"). Si lo confirma, pásalo en client_email. Si dice que es otro, usa el nuevo.` : ` no tenemos su correo. Pídeselo para enviarle la invitación (si no quiere darlo, agenda igual pero avísale que sin correo no recibirá la invitación por email).`}
 - Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con datetime_iso, mode (virtual/presencial), address (si aplica) y client_email (si lo tienes).
 - Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
-- Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.\n`
+- Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.
+
+⛔ REGLA CRÍTICA DE AGENDAMIENTO: para que una cita exista DEBES llamar a la herramienta book_appointment y esperar su respuesta de éxito. NUNCA, bajo ninguna circunstancia, le digas al cliente que la cita "quedó agendada", "ya está lista" o "te envié la invitación" si NO has llamado a book_appointment en este mismo turno y recibido la confirmación "Cita agendada correctamente". Afirmar que agendaste sin llamar la herramienta es un error grave. Si el cliente ya confirmó día, hora${cfg.appointment_modality === "both" ? ", modalidad" : ""} y correo, tu ÚNICA acción correcta es llamar book_appointment AHORA (no respondas solo texto).\n`
     : "";
 
   const mediaBlock = opts.media.length
@@ -344,9 +346,11 @@ Deno.serve(async (req) => {
     const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile });
     const mediaToSend: any[] = [];
     let aiText = "";
+    let bookedThisTurn = false;
+    let nudgedOnce = false;
 
-    // 10. Tool-calling loop (max 4 turns to allow book + send + reply)
-    for (let turn = 0; turn < 4; turn++) {
+    // 10. Tool-calling loop (max 5 turns to allow book + send + reply + 1 nudge)
+    for (let turn = 0; turn < 5; turn++) {
       const claudeRes = await fetch(ANTHROPIC_API, {
         method: "POST",
         headers: {
@@ -370,7 +374,18 @@ Deno.serve(async (req) => {
       const blocks: any[] = claudeData.content || [];
       aiText = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n\n").trim();
 
-      if (claudeData.stop_reason !== "tool_use") break;
+      if (claudeData.stop_reason !== "tool_use") {
+        // Safety net: the model claims it booked but never called book_appointment.
+        // Give it ONE forced chance to actually call the tool.
+        const claimsBooked = /\bagend(é|e|ada|ado|amos)\b|invitaci[oó]n|qued[oó]\s+(lista|agendada|confirmada)|ya\s+est[aá]\s+(lista|agendada)/i.test(aiText);
+        if (canBook && !bookedThisTurn && !nudgedOnce && claimsBooked) {
+          nudgedOnce = true;
+          history.push({ role: "assistant", content: blocks });
+          history.push({ role: "user", content: "(SISTEMA: NO has agendado realmente — no llamaste a book_appointment. Si ya tienes día, hora, modalidad y correo confirmados por el cliente, llama AHORA a book_appointment. Si falta algún dato, pídelo. No le digas al cliente que está agendada hasta que la herramienta confirme.)" });
+          continue;
+        }
+        break;
+      }
 
       // Execute each requested tool and feed results back
       history.push({ role: "assistant", content: blocks });
@@ -390,6 +405,7 @@ Deno.serve(async (req) => {
               modality: cfg.appointment_modality || "both",
               input: b.input,
             });
+            if (resultText.startsWith("Cita agendada correctamente")) bookedThisTurn = true;
           } else if (b.name === "send_media") {
             const m = mediaById.get(b.input?.media_id);
             if (!m) { resultText = "No existe ese archivo."; }
