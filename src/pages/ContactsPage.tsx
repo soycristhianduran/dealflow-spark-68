@@ -322,7 +322,10 @@ export default function ContactsPage() {
       let query = supabase
         .from("contacts")
         .select("id")
-        .order("created_at", { ascending: false })
+        // Order by a UNIQUE column (id) so .range() pagination is STABLE — ordering
+        // by created_at (not unique) skips/duplicates rows at page boundaries, so the
+        // Set ends up with FEWER ids than the filtered total (3465 vs 3527).
+        .order("id", { ascending: true })
         .range(from, from + PAGE - 1);
       query = applyFilters(query);
       const { data, error } = await query;
