@@ -125,19 +125,28 @@ export default function PipelinePage() {
   }, []);
 
   const fetchStagesAndContacts = useCallback(async (pid: string) => {
-    let contactsQuery = supabase.from("contacts")
-      .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
-      .eq("pipeline_id", pid)
-      .order("created_at", { ascending: false });
+    // Paginate past Supabase's 1,000-row default cap so the board shows ALL leads.
+    const fetchAllContacts = async (): Promise<any[]> => {
+      const all: any[] = [];
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase.from("contacts")
+          .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
+          .eq("pipeline_id", pid)
+          .order("created_at", { ascending: false })
+          .range(from, from + PAGE - 1);
+        if (isVendor && myUserId) q = q.eq("owner_id", myUserId);
+        const { data } = await q;
+        if (!data?.length) break;
+        all.push(...data);
+        if (data.length < PAGE) break;
+      }
+      return all;
+    };
 
-    // Vendors only see their own leads
-    if (isVendor && myUserId) {
-      contactsQuery = contactsQuery.eq("owner_id", myUserId);
-    }
-
-    const [{ data: stagesData }, { data: contactsData }] = await Promise.all([
+    const [{ data: stagesData }, contactsData] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pid).order("order", { ascending: true }),
-      contactsQuery,
+      fetchAllContacts(),
     ]);
     setStages(stagesData || []);
     setContacts(contactsData || []);
