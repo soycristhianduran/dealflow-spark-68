@@ -260,7 +260,25 @@ export default function ConversationsPage() {
   const activeMessages: UnifiedMessage[] = useMemo(() => {
     if (!selected) return [];
     if (selected.channel === "whatsapp") {
-      return wa.messages.map((m) => ({
+      // De-duplicate: an optimistic (temp) message + its real DB row can both
+      // end up in state when the realtime INSERT wins the race before the temp
+      // gets its wa_message_id. Drop dups by wa_message_id, and drop a temp
+      // (no wa_message_id yet) when a real row with the same text already exists.
+      const realOutgoingTexts = new Set(
+        wa.messages.filter(m => m.direction === "outgoing" && m.wa_message_id).map(m => m.message_text || ""),
+      );
+      const seenWamid = new Set<string>();
+      const deduped = wa.messages.filter((m) => {
+        if (m.wa_message_id) {
+          if (seenWamid.has(m.wa_message_id)) return false;
+          seenWamid.add(m.wa_message_id);
+          return true;
+        }
+        // temp message with no wa_message_id: drop if a real one matches its text
+        if (m.direction === "outgoing" && realOutgoingTexts.has(m.message_text || "")) return false;
+        return true;
+      });
+      return deduped.map((m) => ({
         channel: "whatsapp" as const,
         id: m.id,
         direction: m.direction,
