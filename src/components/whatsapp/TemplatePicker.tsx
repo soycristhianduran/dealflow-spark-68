@@ -36,12 +36,14 @@ export function TemplatePicker({
 }: {
   open: boolean;
   onClose: () => void;
-  onSend: (name: string, lang: string, vars: string[], mediaId: string, campaignName?: string) => void;
+  onSend: (name: string, lang: string, vars: string[], mediaId: string, campaignName?: string, scheduledAt?: string) => void;
   sending: boolean;
   /** When true (bulk send), show + require a campaign name field. */
   requireCampaignName?: boolean;
 }) {
   const { templates, fetchTemplates } = useWhatsAppTemplates();
+  const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
+  const [scheduleAt, setScheduleAt] = useState("");
   const approved = templates.filter((t) => t.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
@@ -194,24 +196,51 @@ export function TemplatePicker({
               </div>
             </div>
           )}
+
+          {requireCampaignName && (
+            <div className="space-y-2">
+              <Label>¿Cuándo enviar?</Label>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant={sendMode === "now" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setSendMode("now")}>
+                  Enviar ahora
+                </Button>
+                <Button type="button" size="sm" variant={sendMode === "schedule" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setSendMode("schedule")}>
+                  Programar
+                </Button>
+              </div>
+              {sendMode === "schedule" && (
+                <Input
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => setScheduleAt(e.target.value)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+                  className="text-sm"
+                />
+              )}
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancelar
           </Button>
           <Button
-            disabled={!canSend || sending}
-            onClick={() => tpl && onSend(tpl.name, tpl.language, vars, mediaId, campaignName.trim() || undefined)}
+            disabled={!canSend || sending || (sendMode === "schedule" && !scheduleAt)}
+            onClick={() => tpl && onSend(
+              tpl.name, tpl.language, vars, mediaId,
+              campaignName.trim() || undefined,
+              sendMode === "schedule" && scheduleAt ? new Date(scheduleAt).toISOString() : undefined,
+            )}
           >
             {sending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                Enviando...
+                Procesando...
               </>
             ) : (
               <>
                 <Send className="h-4 w-4 mr-1" />
-                Enviar
+                {sendMode === "schedule" ? "Programar envío" : "Enviar ahora"}
               </>
             )}
           </Button>

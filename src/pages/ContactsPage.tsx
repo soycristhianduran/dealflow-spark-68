@@ -546,71 +546,81 @@ export default function ContactsPage() {
   };
 
   // ── Bulk WhatsApp template blast ──────────────────────────────────────────
-  const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string, campaignName?: string) => {
-    const allSelected = await fetchSelectedContacts();
-    const targets = allSelected.filter(c => c.primary_phone);
-    if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); return; }
-
+  const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string, campaignName?: string, scheduledAt?: string) => {
     const campName = (campaignName || waCampaignName || "").trim();
     if (!campName) { toast.error("El nombre de la campaña es obligatorio"); return; }
 
-    // Create WhatsApp campaign record
-    const { data: { user: waAuthUser } } = await supabase.auth.getUser();
-    const waUserId = waAuthUser?.id ?? myUserId;
-    const { data: campData } = await supabase.from("whatsapp_campaigns").insert({
-      name: campName,
-      template_name: templateName,
-      status: "sending",
-      total_recipients: targets.length,
-      user_id: waUserId,
-    }).select("id").single();
-    const campaignId = campData?.id || null;
-
     setWaBlastSending(true);
-    setWaBlastProgress({ done: 0, total: targets.length });
-    let sent = 0; let failed = 0;
-    const sends: any[] = [];
+    setWaBlastProgress({ done: 0, total: 0 });
+    try {
+      const allSelected = await fetchSelectedContacts();
+      const targets = allSelected.filter(c => c.primary_phone);
+      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); setWaBlastSending(false); setWaBlastProgress(null); return; }
 
-    // Resolve personalization tokens ({{nombre}}, {{empresa}}, ...) per contact so
-    // each recipient gets their own data instead of one static value for everyone.
-    const resolveTokens = (val: string, c: ContactRow): string => {
-      const full = (c.full_name || "").trim();
-      const first = full.split(/\s+/)[0] || "";
-      return (val || "")
-        .replace(/\{\{\s*nombre_completo\s*\}\}/gi, full)
-        .replace(/\{\{\s*nombre\s*\}\}/gi, first)
-        .replace(/\{\{\s*empresa\s*\}\}/gi, (c.company_name || "").trim());
-    };
+      const { data: { user: waAuthUser } } = await supabase.auth.getUser();
+      const waUserId = waAuthUser?.id ?? myUserId;
 
-    for (const c of targets) {
-      try {
-        const phone = c.primary_phone!.replace(/[^0-9]/g, "");
-        const resolvedVars = vars.map(v => resolveTokens(v, c));
-        const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-          body: { action: "send_template", phone, template_name: templateName, language, variables: resolvedVars, header_media_id: mediaId || undefined, contact_id: c.id, organization_id: organizationId ?? null },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
-        sends.push({ campaign_id: campaignId, contact_id: c.id, phone, status: "sent", wa_message_id: data?.message_id || null, user_id: myUserId });
-        sent++;
-      } catch (e: any) {
-        sends.push({ campaign_id: campaignId, contact_id: c.id, phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "failed", error_message: e?.message, user_id: myUserId });
-        failed++;
+      // Create the campaign with its config; the backend worker does the sending.
+      const { data: campData, error: campErr } = await supabase.from("whatsapp_campaigns").insert({
+        name: campName,
+        template_name: templateName,
+        language,
+        variables: vars,                       // raw tokens; backend resolves per contact
+        media_id: mediaId || null,
+        status: scheduledAt ? "scheduled" : "sending",
+        scheduled_at: scheduledAt || null,
+        total_recipients: targets.length,
+        user_id: waUserId,
+        organization_id: organizationId ?? null,
+      }).select("id").single();
+      if (campErr || !campData) throw new Error(campErr?.message || "No se pudo crear la campaña");
+      const campaignId = campData.id;
+
+      // One 'pending' send row per recipient (chunked for large lists).
+      const sendRows = targets.map(c => ({
+        campaign_id: campaignId, contact_id: c.id,
+        phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "pending",
+        user_id: myUserId, organization_id: organizationId ?? null,
+      }));
+      setWaBlastProgress({ done: 0, total: targets.length });
+      for (let i = 0; i < sendRows.length; i += 500) {
+        await supabase.from("whatsapp_sends").insert(sendRows.slice(i, i + 500));
       }
-      setWaBlastProgress({ done: sent + failed, total: targets.length });
-    }
 
-    // Store per-contact sends
-    if (campaignId && sends.length > 0) {
-      await supabase.from("whatsapp_sends").insert(sends);
-      await supabase.from("whatsapp_campaigns").update({ status: "sent", sent_count: sent, failed_count: failed }).eq("id", campaignId);
-    }
+      setWaBlastOpen(false);
+      setWaCampaignName("");
+      setSelected(new Set());
 
-    setWaBlastSending(false);
-    setWaBlastOpen(false);
-    setWaBlastProgress(null);
-    setWaCampaignName("");
-    toast.success(`WhatsApp enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
-    setSelected(new Set());
+      if (scheduledAt) {
+        setWaBlastSending(false);
+        setWaBlastProgress(null);
+        toast.success(`Campaña "${campName}" programada para ${new Date(scheduledAt).toLocaleString()} · ${targets.length} destinatarios.`);
+        return;
+      }
+
+      // Send now: fire the backend worker, then poll progress into the 3D loader.
+      supabase.functions.invoke("campaign-sender", { body: { campaign_id: campaignId } }).catch(() => {});
+      const poll = setInterval(async () => {
+        const { data: cnt } = await supabase.from("whatsapp_campaigns")
+          .select("status, sent_count, failed_count, total_recipients").eq("id", campaignId).maybeSingle();
+        if (cnt) {
+          const done = (cnt.sent_count || 0) + (cnt.failed_count || 0);
+          setWaBlastProgress({ done, total: cnt.total_recipients || targets.length });
+          if (cnt.status === "sent") {
+            clearInterval(poll);
+            setWaBlastSending(false);
+            setWaBlastProgress(null);
+            toast.success(`Campaña enviada: ${cnt.sent_count || 0} enviados${cnt.failed_count ? `, ${cnt.failed_count} fallaron` : ""}.`);
+          }
+        }
+      }, 2000);
+      // Safety: stop polling after 10 min (the cron keeps the campaign moving).
+      setTimeout(() => { clearInterval(poll); setWaBlastSending(false); setWaBlastProgress(null); }, 600000);
+    } catch (e: any) {
+      setWaBlastSending(false);
+      setWaBlastProgress(null);
+      toast.error(e?.message || "No se pudo iniciar la campaña");
+    }
   };
 
   // ── Bulk email blast ──────────────────────────────────────────────────────
