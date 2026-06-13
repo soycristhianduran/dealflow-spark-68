@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -73,6 +73,21 @@ function parseCSV(text: string): string[][] {
   return rows.filter(r => r.some(x => x.trim() !== ""));
 }
 
+// Parse CSV or Excel (.xlsx/.xls) into a 2D array of strings.
+async function parseFile(file: File): Promise<string[][]> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".xlsx") || name.endsWith(".xls")) {
+    const XLSX = await import("xlsx"); // lazy-loaded — keeps it out of the main bundle
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, blankrows: false, defval: "" }) as unknown[][];
+    return aoa.map(r => r.map(c => String(c ?? "").trim())).filter(r => r.some(x => x !== ""));
+  }
+  const text = await file.text();
+  return parseCSV(text);
+}
+
 export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -87,16 +102,44 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
 
+  // Destination: pipeline / stage / owner for the imported leads.
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
+  const [members, setMembers] = useState<{ user_id: string; name: string }[]>([]);
+  const [pipelineId, setPipelineId] = useState("");
+  const [stageId, setStageId] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+
+  useEffect(() => {
+    if (!open || !organizationId) return;
+    supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at")
+      .then(({ data }) => { setPipelines(data || []); if (data?.[0] && !pipelineId) setPipelineId(data[0].id); });
+    supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("organization_id", organizationId).order("order")
+      .then(({ data }) => setStages(data || []));
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+      .then(({ data }) => {
+        const list = (data?.members as { user_id: string; full_name?: string; email?: string }[] | undefined) || [];
+        setMembers(list.map(m => ({ user_id: m.user_id, name: m.full_name || m.email || "Sin nombre" })));
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, organizationId]);
+
+  // Default the stage to the first stage of the selected pipeline.
+  const pipelineStages = stages.filter(s => s.pipeline_id === pipelineId);
+  useEffect(() => {
+    if (pipelineStages.length && !pipelineStages.some(s => s.id === stageId)) setStageId(pipelineStages[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pipelineId, stages]);
+
   const reset = () => {
     setStep("upload"); setHeaders([]); setRows([]); setMapping({});
     setResult(null); setImporting(false);
     if (fileRef.current) fileRef.current.value = "";
   };
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const parsed = parseCSV(String(reader.result || ""));
+  const handleFile = async (file: File) => {
+    try {
+      const parsed = await parseFile(file);
       if (parsed.length < 2) { toast.error("El archivo no tiene datos suficientes."); return; }
       const hdr = parsed[0].map(h => h.trim());
       setHeaders(hdr);
@@ -105,8 +148,9 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       hdr.forEach((h, i) => { m[i] = autoMap(h); });
       setMapping(m);
       setStep("map");
-    };
-    reader.readAsText(file);
+    } catch (_) {
+      toast.error("No se pudo leer el archivo. Usa un CSV o Excel (.xlsx) válido.");
+    }
   };
 
   const mappedFields = Object.values(mapping);
@@ -156,11 +200,27 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         const id = (c.primary_email && existing.get("e:" + c.primary_email.toLowerCase()))
           || (c.primary_phone && existing.get("p:" + c.primary_phone));
         if (id) {
+          // Existing contact: only update the mapped fields, don't move its
+          // pipeline/stage/owner.
           const { organization_id, status, ...patch } = c;
           toUpdate.push({ id, patch });
         } else {
-          toInsert.push(c);
+          // New contact: drop it into the chosen pipeline/stage/owner.
+          toInsert.push({
+            ...c,
+            lead_status: "active",
+            ...(pipelineId ? { pipeline_id: pipelineId } : {}),
+            ...(stageId ? { stage_id: stageId } : {}),
+            ...(ownerId ? { owner_id: ownerId } : {}),
+          });
         }
+      }
+
+      // Sync any imported tags into the org's central catalog.
+      const allTags = [...new Set(contacts.flatMap((c: any) => (c.tags as string[] | undefined) || []))];
+      if (allTags.length) {
+        await supabase.from("organization_tags")
+          .upsert(allTags.map(name => ({ organization_id: organizationId, name })), { onConflict: "organization_id,name" });
       }
 
       let created = 0;
@@ -197,21 +257,21 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         {step === "upload" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Sube un archivo <strong>CSV</strong> con tus contactos. En el siguiente paso podrás
-              relacionar cada columna con el campo correcto del CRM.
+              Sube un archivo <strong>CSV</strong> o <strong>Excel (.xlsx)</strong> con tus contactos. En el
+              siguiente paso relacionas cada columna con su campo y eliges el pipeline destino.
             </p>
             <button
               onClick={() => fileRef.current?.click()}
               className="w-full border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/40 transition-colors"
             >
               <Upload className="h-8 w-8 text-muted-foreground" />
-              <span className="text-sm font-medium">Haz clic para subir un CSV</span>
-              <span className="text-xs text-muted-foreground">o arrástralo aquí</span>
+              <span className="text-sm font-medium">Haz clic para subir CSV o Excel</span>
+              <span className="text-xs text-muted-foreground">.csv · .xlsx · .xls</span>
             </button>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
@@ -223,6 +283,42 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
 
         {step === "map" && (
           <div className="space-y-4">
+            {/* Destination for the imported leads */}
+            <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
+              <p className="text-xs font-semibold text-muted-foreground">DESTINO DE LOS LEADS</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <Label className="text-xs">Pipeline</Label>
+                  <Select value={pipelineId} onValueChange={setPipelineId}>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Elige pipeline" /></SelectTrigger>
+                    <SelectContent>
+                      {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Etapa</Label>
+                  <Select value={stageId} onValueChange={setStageId} disabled={!pipelineStages.length}>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Elige etapa" /></SelectTrigger>
+                    <SelectContent>
+                      {pipelineStages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">Vendedor (opcional)</Label>
+                  <Select value={ownerId || "_none"} onValueChange={(v) => setOwnerId(v === "_none" ? "" : v)}>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Sin asignar</SelectItem>
+                      {members.map(m => <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <p className="text-[11px] text-muted-foreground">Solo aplica a leads NUEVOS. Los que ya existen se actualizan sin moverlos de etapa.</p>
+            </div>
+
             <p className="text-sm text-muted-foreground">
               {rows.length} fila(s) detectada(s). Relaciona cada columna de tu archivo con un campo del CRM:
             </p>
