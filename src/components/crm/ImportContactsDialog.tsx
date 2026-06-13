@@ -102,7 +102,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const [rows, setRows] = useState<string[][]>([]);
   const [mapping, setMapping] = useState<Record<number, string>>({});
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ created: number; updated: number; skipped: number } | null>(null);
+  const [result, setResult] = useState<{ created: number; updated: number; skipped: number; total: number; duplicates: number } | null>(null);
 
   // Destination: pipeline / stage / owner for the imported leads.
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
@@ -182,6 +182,22 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         return c;
       }).filter(c => c.primary_email || c.primary_phone);
 
+      // De-duplicate WITHIN the file (same email or phone appearing multiple
+      // times) so we don't create duplicate contacts. Keep the first occurrence.
+      const seenKeys = new Set<string>();
+      let inFileDupes = 0;
+      const dedupedContacts = contacts.filter((c: any) => {
+        const k = (c.primary_email && "e:" + c.primary_email.toLowerCase())
+          || (c.primary_phone && "p:" + c.primary_phone) || "";
+        if (k && seenKeys.has(k)) { inFileDupes++; return false; }
+        if (k) seenKeys.add(k);
+        return true;
+      });
+      const rawContactCount = contacts.length;
+      // From here on, work with the deduped list.
+      contacts.length = 0;
+      contacts.push(...dedupedContacts);
+
       // Dedup against existing contacts (by email or phone) in this org.
       const emails = contacts.map(c => c.primary_email).filter(Boolean);
       const phones = contacts.map(c => c.primary_phone).filter(Boolean);
@@ -248,7 +264,12 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         if (!error) updated++;
       }
 
-      setResult({ created, updated, skipped: rows.length - contacts.length });
+      setResult({
+        created, updated,
+        total: rows.length,
+        skipped: rows.length - rawContactCount, // rows with no email/phone
+        duplicates: inFileDupes,                // same contact repeated in the file
+      });
       setStep("done");
       onImported?.();
     } catch (e: any) {
@@ -398,10 +419,17 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
             <div>
               <p className="text-lg font-semibold">¡Importación completada!</p>
               <div className="text-sm text-muted-foreground mt-2 space-y-0.5">
+                <p><strong className="text-foreground">{result.total}</strong> filas leídas del archivo</p>
                 <p><strong className="text-emerald-600">{result.created}</strong> contactos nuevos creados</p>
                 <p><strong className="text-blue-600">{result.updated}</strong> contactos existentes actualizados</p>
-                {result.skipped > 0 && <p><strong className="text-amber-600">{result.skipped}</strong> filas omitidas (sin email/teléfono)</p>}
+                {result.duplicates > 0 && <p><strong className="text-purple-600">{result.duplicates}</strong> duplicados dentro del archivo (mismo email/teléfono)</p>}
+                {result.skipped > 0 && <p><strong className="text-amber-600">{result.skipped}</strong> filas omitidas (sin email NI teléfono)</p>}
               </div>
+              {result.skipped > result.created + result.updated && (
+                <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 text-left">
+                  ⚠️ Se omitieron muchas filas por no tener email ni teléfono. Si tu archivo SÍ tiene teléfonos, vuelve a importar y en el paso de mapeo asegúrate de relacionar la columna del teléfono con <b>"Teléfono"</b> (a veces el encabezado no se detecta solo).
+                </div>
+              )}
             </div>
             <div className="flex justify-center gap-2">
               <Button variant="outline" onClick={reset}>Importar otro archivo</Button>
