@@ -53,21 +53,22 @@ async function processCampaign(supabase: any, campaignId: string) {
     .from("whatsapp_sends")
     .select("id, contact_id, phone")
     .eq("campaign_id", campaignId).eq("status", "pending");
+  const pendingList = pending || [];
 
-  let sent = 0, failed = 0;
-  let processed = 0;
-  for (const s of (pending || [])) {
-    // Heartbeat every 40 sends so a concurrent cron run sees us as active and
-    // doesn't double-process this campaign during a long send.
-    if (processed > 0 && processed % 40 === 0) {
-      await supabase.from("whatsapp_campaigns").update({ updated_at: new Date().toISOString() }).eq("id", campaignId);
-    }
-    processed++;
+  // Bulk-prefetch ALL contacts in one go (was 1 query per message → huge latency).
+  const contactIds = [...new Set(pendingList.map((s: any) => s.contact_id).filter(Boolean))];
+  const contactMap = new Map<string, any>();
+  for (let i = 0; i < contactIds.length; i += 300) {
+    const { data: cs } = await supabase.from("contacts")
+      .select("id, full_name, company_name").in("id", contactIds.slice(i, i + 300));
+    for (const c of (cs || [])) contactMap.set(c.id, c);
+  }
+
+  // Send ONE recipient.
+  const sendOne = async (s: any): Promise<"sent" | "failed"> => {
     try {
-      const { data: contact } = await supabase.from("contacts")
-        .select("full_name, company_name").eq("id", s.contact_id).maybeSingle();
+      const contact = contactMap.get(s.contact_id);
       const vars = rawVars.map((v) => resolveTokens(v, contact));
-
       const components: any[] = [];
       if (MEDIA_HEADER.includes(headerType) && camp.media_id) {
         components.push({ type: "header", parameters: [{ type: headerType.toLowerCase(), [headerType.toLowerCase()]: { id: camp.media_id } }] });
@@ -99,11 +100,40 @@ async function processCampaign(supabase: any, campaignId: string) {
         wa_message_id: waId, phone_number: s.phone, direction: "outgoing", message_type: "template",
         message_text: body, status: "sent", sent_at: new Date().toISOString(),
       });
-      sent++;
+      return "sent";
     } catch (e) {
       await supabase.from("whatsapp_sends").update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) }).eq("id", s.id);
-      failed++;
+      return "failed";
     }
+  };
+
+  // Process in PARALLEL batches (concurrency) — was strictly sequential, ~4
+  // round-trips per message, so thousands took ages. Respect a time budget so the
+  // edge function never times out: if recipients remain when we stop, we DON'T
+  // mark the campaign 'sent' — the cron backstop re-invokes and continues.
+  const CONCURRENCY = 12;
+  const TIME_BUDGET_MS = 110_000; // ~110s, safely under the function timeout
+  const startedAt = Date.now();
+  let sent = 0, failed = 0, processed = 0;
+  let timedOut = false;
+
+  for (let i = 0; i < pendingList.length; i += CONCURRENCY) {
+    if (Date.now() - startedAt > TIME_BUDGET_MS) { timedOut = true; break; }
+    const batch = pendingList.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(sendOne));
+    for (const r of results) { if (r === "sent") sent++; else failed++; }
+    processed += batch.length;
+    // Heartbeat each batch so the cron sees us active and updates live progress.
+    await supabase.from("whatsapp_campaigns").update({ updated_at: new Date().toISOString() }).eq("id", campaignId);
+  }
+
+  // If we stopped early (time budget), leave the campaign in 'sending' so the cron
+  // continues with the remaining pending recipients on the next run.
+  if (timedOut) {
+    // Mark stale (older updated_at) so the next cron tick resumes the remaining
+    // recipients immediately instead of waiting out the 2-min freshness window.
+    await supabase.from("whatsapp_campaigns").update({ updated_at: new Date(Date.now() - 5 * 60_000).toISOString() }).eq("id", campaignId);
+    return { campaignId, sent, failed, partial: true };
   }
 
   // Final counters from the source of truth.
