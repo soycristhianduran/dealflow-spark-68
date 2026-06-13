@@ -41,6 +41,8 @@ interface AgentConfig {
   channels: { whatsapp: boolean; instagram: boolean };
   appointments_enabled: boolean;
   reminders_enabled: boolean;
+  reminder_template_name: string;
+  reminder_template_lang: string;
   appointment_duration_min: number;
   working_hours: WorkingHours;
   meeting_address: string;
@@ -90,6 +92,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   channels: { whatsapp: true, instagram: false },
   appointments_enabled: false,
   reminders_enabled: true,
+  reminder_template_name: "",
+  reminder_template_lang: "es",
   appointment_duration_min: 30,
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
@@ -154,6 +158,8 @@ export default function AIAgentPage() {
           channels: data.channels ?? { whatsapp: true, instagram: false },
           appointments_enabled: data.appointments_enabled ?? false,
           reminders_enabled: data.reminders_enabled ?? true,
+          reminder_template_name: data.reminder_template_name ?? "",
+          reminder_template_lang: data.reminder_template_lang ?? "es",
           appointment_duration_min: data.appointment_duration_min ?? 30,
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
@@ -254,6 +260,8 @@ export default function AIAgentPage() {
         channels: config.channels,
         appointments_enabled: config.appointments_enabled,
         reminders_enabled: config.reminders_enabled,
+        reminder_template_name: config.reminder_template_name.trim() || null,
+        reminder_template_lang: config.reminder_template_lang.trim() || "es",
         appointment_duration_min: config.appointment_duration_min,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
@@ -525,12 +533,45 @@ export default function AIAgentPage() {
 
               {config.appointments_enabled && (
                 <>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <p className="text-sm font-medium">Enviar recordatorios por WhatsApp</p>
-                      <p className="text-xs text-muted-foreground">El agente recuerda la cita al cliente ~24h antes y ~1h antes.</p>
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Enviar recordatorios por WhatsApp</p>
+                        <p className="text-xs text-muted-foreground">El agente recuerda la cita al cliente ~24h antes y ~1h antes.</p>
+                      </div>
+                      <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
                     </div>
-                    <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
+                    {config.reminders_enabled && (
+                      <div className="space-y-3 pt-1">
+                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
+                          ⚠️ WhatsApp solo permite mensajes fuera de 24h con una <b>plantilla aprobada</b>. Crea una plantilla tipo <b>Utility</b> en Meta Business con <b>3 variables en este orden</b>: <code>{"{{1}}"}</code> nombre, <code>{"{{2}}"}</code> cita, <code>{"{{3}}"}</code> fecha/hora. Luego pon su nombre aquí. Si la dejas vacía, el recordatorio solo se enviará si el cliente escribió en las últimas 24h.
+                        </div>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Nombre de la plantilla aprobada</Label>
+                            <Input
+                              placeholder="ej: recordatorio_cita"
+                              value={config.reminder_template_name}
+                              onChange={e => set("reminder_template_name", e.target.value)}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Idioma de la plantilla</Label>
+                            <Select value={config.reminder_template_lang} onValueChange={v => set("reminder_template_lang", v)}>
+                              <SelectTrigger><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="es">Español (es)</SelectItem>
+                                <SelectItem value="es_CO">Español Colombia (es_CO)</SelectItem>
+                                <SelectItem value="es_ES">Español España (es_ES)</SelectItem>
+                                <SelectItem value="es_MX">Español México (es_MX)</SelectItem>
+                                <SelectItem value="en">Inglés (en)</SelectItem>
+                                <SelectItem value="en_US">Inglés US (en_US)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
