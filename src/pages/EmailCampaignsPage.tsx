@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { WhatsAppIcon, EmailIcon3D } from "@/components/icons/BrandIcons";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -112,8 +113,8 @@ function EmailCampaignRow({ campaign: c, onClick }: { campaign: EmailCampaign; o
   const openRate = c.sent_count > 0 ? Math.round((c.opened_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-950">
-        <Mail className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+        <EmailIcon3D size={32} className="drop-shadow-sm" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap"><p className="font-semibold text-sm truncate">{c.name}</p><StatusBadge status={c.status} /></div>
@@ -135,8 +136,8 @@ function WaCampaignRow({ campaign: c, onClick }: { campaign: WaCampaign; onClick
   const readRate = c.sent_count > 0 ? Math.round((c.read_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-green-100 dark:bg-green-950">
-        <MessageSquare className="h-4 w-4 text-green-600 dark:text-green-400" />
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+        <WhatsAppIcon size={32} className="drop-shadow-sm" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap"><p className="font-semibold text-sm truncate">{c.name}</p><StatusBadge status={c.status} /></div>
@@ -227,10 +228,10 @@ export default function CampaignsPage() {
         {/* Tab toggle */}
         <div className="flex gap-2">
           <button onClick={() => setTab("email")} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "email" ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-            <Mail className="h-4 w-4" /> Email ({emailCampaigns.length})
+            <EmailIcon3D size={18} /> Email ({emailCampaigns.length})
           </button>
           <button onClick={() => setTab("whatsapp")} className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${tab === "whatsapp" ? "bg-green-600 text-white shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"}`}>
-            <MessageSquare className="h-4 w-4" /> WhatsApp ({waCampaigns.length})
+            <WhatsAppIcon size={18} /> WhatsApp ({waCampaigns.length})
           </button>
         </div>
 

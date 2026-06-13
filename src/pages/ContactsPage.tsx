@@ -1,3 +1,4 @@
+import { WhatsAppIcon, EmailIcon3D, CallIcon3D } from "@/components/icons/BrandIcons";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -1304,15 +1305,15 @@ export default function ContactsPage() {
             <div className="h-4 w-px bg-border" />
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-green-700 dark:text-green-400 hover:text-green-700" onClick={() => setWaBlastOpen(true)} disabled={bulkWorking}>
-              <MessageSquare className="h-3.5 w-3.5" /> WhatsApp
+              <WhatsAppIcon size={16} className="shrink-0" /> WhatsApp
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-blue-700 dark:text-blue-400 hover:text-blue-700" onClick={() => { setEmailSubject(""); setEmailBody(""); setEmailBlastOpen(true); }} disabled={bulkWorking}>
-              <Mail className="h-3.5 w-3.5" /> Email
+              <EmailIcon3D size={16} className="shrink-0" /> Email
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-600" onClick={() => { setVoiceCampaignName(""); setVoiceCampaignAgentId(callingAgents[0]?.id ?? ""); setVoiceCampaignOpen(true); }} disabled={bulkWorking}>
-              <PhoneCall className="h-3.5 w-3.5" /> Llamada IA
+              <CallIcon3D size={16} className="shrink-0" /> Llamada IA
             </Button>
 
             <div className="h-4 w-px bg-border" />

@@ -245,3 +245,55 @@ export function EmailIcon({ size = 24, className, ...rest }: BrandIconProps) {
     </svg>
   );
 }
+
+/** 3D email: glossy blue envelope with depth shadow + flap highlight. */
+export function EmailIcon3D({ size = 24, className, ...rest }: BrandIconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 32 32" className={className} {...rest}>
+      <defs>
+        <linearGradient id="em3-g" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#6FB8FF" />
+          <stop offset="0.55" stopColor="#2E7DF6" />
+          <stop offset="1" stopColor="#1B57C9" />
+        </linearGradient>
+        <linearGradient id="em3-flap" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#9BD0FF" />
+          <stop offset="1" stopColor="#3C8BF8" />
+        </linearGradient>
+        <radialGradient id="em3-gloss" cx="0.3" cy="0.2" r="0.7">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.5" />
+          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect x="3" y="6.5" width="26" height="19" rx="4" fill="url(#em3-g)" />
+      <path d="M3 10.5 16 19l13-8.5V11L16 19.5 3 11z" fill="#0E3F94" opacity="0.45" />
+      <path d="M5 8.5 16 16l11-7.5z" fill="url(#em3-flap)" />
+      <rect x="3" y="6.5" width="26" height="19" rx="4" fill="url(#em3-gloss)" />
+    </svg>
+  );
+}
+
+/** 3D call: glossy amber rounded badge with white phone handset. */
+export function CallIcon3D({ size = 24, className, ...rest }: BrandIconProps) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 32 32" className={className} {...rest}>
+      <defs>
+        <linearGradient id="cl3-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#FFC36B" />
+          <stop offset="0.5" stopColor="#FB8C2A" />
+          <stop offset="1" stopColor="#E5670B" />
+        </linearGradient>
+        <radialGradient id="cl3-gloss" cx="0.3" cy="0.22" r="0.7">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.5" />
+          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#cl3-g)" />
+      <rect x="1" y="1" width="30" height="30" rx="8" fill="url(#cl3-gloss)" />
+      <path
+        fill="#fff"
+        d="M21.7 19.3l-2.2-2.2c-.4-.4-1.1-.4-1.5 0l-1.1 1.1c-1.7-.9-3.1-2.3-4-4l1.1-1.1c.4-.4.4-1.1 0-1.5l-2.2-2.2c-.4-.4-1.1-.4-1.5 0l-1.2 1.2c-.6.6-.8 1.5-.5 2.3 1.6 4.5 5.2 8.1 9.7 9.7.8.3 1.7.1 2.3-.5l1.2-1.2c.3-.5.3-1.2-.1-1.6z"
+      />
+    </svg>
+  );
+}
