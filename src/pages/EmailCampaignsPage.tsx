@@ -180,11 +180,27 @@ export default function CampaignsPage() {
         .select("id,name,subject,status,sent_at,scheduled_at,total_recipients,sent_count,opened_count,clicked_count,failed_count,from_name,from_email")
         .order("created_at", { ascending: false }).limit(100),
       supabase.from("whatsapp_campaigns")
-        .select("id,name,template_name,status,sent_at,scheduled_at,total_recipients,sent_count,failed_count,delivered_count,read_count")
+        .select("id,name,template_name,status,sent_at,scheduled_at,total_recipients,sent_count,failed_count,delivered_count,read_count,organization_id")
         .order("created_at", { ascending: false }).limit(100),
     ]);
     if (emailRes.data) setEmailCampaigns(emailRes.data as EmailCampaign[]);
-    if (waRes.data) setWaCampaigns(waRes.data as WaCampaign[]);
+    if (waRes.data) {
+      let wa = waRes.data as (WaCampaign & { organization_id?: string })[];
+      // Override stored counters with LIVE stats from whatsapp_sends so the list
+      // matches the detail view exactly (the stored counters can lag).
+      const orgId = wa[0]?.organization_id;
+      if (orgId) {
+        const { data: stats } = await supabase.rpc("whatsapp_campaign_stats", { p_org: orgId });
+        if (Array.isArray(stats)) {
+          const byId = new Map(stats.map((s: any) => [s.campaign_id, s]));
+          wa = wa.map(c => {
+            const s = byId.get(c.id);
+            return s ? { ...c, sent_count: s.sent, delivered_count: s.delivered, read_count: s.read_c, failed_count: s.failed } : c;
+          });
+        }
+      }
+      setWaCampaigns(wa as WaCampaign[]);
+    }
     if (showSpinner) setLoading(false); else setRefreshing(false);
   }, []);
 
@@ -386,10 +402,11 @@ export default function CampaignsPage() {
               </>;
             })() : (() => {
               const rows = detailRows as WaSendRow[];
-              const sentN     = rows.filter(r => isSentStatus(r.status) || r.sent_at).length;
+              // Status-based (matches the campaigns list / RPC exactly).
+              const sentN     = rows.filter(r => ["sent", "delivered", "read"].includes(r.status)).length;
               const pendingN  = rows.filter(r => r.status === "pending").length;
-              const deliveredN= rows.filter(r => r.delivered_at).length;
-              const readN     = rows.filter(r => r.read_at).length;
+              const deliveredN= rows.filter(r => ["delivered", "read"].includes(r.status)).length;
+              const readN     = rows.filter(r => r.status === "read").length;
               const failedN   = rows.filter(r => r.status === "failed").length;
               return <>
                 <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
