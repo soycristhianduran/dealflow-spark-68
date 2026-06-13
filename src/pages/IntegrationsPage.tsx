@@ -56,7 +56,7 @@ const integrations: Integration[] = [
   },
   {
     id: "facebook",
-    name: "Facebook Ads",
+    name: "Meta",
     description: "Conecta tus páginas, formularios de leads, Messenger y campañas de Meta Ads.",
     icon: FacebookIcon,
     color: "hsl(221, 44%, 41%)",
