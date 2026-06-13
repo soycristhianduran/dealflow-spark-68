@@ -43,6 +43,7 @@ interface AgentConfig {
   appointment_duration_min: number;
   working_hours: WorkingHours;
   meeting_address: string;
+  appointment_modality: "both" | "virtual" | "presencial";
 }
 
 const DEFAULT_HOURS: WorkingHours = {
@@ -85,6 +86,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   appointment_duration_min: 30,
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
+  appointment_modality: "both",
 };
 
 export default function AIAgentPage() {
@@ -142,6 +144,7 @@ export default function AIAgentPage() {
           appointment_duration_min: data.appointment_duration_min ?? 30,
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
+          appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
         });
       }
     } catch (err) {
@@ -235,6 +238,7 @@ export default function AIAgentPage() {
         appointment_duration_min: config.appointment_duration_min,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
+        appointment_modality: config.appointment_modality,
         updated_at: new Date().toISOString(),
       };
 
@@ -497,31 +501,56 @@ export default function AIAgentPage() {
 
               {config.appointments_enabled && (
                 <>
-                  <div className="space-y-2 max-w-[200px]">
-                    <Label>Duración de cada cita</Label>
-                    <Select value={String(config.appointment_duration_min)} onValueChange={v => set("appointment_duration_min", Number(v))}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="15">15 minutos</SelectItem>
-                        <SelectItem value="30">30 minutos</SelectItem>
-                        <SelectItem value="45">45 minutos</SelectItem>
-                        <SelectItem value="60">1 hora</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Duración de cada cita</Label>
+                      <Select value={String(config.appointment_duration_min)} onValueChange={v => set("appointment_duration_min", Number(v))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="15">15 minutos</SelectItem>
+                          <SelectItem value="30">30 minutos</SelectItem>
+                          <SelectItem value="45">45 minutos</SelectItem>
+                          <SelectItem value="60">1 hora</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Modalidad de las citas</Label>
+                      <Select value={config.appointment_modality} onValueChange={v => set("appointment_modality", v as AgentConfig["appointment_modality"])}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="both">Ambas (el agente pregunta)</SelectItem>
+                          <SelectItem value="virtual">Solo virtuales (Meet)</SelectItem>
+                          <SelectItem value="presencial">Solo presenciales</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Dirección para citas presenciales</Label>
-                    <Input
-                      placeholder="Ej: Calle 10 #43-20, Oficina 501, Medellín"
-                      value={config.meeting_address}
-                      onChange={e => set("meeting_address", e.target.value)}
-                      maxLength={200}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Para reuniones presenciales, el agente usará esta dirección automáticamente. Las virtuales generan un enlace de Google Meet solo.
+                  {config.appointment_modality !== "virtual" && (
+                    <div className="space-y-2">
+                      <Label>
+                        Dirección para citas presenciales
+                        {config.appointment_modality === "presencial" && <span className="text-destructive"> *</span>}
+                      </Label>
+                      <Input
+                        placeholder="Ej: Calle 10 #43-20, Oficina 501, Medellín"
+                        value={config.meeting_address}
+                        onChange={e => set("meeting_address", e.target.value)}
+                        maxLength={200}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {config.appointment_modality === "presencial"
+                          ? "Todas las citas se agendarán en esta dirección."
+                          : "Si el cliente elige presencial, el agente usará esta dirección automáticamente."}
+                      </p>
+                    </div>
+                  )}
+                  {config.appointment_modality === "virtual" && (
+                    <p className="text-xs text-muted-foreground -mt-1">
+                      🎥 Todas las citas serán virtuales — el agente generará un enlace de Google Meet automáticamente.
                     </p>
-                  </div>
+                  )}
 
                   <div className="space-y-2">
                     <Label>Horario de atención</Label>

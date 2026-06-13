@@ -74,7 +74,13 @@ ${opts.upcomingDates}
 - Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
 - IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
-- Pregunta si la reunión será VIRTUAL (se genera un enlace de Google Meet) o PRESENCIAL.${cfg.meeting_address ? ` Si es presencial, la dirección del negocio es: "${cfg.meeting_address}" (úsala automáticamente, no la pidas).` : " Si es presencial, pídele al cliente la dirección o el lugar."}
+${
+  cfg.appointment_modality === "virtual"
+    ? "- TODAS las citas son VIRTUALES. NO preguntes modalidad. Siempre agenda con mode=virtual (se genera un enlace de Google Meet)."
+    : cfg.appointment_modality === "presencial"
+    ? `- TODAS las citas son PRESENCIALES en: "${cfg.meeting_address || "(dirección no configurada — pídela al cliente)"}". NO preguntes modalidad. Agenda con mode=presencial.`
+    : `- Pregunta si la reunión será VIRTUAL (enlace de Google Meet) o PRESENCIAL.${cfg.meeting_address ? ` Si es presencial, la dirección del negocio es: "${cfg.meeting_address}" (úsala automáticamente, no la pidas).` : " Si es presencial, pídele al cliente la dirección."}`
+}
 - CORREO para la invitación:${opts.contactEmail ? ` ya tenemos registrado el correo "${opts.contactEmail}". NO lo pidas de nuevo: confírmalo con el cliente ("¿Te envío la invitación a ${opts.contactEmail}?"). Si lo confirma, pásalo en client_email. Si dice que es otro, usa el nuevo.` : ` no tenemos su correo. Pídeselo para enviarle la invitación (si no quiere darlo, agenda igual pero avísale que sin correo no recibirá la invitación por email).`}
 - Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con datetime_iso, mode (virtual/presencial), address (si aplica) y client_email (si lo tienes).
 - Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
@@ -381,6 +387,7 @@ Deno.serve(async (req) => {
               durationMin: cfg.appointment_duration_min || 30,
               workingHours: cfg.working_hours,
               defaultAddress: cfg.meeting_address || null,
+              modality: cfg.appointment_modality || "both",
               input: b.input,
             });
           } else if (b.name === "send_media") {
@@ -543,10 +550,10 @@ async function bookAppointment(
   supabase: any,
   args: {
     organization_id: string; advisorUserId: string; contact_id: string | null;
-    durationMin: number; workingHours: any; defaultAddress?: string | null; input: any;
+    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; input: any;
   },
 ): Promise<string> {
-  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, input } = args;
+  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, input } = args;
   const iso: string = input?.datetime_iso;
   if (!iso) return "Falta la fecha/hora.";
 
@@ -598,7 +605,10 @@ async function bookAppointment(
   const title = (input?.title || `Cita con ${contactName}`).slice(0, 120);
   const notes = input?.notes || null;
 
-  const isVirtual = (input?.mode || "virtual") !== "presencial";
+  // Modality policy overrides whatever the model passed.
+  const isVirtual = modality === "virtual" ? true
+    : modality === "presencial" ? false
+    : (input?.mode || "virtual") !== "presencial";
   const address: string | null = !isVirtual ? (input?.address || defaultAddress || null) : null;
   const meetingType = isVirtual ? "video_call" : "in_person";
 
