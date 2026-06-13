@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
     const { data: scheduledDue } = await supabase
       .from("whatsapp_campaigns").select("id")
       .eq("status", "scheduled").lte("scheduled_at", nowIso).limit(20);
-    const staleIso = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const staleIso = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: resuming } = await supabase
       .from("whatsapp_campaigns").select("id")
       .eq("status", "sending").lt("updated_at", staleIso).limit(20);
