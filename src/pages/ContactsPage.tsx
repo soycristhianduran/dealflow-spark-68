@@ -306,13 +306,26 @@ export default function ContactsPage() {
   // Select EVERY lead matching the current filters (across all pages), capped for
   // safety. Sets a flag so the UI can show "all N selected".
   const selectAllAcrossPages = useCallback(async () => {
-    let query = supabase.from("contacts").select("id").order("created_at", { ascending: false }).limit(SELECT_ALL_CAP);
-    query = applyFilters(query);
-    const { data, error } = await query;
-    if (!error && data) {
-      setSelected(new Set((data as { id: string }[]).map(r => r.id)));
-      setAllMatchingSelected(true);
+    // PostgREST caps every response at 1000 rows regardless of .limit(), so a
+    // single query only ever returns the first 1000 ids (the "1000 of 1102" bug).
+    // Page through with .range() until we have every matching id (or hit the cap).
+    const PAGE = 1000;
+    const ids: string[] = [];
+    for (let from = 0; from < SELECT_ALL_CAP; from += PAGE) {
+      let query = supabase
+        .from("contacts")
+        .select("id")
+        .order("created_at", { ascending: false })
+        .range(from, from + PAGE - 1);
+      query = applyFilters(query);
+      const { data, error } = await query;
+      if (error) break;
+      const batch = (data as { id: string }[] | null) ?? [];
+      ids.push(...batch.map(r => r.id));
+      if (batch.length < PAGE) break; // last page reached
     }
+    setSelected(new Set(ids));
+    setAllMatchingSelected(true);
   }, [applyFilters]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
