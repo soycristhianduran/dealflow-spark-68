@@ -149,6 +149,7 @@ function WaCampaignRow({ campaign: c, onClick }: { campaign: WaCampaign; onClick
         <p className="text-xs text-muted-foreground">{fmtDate(c.sent_at)}</p>
       </div>
       <div className="hidden md:flex items-center gap-5 shrink-0 text-sm">
+        <div className="text-center"><p className="font-semibold text-foreground">{c.total_recipients}</p><p className="text-[11px] text-muted-foreground">destinatarios</p></div>
         <div className="text-center"><p className="font-semibold">{c.sent_count}</p><p className="text-[11px] text-muted-foreground">enviados</p></div>
         <div className="text-center"><p className="font-semibold text-teal-600">{c.delivered_count}</p><p className="text-[11px] text-muted-foreground">entregados</p></div>
         <div className="text-center"><p className="font-semibold text-green-600">{c.read_count} <span className="text-xs font-normal text-muted-foreground">({readRate}%)</span></p><p className="text-[11px] text-muted-foreground">leídos</p></div>
@@ -266,9 +267,10 @@ export default function CampaignsPage() {
   }), { sent: 0, opened: 0, clicked: 0, failed: 0 });
 
   const waTotals = waCampaigns.reduce((a, c) => ({
+    recipients: a.recipients + (c.total_recipients || 0),
     sent: a.sent + c.sent_count, delivered: a.delivered + c.delivered_count,
     read: a.read + c.read_count, failed: a.failed + c.failed_count,
-  }), { sent: 0, delivered: 0, read: 0, failed: 0 });
+  }), { recipients: 0, sent: 0, delivered: 0, read: 0, failed: 0 });
 
   return (
     <AppLayout>
@@ -306,6 +308,7 @@ export default function CampaignsPage() {
         )}
         {tab === "whatsapp" && waCampaigns.length > 0 && (
           <div className="flex flex-wrap gap-3">
+            <StatPill icon={<Users className="h-3 w-3" />} label="Destinatarios" value={waTotals.recipients.toLocaleString()} color="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" />
             <StatPill icon={<Users className="h-3 w-3" />} label="Enviados" value={waTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
             <StatPill icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${waTotals.delivered} (${pct(waTotals.delivered, waTotals.sent)})`} color="bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300" />
             <StatPill icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${waTotals.read} (${pct(waTotals.read, waTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
