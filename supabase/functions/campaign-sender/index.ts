@@ -103,6 +103,8 @@ async function processCampaign(supabase: any, campaignId: string) {
       return "sent";
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      // Transient rate-limit → leave it PENDING so it retries next pass (don't burn it).
+      if (/130429|131056|133016/.test(msg)) return "retry";
       await supabase.from("whatsapp_sends").update({ status: "failed", error_message: msg }).eq("id", s.id);
       // Number not on WhatsApp / undeliverable / invalid → flag the contact so
       // future campaigns auto-exclude it (learns over time, reduces wasted sends).
@@ -117,7 +119,9 @@ async function processCampaign(supabase: any, campaignId: string) {
   // round-trips per message, so thousands took ages. Respect a time budget so the
   // edge function never times out: if recipients remain when we stop, we DON'T
   // mark the campaign 'sent' — the cron backstop re-invokes and continues.
-  const CONCURRENCY = 12;
+  // ~20 concurrent ≈ 45-50 msg/sec — safely under WhatsApp's 80 msg/sec API cap,
+  // and doesn't strain the DB / edge function. Higher risks rate-limit (130429).
+  const CONCURRENCY = 20;
   const TIME_BUDGET_MS = 110_000; // ~110s, safely under the function timeout
   const startedAt = Date.now();
   let sent = 0, failed = 0, processed = 0;
@@ -127,7 +131,7 @@ async function processCampaign(supabase: any, campaignId: string) {
     if (Date.now() - startedAt > TIME_BUDGET_MS) { timedOut = true; break; }
     const batch = pendingList.slice(i, i + CONCURRENCY);
     const results = await Promise.all(batch.map(sendOne));
-    for (const r of results) { if (r === "sent") sent++; else failed++; }
+    for (const r of results) { if (r === "sent") sent++; else if (r === "failed") failed++; /* retry → stays pending */ }
     processed += batch.length;
     // Heartbeat each batch so the cron sees us active and updates live progress.
     await supabase.from("whatsapp_campaigns").update({ updated_at: new Date().toISOString() }).eq("id", campaignId);
@@ -145,6 +149,13 @@ async function processCampaign(supabase: any, campaignId: string) {
   // Final counters from the source of truth.
   const { data: allSends } = await supabase.from("whatsapp_sends").select("status").eq("campaign_id", campaignId);
   const rows = allSends || [];
+  // If any recipients are still pending (e.g. rate-limited retries), DON'T mark
+  // the campaign 'sent' — leave it stale so the cron finishes them.
+  const stillPending = rows.filter((r: any) => r.status === "pending").length;
+  if (stillPending > 0) {
+    await supabase.from("whatsapp_campaigns").update({ updated_at: new Date(Date.now() - 5 * 60_000).toISOString() }).eq("id", campaignId);
+    return { campaignId, sent, failed, retryPending: stillPending };
+  }
   await supabase.from("whatsapp_campaigns").update({
     status: "sent",
     sent_count: rows.filter((r: any) => r.status !== "pending").length - rows.filter((r: any) => r.status === "failed").length,
