@@ -140,6 +140,15 @@ Deno.serve(async (req) => {
     const { data: resuming } = await supabase
       .from("whatsapp_campaigns").select("id")
       .eq("status", "sending").lt("updated_at", staleIso).limit(20);
+    // Recover campaigns stuck in 'queued' (browser died before the queued→sending
+    // flip): flip them so the DB trigger fires the actual send. Don't process them
+    // here directly (that would re-fire the trigger → double-send).
+    const { data: stuckQueued } = await supabase
+      .from("whatsapp_campaigns").select("id")
+      .eq("status", "queued").lt("updated_at", staleIso).limit(20);
+    for (const c of (stuckQueued || [])) {
+      await supabase.from("whatsapp_campaigns").update({ status: "sending" }).eq("id", c.id);
+    }
     const due = [...(scheduledDue || []), ...(resuming || [])];
     const results = [];
     for (const c of (due || [])) results.push(await processCampaign(supabase, c.id));

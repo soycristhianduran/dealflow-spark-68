@@ -572,7 +572,7 @@ export default function ContactsPage() {
         language,
         variables: vars,                       // raw tokens; backend resolves per contact
         media_id: mediaId || null,
-        status: scheduledAt ? "scheduled" : "sending",
+        status: scheduledAt ? "scheduled" : "queued",  // queued → 'sending' UPDATE fires the DB trigger
         scheduled_at: scheduledAt || null,
         total_recipients: targets.length,
         user_id: waUserId,
@@ -587,7 +587,6 @@ export default function ContactsPage() {
         phone: c.primary_phone!.replace(/[^0-9]/g, ""), status: "pending",
         user_id: myUserId, organization_id: organizationId ?? null,
       }));
-      setWaBlastProgress({ done: 0, total: targets.length });
       for (let i = 0; i < sendRows.length; i += 500) {
         await supabase.from("whatsapp_sends").insert(sendRows.slice(i, i + 500));
       }
@@ -617,16 +616,10 @@ export default function ContactsPage() {
         if (isDone && waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
       }, 1500);
 
-      // Reliable trigger: AWAIT keeps the connection alive so the worker isn't
-      // killed (fire-and-forget was getting dropped). The overlay + poll are
-      // independent, so the user can close meanwhile. If it times out on a huge
-      // send, the 2-min cron finishes the rest.
-      try {
-        await supabase.functions.invoke("campaign-sender", { body: { campaign_id: campaignId } });
-      } catch (_) { /* cron continues */ }
-      if (waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
-      // Mark finished only if the loader is still open (user may have closed it).
-      setWaBlastProgress(prev => prev ? { done: prev.total, total: prev.total, finished: true } : null);
+      // Flip queued → sending. A DB trigger fires campaign-sender server-side
+      // (instant, reliable, no browser dependency). The cron is the backstop.
+      await supabase.from("whatsapp_campaigns").update({ status: "sending" }).eq("id", campaignId);
+      // The poll above keeps the loader updating until status === 'sent'.
     } catch (e: any) {
       setWaBlastSending(false);
       closeWaLoader();
