@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWhatsAppInbox } from "@/hooks/useWhatsAppInbox";
@@ -11,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff,
+  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff, ExternalLink,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
 import {
@@ -105,6 +108,9 @@ export default function ConversationsPage() {
   // AI Agent pause state per conversation key
   const [agentPaused, setAgentPaused] = useState<boolean>(false);
   const [togglingAgent, setTogglingAgent] = useState(false);
+  const [agentGloballyActive, setAgentGloballyActive] = useState<boolean>(true);
+  const navigate = useNavigate();
+  const { path } = useWorkspace();
   const [igConversations, setIgConversations] = useState<IgConvRow[]>([]);
   const [igMessages, setIgMessages] = useState<IgMessageRow[]>([]);
   const [loadingIg, setLoadingIg] = useState(true);
@@ -281,6 +287,14 @@ export default function ConversationsPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
+
+  // Load whether the AI agent is globally active for this org (once)
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from("ai_agent_configs").select("is_active").maybeSingle();
+      setAgentGloballyActive(data?.is_active ?? false);
+    })();
+  }, [user?.id]);
 
   // Load AI agent pause state when conversation changes
   useEffect(() => {
@@ -661,29 +675,54 @@ export default function ConversationsPage() {
                 </button>
                 <ChannelBadge channel={selected.channel} />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{selected.display_name}</p>
+                  {selected.contact_id ? (
+                    <button
+                      onClick={() => navigate(path(`/contacts/${selected.contact_id}`))}
+                      className="group flex items-center gap-1 text-sm font-semibold truncate hover:text-primary transition-colors"
+                      title="Abrir contacto"
+                    >
+                      <span className="truncate">{selected.display_name}</span>
+                      <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-100" />
+                    </button>
+                  ) : (
+                    <p className="text-sm font-semibold truncate">{selected.display_name}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{selected.subtitle}</p>
                 </div>
-                {/* AI Agent toggle */}
-                <button
-                  onClick={toggleAgentPause}
-                  disabled={togglingAgent}
-                  title={agentPaused ? "Reactivar agente IA" : "Pausar agente IA (tomar control)"}
-                  className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors border ${
-                    agentPaused
-                      ? "bg-muted text-muted-foreground border-border hover:bg-muted/80"
-                      : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
-                  }`}
-                >
-                  {togglingAgent ? (
-                    <Loader2 className="h-3 w-3 animate-spin" />
-                  ) : agentPaused ? (
-                    <BotOff className="h-3 w-3" />
-                  ) : (
-                    <Bot className="h-3 w-3" />
-                  )}
-                  {agentPaused ? "IA pausada" : "IA activa"}
-                </button>
+
+                {/* Quick stage / pipeline changer */}
+                {selected.contact_id && <StagePipelinePicker contactId={selected.contact_id} />}
+
+                {/* AI Agent toggle / status */}
+                {!agentGloballyActive ? (
+                  <button
+                    onClick={() => navigate(path("/ai-agent"))}
+                    title="El agente IA está apagado. Actívalo en su configuración."
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                  >
+                    <BotOff className="h-3 w-3" /> IA apagada
+                  </button>
+                ) : (
+                  <button
+                    onClick={toggleAgentPause}
+                    disabled={togglingAgent}
+                    title={agentPaused ? "Reactivar agente IA" : "Pausar agente IA (tomar control)"}
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors border ${
+                      agentPaused
+                        ? "bg-muted text-muted-foreground border-border hover:bg-muted/80"
+                        : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                    }`}
+                  >
+                    {togglingAgent ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : agentPaused ? (
+                      <BotOff className="h-3 w-3" />
+                    ) : (
+                      <Bot className="h-3 w-3" />
+                    )}
+                    {agentPaused ? "IA pausada" : "IA activa"}
+                  </button>
+                )}
               </div>
 
               {/* Messages */}
@@ -1053,4 +1092,68 @@ function fmtConvTime(iso: string): string {
     if (diffH < 24 * 7) return d.toLocaleDateString("es", { weekday: "short" });
     return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
   } catch { return ""; }
+}
+
+// ── Quick pipeline + stage changer for the conversation header ────────────────
+function StagePipelinePicker({ contactId }: { contactId: string }) {
+  const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
+  const [pipelineId, setPipelineId] = useState<string>("");
+  const [stageId, setStageId] = useState<string>("");
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      setLoaded(false);
+      const [{ data: c }, { data: pls }, { data: sts }] = await Promise.all([
+        supabase.from("contacts").select("pipeline_id, stage_id").eq("id", contactId).maybeSingle(),
+        supabase.from("pipelines").select("id, name").order("created_at"),
+        supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order"),
+      ]);
+      if (!active) return;
+      setPipelines((pls as any) || []);
+      setStages((sts as any) || []);
+      const pid = c?.pipeline_id || (pls?.[0] as any)?.id || "";
+      setPipelineId(pid);
+      setStageId(c?.stage_id || "");
+      setLoaded(true);
+    })();
+    return () => { active = false; };
+  }, [contactId]);
+
+  const stagesForPipeline = stages.filter(s => s.pipeline_id === pipelineId);
+
+  const changePipeline = async (pid: string) => {
+    const firstStage = stages.find(s => s.pipeline_id === pid)?.id || null;
+    setPipelineId(pid); setStageId(firstStage || "");
+    const { error } = await supabase.from("contacts").update({ pipeline_id: pid, stage_id: firstStage }).eq("id", contactId);
+    if (error) toast.error("No se pudo cambiar el pipeline"); else toast.success("Pipeline actualizado");
+  };
+  const changeStage = async (sid: string) => {
+    setStageId(sid);
+    const { error } = await supabase.from("contacts").update({ stage_id: sid }).eq("id", contactId);
+    if (error) toast.error("No se pudo cambiar la etapa"); else toast.success("Etapa actualizada");
+  };
+
+  if (!loaded) return null;
+
+  return (
+    <div className="hidden md:flex items-center gap-1.5">
+      {pipelines.length > 1 && (
+        <Select value={pipelineId} onValueChange={changePipeline}>
+          <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Pipeline" /></SelectTrigger>
+          <SelectContent>
+            {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Select value={stageId} onValueChange={changeStage}>
+        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Etapa" /></SelectTrigger>
+        <SelectContent>
+          {stagesForPipeline.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 }
