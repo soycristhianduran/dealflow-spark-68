@@ -54,17 +54,15 @@ async function sendWaTemplate(config: any, phone: string, templateName: string, 
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Orgs that have reminders enabled (+ their optional approved template)
+  // Orgs that have reminders enabled (+ template + reminder offsets in minutes)
   const { data: cfgs } = await supabase.from("ai_agent_configs")
-    .select("organization_id, reminder_template_name, reminder_template_lang").eq("reminders_enabled", true);
+    .select("organization_id, reminder_template_name, reminder_template_lang, reminder_offsets").eq("reminders_enabled", true);
   const orgCfg = new Map((cfgs || []).map((c: any) => [c.organization_id, c]));
-  const enabledOrgs = new Set((cfgs || []).map((c: any) => c.organization_id));
-  if (!enabledOrgs.size) return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
+  if (!orgCfg.size) return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
 
-  const nowIso = new Date().toISOString();
-  const in24h = new Date(Date.now() + 24 * 3600_000).toISOString();
-  const in1h = new Date(Date.now() + 3600_000).toISOString();
-  const in2h = new Date(Date.now() + 2 * 3600_000).toISOString();
+  const now = Date.now();
+  const maxOffsetMin = Math.max(60, ...[...orgCfg.values()].flatMap((c: any) => (c.reminder_offsets || []).map((n: number) => Number(n) || 0)));
+  const horizon = new Date(now + (maxOffsetMin + 30) * 60_000).toISOString();
 
   // Cache one active WhatsApp config per org
   const waCache = new Map<string, any>();
@@ -76,58 +74,57 @@ Deno.serve(async () => {
     return data || null;
   };
 
+  // All upcoming scheduled meetings for enabled orgs, within the largest offset
+  const { data: meetings } = await supabase.from("meetings")
+    .select("id, title, start_at, organization_id, location_or_link, meeting_type, reminders_sent, contacts(full_name, primary_phone)")
+    .eq("status", "scheduled")
+    .gt("start_at", new Date(now).toISOString())
+    .lt("start_at", horizon)
+    .in("organization_id", [...orgCfg.keys()])
+    .limit(500);
+
   let sent = 0;
 
-  // ── 24h reminders: meeting enters the 24h window (and is >2h away) ──────────
-  const { data: m24 } = await supabase.from("meetings")
-    .select("id, title, start_at, organization_id, location_or_link, meeting_type, contacts(full_name, primary_phone)")
-    .eq("status", "scheduled").eq("reminder_24h_sent", false)
-    .lte("start_at", in24h).gt("start_at", in2h).limit(200);
+  for (const mtg of meetings || []) {
+    const cfg = orgCfg.get(mtg.organization_id);
+    const offsets: number[] = (cfg?.reminder_offsets || []).map((n: number) => Number(n)).filter((n: number) => n > 0);
+    if (!offsets.length) continue;
+    const alreadySent: number[] = Array.isArray(mtg.reminders_sent) ? mtg.reminders_sent : [];
+    const startMs = new Date(mtg.start_at).getTime();
 
-  // ── 1h reminders: meeting within the next hour ─────────────────────────────
-  const { data: m1 } = await supabase.from("meetings")
-    .select("id, title, start_at, organization_id, location_or_link, meeting_type, contacts(full_name, primary_phone)")
-    .eq("status", "scheduled").eq("reminder_1h_sent", false)
-    .lte("start_at", in1h).gt("start_at", nowIso).limit(200);
+    // Which configured offsets are due now and not yet sent?
+    const due = offsets.filter(off => !alreadySent.includes(off) && now >= startMs - off * 60_000);
+    if (!due.length) continue;
 
-  const process = async (rows: any[], kind: "24h" | "1h") => {
-    for (const mtg of rows || []) {
-      const col = kind === "24h" ? "reminder_24h_sent" : "reminder_1h_sent";
-      if (!enabledOrgs.has(mtg.organization_id)) { await supabase.from("meetings").update({ [col]: true }).eq("id", mtg.id); continue; }
-      const phone = mtg.contacts?.primary_phone;
-      const wa = await getWa(mtg.organization_id);
-      if (!phone || !wa) { await supabase.from("meetings").update({ [col]: true }).eq("id", mtg.id); continue; }
+    const phone = mtg.contacts?.primary_phone;
+    const wa = await getWa(mtg.organization_id);
 
-      const name = (mtg.contacts?.full_name || "").split(" ")[0] || "Cliente";
-      const place = mtg.meeting_type === "in_person"
-        ? (mtg.location_or_link ? `\n📍 Dirección: ${mtg.location_or_link}` : "")
-        : (mtg.location_or_link ? `\n🎥 Enlace: ${mtg.location_or_link}` : "");
-      const lead = kind === "1h" ? "Te recordamos que tu cita es en aproximadamente 1 hora" : "Te recordamos tu cita";
-      const whenStr = fmtTime(mtg.start_at);
-
-      // Prefer the approved template (works outside the 24h window). Fall back
-      // to free-form text if no template is configured (only works in-window).
-      const cfg = orgCfg.get(mtg.organization_id);
-      let err: string | null;
-      if (cfg?.reminder_template_name) {
-        err = await sendWaTemplate(wa, phone, cfg.reminder_template_name, cfg.reminder_template_lang || "es",
-          [name, mtg.title || "tu cita", whenStr]);
-      } else {
-        const text = `Hola ${name} 👋\n${lead}: *${mtg.title}* — ${whenStr}.${place}\n\n¿Confirmas tu asistencia?`;
-        err = await sendWaText(wa, phone, text);
+    for (const off of due) {
+      if (phone && wa) {
+        const name = (mtg.contacts?.full_name || "").split(" ")[0] || "Cliente";
+        const place = mtg.meeting_type === "in_person"
+          ? (mtg.location_or_link ? `\n📍 Dirección: ${mtg.location_or_link}` : "")
+          : (mtg.location_or_link ? `\n🎥 Enlace: ${mtg.location_or_link}` : "");
+        const whenStr = fmtTime(mtg.start_at);
+        let err: string | null;
+        if (cfg?.reminder_template_name) {
+          err = await sendWaTemplate(wa, phone, cfg.reminder_template_name, cfg.reminder_template_lang || "es",
+            [name, mtg.title || "tu cita", whenStr]);
+        } else {
+          const text = `Hola ${name} 👋\nTe recordamos tu cita: *${mtg.title}* — ${whenStr}.${place}\n\n¿Confirmas tu asistencia?`;
+          err = await sendWaText(wa, phone, text);
+        }
+        if (err) {
+          await supabase.from("error_logs").insert({
+            organization_id: mtg.organization_id, source: "appointment-reminders",
+            message: `Reminder (${off}min) failed for meeting ${mtg.id}: ${err}`,
+          }).then(() => {}, () => {});
+        } else { sent++; }
       }
-      if (err) {
-        await supabase.from("error_logs").insert({
-          organization_id: mtg.organization_id, source: "appointment-reminders",
-          message: `Reminder ${kind} failed for meeting ${mtg.id}: ${err}`,
-        }).then(() => {}, () => {});
-      } else { sent++; }
-      await supabase.from("meetings").update({ [col]: true }).eq("id", mtg.id);
+      alreadySent.push(off);
     }
-  };
-
-  await process(m24 || [], "24h");
-  await process(m1 || [], "1h");
+    await supabase.from("meetings").update({ reminders_sent: alreadySent }).eq("id", mtg.id);
+  }
 
   return new Response(JSON.stringify({ ok: true, sent }), { headers: { "Content-Type": "application/json" } });
 });

@@ -23,6 +23,24 @@ import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock,
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+
+// Reminder offset (minutes) ↔ human label helpers
+const OFFSET_PRESETS: { value: number; label: string }[] = [
+  { value: 15, label: "15 minutos antes" },
+  { value: 30, label: "30 minutos antes" },
+  { value: 60, label: "1 hora antes" },
+  { value: 120, label: "2 horas antes" },
+  { value: 180, label: "3 horas antes" },
+  { value: 360, label: "6 horas antes" },
+  { value: 720, label: "12 horas antes" },
+  { value: 1440, label: "1 día antes" },
+  { value: 2880, label: "2 días antes" },
+  { value: 4320, label: "3 días antes" },
+  { value: 10080, label: "1 semana antes" },
+];
+const offsetLabel = (min: number) => OFFSET_PRESETS.find(o => o.value === min)?.label
+  || (min % 1440 === 0 ? `${min / 1440} día(s) antes` : min % 60 === 0 ? `${min / 60} hora(s) antes` : `${min} min antes`);
 
 type DayHours = { enabled: boolean; start: string; end: string };
 type WorkingHours = Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", DayHours>;
@@ -41,6 +59,7 @@ interface AgentConfig {
   channels: { whatsapp: boolean; instagram: boolean };
   appointments_enabled: boolean;
   reminders_enabled: boolean;
+  reminder_offsets: number[];
   reminder_template_name: string;
   reminder_template_lang: string;
   appointment_duration_min: number;
@@ -92,6 +111,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   channels: { whatsapp: true, instagram: false },
   appointments_enabled: false,
   reminders_enabled: true,
+  reminder_offsets: [1440, 60],
   reminder_template_name: "",
   reminder_template_lang: "es",
   appointment_duration_min: 30,
@@ -117,12 +137,15 @@ export default function AIAgentPage() {
   const [uploading, setUploading] = useState(false);
   const [newMediaName, setNewMediaName] = useState("");
   const [newMediaDesc, setNewMediaDesc] = useState("");
+  const { templates: waTemplates, fetchTemplates } = useWhatsAppTemplates();
+  const [newOffset, setNewOffset] = useState("60");
 
   useEffect(() => {
     if (!organizationId) { setLoading(false); return; }
     loadConfig();
     loadUsage();
     loadMedia();
+    fetchTemplates();
     // Check if org has an active WhatsApp number
     supabase
       .from("whatsapp_configs")
@@ -158,6 +181,7 @@ export default function AIAgentPage() {
           channels: data.channels ?? { whatsapp: true, instagram: false },
           appointments_enabled: data.appointments_enabled ?? false,
           reminders_enabled: data.reminders_enabled ?? true,
+          reminder_offsets: Array.isArray(data.reminder_offsets) ? (data.reminder_offsets as number[]) : [1440, 60],
           reminder_template_name: data.reminder_template_name ?? "",
           reminder_template_lang: data.reminder_template_lang ?? "es",
           appointment_duration_min: data.appointment_duration_min ?? 30,
@@ -260,6 +284,7 @@ export default function AIAgentPage() {
         channels: config.channels,
         appointments_enabled: config.appointments_enabled,
         reminders_enabled: config.reminders_enabled,
+        reminder_offsets: config.reminder_offsets,
         reminder_template_name: config.reminder_template_name.trim() || null,
         reminder_template_lang: config.reminder_template_lang.trim() || "es",
         appointment_duration_min: config.appointment_duration_min,
@@ -537,38 +562,75 @@ export default function AIAgentPage() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium">Enviar recordatorios por WhatsApp</p>
-                        <p className="text-xs text-muted-foreground">El agente recuerda la cita al cliente ~24h antes y ~1h antes.</p>
+                        <p className="text-xs text-muted-foreground">El agente le recuerda la cita al cliente en los momentos que elijas.</p>
                       </div>
                       <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
                     </div>
                     {config.reminders_enabled && (
                       <div className="space-y-3 pt-1">
-                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
-                          ⚠️ WhatsApp solo permite mensajes fuera de 24h con una <b>plantilla aprobada</b>. Crea una plantilla tipo <b>Utility</b> en Meta Business con <b>3 variables en este orden</b>: <code>{"{{1}}"}</code> nombre, <code>{"{{2}}"}</code> cita, <code>{"{{3}}"}</code> fecha/hora. Luego pon su nombre aquí. Si la dejas vacía, el recordatorio solo se enviará si el cliente escribió en las últimas 24h.
-                        </div>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Nombre de la plantilla aprobada</Label>
-                            <Input
-                              placeholder="ej: recordatorio_cita"
-                              value={config.reminder_template_name}
-                              onChange={e => set("reminder_template_name", e.target.value)}
-                            />
+                        {/* Multiple reminder times */}
+                        <div className="space-y-2">
+                          <Label className="text-xs">Momentos de recordatorio</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {[...config.reminder_offsets].sort((a, b) => b - a).map(off => (
+                              <Badge key={off} variant="secondary" className="gap-1.5 py-1">
+                                {offsetLabel(off)}
+                                <button onClick={() => set("reminder_offsets", config.reminder_offsets.filter(o => o !== off))}>
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                            {config.reminder_offsets.length === 0 && <span className="text-xs text-muted-foreground">Sin recordatorios — agrega al menos uno.</span>}
                           </div>
-                          <div className="space-y-1.5">
-                            <Label className="text-xs">Idioma de la plantilla</Label>
-                            <Select value={config.reminder_template_lang} onValueChange={v => set("reminder_template_lang", v)}>
-                              <SelectTrigger><SelectValue /></SelectTrigger>
+                          <div className="flex items-center gap-2">
+                            <Select value={newOffset} onValueChange={setNewOffset}>
+                              <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="es">Español (es)</SelectItem>
-                                <SelectItem value="es_CO">Español Colombia (es_CO)</SelectItem>
-                                <SelectItem value="es_ES">Español España (es_ES)</SelectItem>
-                                <SelectItem value="es_MX">Español México (es_MX)</SelectItem>
-                                <SelectItem value="en">Inglés (en)</SelectItem>
-                                <SelectItem value="en_US">Inglés US (en_US)</SelectItem>
+                                {OFFSET_PRESETS.filter(o => !config.reminder_offsets.includes(o.value)).map(o => (
+                                  <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
+                            <Button size="sm" variant="outline" className="h-8 text-xs"
+                              onClick={() => {
+                                const v = Number(newOffset);
+                                if (v && !config.reminder_offsets.includes(v)) set("reminder_offsets", [...config.reminder_offsets, v]);
+                              }}>
+                              + Agregar
+                            </Button>
                           </div>
+                        </div>
+
+                        {/* Approved template dropdown */}
+                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
+                          ⚠️ Para enviar recordatorios fuera de la ventana de 24h, WhatsApp exige una <b>plantilla aprobada</b> (tipo <b>Utility</b>) con <b>3 variables</b>: <code>{"{{1}}"}</code> nombre, <code>{"{{2}}"}</code> cita, <code>{"{{3}}"}</code> fecha/hora. Selecciónala abajo. Si no eliges ninguna, el recordatorio solo se enviará si el cliente escribió en las últimas 24h.
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Plantilla de recordatorio (aprobadas en tu WhatsApp)</Label>
+                          {(() => {
+                            const approved = waTemplates.filter(t => (t.status || "").toUpperCase() === "APPROVED");
+                            return (
+                              <Select
+                                value={config.reminder_template_name || "__none__"}
+                                onValueChange={v => {
+                                  if (v === "__none__") { set("reminder_template_name", ""); return; }
+                                  const t = approved.find(x => x.name === v);
+                                  set("reminder_template_name", v);
+                                  if (t?.language) set("reminder_template_lang", t.language);
+                                }}>
+                                <SelectTrigger><SelectValue placeholder="Selecciona una plantilla…" /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="__none__">Ninguna (solo dentro de 24h)</SelectItem>
+                                  {approved.map(t => (
+                                    <SelectItem key={t.id} value={t.name}>{t.name} ({t.language})</SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            );
+                          })()}
+                          <p className="text-[11px] text-muted-foreground">
+                            ¿No aparece tu plantilla? Créala y sincronízala en <b>WA Plantillas</b>; debe estar <b>aprobada</b>.
+                          </p>
                         </div>
                       </div>
                     )}
