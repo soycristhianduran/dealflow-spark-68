@@ -103,6 +103,42 @@ async function verifySignature(rawBody: string, signatureHeader: string | null, 
   return diff === 0;
 }
 
+// Fire meta_lead_form + contact_created automations via the runner's
+// trigger_event path (org-scoped; the runner resolves the contact's org and
+// matches automations by form_id). Shared by the new-lead and re-activation
+// paths so tagging/steps always run.
+async function fireMetaLeadAutomations(
+  supabase: any,
+  contactId: string,
+  formId: string,
+  pageId: string,
+): Promise<void> {
+  const runnerUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`;
+  const headers = {
+    "Content-Type": "application/json",
+    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+    "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+  };
+  try {
+    await fetch(runnerUrl, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        action: "trigger_event", trigger_type: "meta_lead_form",
+        contact_id: contactId, trigger_data: { form_id: formId, page_id: pageId },
+      }),
+    });
+    await fetch(runnerUrl, {
+      method: "POST", headers,
+      body: JSON.stringify({
+        action: "trigger_event", trigger_type: "contact_created",
+        contact_id: contactId, trigger_data: { origin: "meta_lead_form", form_id: formId },
+      }),
+    });
+  } catch (e) {
+    console.error("fireMetaLeadAutomations error:", e);
+  }
+}
+
 async function processLeadgenChange(
   supabase: any,
   pageId: string,
@@ -338,39 +374,8 @@ async function processLeadgenChange(
       summary: `🔁 Lead existente volvió a interactuar — nuevo formulario de Meta\nFormulario: ${formId} · Lead ID: ${leadgenId}\nContacto reactivado como nueva oportunidad.`,
     }).catch((e: any) => console.warn("Could not log re-activation activity:", e));
 
-    // ── Fire automations (same as a new lead) ─────────────────────────────
-    try {
-      const { data: automations } = await supabase
-        .from("automations")
-        .select("id, trigger_config")
-        .eq("user_id", userId)
-        .eq("is_active", true)
-        .eq("trigger_type", "meta_lead_form");
-
-      const matching = (automations || []).filter((a: any) => {
-        const cfg = a.trigger_config || {};
-        return !cfg.form_id || cfg.form_id === formId;
-      });
-
-      if (matching.length > 0) {
-        const enrollments = matching.map((a: any) => ({
-          automation_id: a.id,
-          contact_id: existingContactId,
-          user_id: userId,
-          status: "active",
-          current_step_index: 0,
-          next_run_at: new Date().toISOString(),
-        }));
-        await supabase.from("automation_enrollments").insert(enrollments);
-        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
-          body: JSON.stringify({}),
-        }).catch((e) => console.warn("Could not trigger automation-runner:", e));
-      }
-    } catch (autoErr) {
-      console.warn("Error triggering automations for re-activated lead:", autoErr);
-    }
+    // ── Fire automations via the runner (org-scoped trigger_event) ──────────
+    await fireMetaLeadAutomations(supabase, existingContactId, formId, pageId);
 
     return;
   }
@@ -386,6 +391,14 @@ async function processLeadgenChange(
     return;
   }
   console.log(`Created contact ${newContact.id} from lead ${leadgenId}`);
+
+  // ── Fire automations IMMEDIATELY after creating the contact ─────────────────
+  // IMPORTANT: this runs BEFORE the pipeline/stage logic below, which has early
+  // `return`s (no pipeline / no stages). Previously the automation firing lived
+  // AFTER that logic, so any lead whose pipeline/stage resolution returned early
+  // never triggered the flow (e.g. add_tag never ran). Firing here guarantees
+  // meta_lead_form automations always run, regardless of pipeline config.
+  await fireMetaLeadAutomations(supabase, newContact.id, formId, pageId);
 
   const { data: pipeline } = formConfig?.pipeline_id
     ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
@@ -430,48 +443,6 @@ async function processLeadgenChange(
     }).catch((e: any) => console.warn("Could not log activity:", e));
   }
 
-  // ── Trigger automations with trigger_type = "meta_lead_form" ────────────────
-  // Route through the automation-runner's trigger_event path (same as
-  // contact_created) so enrollment AND the first steps (e.g. add_tag) run
-  // immediately and org-scoped. The runner matches meta_lead_form automations and
-  // filters by form_id from trigger_data. (Previously we inserted enrollments
-  // directly and called the runner with an empty body, which created the
-  // enrollment but never executed the steps — tags were never applied.)
-  try {
-    await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        action: "trigger_event",
-        trigger_type: "meta_lead_form",
-        contact_id: newContact.id,
-        trigger_data: { form_id: formId, page_id: pageId },
-      }),
-    }).catch((e) => console.error("Could not trigger automation-runner (meta_lead_form):", e));
-  } catch (autoErr) {
-    console.error("Error triggering meta_lead_form automations:", autoErr);
-  }
-
-  // Also fire the generic contact_created trigger with origin "meta_lead_form",
-  // so automations that filter "Contacto creado" by source can catch Meta leads.
-  try {
-    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
-      },
-      body: JSON.stringify({
-        action: "trigger_event",
-        trigger_type: "contact_created",
-        contact_id: newContact.id,
-        trigger_data: { origin: "meta_lead_form", form_id: formId },
-      }),
-    }).catch(() => {});
-  } catch (_) { /* non-fatal */ }
 }
 
 // ============================================================================
