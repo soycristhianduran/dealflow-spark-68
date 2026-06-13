@@ -21,7 +21,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useOrgTags, tagChipStyle } from "@/hooks/useOrgTags";
-import { SendingLoader3D } from "@/components/whatsapp/SendingLoader3D";
+import { WhatsAppSendLoader } from "@/components/whatsapp/WhatsAppSendLoader";
 import { TagPicker } from "@/components/TagPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateContactDialog } from "@/components/crm/CreateContactDialog";
@@ -219,7 +219,12 @@ export default function ContactsPage() {
   // Bulk WhatsApp template blast
   const [waBlastOpen, setWaBlastOpen] = useState(false);
   const [waBlastSending, setWaBlastSending] = useState(false);
-  const [waBlastProgress, setWaBlastProgress] = useState<{ done: number; total: number } | null>(null);
+  const [waBlastProgress, setWaBlastProgress] = useState<{ done: number; total: number; finished: boolean } | null>(null);
+  const waPollRef = useRef<number | null>(null);
+  const closeWaLoader = () => {
+    if (waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
+    setWaBlastProgress(null);
+  };
 
   // Bulk email blast
   const [emailBlastOpen, setEmailBlastOpen] = useState(false);
@@ -590,39 +595,41 @@ export default function ContactsPage() {
       setWaBlastOpen(false);
       setWaCampaignName("");
       setSelected(new Set());
+      setWaBlastSending(false);
 
       if (scheduledAt) {
-        setWaBlastSending(false);
-        setWaBlastProgress(null);
         toast.success(`Campaña "${campName}" programada para ${new Date(scheduledAt).toLocaleString()} · ${targets.length} destinatarios.`);
         return;
       }
 
-      // Send now: AWAIT the backend worker (reliable trigger), while a concurrent
-      // poll feeds live progress into the 3D loader. If the request times out on a
-      // very large send, the cron finishes the rest within a few minutes.
-      const poll = setInterval(async () => {
+      // Show the WhatsApp send animation. It stays until the USER closes it; the
+      // send runs in the backend so closing doesn't stop it.
+      setWaBlastProgress({ done: 0, total: targets.length, finished: false });
+      if (waPollRef.current) clearInterval(waPollRef.current);
+      waPollRef.current = window.setInterval(async () => {
         const { data: cnt } = await supabase.from("whatsapp_campaigns")
-          .select("sent_count, failed_count, total_recipients").eq("id", campaignId).maybeSingle();
-        if (cnt) setWaBlastProgress({ done: (cnt.sent_count || 0) + (cnt.failed_count || 0), total: cnt.total_recipients || targets.length });
-      }, 2000);
+          .select("sent_count, failed_count, total_recipients, status").eq("id", campaignId).maybeSingle();
+        if (!cnt) return;
+        const done = (cnt.sent_count || 0) + (cnt.failed_count || 0);
+        const isDone = cnt.status === "sent";
+        // Only update if the loader is still open (user may have closed it).
+        setWaBlastProgress(prev => prev ? { done, total: cnt.total_recipients || targets.length, finished: isDone } : null);
+        if (isDone && waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
+      }, 1500);
+
+      // Reliable trigger: AWAIT keeps the connection alive so the worker isn't
+      // killed (fire-and-forget was getting dropped). The overlay + poll are
+      // independent, so the user can close meanwhile. If it times out on a huge
+      // send, the 2-min cron finishes the rest.
       try {
         await supabase.functions.invoke("campaign-sender", { body: { campaign_id: campaignId } });
-      } catch (_) { /* timeout on huge sends → cron continues */ }
-      clearInterval(poll);
-
-      const { data: fin } = await supabase.from("whatsapp_campaigns")
-        .select("status, sent_count, failed_count").eq("id", campaignId).maybeSingle();
-      setWaBlastSending(false);
-      setWaBlastProgress(null);
-      if (fin?.status === "sent") {
-        toast.success(`Campaña enviada: ${fin.sent_count || 0} enviados${fin.failed_count ? `, ${fin.failed_count} fallaron` : ""}.`);
-      } else {
-        toast.success(`Campaña en proceso (${(fin?.sent_count || 0)}/${targets.length}). Termina en segundo plano — mira Campañas.`);
-      }
+      } catch (_) { /* cron continues */ }
+      if (waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
+      // Mark finished only if the loader is still open (user may have closed it).
+      setWaBlastProgress(prev => prev ? { done: prev.total, total: prev.total, finished: true } : null);
     } catch (e: any) {
       setWaBlastSending(false);
-      setWaBlastProgress(null);
+      closeWaLoader();
       toast.error(e?.message || "No se pudo iniciar la campaña");
     }
   };
@@ -1919,7 +1926,12 @@ export default function ContactsPage() {
         requireCampaignName
       />
       {waBlastProgress && (
-        <SendingLoader3D done={waBlastProgress.done} total={waBlastProgress.total} />
+        <WhatsAppSendLoader
+          done={waBlastProgress.done}
+          total={waBlastProgress.total}
+          finished={waBlastProgress.finished}
+          onClose={closeWaLoader}
+        />
       )}
 
       {/* ── Bulk email blast dialog ─────────────────────────────────────── */}
