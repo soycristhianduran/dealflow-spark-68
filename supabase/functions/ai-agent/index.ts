@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[] }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -75,7 +75,7 @@ ${opts.upcomingDates}
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
 - IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
 - Pregunta si la reunión será VIRTUAL (se genera un enlace de Google Meet) o PRESENCIAL (necesitas la dirección). Si es presencial y no sabes la dirección, pídela o usa la del negocio.
-- Pide el CORREO del cliente para enviarle la invitación (si no lo da, agenda igual pero avísale que sin correo no recibirá la invitación).
+- CORREO para la invitación:${opts.contactEmail ? ` ya tenemos registrado el correo "${opts.contactEmail}". NO lo pidas de nuevo: confírmalo con el cliente ("¿Te envío la invitación a ${opts.contactEmail}?"). Si lo confirma, pásalo en client_email. Si dice que es otro, usa el nuevo.` : ` no tenemos su correo. Pídeselo para enviarle la invitación (si no quiere darlo, agenda igual pero avísale que sin correo no recibirá la invitación por email).`}
 - Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con datetime_iso, mode (virtual/presencial), address (si aplica) y client_email (si lo tienes).
 - Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
 - Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.\n`
@@ -254,6 +254,15 @@ Deno.serve(async (req) => {
       : null;
     const canBook = !!(cfg.appointments_enabled && advisorUserId);
 
+    // Email already on file for this contact (so the agent can confirm it
+    // instead of asking from scratch).
+    let contactEmailOnFile: string | null = null;
+    if (canBook && contact_id) {
+      const { data: cInfo } = await supabase.from("contacts")
+        .select("primary_email").eq("id", contact_id).maybeSingle();
+      contactEmailOnFile = cInfo?.primary_email || null;
+    }
+
     const nowBogota = new Intl.DateTimeFormat("es-CO", {
       timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
     }).format(new Date());
@@ -326,7 +335,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList });
+    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile });
     const mediaToSend: any[] = [];
     let aiText = "";
 
@@ -580,6 +589,11 @@ async function bookAppointment(
   }
   // Prefer the email the agent collected in chat, fall back to the stored one.
   const attendeeEmail: string | null = (input?.client_email || contactEmail || null);
+
+  // If the client gave an email and the contact had none, save it for next time.
+  if (contact_id && input?.client_email && !contactEmail && /\S+@\S+\.\S+/.test(input.client_email)) {
+    await supabase.from("contacts").update({ primary_email: input.client_email }).eq("id", contact_id);
+  }
   const title = (input?.title || `Cita con ${contactName}`).slice(0, 120);
   const notes = input?.notes || null;
 
