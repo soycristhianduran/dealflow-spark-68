@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; canBook: boolean; media: any[] }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[] }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -69,9 +69,12 @@ function buildSystemPrompt(cfg: any, opts: { nowBogota: string; canBook: boolean
     ? `\nAGENDAMIENTO DE CITAS:
 - Puedes agendar citas usando la herramienta book_appointment.
 - Fecha y hora actual (Colombia): ${opts.nowBogota}.
+- CALENDARIO DE REFERENCIA (usa EXACTAMENTE estas fechas para mapear los días que mencione el cliente):
+${opts.upcomingDates}
+- Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
 - Solo ofrece y agenda horarios dentro del horario de atención y en el futuro.
-- Antes de agendar, confirma con el cliente la fecha y hora exactas. Cuando confirme, llama a book_appointment con la fecha/hora en formato ISO (ej. 2026-06-20T15:00:00).
+- Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con la fecha/hora en formato ISO (ej. 2026-06-17T15:00:00).
 - Si la herramienta devuelve un conflicto o error, ofrece otra hora.\n`
     : "";
 
@@ -252,6 +255,20 @@ Deno.serve(async (req) => {
       timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
     }).format(new Date());
 
+    // Explicit date table (next 14 days) so the model maps weekdays exactly
+    // (Haiku otherwise miscounts days). Each line: "miércoles 17 de junio → 2026-06-17".
+    const upcomingDates = (() => {
+      const fmt = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", weekday: "long", day: "numeric", month: "long" });
+      const isoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit" });
+      const lines: string[] = [];
+      for (let i = 0; i < 14; i++) {
+        const d = new Date(Date.now() + i * 86400000);
+        const label = i === 0 ? " (hoy)" : i === 1 ? " (mañana)" : "";
+        lines.push(`  ${fmt.format(d)}${label} → ${isoFmt.format(d)}`);
+      }
+      return lines.join("\n");
+    })();
+
     // 8. Build tools available to the agent
     const tools: any[] = [];
     if (canBook) {
@@ -292,7 +309,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    const system = buildSystemPrompt(cfg, { nowBogota, canBook, media: mediaList });
+    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList });
     const mediaToSend: any[] = [];
     let aiText = "";
 
@@ -499,6 +516,7 @@ async function bookAppointment(
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
       },
       body: JSON.stringify({
         action: "create", user_id: advisorUserId, title,

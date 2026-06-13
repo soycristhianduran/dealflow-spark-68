@@ -110,8 +110,19 @@ Deno.serve(async (req) => {
     //  • The AI agent (server-side) → passes the SERVICE_ROLE_KEY and a body.user_id
     //    telling us whose calendar to write to (the assigned advisor / owner).
     const bodyRaw = await req.json();
+
+    // Detect a server-side (service-role) caller robustly: decode the JWT and
+    // check role === 'service_role' instead of comparing the exact key string
+    // (which breaks when Supabase rotates / uses different key formats).
+    const isServiceRole = (jwt: string): boolean => {
+      try {
+        const payload = JSON.parse(atob(jwt.split(".")[1] || ""));
+        return payload.role === "service_role";
+      } catch { return false; }
+    };
+
     let userId: string;
-    if (token === SUPABASE_KEY && bodyRaw.user_id) {
+    if ((token === SUPABASE_KEY || isServiceRole(token)) && bodyRaw.user_id) {
       userId = bodyRaw.user_id;
     } else {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token);
