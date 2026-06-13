@@ -59,9 +59,7 @@ interface AgentConfig {
   channels: { whatsapp: boolean; instagram: boolean };
   appointments_enabled: boolean;
   reminders_enabled: boolean;
-  reminder_offsets: number[];
-  reminder_template_name: string;
-  reminder_template_lang: string;
+  reminders: { minutes: number; template: string | null; lang: string }[];
   appointment_duration_min: number;
   working_hours: WorkingHours;
   meeting_address: string;
@@ -111,9 +109,10 @@ const DEFAULT_CONFIG: AgentConfig = {
   channels: { whatsapp: true, instagram: false },
   appointments_enabled: false,
   reminders_enabled: true,
-  reminder_offsets: [1440, 60],
-  reminder_template_name: "",
-  reminder_template_lang: "es",
+  reminders: [
+    { minutes: 1440, template: null, lang: "es" },
+    { minutes: 60, template: null, lang: "es" },
+  ],
   appointment_duration_min: 30,
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
@@ -181,9 +180,10 @@ export default function AIAgentPage() {
           channels: data.channels ?? { whatsapp: true, instagram: false },
           appointments_enabled: data.appointments_enabled ?? false,
           reminders_enabled: data.reminders_enabled ?? true,
-          reminder_offsets: Array.isArray(data.reminder_offsets) ? (data.reminder_offsets as number[]) : [1440, 60],
-          reminder_template_name: data.reminder_template_name ?? "",
-          reminder_template_lang: data.reminder_template_lang ?? "es",
+          reminders: (Array.isArray(data.reminders) && data.reminders.length)
+            ? (data.reminders as AgentConfig["reminders"])
+            : (Array.isArray(data.reminder_offsets) ? data.reminder_offsets as number[] : [1440, 60])
+                .map((m: number) => ({ minutes: m, template: data.reminder_template_name || null, lang: data.reminder_template_lang || "es" })),
           appointment_duration_min: data.appointment_duration_min ?? 30,
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
@@ -284,9 +284,7 @@ export default function AIAgentPage() {
         channels: config.channels,
         appointments_enabled: config.appointments_enabled,
         reminders_enabled: config.reminders_enabled,
-        reminder_offsets: config.reminder_offsets,
-        reminder_template_name: config.reminder_template_name.trim() || null,
-        reminder_template_lang: config.reminder_template_lang.trim() || "es",
+        reminders: config.reminders,
         appointment_duration_min: config.appointment_duration_min,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
@@ -566,74 +564,70 @@ export default function AIAgentPage() {
                       </div>
                       <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
                     </div>
-                    {config.reminders_enabled && (
+                    {config.reminders_enabled && (() => {
+                      const approved = waTemplates.filter(t => (t.status || "").toUpperCase() === "APPROVED");
+                      const sorted = [...config.reminders].sort((a, b) => b.minutes - a.minutes);
+                      const updateAt = (minutes: number, patch: Partial<AgentConfig["reminders"][number]>) =>
+                        set("reminders", config.reminders.map(r => r.minutes === minutes ? { ...r, ...patch } : r));
+                      return (
                       <div className="space-y-3 pt-1">
-                        {/* Multiple reminder times */}
-                        <div className="space-y-2">
-                          <Label className="text-xs">Momentos de recordatorio</Label>
-                          <div className="flex flex-wrap gap-2">
-                            {[...config.reminder_offsets].sort((a, b) => b - a).map(off => (
-                              <Badge key={off} variant="secondary" className="gap-1.5 py-1">
-                                {offsetLabel(off)}
-                                <button onClick={() => set("reminder_offsets", config.reminder_offsets.filter(o => o !== off))}>
-                                  <Trash2 className="h-3 w-3" />
-                                </button>
-                              </Badge>
-                            ))}
-                            {config.reminder_offsets.length === 0 && <span className="text-xs text-muted-foreground">Sin recordatorios — agrega al menos uno.</span>}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Select value={newOffset} onValueChange={setNewOffset}>
-                              <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue /></SelectTrigger>
-                              <SelectContent>
-                                {OFFSET_PRESETS.filter(o => !config.reminder_offsets.includes(o.value)).map(o => (
-                                  <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <Button size="sm" variant="outline" className="h-8 text-xs"
-                              onClick={() => {
-                                const v = Number(newOffset);
-                                if (v && !config.reminder_offsets.includes(v)) set("reminder_offsets", [...config.reminder_offsets, v]);
-                              }}>
-                              + Agregar
-                            </Button>
-                          </div>
+                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
+                          ⚠️ Para enviar fuera de la ventana de 24h, WhatsApp exige una <b>plantilla aprobada</b> (tipo <b>Utility</b>) con <b>3 variables</b>: <code>{"{{1}}"}</code> nombre, <code>{"{{2}}"}</code> cita, <code>{"{{3}}"}</code> fecha/hora. Asigna una plantilla a cada recordatorio. Si dejas "Ninguna", ese recordatorio solo se enviará si el cliente escribió en las últimas 24h.
                         </div>
 
-                        {/* Approved template dropdown */}
-                        <div className="rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300">
-                          ⚠️ Para enviar recordatorios fuera de la ventana de 24h, WhatsApp exige una <b>plantilla aprobada</b> (tipo <b>Utility</b>) con <b>3 variables</b>: <code>{"{{1}}"}</code> nombre, <code>{"{{2}}"}</code> cita, <code>{"{{3}}"}</code> fecha/hora. Selecciónala abajo. Si no eliges ninguna, el recordatorio solo se enviará si el cliente escribió en las últimas 24h.
+                        {/* One row per reminder: moment + its own template */}
+                        <div className="space-y-2">
+                          {sorted.map(r => (
+                            <div key={r.minutes} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
+                              <Badge variant="secondary" className="py-1 shrink-0">{offsetLabel(r.minutes)}</Badge>
+                              <div className="flex-1 min-w-[200px]">
+                                <Select
+                                  value={r.template || "__none__"}
+                                  onValueChange={v => {
+                                    if (v === "__none__") { updateAt(r.minutes, { template: null }); return; }
+                                    const t = approved.find(x => x.name === v);
+                                    updateAt(r.minutes, { template: v, lang: t?.language || "es" });
+                                  }}>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Plantilla…" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="__none__">Ninguna (solo dentro de 24h)</SelectItem>
+                                    {approved.map(t => (
+                                      <SelectItem key={t.id} value={t.name}>{t.name} ({t.language})</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button size="icon" variant="ghost" className="h-8 w-8 text-destructive hover:text-destructive shrink-0"
+                                onClick={() => set("reminders", config.reminders.filter(x => x.minutes !== r.minutes))}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                          {config.reminders.length === 0 && <p className="text-xs text-muted-foreground">Sin recordatorios — agrega al menos uno.</p>}
                         </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">Plantilla de recordatorio (aprobadas en tu WhatsApp)</Label>
-                          {(() => {
-                            const approved = waTemplates.filter(t => (t.status || "").toUpperCase() === "APPROVED");
-                            return (
-                              <Select
-                                value={config.reminder_template_name || "__none__"}
-                                onValueChange={v => {
-                                  if (v === "__none__") { set("reminder_template_name", ""); return; }
-                                  const t = approved.find(x => x.name === v);
-                                  set("reminder_template_name", v);
-                                  if (t?.language) set("reminder_template_lang", t.language);
-                                }}>
-                                <SelectTrigger><SelectValue placeholder="Selecciona una plantilla…" /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="__none__">Ninguna (solo dentro de 24h)</SelectItem>
-                                  {approved.map(t => (
-                                    <SelectItem key={t.id} value={t.name}>{t.name} ({t.language})</SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            );
-                          })()}
-                          <p className="text-[11px] text-muted-foreground">
-                            ¿No aparece tu plantilla? Créala y sincronízala en <b>WA Plantillas</b>; debe estar <b>aprobada</b>.
-                          </p>
+
+                        {/* Add a new reminder moment */}
+                        <div className="flex items-center gap-2">
+                          <Select value={newOffset} onValueChange={setNewOffset}>
+                            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Momento…" /></SelectTrigger>
+                            <SelectContent>
+                              {OFFSET_PRESETS.filter(o => !config.reminders.some(r => r.minutes === o.value)).map(o => (
+                                <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button size="sm" variant="outline" className="h-8 text-xs"
+                            onClick={() => {
+                              const v = Number(newOffset);
+                              if (v && !config.reminders.some(r => r.minutes === v)) set("reminders", [...config.reminders, { minutes: v, template: null, lang: "es" }]);
+                            }}>
+                            + Agregar recordatorio
+                          </Button>
                         </div>
+                        <p className="text-[11px] text-muted-foreground">¿No aparece tu plantilla? Créala y sincronízala en <b>WA Plantillas</b>; debe estar <b>aprobada</b>.</p>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">

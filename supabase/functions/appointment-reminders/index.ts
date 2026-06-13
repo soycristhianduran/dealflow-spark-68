@@ -54,14 +54,28 @@ async function sendWaTemplate(config: any, phone: string, templateName: string, 
 Deno.serve(async () => {
   const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
-  // Orgs that have reminders enabled (+ template + reminder offsets in minutes)
+  // Orgs that have reminders enabled. Each org has a `reminders` array of
+  // { minutes, template, lang }. Fall back to the legacy offsets+single-template.
   const { data: cfgs } = await supabase.from("ai_agent_configs")
-    .select("organization_id, reminder_template_name, reminder_template_lang, reminder_offsets").eq("reminders_enabled", true);
-  const orgCfg = new Map((cfgs || []).map((c: any) => [c.organization_id, c]));
+    .select("organization_id, reminders, reminder_template_name, reminder_template_lang, reminder_offsets").eq("reminders_enabled", true);
+
+  // Normalize each org's reminders into [{minutes, template, lang}]
+  const norm = (c: any): { minutes: number; template: string | null; lang: string }[] => {
+    if (Array.isArray(c.reminders) && c.reminders.length) {
+      return c.reminders
+        .map((r: any) => ({ minutes: Number(r.minutes), template: r.template || null, lang: r.lang || "es" }))
+        .filter((r: any) => r.minutes > 0);
+    }
+    return (c.reminder_offsets || [])
+      .map((n: number) => ({ minutes: Number(n), template: c.reminder_template_name || null, lang: c.reminder_template_lang || "es" }))
+      .filter((r: any) => r.minutes > 0);
+  };
+  const orgCfg = new Map((cfgs || []).map((c: any) => [c.organization_id, norm(c)]));
+  for (const [k, v] of [...orgCfg]) if (!v.length) orgCfg.delete(k);
   if (!orgCfg.size) return new Response(JSON.stringify({ ok: true, sent: 0 }), { headers: { "Content-Type": "application/json" } });
 
   const now = Date.now();
-  const maxOffsetMin = Math.max(60, ...[...orgCfg.values()].flatMap((c: any) => (c.reminder_offsets || []).map((n: number) => Number(n) || 0)));
+  const maxOffsetMin = Math.max(60, ...[...orgCfg.values()].flatMap((rs) => rs.map((r) => r.minutes)));
   const horizon = new Date(now + (maxOffsetMin + 30) * 60_000).toISOString();
 
   // Cache one active WhatsApp config per org
@@ -86,20 +100,19 @@ Deno.serve(async () => {
   let sent = 0;
 
   for (const mtg of meetings || []) {
-    const cfg = orgCfg.get(mtg.organization_id);
-    const offsets: number[] = (cfg?.reminder_offsets || []).map((n: number) => Number(n)).filter((n: number) => n > 0);
-    if (!offsets.length) continue;
+    const reminders = orgCfg.get(mtg.organization_id) || [];
+    if (!reminders.length) continue;
     const alreadySent: number[] = Array.isArray(mtg.reminders_sent) ? mtg.reminders_sent : [];
     const startMs = new Date(mtg.start_at).getTime();
 
-    // Which configured offsets are due now and not yet sent?
-    const due = offsets.filter(off => !alreadySent.includes(off) && now >= startMs - off * 60_000);
+    // Which reminders are due now and not yet sent (dedup by minutes)?
+    const due = reminders.filter(r => !alreadySent.includes(r.minutes) && now >= startMs - r.minutes * 60_000);
     if (!due.length) continue;
 
     const phone = mtg.contacts?.primary_phone;
     const wa = await getWa(mtg.organization_id);
 
-    for (const off of due) {
+    for (const r of due) {
       if (phone && wa) {
         const name = (mtg.contacts?.full_name || "").split(" ")[0] || "Cliente";
         const place = mtg.meeting_type === "in_person"
@@ -107,9 +120,8 @@ Deno.serve(async () => {
           : (mtg.location_or_link ? `\n🎥 Enlace: ${mtg.location_or_link}` : "");
         const whenStr = fmtTime(mtg.start_at);
         let err: string | null;
-        if (cfg?.reminder_template_name) {
-          err = await sendWaTemplate(wa, phone, cfg.reminder_template_name, cfg.reminder_template_lang || "es",
-            [name, mtg.title || "tu cita", whenStr]);
+        if (r.template) {
+          err = await sendWaTemplate(wa, phone, r.template, r.lang || "es", [name, mtg.title || "tu cita", whenStr]);
         } else {
           const text = `Hola ${name} 👋\nTe recordamos tu cita: *${mtg.title}* — ${whenStr}.${place}\n\n¿Confirmas tu asistencia?`;
           err = await sendWaText(wa, phone, text);
@@ -117,11 +129,11 @@ Deno.serve(async () => {
         if (err) {
           await supabase.from("error_logs").insert({
             organization_id: mtg.organization_id, source: "appointment-reminders",
-            message: `Reminder (${off}min) failed for meeting ${mtg.id}: ${err}`,
+            message: `Reminder (${r.minutes}min) failed for meeting ${mtg.id}: ${err}`,
           }).then(() => {}, () => {});
         } else { sent++; }
       }
-      alreadySent.push(off);
+      alreadySent.push(r.minutes);
     }
     await supabase.from("meetings").update({ reminders_sent: alreadySent }).eq("id", mtg.id);
   }
