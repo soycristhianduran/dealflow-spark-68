@@ -258,10 +258,14 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         if (error) throw error;
         created += data?.length ?? 0;
       }
+      // Update existing contacts in PARALLEL batches (was one-by-one, which took
+      // minutes for thousands of existing contacts). 25 concurrent per batch.
       let updated = 0;
-      for (const u of toUpdate) {
-        const { error } = await supabase.from("contacts").update(u.patch).eq("id", u.id);
-        if (!error) updated++;
+      for (const batch of chunk(toUpdate, 25)) {
+        const results = await Promise.all(
+          batch.map(u => supabase.from("contacts").update(u.patch).eq("id", u.id).then(({ error }) => !error))
+        );
+        updated += results.filter(Boolean).length;
       }
 
       setResult({
