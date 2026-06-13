@@ -98,6 +98,7 @@ export default function ConversationsPage() {
   const ig = useInstagramIntegration();
 
   const [channelFilter, setChannelFilter] = useState<FilterMode>("all");
+  const [readFilter, setReadFilter] = useState<"all" | "unread">("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<UnifiedConversation | null>(null);
 
@@ -192,6 +193,7 @@ export default function ConversationsPage() {
 
   const filtered = useMemo(() => unifiedList.filter((c) => {
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
+    if (readFilter === "unread" && !(c.unread_count > 0)) return false;
     if (search) {
       const q = search.toLowerCase();
       return c.display_name.toLowerCase().includes(q)
@@ -199,12 +201,13 @@ export default function ConversationsPage() {
         || (c.last_message || "").toLowerCase().includes(q);
     }
     return true;
-  }), [unifiedList, channelFilter, search]);
+  }), [unifiedList, channelFilter, readFilter, search]);
 
   const counts = useMemo(() => ({
     total: unifiedList.length,
     wa: unifiedList.filter((c) => c.channel === "whatsapp").length,
     ig: unifiedList.filter((c) => c.channel === "instagram").length,
+    unread: unifiedList.filter((c) => c.unread_count > 0).length,
   }), [unifiedList]);
 
   // ── Selection ────────────────────────────────────────────────────────────
@@ -598,6 +601,14 @@ export default function ConversationsPage() {
               </FilterTab>
               <FilterTab active={channelFilter === "instagram"} onClick={() => setChannelFilter("instagram")}>
                 <span className="inline-flex items-center gap-1"><InstagramIcon size={14} /> IG ({counts.ig})</span>
+              </FilterTab>
+              <FilterTab active={readFilter === "unread"} onClick={() => setReadFilter(readFilter === "unread" ? "all" : "unread")}>
+                <span className="inline-flex items-center gap-1">
+                  No leídos
+                  {counts.unread > 0 && (
+                    <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{counts.unread}</span>
+                  )}
+                </span>
               </FilterTab>
             </div>
             <div className="relative">
