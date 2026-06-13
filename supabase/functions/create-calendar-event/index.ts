@@ -101,8 +101,21 @@ Deno.serve(async (req) => {
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
-    if (userError || !user) return json({ error: "Invalid user" }, 401);
+
+    // Two callers:
+    //  • A signed-in user (normal UI flow) → resolve their identity from the JWT.
+    //  • The AI agent (server-side) → passes the SERVICE_ROLE_KEY and a body.user_id
+    //    telling us whose calendar to write to (the assigned advisor / owner).
+    const bodyRaw = await req.json();
+    let userId: string;
+    if (token === SUPABASE_KEY && bodyRaw.user_id) {
+      userId = bodyRaw.user_id;
+    } else {
+      const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+      if (userError || !user) return json({ error: "Invalid user" }, 401);
+      userId = user.id;
+    }
+    const user = { id: userId };
 
     const { data: tokenRow, error: tokenError } = await supabase
       .from("google_calendar_tokens")
@@ -116,7 +129,7 @@ Deno.serve(async (req) => {
 
     const { provider_token: accessToken, provider_refresh_token: refreshToken } = tokenRow;
 
-    const body = await req.json();
+    const body = bodyRaw;
     const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email } = body;
 
     // ── DELETE ────────────────────────────────────────────────────────────────

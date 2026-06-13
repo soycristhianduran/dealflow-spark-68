@@ -634,6 +634,45 @@ Deno.serve(async (req) => {
                         });
                       }
 
+                      // Send any media the agent chose (images / PDFs)
+                      if (Array.isArray(agentData.media) && agentData.media.length) {
+                        for (const media of agentData.media) {
+                          await sleep(700);
+                          const isDoc = media.type === "document";
+                          const payload: any = {
+                            messaging_product: "whatsapp",
+                            to: senderPhone,
+                            type: isDoc ? "document" : "image",
+                          };
+                          payload[isDoc ? "document" : "image"] = isDoc
+                            ? { link: media.link, filename: media.filename || "archivo.pdf" }
+                            : { link: media.link };
+                          const mRes = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
+                            method: "POST",
+                            headers: { "Authorization": `Bearer ${config.access_token}`, "Content-Type": "application/json" },
+                            body: JSON.stringify(payload),
+                          });
+                          const mData = await mRes.json();
+                          const mErr = mData.error ? `Meta error ${mData.error.code}: ${mData.error.message}` : null;
+                          if (mErr) console.error("[AI-AGENT] Media send error:", mErr);
+                          await supabase.from("whatsapp_messages").insert({
+                            user_id: config.user_id,
+                            contact_id: contact.id,
+                            wa_message_id: mData?.messages?.[0]?.id || null,
+                            phone_number: senderPhone,
+                            from_phone_number_id: phoneNumberId,
+                            direction: "outgoing",
+                            message_type: isDoc ? "document" : "image",
+                            message_text: media.filename || media.link,
+                            media_url: media.link,
+                            status: mErr ? "failed" : "sent",
+                            error_details: mErr,
+                            sent_at: new Date().toISOString(),
+                            is_ai_generated: true,
+                          });
+                        }
+                      }
+
                       // If escalated: log activity to notify the vendor
                       if (agentData.escalated) {
                         await supabase.from("activities").insert({
