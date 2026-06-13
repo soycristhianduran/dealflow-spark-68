@@ -465,6 +465,13 @@ export default function ContactsPage() {
   };
 
   // ── Bulk handlers ──────────────────────────────────────────────────────
+  // Chunk id lists: a single .in() with thousands of ids overflows the request
+  // URL → 400 Bad Request. Process in batches of 200.
+  const chunkIds = (ids: string[], n = 200): string[][] => {
+    const out: string[][] = [];
+    for (let i = 0; i < ids.length; i += n) out.push(ids.slice(i, i + n));
+    return out;
+  };
 
   const handleBulkDelete = () => {
     setDeleteConfirmOpen(true);
@@ -472,16 +479,20 @@ export default function ContactsPage() {
 
   const executeBulkDelete = async () => {
     setBulkWorking(true);
-    const { error } = await supabase.from("contacts").delete().in("id", [...selected]);
-    if (error) { toast.error("Error al eliminar: " + error.message); setBulkWorking(false); return; }
+    for (const part of chunkIds([...selected])) {
+      const { error } = await supabase.from("contacts").delete().in("id", part);
+      if (error) { toast.error("Error al eliminar: " + error.message); setBulkWorking(false); return; }
+    }
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`);
   };
 
   const handleBulkStatus = async () => {
     if (!bulkStatus) return;
     setBulkWorking(true);
-    const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", [...selected]);
-    if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    for (const part of chunkIds([...selected])) {
+      const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", part);
+      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    }
     setStatusOpen(false);
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`);
   };
@@ -489,24 +500,23 @@ export default function ContactsPage() {
   const handleBulkReassign = async () => {
     if (!selectedOwner) return;
     setBulkWorking(true);
-    const contactIds = [...selected];
+    const batches = chunkIds([...selected]);
 
-    // 1. Update contact owner
-    const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", contactIds);
-    if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
-
-    // 2. Migrate WhatsApp message history to new owner so they can see it
-    await supabase.from("whatsapp_messages").update({ user_id: selectedOwner }).in("contact_id", contactIds);
-
-    // 3. Migrate Instagram conversations + their messages
-    const { data: igConvs } = await supabase
-      .from("instagram_conversations")
-      .select("id")
-      .in("contact_id", contactIds);
-    if (igConvs?.length) {
-      const convIds = igConvs.map((c: any) => c.id);
-      await supabase.from("instagram_conversations").update({ user_id: selectedOwner }).in("id", convIds);
-      await supabase.from("instagram_messages").update({ user_id: selectedOwner }).in("conversation_id", convIds);
+    for (const part of batches) {
+      // 1. Update contact owner
+      const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", part);
+      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      // 2. Migrate WhatsApp message history to the new owner
+      await supabase.from("whatsapp_messages").update({ user_id: selectedOwner }).in("contact_id", part);
+      // 3. Migrate Instagram conversations + their messages
+      const { data: igConvs } = await supabase.from("instagram_conversations").select("id").in("contact_id", part);
+      if (igConvs?.length) {
+        const convIds = igConvs.map((c: any) => c.id);
+        for (const cpart of chunkIds(convIds)) {
+          await supabase.from("instagram_conversations").update({ user_id: selectedOwner }).in("id", cpart);
+          await supabase.from("instagram_messages").update({ user_id: selectedOwner }).in("conversation_id", cpart);
+        }
+      }
     }
 
     setReassignOpen(false);
@@ -526,8 +536,10 @@ export default function ContactsPage() {
       contact_id: contactId,
       status: "pending",
     }));
-    const { error } = await supabase.from("tasks").insert(rows);
-    if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    for (let i = 0; i < rows.length; i += 200) {
+      const { error } = await supabase.from("tasks").insert(rows.slice(i, i + 200));
+      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    }
     setTaskOpen(false);
     setTaskForm({ title: "", task_type: "call", priority: "medium", due_date: "", due_time: "" });
     done(`${rows.length} tarea${rows.length !== 1 ? "s" : ""} creada${rows.length !== 1 ? "s" : ""}`);
@@ -764,8 +776,10 @@ export default function ContactsPage() {
     if (!fieldName || !fieldValue.trim()) { toast.error("Selecciona un campo y escribe un valor"); return; }
     setBulkWorking(true);
     const value = fieldName === "score" ? Number(fieldValue) : fieldValue.trim();
-    const { error } = await supabase.from("contacts").update({ [fieldName]: value }).in("id", [...selected]);
-    if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    for (const part of chunkIds([...selected])) {
+      const { error } = await supabase.from("contacts").update({ [fieldName]: value }).in("id", part);
+      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    }
     setFieldOpen(false);
     setFieldName("");
     setFieldValue("");
@@ -778,12 +792,17 @@ export default function ContactsPage() {
     const ids = [...selected];
 
     if (tagsMode === "replace") {
-      const { error } = await supabase.from("contacts").update({ tags: pendingTags }).in("id", ids);
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      for (const part of chunkIds(ids)) {
+        const { error } = await supabase.from("contacts").update({ tags: pendingTags }).in("id", part);
+        if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      }
     } else {
       // Add mode: merge with existing tags per contact
-      const { data: rows } = await supabase.from("contacts").select("id, tags").in("id", ids);
-      if (!rows) { setBulkWorking(false); return; }
+      const rows: { id: string; tags: string[] | null }[] = [];
+      for (const part of chunkIds(ids)) {
+        const { data } = await supabase.from("contacts").select("id, tags").in("id", part);
+        if (data) rows.push(...(data as any));
+      }
       for (const row of rows) {
         const existing: string[] = row.tags || [];
         const newTags = pendingTags.filter((t: string) => !existing.includes(t));
