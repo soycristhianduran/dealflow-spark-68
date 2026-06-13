@@ -567,11 +567,14 @@ export default function ContactsPage() {
     if (ids.length === 0) return [];
     const loaded = contacts.filter(c => selected.has(c.id));
     if (loaded.length === ids.length) return loaded; // all already in memory
+    // Chunk at 200 ids: a GET .in() filter encodes every id into the URL, and
+    // ~500 UUIDs blows past the server URL-length limit (request fails/hangs).
     const out: ContactRow[] = [];
-    for (let i = 0; i < ids.length; i += 500) {
-      const { data } = await supabase.from("contacts")
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabase.from("contacts")
         .select("id, full_name, primary_phone, primary_email, company_name")
-        .in("id", ids.slice(i, i + 500));
+        .in("id", ids.slice(i, i + 200));
+      if (error) throw new Error(`No se pudieron cargar los contactos seleccionados: ${error.message}`);
       if (data) out.push(...(data as unknown as ContactRow[]));
     }
     return out;
