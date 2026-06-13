@@ -291,16 +291,22 @@ export default function ContactsPage() {
     setLoading(true);
     const from = currentPage * pageSize;
     const to = from + pageSize - 1;
+    // Data (current page)
     let query = supabase.from("contacts")
-      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, company_name, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields", { count: "exact" })
+      .select("id, full_name, primary_phone, primary_email, status, score, source, tags, created_at, stage_id, pipeline_id, lead_status, owner_id, company_name, pipeline_stages(id, name, color), utm_source, utm_medium, utm_campaign, utm_content, utm_term, custom_fields")
       .order("created_at", { ascending: false })
       .range(from, to);
     query = applyFilters(query);
-    const { data, error, count } = await query;
+    // Count — SEPARATE, filtered, head-only query so the total ALWAYS matches the
+    // active filters (the combined select+count+range query was returning the
+    // unfiltered total, so "select all" count didn't match the filtered leads).
+    let countQuery = supabase.from("contacts").select("id", { count: "exact", head: true });
+    countQuery = applyFilters(countQuery);
+    const [{ data, error }, { count }] = await Promise.all([query, countQuery]);
     if (!error && data) {
       setContacts(data as unknown as ContactRow[]);
-      setTotalCount(count ?? 0);
     }
+    setTotalCount(count ?? 0);
     setLoading(false);
   }, [currentPage, pageSize, applyFilters]);
 
