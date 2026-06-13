@@ -1023,7 +1023,7 @@ export default function ContactsPage() {
           </Button>
         </div>
       } />
-      <main className="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4 scrollbar-thin">
+      <main className="flex-1 overflow-y-auto p-3 md:p-6 pb-24 md:pb-24 space-y-3 md:space-y-4 scrollbar-thin">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
           <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
