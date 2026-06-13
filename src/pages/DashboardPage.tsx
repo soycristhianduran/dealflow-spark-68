@@ -16,6 +16,7 @@ import {
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
+import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
@@ -700,6 +701,13 @@ export default function DashboardPage() {
             accent="violet"
           />
         </div>
+
+        {/* ── Insights: leads, agent, campaigns, conversion, vendors ── */}
+        <DashboardInsights
+          stageData={stageData.map((s) => ({ name: s.name, count: s.count, color: s.color }))}
+          isOwner={!isVendor}
+          vendorId={isVendor && myUserId ? myUserId : null}
+        />
 
         {/* ── Pipeline funnel + Loss reasons ─────────────────────── */}
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
