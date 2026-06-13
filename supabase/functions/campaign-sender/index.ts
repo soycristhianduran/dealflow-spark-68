@@ -55,7 +55,14 @@ async function processCampaign(supabase: any, campaignId: string) {
     .eq("campaign_id", campaignId).eq("status", "pending");
 
   let sent = 0, failed = 0;
+  let processed = 0;
   for (const s of (pending || [])) {
+    // Heartbeat every 40 sends so a concurrent cron run sees us as active and
+    // doesn't double-process this campaign during a long send.
+    if (processed > 0 && processed % 40 === 0) {
+      await supabase.from("whatsapp_campaigns").update({ updated_at: new Date().toISOString() }).eq("id", campaignId);
+    }
+    processed++;
     try {
       const { data: contact } = await supabase.from("contacts")
         .select("full_name, company_name").eq("id", s.contact_id).maybeSingle();
@@ -129,7 +136,7 @@ Deno.serve(async (req) => {
     const { data: scheduledDue } = await supabase
       .from("whatsapp_campaigns").select("id")
       .eq("status", "scheduled").lte("scheduled_at", nowIso).limit(20);
-    const staleIso = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const staleIso = new Date(Date.now() - 3 * 60 * 1000).toISOString();
     const { data: resuming } = await supabase
       .from("whatsapp_campaigns").select("id")
       .eq("status", "sending").lt("updated_at", staleIso).limit(20);

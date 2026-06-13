@@ -598,24 +598,28 @@ export default function ContactsPage() {
         return;
       }
 
-      // Send now: fire the backend worker, then poll progress into the 3D loader.
-      supabase.functions.invoke("campaign-sender", { body: { campaign_id: campaignId } }).catch(() => {});
+      // Send now: AWAIT the backend worker (reliable trigger), while a concurrent
+      // poll feeds live progress into the 3D loader. If the request times out on a
+      // very large send, the cron finishes the rest within a few minutes.
       const poll = setInterval(async () => {
         const { data: cnt } = await supabase.from("whatsapp_campaigns")
-          .select("status, sent_count, failed_count, total_recipients").eq("id", campaignId).maybeSingle();
-        if (cnt) {
-          const done = (cnt.sent_count || 0) + (cnt.failed_count || 0);
-          setWaBlastProgress({ done, total: cnt.total_recipients || targets.length });
-          if (cnt.status === "sent") {
-            clearInterval(poll);
-            setWaBlastSending(false);
-            setWaBlastProgress(null);
-            toast.success(`Campaña enviada: ${cnt.sent_count || 0} enviados${cnt.failed_count ? `, ${cnt.failed_count} fallaron` : ""}.`);
-          }
-        }
+          .select("sent_count, failed_count, total_recipients").eq("id", campaignId).maybeSingle();
+        if (cnt) setWaBlastProgress({ done: (cnt.sent_count || 0) + (cnt.failed_count || 0), total: cnt.total_recipients || targets.length });
       }, 2000);
-      // Safety: stop polling after 10 min (the cron keeps the campaign moving).
-      setTimeout(() => { clearInterval(poll); setWaBlastSending(false); setWaBlastProgress(null); }, 600000);
+      try {
+        await supabase.functions.invoke("campaign-sender", { body: { campaign_id: campaignId } });
+      } catch (_) { /* timeout on huge sends → cron continues */ }
+      clearInterval(poll);
+
+      const { data: fin } = await supabase.from("whatsapp_campaigns")
+        .select("status, sent_count, failed_count").eq("id", campaignId).maybeSingle();
+      setWaBlastSending(false);
+      setWaBlastProgress(null);
+      if (fin?.status === "sent") {
+        toast.success(`Campaña enviada: ${fin.sent_count || 0} enviados${fin.failed_count ? `, ${fin.failed_count} fallaron` : ""}.`);
+      } else {
+        toast.success(`Campaña en proceso (${(fin?.sent_count || 0)}/${targets.length}). Termina en segundo plano — mira Campañas.`);
+      }
     } catch (e: any) {
       setWaBlastSending(false);
       setWaBlastProgress(null);
