@@ -8,7 +8,9 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
-import { Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, ArrowLeft } from "lucide-react";
+import { Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, ArrowLeft, X } from "lucide-react";
+import { TagPicker } from "@/components/TagPicker";
+import { Badge } from "@/components/ui/badge";
 
 // CRM fields a CSV column can map to.
 const FIELDS: { value: string; label: string }[] = [
@@ -109,6 +111,8 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const [pipelineId, setPipelineId] = useState("");
   const [stageId, setStageId] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  // Tags applied to EVERY imported lead (in addition to any tag column).
+  const [importTags, setImportTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (!open || !organizationId) return;
@@ -181,33 +185,42 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       // Dedup against existing contacts (by email or phone) in this org.
       const emails = contacts.map(c => c.primary_email).filter(Boolean);
       const phones = contacts.map(c => c.primary_phone).filter(Boolean);
-      const existing = new Map<string, string>(); // key -> id
+      const existing = new Map<string, { id: string; tags: string[] }>(); // key -> {id, current tags}
       const chunk = <T,>(arr: T[], n: number) => arr.reduce((a: T[][], _, i) => (i % n ? a : [...a, arr.slice(i, i + n)]), []);
       for (const part of chunk(emails, 200)) {
-        const { data } = await supabase.from("contacts").select("id, primary_email")
+        const { data } = await supabase.from("contacts").select("id, primary_email, tags")
           .eq("organization_id", organizationId).in("primary_email", part);
-        (data || []).forEach((d: any) => d.primary_email && existing.set("e:" + d.primary_email.toLowerCase(), d.id));
+        (data || []).forEach((d: any) => d.primary_email && existing.set("e:" + d.primary_email.toLowerCase(), { id: d.id, tags: d.tags || [] }));
       }
       for (const part of chunk(phones, 200)) {
-        const { data } = await supabase.from("contacts").select("id, primary_phone")
+        const { data } = await supabase.from("contacts").select("id, primary_phone, tags")
           .eq("organization_id", organizationId).in("primary_phone", part);
-        (data || []).forEach((d: any) => d.primary_phone && existing.set("p:" + d.primary_phone, d.id));
+        (data || []).forEach((d: any) => d.primary_phone && existing.set("p:" + d.primary_phone, { id: d.id, tags: d.tags || [] }));
       }
+
+      const uniq = (arr: string[]) => {
+        const seen = new Set<string>(); const out: string[] = [];
+        for (const t of arr) { const k = t.trim(); if (k && !seen.has(k.toLowerCase())) { seen.add(k.toLowerCase()); out.push(k); } }
+        return out;
+      };
 
       const toInsert: any[] = [];
       const toUpdate: { id: string; patch: any }[] = [];
       for (const c of contacts) {
-        const id = (c.primary_email && existing.get("e:" + c.primary_email.toLowerCase()))
+        const match = (c.primary_email && existing.get("e:" + c.primary_email.toLowerCase()))
           || (c.primary_phone && existing.get("p:" + c.primary_phone));
-        if (id) {
-          // Existing contact: only update the mapped fields, don't move its
-          // pipeline/stage/owner.
+        // Tags from the file column + the "tags for all" chosen in the UI.
+        const fileTags = (c.tags as string[] | undefined) || [];
+        if (match) {
+          // Existing contact: merge tags (keep its current ones), don't move pipeline.
           const { organization_id, status, ...patch } = c;
-          toUpdate.push({ id, patch });
+          patch.tags = uniq([...(match.tags || []), ...fileTags, ...importTags]);
+          toUpdate.push({ id: match.id, patch });
         } else {
-          // New contact: drop it into the chosen pipeline/stage/owner.
+          // New contact: drop it into the chosen pipeline/stage/owner + tags.
           toInsert.push({
             ...c,
+            tags: uniq([...fileTags, ...importTags]),
             lead_status: "active",
             ...(pipelineId ? { pipeline_id: pipelineId } : {}),
             ...(stageId ? { stage_id: stageId } : {}),
@@ -216,8 +229,8 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         }
       }
 
-      // Sync any imported tags into the org's central catalog.
-      const allTags = [...new Set(contacts.flatMap((c: any) => (c.tags as string[] | undefined) || []))];
+      // Sync all tags (file + chosen) into the org's central catalog.
+      const allTags = [...new Set([...contacts.flatMap((c: any) => (c.tags as string[] | undefined) || []), ...importTags])];
       if (allTags.length) {
         await supabase.from("organization_tags")
           .upsert(allTags.map(name => ({ organization_id: organizationId, name })), { onConflict: "organization_id,name" });
@@ -316,7 +329,28 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
                   </Select>
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">Solo aplica a leads NUEVOS. Los que ya existen se actualizan sin moverlos de etapa.</p>
+
+              {/* Tags applied to every imported lead */}
+              <div>
+                <Label className="text-xs">Etiquetas para todos los leads importados (opcional)</Label>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  {importTags.map(t => (
+                    <Badge key={t} variant="secondary" className="gap-1 py-1">
+                      {t}
+                      <button onClick={() => setImportTags(importTags.filter(x => x !== t))}><X className="h-3 w-3" /></button>
+                    </Badge>
+                  ))}
+                  <div className="w-[200px]">
+                    <TagPicker
+                      value=""
+                      placeholder="+ Agregar etiqueta"
+                      onChange={(t) => { if (t && !importTags.includes(t)) setImportTags([...importTags, t]); }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <p className="text-[11px] text-muted-foreground">El pipeline/etapa/vendedor solo aplica a leads NUEVOS (los existentes no se mueven). Las etiquetas se agregan a TODOS (nuevos y existentes).</p>
             </div>
 
             <p className="text-sm text-muted-foreground">
