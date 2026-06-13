@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { toast } from "sonner";
 import { WhatsAppIcon, EmailIcon3D } from "@/components/icons/BrandIcons";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -15,13 +16,13 @@ import { es } from "date-fns/locale";
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface EmailCampaign {
   id: string; name: string; subject: string; status: string;
-  sent_at: string | null; total_recipients: number;
+  sent_at: string | null; scheduled_at: string | null; total_recipients: number;
   sent_count: number; opened_count: number; clicked_count: number; failed_count: number;
   from_name: string; from_email: string;
 }
 interface WaCampaign {
   id: string; name: string; template_name: string | null; status: string;
-  sent_at: string; total_recipients: number;
+  sent_at: string; scheduled_at: string | null; total_recipients: number;
   sent_count: number; failed_count: number; delivered_count: number; read_count: number;
 }
 interface EmailSendRow {
@@ -65,10 +66,13 @@ function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     sent: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
     sending: "bg-amber-100 text-amber-700",
+    scheduled: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300",
+    queued: "bg-amber-100 text-amber-700",
+    canceled: "bg-gray-200 text-gray-500 dark:bg-gray-800 dark:text-gray-400",
     draft: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
     failed: "bg-red-100 text-red-600",
   };
-  const labels: Record<string, string> = { sent: "Enviada", sending: "Enviando…", draft: "Borrador", failed: "Error" };
+  const labels: Record<string, string> = { sent: "Enviada", sending: "Enviando…", scheduled: "Programada", queued: "En cola", canceled: "Cancelada", draft: "Borrador", failed: "Error" };
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${map[status] ?? "bg-muted text-muted-foreground"}`}>
       {labels[status] ?? status}
@@ -166,15 +170,17 @@ export default function CampaignsPage() {
   const [detailType, setDetailType] = useState<TabType>("email");
   const [detailRows, setDetailRows] = useState<(EmailSendRow | WaSendRow)[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleValue, setRescheduleValue] = useState("");
 
   const load = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true); else setRefreshing(true);
     const [emailRes, waRes] = await Promise.all([
       supabase.from("email_campaigns")
-        .select("id,name,subject,status,sent_at,total_recipients,sent_count,opened_count,clicked_count,failed_count,from_name,from_email")
+        .select("id,name,subject,status,sent_at,scheduled_at,total_recipients,sent_count,opened_count,clicked_count,failed_count,from_name,from_email")
         .order("created_at", { ascending: false }).limit(100),
       supabase.from("whatsapp_campaigns")
-        .select("id,name,template_name,status,sent_at,total_recipients,sent_count,failed_count,delivered_count,read_count")
+        .select("id,name,template_name,status,sent_at,scheduled_at,total_recipients,sent_count,failed_count,delivered_count,read_count")
         .order("created_at", { ascending: false }).limit(100),
     ]);
     if (emailRes.data) setEmailCampaigns(emailRes.data as EmailCampaign[]);
@@ -186,18 +192,56 @@ export default function CampaignsPage() {
 
   const openDetail = async (campaign: EmailCampaign | WaCampaign, type: TabType) => {
     setDetailCampaign(campaign); setDetailType(type); setDetailRows([]); setDetailLoading(true);
-    if (type === "email") {
-      const { data } = await supabase.from("email_sends")
-        .select("id,email_address,status,sent_at,opened_at,clicked_at,error_message,contacts(full_name)")
-        .eq("campaign_id", campaign.id).order("sent_at", { ascending: true });
-      setDetailRows((data || []) as EmailSendRow[]);
-    } else {
-      const { data } = await supabase.from("whatsapp_sends")
-        .select("id,phone,status,sent_at,delivered_at,read_at,error_message,contacts(full_name)")
-        .eq("campaign_id", campaign.id).order("sent_at", { ascending: true });
-      setDetailRows((data || []) as WaSendRow[]);
+    // PostgREST caps responses at 1000 rows; page through with .range() so a
+    // campaign with >1000 recipients shows all of them (not just the first 1000).
+    const table = type === "email" ? "email_sends" : "whatsapp_sends";
+    const cols = type === "email"
+      ? "id,email_address,status,sent_at,opened_at,clicked_at,error_message,contacts(full_name)"
+      : "id,phone,status,sent_at,delivered_at,read_at,error_message,contacts(full_name)";
+    const all: (EmailSendRow | WaSendRow)[] = [];
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase.from(table)
+        .select(cols)
+        .eq("campaign_id", campaign.id)
+        .order("sent_at", { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) break;
+      const batch = (data || []) as unknown as (EmailSendRow | WaSendRow)[];
+      all.push(...batch);
+      if (batch.length < PAGE) break;
     }
+    setDetailRows(all);
     setDetailLoading(false);
+  };
+
+  const isSentStatus = (s: string) => ["sent", "delivered", "read", "opened", "clicked"].includes(s);
+
+  // Cancel a scheduled campaign so the cron never sends it.
+  const cancelSchedule = async (campaign: WaCampaign | EmailCampaign, type: TabType) => {
+    if (!confirm(`¿Cancelar la programación de "${campaign.name}"? No se enviará.`)) return;
+    const table = type === "email" ? "email_campaigns" : "whatsapp_campaigns";
+    const { error } = await supabase.from(table)
+      .update({ status: "canceled", scheduled_at: null }).eq("id", campaign.id);
+    if (error) { toast.error("No se pudo cancelar: " + error.message); return; }
+    toast.success("Programación cancelada.");
+    setDetailCampaign(null);
+    load(false);
+  };
+
+  // Reschedule a scheduled campaign to a new future date/time.
+  const reschedule = async (campaign: WaCampaign | EmailCampaign, type: TabType, newWhen: string) => {
+    const when = new Date(newWhen);
+    if (isNaN(when.getTime())) { toast.error("Fecha inválida"); return; }
+    if (when.getTime() <= Date.now()) { toast.error("La fecha debe ser futura"); return; }
+    const table = type === "email" ? "email_campaigns" : "whatsapp_campaigns";
+    const { error } = await supabase.from(table)
+      .update({ status: "scheduled", scheduled_at: when.toISOString() }).eq("id", campaign.id);
+    if (error) { toast.error("No se pudo reprogramar: " + error.message); return; }
+    toast.success(`Reprogramada para ${when.toLocaleString()}.`);
+    setRescheduleOpen(false);
+    setDetailCampaign(null);
+    load(false);
   };
 
   const emailTotals = emailCampaigns.reduce((a, c) => ({
@@ -282,28 +326,74 @@ export default function CampaignsPage() {
             </p>
           </DialogHeader>
 
+          {/* Scheduled campaign: cancel / reschedule before it sends */}
+          {detailCampaign?.status === "scheduled" && (
+            <div className="px-6 py-3 border-b shrink-0 bg-indigo-50/60 dark:bg-indigo-950/30">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm">
+                  📅 Programada para <strong>{fmtDate(detailCampaign.scheduled_at)}</strong>
+                </span>
+                <div className="flex-1" />
+                {!rescheduleOpen ? (
+                  <>
+                    <Button size="sm" variant="outline" className="h-8 text-xs"
+                      onClick={() => {
+                        const d = detailCampaign.scheduled_at ? new Date(detailCampaign.scheduled_at) : new Date();
+                        const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                        setRescheduleValue(local); setRescheduleOpen(true);
+                      }}>
+                      Reprogramar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive hover:text-destructive"
+                      onClick={() => cancelSchedule(detailCampaign, detailType)}>
+                      Cancelar programación
+                    </Button>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <input type="datetime-local" value={rescheduleValue}
+                      onChange={e => setRescheduleValue(e.target.value)}
+                      className="h-8 rounded-md border bg-background px-2 text-xs" />
+                    <Button size="sm" className="h-8 text-xs"
+                      onClick={() => reschedule(detailCampaign, detailType, rescheduleValue)}>
+                      Guardar
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-8 text-xs"
+                      onClick={() => setRescheduleOpen(false)}>
+                      Cancelar
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Stats summary — computed from live detail rows (always accurate) */}
           <div className="px-6 py-3 border-b shrink-0 flex flex-wrap gap-2">
             {detailType === "email" ? (() => {
               const rows = detailRows as EmailSendRow[];
-              const sentN   = rows.length;
+              const sentN   = rows.filter(r => isSentStatus(r.status) || r.sent_at).length;
+              const pendingN= rows.filter(r => r.status === "pending").length;
               const openedN = rows.filter(r => r.opened_at).length;
               const clickedN= rows.filter(r => r.clicked_at).length;
               const failedN = rows.filter(r => r.status === "failed").length;
               return <>
                 <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
+                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label="Pendientes" value={pendingN} color="purple" />}
                 <MiniStat icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${openedN} · ${pct(openedN, sentN)}`} color="green" />
                 <MiniStat icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${clickedN} · ${pct(clickedN, sentN)}`} color="purple" />
                 <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
               </>;
             })() : (() => {
               const rows = detailRows as WaSendRow[];
-              const sentN     = rows.length;
+              const sentN     = rows.filter(r => isSentStatus(r.status) || r.sent_at).length;
+              const pendingN  = rows.filter(r => r.status === "pending").length;
               const deliveredN= rows.filter(r => r.delivered_at).length;
               const readN     = rows.filter(r => r.read_at).length;
               const failedN   = rows.filter(r => r.status === "failed").length;
               return <>
                 <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
+                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label="Pendientes" value={pendingN} color="purple" />}
                 <MiniStat icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${deliveredN} · ${pct(deliveredN, sentN)}`} color="teal" />
                 <MiniStat icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${readN} · ${pct(readN, sentN)}`} color="green" />
                 <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
