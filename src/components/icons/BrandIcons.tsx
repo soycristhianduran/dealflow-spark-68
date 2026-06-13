@@ -255,29 +255,13 @@ export function EmailIcon({ size = 24, className, ...rest }: BrandIconProps) {
   );
 }
 
-/** 3D email: glossy blue envelope with depth shadow + flap highlight. */
+/** 3D email envelope (Xicons.co) — blue with layered flap depth. */
 export function EmailIcon3D({ size = 24, className, ...rest }: BrandIconProps) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 32 32" className={className} {...rest}>
-      <defs>
-        <linearGradient id="em3-g" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#6FB8FF" />
-          <stop offset="0.55" stopColor="#2E7DF6" />
-          <stop offset="1" stopColor="#1B57C9" />
-        </linearGradient>
-        <linearGradient id="em3-flap" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#9BD0FF" />
-          <stop offset="1" stopColor="#3C8BF8" />
-        </linearGradient>
-        <radialGradient id="em3-gloss" cx="0.3" cy="0.2" r="0.7">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.5" />
-          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0" />
-        </radialGradient>
-      </defs>
-      <rect x="3" y="6.5" width="26" height="19" rx="4" fill="url(#em3-g)" />
-      <path d="M3 10.5 16 19l13-8.5V11L16 19.5 3 11z" fill="#0E3F94" opacity="0.45" />
-      <path d="M5 8.5 16 16l11-7.5z" fill="url(#em3-flap)" />
-      <rect x="3" y="6.5" width="26" height="19" rx="4" fill="url(#em3-gloss)" />
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 48 48" className={className} {...rest}>
+      <rect y="6" width="48" height="36" rx="2" ry="2" fill="#38b1e7" />
+      <path d="M47.84,40.56A2.11,2.11,0,0,1,46,41.9L2,42H2A2,2,0,0,1,.15,40.78a2,2,0,0,1,.44-2.16L17.88,21.73a9.23,9.23,0,0,1,12.56.07L47.4,38.41A2,2,0,0,1,47.84,40.56Z" fill="#299acc" />
+      <path d="M47.84,7.44A2.11,2.11,0,0,0,46,6.1L2,6H2A2,2,0,0,0,.15,7.22,2,2,0,0,0,.59,9.38L17.88,26.27a9.23,9.23,0,0,0,12.56-.07L47.4,9.59A2,2,0,0,0,47.84,7.44Z" fill="#6ac1e7" />
     </svg>
   );
 }
