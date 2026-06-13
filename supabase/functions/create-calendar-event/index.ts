@@ -25,8 +25,11 @@ const SUPABASE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const GOOGLE_CLIENT_ID = Deno.env.get("GOOGLE_CLIENT_ID") ?? "";
 const GOOGLE_CLIENT_SECRET = Deno.env.get("GOOGLE_CLIENT_SECRET") ?? "";
 
-const GCAL_BASE = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+const GCAL_ROOT = "https://www.googleapis.com/calendar/v3/calendars";
+const CALENDAR_LIST_URL = "https://www.googleapis.com/calendar/v3/users/me/calendarList";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const eventsBase = (calId: string) =>
+  `${GCAL_ROOT}/${encodeURIComponent(calId || "primary")}/events`;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -119,7 +122,7 @@ Deno.serve(async (req) => {
 
     const { data: tokenRow, error: tokenError } = await supabase
       .from("google_calendar_tokens")
-      .select("provider_token, provider_refresh_token")
+      .select("provider_token, provider_refresh_token, calendar_id")
       .eq("user_id", user.id)
       .single();
 
@@ -128,9 +131,39 @@ Deno.serve(async (req) => {
     }
 
     const { provider_token: accessToken, provider_refresh_token: refreshToken } = tokenRow;
+    const calendarId: string = (tokenRow as any).calendar_id || "primary";
+    const GCAL_BASE = eventsBase(calendarId);
 
     const body = bodyRaw;
     const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email } = body;
+
+    // ── LIST CALENDARS — for the picker in the UI ─────────────────────────────
+    if (action === "list_calendars") {
+      const result = await gcalFetch(
+        supabase, user.id, CALENDAR_LIST_URL, { method: "GET" }, accessToken, refreshToken,
+      );
+      if (!result.ok) {
+        if (result.status === 401) {
+          await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+          return json({ error: "Token de Google expirado. Reconecta Google Calendar.", code: "TOKEN_EXPIRED" }, 401);
+        }
+        return json({ error: `Google Calendar error [${result.status}]` }, 500);
+      }
+      const items = ((result.body as any)?.items || [])
+        .filter((c: any) => c.accessRole === "owner" || c.accessRole === "writer")
+        .map((c: any) => ({ id: c.id, summary: c.summaryOverride || c.summary, primary: !!c.primary }));
+      return json({ success: true, calendars: items, selected: calendarId });
+    }
+
+    // ── SET CALENDAR — persist which calendar to use ──────────────────────────
+    if (action === "set_calendar") {
+      const newId = body.calendar_id || "primary";
+      const { error } = await supabase.from("google_calendar_tokens")
+        .update({ calendar_id: newId, updated_at: new Date().toISOString() })
+        .eq("user_id", user.id);
+      if (error) return json({ error: error.message }, 500);
+      return json({ success: true, selected: newId });
+    }
 
     // ── DELETE ────────────────────────────────────────────────────────────────
     if (action === "delete") {

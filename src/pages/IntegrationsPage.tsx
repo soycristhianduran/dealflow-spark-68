@@ -663,6 +663,55 @@ function VapiSection() {
   );
 }
 
+// Lets the user pick which Google calendar new events land in.
+function GoogleCalendarPicker({ gcal }: { gcal: ReturnType<typeof useGoogleCalendar> }) {
+  const [cals, setCals] = useState<{ id: string; summary: string; primary: boolean }[]>([]);
+  const [selected, setSelected] = useState("primary");
+  const [loadingCals, setLoadingCals] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    gcal.listCalendars().then(res => {
+      if (!active) return;
+      if (res) { setCals(res.calendars); setSelected(res.selected); }
+      setLoadingCals(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const onChange = async (id: string) => {
+    setSelected(id);
+    setSaving(true);
+    const ok = await gcal.setCalendar(id);
+    setSaving(false);
+    if (!ok) toast.error("No se pudo guardar el calendario");
+    else toast.success("Calendario actualizado");
+  };
+
+  return (
+    <div className="mt-3 space-y-1.5">
+      <label className="text-xs font-medium text-foreground">Calendario donde se crean las citas</label>
+      {loadingCals ? (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando calendarios…</div>
+      ) : (
+        <select
+          value={selected}
+          disabled={saving}
+          onChange={e => onChange(e.target.value)}
+          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+        >
+          {cals.length === 0 && <option value="primary">Principal</option>}
+          {cals.map(c => (
+            <option key={c.id} value={c.id}>{c.summary}{c.primary ? " (Principal)" : ""}</option>
+          ))}
+        </select>
+      )}
+      <p className="text-[11px] text-muted-foreground">Tanto tus reuniones del CRM como las citas que agende el agente IA se crearán en este calendario.</p>
+    </div>
+  );
+}
+
 export default function IntegrationsPage() {
   const { organizationId } = useOrganizationContext();
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
@@ -1063,6 +1112,7 @@ export default function IntegrationsPage() {
                   <p className="text-sm text-green-700 dark:text-green-400">
                     ✅ Las reuniones que crees en el CRM se agregarán automáticamente a tu Google Calendar.
                   </p>
+                  <GoogleCalendarPicker gcal={gcal} />
                 </div>
               )}
 

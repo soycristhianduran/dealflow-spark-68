@@ -186,6 +186,25 @@ export function useGoogleCalendar() {
     [invokeCalendarFn]
   );
 
+  // List the user's Google calendars (only ones they can write to)
+  const listCalendars = useCallback(async (): Promise<
+    { calendars: { id: string; summary: string; primary: boolean }[]; selected: string } | null
+  > => {
+    const { data, error } = await supabase.functions.invoke("create-calendar-event", {
+      body: { action: "list_calendars" },
+    });
+    if (error || !data?.success) return null;
+    return { calendars: data.calendars || [], selected: data.selected || "primary" };
+  }, []);
+
+  // Persist which calendar to use for new events
+  const setCalendar = useCallback(async (calendarId: string): Promise<boolean> => {
+    const { data, error } = await supabase.functions.invoke("create-calendar-event", {
+      body: { action: "set_calendar", calendar_id: calendarId },
+    });
+    return !error && !!data?.success;
+  }, []);
+
   return {
     isConnected,
     loading,
@@ -196,5 +215,7 @@ export function useGoogleCalendar() {
     updateEvent,
     deleteEvent,
     checkConnection,
+    listCalendars,
+    setCalendar,
   };
 }
