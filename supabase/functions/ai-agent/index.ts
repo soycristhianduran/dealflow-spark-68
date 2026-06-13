@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -104,6 +104,20 @@ ${cfg.payment_account_info ? `- Datos de la cuenta que debe recibir el pago: ${c
 ${opts.media.map((m) => `- id: ${m.id} | ${m.name}${m.description ? ` — ${m.description}` : ""}`).join("\n")}\n`
     : "";
 
+  // Reschedule/cancel (only if the contact has an upcoming appointment)
+  const rescheduleBlock = (opts.canBook && opts.upcomingMeeting)
+    ? `\nCITA EXISTENTE DEL CLIENTE: "${opts.upcomingMeeting.title}" el ${new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(new Date(opts.upcomingMeeting.start_at))}.
+- Si el cliente quiere CAMBIAR la fecha/hora, usa reschedule_appointment con la nueva fecha (verifica disponibilidad antes).
+- Si el cliente quiere CANCELAR, confirma con él y usa cancel_appointment.\n`
+    : "";
+
+  // CRM actions (lead qualification)
+  const crmBlock = `\nACCIONES EN EL CRM (hazlas en segundo plano, sin anunciárselas al cliente, usando update_lead):
+- Si el cliente da su NOMBRE o CORREO y no los teníamos, guárdalos (full_name / email).
+- Etiqueta al lead según su interés.${opts.orgTags?.length ? ` Etiquetas disponibles: ${opts.orgTags.join(", ")}. Puedes crear una nueva si ninguna aplica.` : ""}
+${opts.stages?.length ? `- Mueve al lead de etapa según avance la conversación. Etapas: ${opts.stages.join(" → ")}. (Ej: si agenda cita, muévelo a la etapa de cita; si muestra intención de compra, a una etapa más avanzada.)` : ""}
+- Registra una nota breve (note) con el interés o resumen relevante cuando sea útil.\n`;
+
   return `Eres ${cfg.agent_name || "Asistente"}, el asistente virtual de ${cfg.business_name || "nuestra empresa"}.
 Tu rol es atender consultas de clientes por ${["WhatsApp", "Instagram", "Messenger"].join("/")} de forma rápida y útil.
 
@@ -112,7 +126,7 @@ ${tone}
 ${cfg.business_description ? `SOBRE EL NEGOCIO:\n${cfg.business_description}\n` : ""}
 ${cfg.products ? `PRODUCTOS Y SERVICIOS:\n${cfg.products}\n` : ""}
 ${cfg.faqs ? `PREGUNTAS FRECUENTES:\n${cfg.faqs}\n` : ""}
-${bookingBlock}${mediaBlock}
+${bookingBlock}${rescheduleBlock}${crmBlock}${mediaBlock}
 REGLAS IMPORTANTES:
 1. Responde siempre en el idioma en que te escriben.
 2. Sé conciso. Cada idea en una oración clara. Máximo 2-3 oraciones por párrafo.
@@ -275,11 +289,30 @@ Deno.serve(async (req) => {
     // Email already on file for this contact (so the agent can confirm it
     // instead of asking from scratch).
     let contactEmailOnFile: string | null = null;
-    if (canBook && contact_id) {
+    let contactStages: { id: string; name: string }[] = [];
+    let upcomingMeeting: { id: string; title: string; start_at: string; google_event_id: string | null; meeting_type: string | null } | null = null;
+    if (contact_id) {
       const { data: cInfo } = await supabase.from("contacts")
-        .select("primary_email").eq("id", contact_id).maybeSingle();
+        .select("primary_email, pipeline_id").eq("id", contact_id).maybeSingle();
       contactEmailOnFile = cInfo?.primary_email || null;
+      // Pipeline stages for this contact's pipeline (for CRM stage moves)
+      const pid = cInfo?.pipeline_id || "00000000-0000-0000-0000-000000000001";
+      const { data: stages } = await supabase.from("pipeline_stages")
+        .select("id, name").eq("pipeline_id", pid).order("order");
+      contactStages = (stages as any) || [];
+      // Next upcoming appointment (for reschedule/cancel)
+      const { data: mtg } = await supabase.from("meetings")
+        .select("id, title, start_at, google_event_id, meeting_type")
+        .eq("contact_id", contact_id).eq("status", "scheduled")
+        .gt("start_at", new Date().toISOString())
+        .order("start_at", { ascending: true }).limit(1).maybeSingle();
+      upcomingMeeting = (mtg as any) || null;
     }
+
+    // Org tag catalog (for lead tagging)
+    const { data: orgTagRows } = await supabase.from("organization_tags")
+      .select("name").eq("organization_id", organization_id).limit(60);
+    const orgTags = (orgTagRows || []).map((t: any) => t.name);
 
     const nowBogota = new Intl.DateTimeFormat("es-CO", {
       timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
@@ -331,6 +364,37 @@ Deno.serve(async (req) => {
         },
       });
     }
+    // CRM lead actions (always available)
+    tools.push({
+      name: "update_lead",
+      description: "Actualiza el lead/contacto en el CRM en segundo plano: guardar nombre/correo, agregar etiquetas, mover de etapa del pipeline, o registrar una nota. No se lo anuncies al cliente.",
+      input_schema: {
+        type: "object",
+        properties: {
+          full_name: { type: "string", description: "Nombre completo del cliente (si lo proporciona y no lo teníamos)." },
+          email: { type: "string", description: "Correo del cliente (si lo proporciona)." },
+          tags: { type: "array", items: { type: "string" }, description: "Etiquetas a agregar al lead." },
+          stage: { type: "string", description: "Nombre EXACTO de la etapa del pipeline a la que mover el lead (de la lista de etapas disponibles)." },
+          note: { type: "string", description: "Nota breve sobre el interés o resumen para el vendedor." },
+        },
+      },
+    });
+    if (canBook && upcomingMeeting) {
+      tools.push({
+        name: "reschedule_appointment",
+        description: "Cambia la fecha/hora de la cita existente del cliente. Verifica disponibilidad antes con check_availability.",
+        input_schema: {
+          type: "object",
+          properties: { new_datetime_iso: { type: "string", description: "Nueva fecha y hora en ISO. Ej: 2026-06-18T15:00:00" } },
+          required: ["new_datetime_iso"],
+        },
+      });
+      tools.push({
+        name: "cancel_appointment",
+        description: "Cancela la cita existente del cliente. Úsala solo cuando el cliente lo confirme.",
+        input_schema: { type: "object", properties: {} },
+      });
+    }
     if (mediaList.length) {
       tools.push({
         name: "send_media",
@@ -354,7 +418,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile });
+    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
     const mediaToSend: any[] = [];
     let aiText = "";
     let bookedThisTurn = false;
@@ -418,6 +482,15 @@ Deno.serve(async (req) => {
               input: b.input,
             });
             if (resultText.startsWith("Cita agendada correctamente")) bookedThisTurn = true;
+          } else if (b.name === "update_lead") {
+            resultText = await updateLead(supabase, { organization_id, contact_id, advisorUserId, stages: contactStages, input: b.input });
+          } else if (b.name === "reschedule_appointment") {
+            resultText = await rescheduleAppointment(supabase, {
+              meeting: upcomingMeeting, advisorUserId: advisorUserId!, workingHours: cfg.working_hours,
+              durationMin: cfg.appointment_duration_min || 30, input: b.input,
+            });
+          } else if (b.name === "cancel_appointment") {
+            resultText = await cancelAppointment(supabase, { meeting: upcomingMeeting, advisorUserId: advisorUserId! });
           } else if (b.name === "send_media") {
             const m = mediaById.get(b.input?.media_id);
             if (!m) { resultText = "No existe ese archivo."; }
@@ -694,6 +767,134 @@ async function bookAppointment(
     : (address ? ` Es presencial en: ${address}.` : " Es presencial.");
   const invite = attendeeEmail ? " Le llegará una invitación por correo." : " (No tengo su correo; pídeselo si quiere recibir la invitación por email.)";
   return `Cita agendada correctamente para ${when}.${detail}${invite} Confírmasela al cliente.`;
+}
+
+// CRM lead actions: name/email, tags, pipeline stage, note.
+async function updateLead(
+  supabase: any,
+  args: { organization_id: string; contact_id: string | null; advisorUserId: string | null; stages: { id: string; name: string }[]; input: any },
+): Promise<string> {
+  const { organization_id, contact_id, stages, input } = args;
+  if (!contact_id) return "No hay un contacto asociado a esta conversación.";
+  const done: string[] = [];
+  const contactUpdate: Record<string, unknown> = {};
+
+  if (input?.full_name) { contactUpdate.full_name = String(input.full_name).slice(0, 120); done.push("nombre"); }
+  if (input?.email && /\S+@\S+\.\S+/.test(input.email)) { contactUpdate.primary_email = input.email; done.push("correo"); }
+
+  // Tags: merge into contacts.tags + register in catalog
+  if (Array.isArray(input?.tags) && input.tags.length) {
+    const { data: c } = await supabase.from("contacts").select("tags").eq("id", contact_id).maybeSingle();
+    const existing: string[] = Array.isArray(c?.tags) ? c.tags : [];
+    const lower = new Set(existing.map((t: string) => t.toLowerCase()));
+    const merged = [...existing];
+    for (const raw of input.tags) {
+      const t = String(raw).trim();
+      if (t && !lower.has(t.toLowerCase())) { merged.push(t); lower.add(t.toLowerCase()); }
+      // register in org catalog (best-effort)
+      await supabase.from("organization_tags").upsert({ organization_id, name: t }, { onConflict: "organization_id,name", ignoreDuplicates: true });
+    }
+    contactUpdate.tags = merged;
+    done.push("etiquetas");
+  }
+
+  // Stage: map name → id within the contact's pipeline
+  if (input?.stage) {
+    const match = stages.find(s => s.name.toLowerCase() === String(input.stage).toLowerCase());
+    if (match) { contactUpdate.stage_id = match.id; done.push(`etapa "${match.name}"`); }
+  }
+
+  if (Object.keys(contactUpdate).length) {
+    await supabase.from("contacts").update(contactUpdate).eq("id", contact_id);
+  }
+
+  // Note → activity
+  if (input?.note) {
+    await supabase.from("activities").insert({
+      related_entity_type: "contact", related_entity_id: contact_id,
+      event_type: "note", event_source: "ai_agent",
+      summary: `🤖 ${String(input.note).slice(0, 500)}`,
+      created_by: args.advisorUserId || null,
+    });
+    done.push("nota");
+  }
+
+  return done.length ? `Lead actualizado (${done.join(", ")}).` : "No había nada que actualizar.";
+}
+
+// Reschedule the contact's upcoming appointment.
+async function rescheduleAppointment(
+  supabase: any,
+  args: { meeting: any; advisorUserId: string; workingHours: any; durationMin: number; input: any },
+): Promise<string> {
+  const { meeting, advisorUserId, workingHours, durationMin, input } = args;
+  if (!meeting) return "El cliente no tiene una cita próxima para reagendar.";
+  const iso: string = input?.new_datetime_iso;
+  const m = (iso || "").match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
+  if (!m) return "Formato de fecha inválido.";
+  const [_, y, mo, d, hh, mm] = m;
+  const startUtc = new Date(Date.UTC(+y, +mo - 1, +d, +hh + 5, +mm));
+  if (isNaN(startUtc.getTime()) || startUtc.getTime() <= Date.now()) return "Esa fecha ya pasó. Ofrece una futura.";
+  const dowKey = DOW[new Date(Date.UTC(+y, +mo - 1, +d)).getUTCDay()];
+  const wh = workingHours?.[dowKey];
+  if (!wh?.enabled) return "Ese día no se atiende. Ofrece otro.";
+  const minutes = +hh * 60 + +mm;
+  const [sH, sM] = String(wh.start || "09:00").split(":").map(Number);
+  const [eH, eM] = String(wh.end || "18:00").split(":").map(Number);
+  if (minutes < sH * 60 + sM || minutes + durationMin > eH * 60 + eM) return `Esa hora está fuera del horario (${wh.start}-${wh.end}).`;
+  const endUtc = new Date(startUtc.getTime() + durationMin * 60000);
+
+  // Availability (ignore the meeting's own current slot)
+  const busy = await fetchBusy(advisorUserId, startUtc.toISOString(), endUtc.toISOString());
+  if (busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()))) {
+    return "Esa hora ya está ocupada. Ofrece otra hora libre.";
+  }
+
+  await supabase.from("meetings").update({ start_at: startUtc.toISOString(), end_at: endUtc.toISOString() }).eq("id", meeting.id);
+
+  // Update Google Calendar event (sends update invite)
+  if (meeting.google_event_id) {
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/create-calendar-event`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+        },
+        body: JSON.stringify({
+          action: "update", user_id: advisorUserId, google_event_id: meeting.google_event_id,
+          title: meeting.title, start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
+        }),
+      });
+    } catch (e) { console.warn("[ai-agent] reschedule gcal failed:", e); }
+  }
+  const when = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(startUtc);
+  return `Cita reagendada correctamente para ${when}. Confírmaselo al cliente.`;
+}
+
+// Cancel the contact's upcoming appointment.
+async function cancelAppointment(
+  supabase: any,
+  args: { meeting: any; advisorUserId: string },
+): Promise<string> {
+  const { meeting, advisorUserId } = args;
+  if (!meeting) return "El cliente no tiene una cita próxima para cancelar.";
+  if (meeting.google_event_id) {
+    try {
+      await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/create-calendar-event`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+        },
+        body: JSON.stringify({ action: "delete", user_id: advisorUserId, google_event_id: meeting.google_event_id }),
+      });
+    } catch (e) { console.warn("[ai-agent] cancel gcal failed:", e); }
+  }
+  await supabase.from("meetings").update({ status: "cancelled" }).eq("id", meeting.id);
+  return "Cita cancelada correctamente. Confírmaselo al cliente.";
 }
 
 async function transcribeAudio(mediaUrl: string | null, anthropicKey: string): Promise<string | null> {
