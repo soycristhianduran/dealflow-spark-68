@@ -42,6 +42,7 @@ interface AgentConfig {
   appointments_enabled: boolean;
   appointment_duration_min: number;
   working_hours: WorkingHours;
+  meeting_address: string;
 }
 
 const DEFAULT_HOURS: WorkingHours = {
@@ -83,6 +84,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   appointments_enabled: false,
   appointment_duration_min: 30,
   working_hours: DEFAULT_HOURS,
+  meeting_address: "",
 };
 
 export default function AIAgentPage() {
@@ -139,6 +141,7 @@ export default function AIAgentPage() {
           appointments_enabled: data.appointments_enabled ?? false,
           appointment_duration_min: data.appointment_duration_min ?? 30,
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
+          meeting_address: data.meeting_address ?? "",
         });
       }
     } catch (err) {
@@ -231,6 +234,7 @@ export default function AIAgentPage() {
         appointments_enabled: config.appointments_enabled,
         appointment_duration_min: config.appointment_duration_min,
         working_hours: config.working_hours,
+        meeting_address: config.meeting_address.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -504,6 +508,19 @@ export default function AIAgentPage() {
                         <SelectItem value="60">1 hora</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Dirección para citas presenciales</Label>
+                    <Input
+                      placeholder="Ej: Calle 10 #43-20, Oficina 501, Medellín"
+                      value={config.meeting_address}
+                      onChange={e => set("meeting_address", e.target.value)}
+                      maxLength={200}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Para reuniones presenciales, el agente usará esta dirección automáticamente. Las virtuales generan un enlace de Google Meet solo.
+                    </p>
                   </div>
 
                   <div className="space-y-2">

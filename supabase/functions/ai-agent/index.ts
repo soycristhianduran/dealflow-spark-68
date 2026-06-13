@@ -74,7 +74,7 @@ ${opts.upcomingDates}
 - Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
 - IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
-- Pregunta si la reunión será VIRTUAL (se genera un enlace de Google Meet) o PRESENCIAL (necesitas la dirección). Si es presencial y no sabes la dirección, pídela o usa la del negocio.
+- Pregunta si la reunión será VIRTUAL (se genera un enlace de Google Meet) o PRESENCIAL.${cfg.meeting_address ? ` Si es presencial, la dirección del negocio es: "${cfg.meeting_address}" (úsala automáticamente, no la pidas).` : " Si es presencial, pídele al cliente la dirección o el lugar."}
 - CORREO para la invitación:${opts.contactEmail ? ` ya tenemos registrado el correo "${opts.contactEmail}". NO lo pidas de nuevo: confírmalo con el cliente ("¿Te envío la invitación a ${opts.contactEmail}?"). Si lo confirma, pásalo en client_email. Si dice que es otro, usa el nuevo.` : ` no tenemos su correo. Pídeselo para enviarle la invitación (si no quiere darlo, agenda igual pero avísale que sin correo no recibirá la invitación por email).`}
 - Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con datetime_iso, mode (virtual/presencial), address (si aplica) y client_email (si lo tienes).
 - Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
@@ -380,6 +380,7 @@ Deno.serve(async (req) => {
               organization_id, advisorUserId: advisorUserId!, contact_id,
               durationMin: cfg.appointment_duration_min || 30,
               workingHours: cfg.working_hours,
+              defaultAddress: cfg.meeting_address || null,
               input: b.input,
             });
           } else if (b.name === "send_media") {
@@ -542,10 +543,10 @@ async function bookAppointment(
   supabase: any,
   args: {
     organization_id: string; advisorUserId: string; contact_id: string | null;
-    durationMin: number; workingHours: any; input: any;
+    durationMin: number; workingHours: any; defaultAddress?: string | null; input: any;
   },
 ): Promise<string> {
-  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, input } = args;
+  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, input } = args;
   const iso: string = input?.datetime_iso;
   if (!iso) return "Falta la fecha/hora.";
 
@@ -598,7 +599,7 @@ async function bookAppointment(
   const notes = input?.notes || null;
 
   const isVirtual = (input?.mode || "virtual") !== "presencial";
-  const address: string | null = !isVirtual ? (input?.address || null) : null;
+  const address: string | null = !isVirtual ? (input?.address || defaultAddress || null) : null;
   const meetingType = isVirtual ? "video_call" : "in_person";
 
   // Insert the meeting row (CRM)
