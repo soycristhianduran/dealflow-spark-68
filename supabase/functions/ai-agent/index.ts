@@ -73,9 +73,9 @@ function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: s
 ${opts.upcomingDates}
 - Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
-- Solo ofrece y agenda horarios dentro del horario de atención y en el futuro.
+- IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
 - Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con la fecha/hora en formato ISO (ej. 2026-06-17T15:00:00).
-- Si la herramienta devuelve un conflicto o error, ofrece otra hora.\n`
+- Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.\n`
     : "";
 
   const mediaBlock = opts.media.length
@@ -273,6 +273,17 @@ Deno.serve(async (req) => {
     const tools: any[] = [];
     if (canBook) {
       tools.push({
+        name: "check_availability",
+        description: "Consulta los horarios REALMENTE disponibles de un día (cruza el horario de atención con la agenda ocupada en Google Calendar). Úsala ANTES de ofrecer horas al cliente.",
+        input_schema: {
+          type: "object",
+          properties: {
+            date_iso: { type: "string", description: "Fecha a consultar en formato YYYY-MM-DD. Ej: 2026-06-17" },
+          },
+          required: ["date_iso"],
+        },
+      });
+      tools.push({
         name: "book_appointment",
         description: "Agenda una cita/reunión con el cliente en el calendario. Úsala SOLO cuando el cliente ya confirmó fecha y hora.",
         input_schema: {
@@ -347,7 +358,9 @@ Deno.serve(async (req) => {
         if (b.type !== "tool_use") continue;
         let resultText = "";
         try {
-          if (b.name === "book_appointment") {
+          if (b.name === "check_availability") {
+            resultText = await checkAvailability(advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30);
+          } else if (b.name === "book_appointment") {
             resultText = await bookAppointment(supabase, {
               organization_id, advisorUserId: advisorUserId!, contact_id,
               durationMin: cfg.appointment_duration_min || 30,
@@ -454,6 +467,60 @@ async function resolveAdvisor(supabase: any, orgId: string, contactId: string | 
 
 const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
+// Bogota is UTC-5 (no DST). Build a UTC Date from a Bogota wall-clock.
+function bogotaToUtc(y: number, mo: number, d: number, hh: number, mm: number): Date {
+  return new Date(Date.UTC(y, mo - 1, d, hh + 5, mm));
+}
+
+// Ask Google Calendar for busy intervals in a window (via create-calendar-event).
+async function fetchBusy(advisorUserId: string, timeMinIso: string, timeMaxIso: string): Promise<{ start: string; end: string }[]> {
+  const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/create-calendar-event`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      apikey: Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+    },
+    body: JSON.stringify({ action: "freebusy", user_id: advisorUserId, time_min: timeMinIso, time_max: timeMaxIso }),
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body?.success) return [];
+  return (body.busy || []) as { start: string; end: string }[];
+}
+
+const overlaps = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && s2 < e1;
+
+// Compute the real free slots for a day: working hours minus Google-busy minus past.
+async function checkAvailability(advisorUserId: string, dateIso: string, workingHours: any, durationMin: number): Promise<string> {
+  const m = (dateIso || "").match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return "Fecha inválida. Usa formato YYYY-MM-DD.";
+  const [_, y, mo, d] = m.map(Number) as unknown as number[];
+  const dowKey = DOW[new Date(Date.UTC(y, mo - 1, d)).getUTCDay()];
+  const wh = workingHours?.[dowKey];
+  if (!wh?.enabled) return `Ese día no se atiende. Ofrece otro día dentro del horario.`;
+
+  const [sH, sM] = String(wh.start || "09:00").split(":").map(Number);
+  const [eH, eM] = String(wh.end || "18:00").split(":").map(Number);
+  const dayStart = bogotaToUtc(y, mo, d, sH, sM).getTime();
+  const dayEnd = bogotaToUtc(y, mo, d, eH, eM).getTime();
+
+  const busy = await fetchBusy(advisorUserId, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
+  const busyMs = busy.map(b => [new Date(b.start).getTime(), new Date(b.end).getTime()] as [number, number]);
+
+  const stepMs = durationMin * 60000;
+  const now = Date.now();
+  const free: string[] = [];
+  for (let t = dayStart; t + stepMs <= dayEnd; t += stepMs) {
+    if (t < now) continue;
+    if (busyMs.some(([bs, be]) => overlaps(t, t + stepMs, bs, be))) continue;
+    // Label in Bogota HH:mm
+    const label = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(t));
+    free.push(label);
+  }
+  if (!free.length) return `No hay horarios libres ese día (todo ocupado o fuera de horario). Ofrece otro día.`;
+  return `Horarios disponibles ese día: ${free.join(", ")}. Ofrécele estos al cliente.`;
+}
+
 // Validate the requested slot against working hours, create the meeting row and
 // the Google Calendar event. Returns a short result string for the model.
 async function bookAppointment(
@@ -487,6 +554,14 @@ async function bookAppointment(
   }
 
   const endUtc = new Date(startUtc.getTime() + durationMin * 60000);
+
+  // Real availability check: reject if the slot overlaps something already on
+  // the advisor's Google Calendar (prevents double-booking).
+  const busy = await fetchBusy(advisorUserId, startUtc.toISOString(), endUtc.toISOString());
+  const clash = busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()));
+  if (clash) {
+    return "Esa hora ya está ocupada en la agenda. Usa check_availability para ofrecer otra hora libre.";
+  }
 
   // Contact info for the title/attendee
   let contactName = "Cliente";

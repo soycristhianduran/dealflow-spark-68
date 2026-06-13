@@ -104,7 +104,9 @@ export function useGoogleCalendar() {
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: CALLBACK_URL,
         response_type: "code",
-        scope: "https://www.googleapis.com/auth/calendar.events",
+        // calendar.events = crear/editar/borrar eventos.
+        // calendar.readonly = leer disponibilidad (freeBusy) y listar calendarios.
+        scope: "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly",
         access_type: "offline",
         prompt: "consent",
         include_granted_scopes: "true",

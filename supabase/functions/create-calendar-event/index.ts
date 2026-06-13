@@ -166,6 +166,35 @@ Deno.serve(async (req) => {
       return json({ success: true, calendars: items, selected: calendarId });
     }
 
+    // ── FREEBUSY — return busy intervals in a time range (for availability) ───
+    if (action === "freebusy") {
+      const { time_min, time_max } = body;
+      if (!time_min || !time_max) return json({ error: "time_min and time_max required" }, 400);
+      const result = await gcalFetch(
+        supabase, user.id,
+        "https://www.googleapis.com/calendar/v3/freeBusy",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            timeMin: time_min, timeMax: time_max, timeZone: "America/Bogota",
+            items: [{ id: calendarId }],
+          }),
+        },
+        accessToken, refreshToken,
+      );
+      if (!result.ok) {
+        if (result.status === 401) {
+          await supabase.from("google_calendar_tokens").delete().eq("user_id", user.id);
+          return json({ error: "Token de Google expirado.", code: "TOKEN_EXPIRED" }, 401);
+        }
+        return json({ error: `Google Calendar error [${result.status}]` }, 500);
+      }
+      const cals = (result.body as any)?.calendars || {};
+      const busy = cals[calendarId]?.busy || cals["primary"]?.busy || [];
+      return json({ success: true, busy });
+    }
+
     // ── SET CALENDAR — persist which calendar to use ──────────────────────────
     if (action === "set_calendar") {
       const newId = body.calendar_id || "primary";
