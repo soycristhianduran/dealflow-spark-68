@@ -11,8 +11,10 @@ import {
   DollarSign, Trophy, XCircle, ArrowUpRight, ArrowDownRight,
   CalendarDays, CheckSquare, Activity, Target, BarChart3, Loader2,
   AlertTriangle, MessageCircle, Users, GitBranch, X, CheckCircle2,
-  Zap, Mail, Sparkles,
+  Zap, Mail, Sparkles, Sliders, Eye, EyeOff, ChevronUp, ChevronDown,
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -21,6 +23,16 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 type Period = "week" | "month" | "quarter" | "year";
+
+// Dashboard sections the user can show/hide and reorder.
+const DASH_BLOCKS: { id: string; label: string }[] = [
+  { id: "kpis",       label: "Indicadores de ventas (KPIs)" },
+  { id: "insights",   label: "Adquisición, Agente IA, Campañas y Conversión" },
+  { id: "funnel",     label: "Pipeline por etapa + Razones de pérdida" },
+  { id: "agenda",     label: "Citas, Tareas y Actividad reciente" },
+  { id: "objections", label: "Objeciones principales (IA)" },
+];
+const DASH_DEFAULT_ORDER = DASH_BLOCKS.map(b => b.id);
 
 const PERIOD_OPTIONS: { value: Period; label: string; days: number }[] = [
   { value: "week",    label: "7 días",    days: 7   },
@@ -401,6 +413,46 @@ export default function DashboardPage() {
   // Pipeline funnel
   const [stageData, setStageData] = useState<StageRow[]>([]);
 
+  // ── Dashboard personalization (per-user: order + hidden sections) ──────────
+  const [dashOrder, setDashOrder] = useState<string[]>([...DASH_DEFAULT_ORDER]);
+  const [dashHidden, setDashHidden] = useState<string[]>([]);
+  const [customizeOpen, setCustomizeOpen] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("user_dashboard_prefs").select("layout, hidden").eq("user_id", user.id).maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          const saved = Array.isArray(data.layout) ? (data.layout as string[]) : [];
+          // Merge: keep saved order, append any new blocks not yet saved.
+          const merged = [...saved.filter(id => DASH_DEFAULT_ORDER.includes(id)),
+            ...DASH_DEFAULT_ORDER.filter(id => !saved.includes(id))];
+          setDashOrder(merged);
+          setDashHidden(Array.isArray(data.hidden) ? (data.hidden as string[]) : []);
+        }
+      });
+  }, [user?.id]);
+
+  const savePrefs = useCallback(async (order: string[], hidden: string[]) => {
+    if (!user) return;
+    await supabase.from("user_dashboard_prefs").upsert({
+      user_id: user.id, layout: order, hidden, updated_at: new Date().toISOString(),
+    });
+  }, [user?.id]);
+
+  const orderOf = (id: string) => { const i = dashOrder.indexOf(id); return i === -1 ? 99 : i; };
+  const isHidden = (id: string) => dashHidden.includes(id);
+  const toggleHidden = (id: string) => {
+    const next = dashHidden.includes(id) ? dashHidden.filter(x => x !== id) : [...dashHidden, id];
+    setDashHidden(next); savePrefs(dashOrder, next);
+  };
+  const moveBlock = (id: string, dir: -1 | 1) => {
+    const i = dashOrder.indexOf(id); const j = i + dir;
+    if (i < 0 || j < 0 || j >= dashOrder.length) return;
+    const next = [...dashOrder]; [next[i], next[j]] = [next[j], next[i]];
+    setDashOrder(next); savePrefs(next, dashHidden);
+  };
+
   // Ratio widgets
   const [lostReasons,   setLostReasons]   = useState<RatioRow[]>([]);
   const [topObjections, setTopObjections] = useState<RatioRow[]>([]);
@@ -636,25 +688,33 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
       />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 scrollbar-thin">
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-4 md:gap-6 scrollbar-thin">
 
         {/* ── Setup banner (shown to new workspaces) ─────────────── */}
         {!setupDismissed && (
+          <div style={{ order: -3 }}>
           <SetupBanner
             waConnected={waConnected}
             hasContacts={totalContacts > 0}
             hasDeals={pipelineN > 0}
             onDismiss={dismissSetup}
           />
+          </div>
         )}
 
         {/* ── Header bar ─────────────────────────────────────────── */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" style={{ order: -2 }}>
           <p className="text-sm text-muted-foreground font-medium">Resumen de rendimiento</p>
-          <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCustomizeOpen(true)}>
+              <Sliders className="h-3.5 w-3.5" /> Personalizar
+            </Button>
+            <PeriodSelector value={period} onChange={setPeriod} />
+          </div>
         </div>
 
         {/* ── 5 KPI cards ────────────────────────────────────────── */}
+        <div style={{ order: orderOf("kpis") }} hidden={isHidden("kpis")}>
         <div className="grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <KpiCard
             label="Revenue ganado"
@@ -701,15 +761,19 @@ export default function DashboardPage() {
             accent="violet"
           />
         </div>
+        </div>
 
         {/* ── Insights: leads, agent, campaigns, conversion, vendors ── */}
+        <div style={{ order: orderOf("insights") }} hidden={isHidden("insights")}>
         <DashboardInsights
           stageData={stageData.map((s) => ({ name: s.name, count: s.count, color: s.color }))}
           isOwner={!isVendor}
           vendorId={isVendor && myUserId ? myUserId : null}
         />
+        </div>
 
         {/* ── Pipeline funnel + Loss reasons ─────────────────────── */}
+        <div style={{ order: orderOf("funnel") }} hidden={isHidden("funnel")}>
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Funnel — takes 2/3 */}
@@ -832,8 +896,10 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+        </div>
 
         {/* ── Activity row ───────────────────────────────────────── */}
+        <div style={{ order: orderOf("agenda") }} hidden={isHidden("agenda")}>
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Upcoming meetings */}
@@ -954,9 +1020,11 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+        </div>
 
         {/* ── Objections (only if data exists) ───────────────────── */}
         {topObjections.length > 0 && (
+          <div style={{ order: orderOf("objections") }} hidden={isHidden("objections")}>
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -991,9 +1059,44 @@ export default function DashboardPage() {
               </div>
             </CardContent>
           </Card>
+          </div>
         )}
 
       </main>
+
+      {/* ── Customize dashboard modal ─────────────────────────────── */}
+      <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Sliders className="h-4 w-4" /> Personalizar dashboard</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">Muestra/oculta y reordena las secciones. Se guarda solo para ti.</p>
+          <div className="space-y-2 mt-2">
+            {dashOrder.map((id, idx) => {
+              const block = DASH_BLOCKS.find(b => b.id === id);
+              if (!block) return null;
+              const hidden = isHidden(id);
+              return (
+                <div key={id} className="flex items-center gap-2 rounded-lg border p-2.5">
+                  <div className="flex flex-col">
+                    <button disabled={idx === 0} onClick={() => moveBlock(id, -1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
+                    <button disabled={idx === dashOrder.length - 1} onClick={() => moveBlock(id, 1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
+                  </div>
+                  <span className={`flex-1 text-sm ${hidden ? "text-muted-foreground line-through" : ""}`}>{block.label}</span>
+                  {hidden ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-primary" />}
+                  <Switch checked={!hidden} onCheckedChange={() => toggleHidden(id)} />
+                </div>
+              );
+            })}
+          </div>
+          <button
+            className="mt-2 text-xs text-muted-foreground hover:text-foreground underline self-start"
+            onClick={() => { setDashOrder([...DASH_DEFAULT_ORDER]); setDashHidden([]); savePrefs([...DASH_DEFAULT_ORDER], []); }}
+          >
+            Restablecer al orden original
+          </button>
+        </DialogContent>
+      </Dialog>
 
       {/* First-time welcome message */}
       {myUserId && (
