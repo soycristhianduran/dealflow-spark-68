@@ -583,11 +583,13 @@ export default function ContactsPage() {
     if (!campName) { toast.error("El nombre de la campaña es obligatorio"); return; }
 
     setWaBlastSending(true);
-    setWaBlastProgress({ done: 0, total: 0 });
+    // NOTE: do NOT show the send loader here. For a SCHEDULED campaign nothing is
+    // sent now, so the loader must never appear. It's only shown on the immediate
+    // path below (right before the queued→sending flip).
     try {
       const allSelected = await fetchSelectedContacts();
       const targets = allSelected.filter(c => c.primary_phone);
-      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); setWaBlastSending(false); setWaBlastProgress(null); return; }
+      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); setWaBlastSending(false); return; }
 
       const { data: { user: waAuthUser } } = await supabase.auth.getUser();
       const waUserId = waAuthUser?.id ?? myUserId;
