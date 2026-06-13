@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Clock, Loader2, Search, X, CalendarDays } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Search, X, CalendarDays, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -58,6 +58,7 @@ export function CreateMeetingDialog({
   const { session } = useAuth();
   const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const [title, setTitle] = useState("");
   const [date, setDate] = useState<Date | undefined>(undefined);
@@ -180,6 +181,25 @@ export function CreateMeetingDialog({
       toast.error(`Error al ${isEditing ? "actualizar" : "crear"} cita: ${error.message}`);
     } else {
       toast.success(isEditing ? "Cita actualizada" : "Cita creada");
+      onOpenChange(false);
+      onCreated?.();
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!editingMeeting?.id) return;
+    if (!confirm("¿Eliminar esta cita? Esta acción no se puede deshacer.")) return;
+    setDeleting(true);
+    // Remove from Google Calendar first (best-effort), then from the CRM.
+    if (editingMeeting.google_event_id && gcal.isConnected) {
+      await gcal.deleteEvent(editingMeeting.google_event_id);
+    }
+    const { error } = await supabase.from("meetings").delete().eq("id", editingMeeting.id);
+    setDeleting(false);
+    if (error) {
+      toast.error("No se pudo eliminar la cita: " + error.message);
+    } else {
+      toast.success("Cita eliminada");
       onOpenChange(false);
       onCreated?.();
     }
@@ -386,12 +406,20 @@ export function CreateMeetingDialog({
             </div>
           )}
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-            {isEditing ? "Guardar cambios" : "Crear cita"}
-          </Button>
+        <DialogFooter className="gap-2 sm:justify-between">
+          {isEditing ? (
+            <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleDelete} disabled={deleting || saving}>
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
+              Eliminar
+            </Button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button onClick={handleSave} disabled={saving || deleting}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
+              {isEditing ? "Guardar cambios" : "Crear cita"}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
