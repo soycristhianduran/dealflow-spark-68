@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import { Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, ArrowLeft, X } from "lucide-react";
 import { TagPicker } from "@/components/TagPicker";
 import { Badge } from "@/components/ui/badge";
+import { ImportLoader } from "@/components/crm/ImportLoader";
 
 // CRM fields a CSV column can map to.
 const FIELDS: { value: string; label: string }[] = [
@@ -103,6 +104,8 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const [mapping, setMapping] = useState<Record<number, string>>({});
   const [importing, setImporting] = useState(false);
   const [result, setResult] = useState<{ created: number; updated: number; skipped: number; total: number; duplicates: number } | null>(null);
+  // Background import progress (the loader can be closed while it keeps running).
+  const [progress, setProgress] = useState<{ done: number; total: number; finished: boolean; created: number; updated: number } | null>(null);
 
   // Destination: pipeline / stage / owner for the imported leads.
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
@@ -252,11 +255,20 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           .upsert(allTags.map(name => ({ organization_id: organizationId, name })), { onConflict: "organization_id,name" });
       }
 
+      // Show the background loader and switch the dialog out of the blocking
+      // spinner; the import continues even if the user closes the loader.
+      const totalOps = toInsert.length + toUpdate.length;
+      let processed = 0;
+      setProgress({ done: 0, total: totalOps, finished: false, created: 0, updated: 0 });
+      onOpenChange(false); // close the modal — only the background loader shows now
+
       let created = 0;
       for (const part of chunk(toInsert, 200)) {
         const { data, error } = await supabase.from("contacts").insert(part).select("id");
         if (error) throw error;
         created += data?.length ?? 0;
+        processed += part.length;
+        setProgress(p => p ? { ...p, done: processed, created } : p);
       }
       // Update existing contacts in PARALLEL batches (was one-by-one, which took
       // minutes for thousands of existing contacts). 25 concurrent per batch.
@@ -266,7 +278,12 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           batch.map(u => supabase.from("contacts").update(u.patch).eq("id", u.id).then(({ error }) => !error))
         );
         updated += results.filter(Boolean).length;
+        processed += batch.length;
+        setProgress(p => p ? { ...p, done: processed, updated } : p);
       }
+
+      setProgress({ done: totalOps, total: totalOps, finished: true, created, updated });
+      toast.success(`Importación completada: ${created} nuevos · ${updated} actualizados`);
 
       setResult({
         created, updated,
@@ -284,7 +301,20 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) reset(); }}>
+    <>
+    {/* Background import loader — stays even if the dialog closes (the import
+        keeps running in the browser; a toast fires when it finishes). */}
+    {progress && (
+      <ImportLoader
+        done={progress.done}
+        total={progress.total}
+        finished={progress.finished}
+        created={progress.created}
+        updated={progress.updated}
+        onClose={() => { setProgress(null); onOpenChange(false); reset(); }}
+      />
+    )}
+    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v && !progress) reset(); }}>
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -443,5 +473,6 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
         )}
       </DialogContent>
     </Dialog>
+    </>
   );
 }
