@@ -151,6 +151,7 @@ export function CreateMeetingDialog({
     }
 
     if (!error) {
+      const isVirtual = meetingType === "video_call";
       const gcalParams = {
         title: title.trim(),
         start_at: `${dateStr}T${startTime}:00`,
@@ -158,21 +159,22 @@ export function CreateMeetingDialog({
         description: notes.trim() || undefined,
         location: location.trim() || undefined,
         attendee_email: selectedContact?.primary_email || undefined,
+        // Virtual meeting with no manual link → generate a Google Meet link.
+        create_meet: isVirtual && !location.trim(),
       };
 
       if (!isEditing && gcal.isConnected && syncToGcal && meetingId) {
         // Create new Google Calendar event and persist its ID on the meeting row
         const gcalResult = await gcal.createEvent(gcalParams);
         if (gcalResult?.google_event_id) {
-          await supabase
-            .from("meetings")
-            .update({ google_event_id: gcalResult.google_event_id })
-            .eq("id", meetingId);
+          const upd: Record<string, unknown> = { google_event_id: gcalResult.google_event_id };
+          if (gcalResult.meet_link && isVirtual && !location.trim()) upd.location_or_link = gcalResult.meet_link;
+          await supabase.from("meetings").update(upd).eq("id", meetingId);
           toast.success("También se agregó a Google Calendar", { icon: "📅" });
         }
       } else if (isEditing && gcal.isConnected && editingMeeting?.google_event_id) {
-        // Update the existing Google Calendar event silently
-        await gcal.updateEvent(editingMeeting.google_event_id, gcalParams);
+        // Update the existing Google Calendar event silently (don't regenerate Meet)
+        await gcal.updateEvent(editingMeeting.google_event_id, { ...gcalParams, create_meet: false });
       }
     }
 

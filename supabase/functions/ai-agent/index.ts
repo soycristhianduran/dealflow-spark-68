@@ -74,7 +74,10 @@ ${opts.upcomingDates}
 - Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
 - IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
-- Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con la fecha/hora en formato ISO (ej. 2026-06-17T15:00:00).
+- Pregunta si la reunión será VIRTUAL (se genera un enlace de Google Meet) o PRESENCIAL (necesitas la dirección). Si es presencial y no sabes la dirección, pídela o usa la del negocio.
+- Pide el CORREO del cliente para enviarle la invitación (si no lo da, agenda igual pero avísale que sin correo no recibirá la invitación).
+- Antes de agendar, confirma con el cliente la fecha y hora exactas (di el día y la fecha, ej. "miércoles 17 de junio a las 3pm"). Cuando confirme, llama a book_appointment con datetime_iso, mode (virtual/presencial), address (si aplica) y client_email (si lo tienes).
+- Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
 - Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.\n`
     : "";
 
@@ -285,15 +288,18 @@ Deno.serve(async (req) => {
       });
       tools.push({
         name: "book_appointment",
-        description: "Agenda una cita/reunión con el cliente en el calendario. Úsala SOLO cuando el cliente ya confirmó fecha y hora.",
+        description: "Agenda una cita/reunión con el cliente. Úsala SOLO cuando el cliente ya confirmó fecha, hora y modalidad (virtual o presencial).",
         input_schema: {
           type: "object",
           properties: {
             datetime_iso: { type: "string", description: "Fecha y hora de inicio en ISO 8601, hora de Colombia. Ej: 2026-06-20T15:00:00" },
+            mode: { type: "string", enum: ["virtual", "presencial"], description: "virtual = se genera link de Google Meet. presencial = en una dirección física." },
+            address: { type: "string", description: "Dirección de la reunión (solo si mode=presencial)." },
             title: { type: "string", description: "Título corto de la cita. Ej: Cita con Juan Pérez" },
             notes: { type: "string", description: "Notas o tema de la cita (opcional)" },
+            client_email: { type: "string", description: "Email del cliente para enviarle la invitación (opcional pero recomendado; pídeselo si no lo tienes)." },
           },
-          required: ["datetime_iso"],
+          required: ["datetime_iso", "mode"],
         },
       });
     }
@@ -572,19 +578,27 @@ async function bookAppointment(
     contactName = c?.full_name || contactName;
     contactEmail = c?.primary_email || null;
   }
+  // Prefer the email the agent collected in chat, fall back to the stored one.
+  const attendeeEmail: string | null = (input?.client_email || contactEmail || null);
   const title = (input?.title || `Cita con ${contactName}`).slice(0, 120);
   const notes = input?.notes || null;
+
+  const isVirtual = (input?.mode || "virtual") !== "presencial";
+  const address: string | null = !isVirtual ? (input?.address || null) : null;
+  const meetingType = isVirtual ? "video_call" : "in_person";
 
   // Insert the meeting row (CRM)
   const { data: meeting, error: mErr } = await supabase.from("meetings").insert({
     organization_id, contact_id, advisor_id: advisorUserId,
     title, start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
-    timezone: "America/Bogota", status: "scheduled", meeting_type: "video_call",
-    notes,
+    timezone: "America/Bogota", status: "scheduled", meeting_type: meetingType,
+    location_or_link: address, notes,
   }).select("id").single();
   if (mErr) return `No se pudo guardar la cita: ${mErr.message}`;
 
-  // Create the Google Calendar event (best-effort)
+  // Create the Google Calendar event (best-effort). Virtual → generate Meet link;
+  // presencial → set the address. Sends an email invite to the client.
+  let meetLink: string | null = null;
   try {
     const res = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/create-calendar-event`, {
       method: "POST",
@@ -597,12 +611,17 @@ async function bookAppointment(
         action: "create", user_id: advisorUserId, title,
         description: notes || `Cita agendada por el asistente virtual con ${contactName}.`,
         start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
-        attendee_email: contactEmail || undefined,
+        location: address || undefined,
+        create_meet: isVirtual,
+        attendee_email: attendeeEmail || undefined,
       }),
     });
     const body = await res.json().catch(() => ({}));
     if (res.ok && body?.google_event_id) {
-      await supabase.from("meetings").update({ google_event_id: body.google_event_id }).eq("id", meeting.id);
+      meetLink = body.meet_link || null;
+      const upd: Record<string, unknown> = { google_event_id: body.google_event_id };
+      if (meetLink && isVirtual) upd.location_or_link = meetLink; // store Meet link in CRM
+      await supabase.from("meetings").update(upd).eq("id", meeting.id);
     }
   } catch (e) {
     console.warn("[ai-agent] gcal create failed:", e);
@@ -611,7 +630,11 @@ async function bookAppointment(
   const when = new Intl.DateTimeFormat("es-CO", {
     timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
   }).format(startUtc);
-  return `Cita agendada correctamente para ${when}. Confírmasela al cliente con esa fecha y hora.`;
+  const detail = isVirtual
+    ? (meetLink ? ` Es virtual; el enlace de Google Meet es: ${meetLink}` : " Es virtual (el enlace de Meet llegará en la invitación).")
+    : (address ? ` Es presencial en: ${address}.` : " Es presencial.");
+  const invite = attendeeEmail ? " Le llegará una invitación por correo." : " (No tengo su correo; pídeselo si quiere recibir la invitación por email.)";
+  return `Cita agendada correctamente para ${when}.${detail}${invite} Confírmasela al cliente.`;
 }
 
 async function transcribeAudio(mediaUrl: string | null, anthropicKey: string): Promise<string | null> {

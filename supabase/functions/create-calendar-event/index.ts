@@ -146,7 +146,9 @@ Deno.serve(async (req) => {
     const GCAL_BASE = eventsBase(calendarId);
 
     const body = bodyRaw;
-    const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email } = body;
+    const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email, create_meet } = body;
+    // When the event has an attendee, ask Google to email invites/updates/cancels.
+    const sendUpdates = attendee_email ? "all" : "none";
 
     // ── LIST CALENDARS — for the picker in the UI ─────────────────────────────
     if (action === "list_calendars") {
@@ -210,7 +212,7 @@ Deno.serve(async (req) => {
       if (!google_event_id) return json({ error: "google_event_id required for delete" }, 400);
       const result = await gcalFetch(
         supabase, user.id,
-        `${GCAL_BASE}/${google_event_id}`,
+        `${GCAL_BASE}/${google_event_id}?sendUpdates=all`,
         { method: "DELETE" },
         accessToken, refreshToken,
       );
@@ -233,13 +235,23 @@ Deno.serve(async (req) => {
     };
     if (location) eventPayload.location = location;
     if (attendee_email) eventPayload.attendees = [{ email: attendee_email }];
+    // Virtual meeting → ask Google to generate a Google Meet link.
+    if (create_meet) {
+      eventPayload.conferenceData = {
+        createRequest: {
+          requestId: `klosify-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+          conferenceSolutionKey: { type: "hangoutsMeet" },
+        },
+      };
+    }
+    const conf = create_meet ? "&conferenceDataVersion=1" : "";
 
     // ── UPDATE ────────────────────────────────────────────────────────────────
     if (action === "update") {
       if (!google_event_id) return json({ error: "google_event_id required for update" }, 400);
       const result = await gcalFetch(
         supabase, user.id,
-        `${GCAL_BASE}/${google_event_id}`,
+        `${GCAL_BASE}/${google_event_id}?sendUpdates=${sendUpdates}${conf}`,
         { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eventPayload) },
         accessToken, refreshToken,
       );
@@ -250,14 +262,14 @@ Deno.serve(async (req) => {
         }
         return json({ error: `Google Calendar error [${result.status}]` }, 500);
       }
-      const ev = result.body as Record<string, string>;
-      return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink });
+      const ev = result.body as any;
+      return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink, meet_link: ev.hangoutLink || null });
     }
 
     // ── CREATE (default) ──────────────────────────────────────────────────────
     const result = await gcalFetch(
       supabase, user.id,
-      GCAL_BASE,
+      `${GCAL_BASE}?sendUpdates=${sendUpdates}${conf}`,
       { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(eventPayload) },
       accessToken, refreshToken,
     );
@@ -268,8 +280,12 @@ Deno.serve(async (req) => {
       }
       return json({ error: `Google Calendar error [${result.status}]: ${JSON.stringify(result.body)}` }, 500);
     }
-    const ev = result.body as Record<string, string>;
-    return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink });
+    const ev = result.body as any;
+    // Meet link lives in hangoutLink or conferenceData.entryPoints
+    const meetLink = ev.hangoutLink
+      || (ev.conferenceData?.entryPoints || []).find((e: any) => e.entryPointType === "video")?.uri
+      || null;
+    return json({ success: true, google_event_id: ev.id, html_link: ev.htmlLink, meet_link: meetLink });
 
   } catch (err) {
     console.error("create-calendar-event error:", err);

@@ -164,6 +164,7 @@ export function useGoogleCalendar() {
       description?: string;
       location?: string;
       attendee_email?: string;
+      create_meet?: boolean;
     }) => invokeCalendarFn({ action: "create", ...params }),
     [invokeCalendarFn]
   );
@@ -177,6 +178,8 @@ export function useGoogleCalendar() {
         end_at: string;
         description?: string;
         location?: string;
+        attendee_email?: string;
+        create_meet?: boolean;
       }
     ) => invokeCalendarFn({ action: "update", google_event_id: googleEventId, ...params }),
     [invokeCalendarFn]
