@@ -88,9 +88,9 @@ ${
 
 ${cfg.appointments_paid ? `\n💳 CITAS CON PAGO PREVIO: las citas de este negocio REQUIEREN pago antes de agendar.
 ${cfg.payment_info ? `- Precios/servicios:\n${cfg.payment_info}` : ""}
-${cfg.payment_link ? `- Link de pago: ${cfg.payment_link}` : ""}
+${cfg.payment_link ? `- Links/métodos de pago (puede haber varios; envía SOLO el que corresponda al servicio o método que pida el cliente):\n${cfg.payment_link}` : ""}
 ${cfg.payment_account_info ? `- Datos de la cuenta que debe recibir el pago: ${cfg.payment_account_info}` : ""}
-- Flujo: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde${cfg.payment_link ? " y envíale el link de pago" : ""}. ${
+- Flujo: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde${cfg.payment_link ? " y envíale el link de pago correcto (el del servicio/método elegido)" : ""}. ${
   cfg.require_payment_proof
     ? `3) Pídele que te envíe el COMPROBANTE de pago (captura o foto). 4) Cuando envíe la imagen, REVÍSALA con cuidado: verifica que (a) sea realmente un comprobante de pago/transferencia, (b) el VALOR pagado coincida con el precio del servicio${cfg.payment_account_info ? ", (c) el pago vaya a la cuenta correcta indicada arriba" : ""}, y que no se vea alterada/editada. 5) Si todo cuadra, agenda con book_appointment payment_confirmed=true. 6) Si el monto NO coincide, no es un comprobante, o algo no cuadra, NO agendes: explícale al cliente qué falta y pídele el comprobante correcto.`
     : `3) Pídele que te avise cuando haya pagado. 4) Cuando confirme que pagó, agenda con book_appointment payment_confirmed=true.`

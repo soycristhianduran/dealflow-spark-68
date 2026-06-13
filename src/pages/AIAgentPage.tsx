@@ -614,12 +614,15 @@ export default function AIAgentPage() {
                     {config.appointments_paid && (
                       <div className="space-y-3 pt-1">
                         <div className="space-y-1.5">
-                          <Label className="text-xs">Link de pago</Label>
-                          <Input
-                            placeholder="https://… (Wompi, PayU, MercadoPago, Stripe, PayPal, etc.)"
+                          <Label className="text-xs">Links de pago</Label>
+                          <Textarea
+                            placeholder={"Uno o varios. Ponle una etiqueta a cada uno para que el agente sepa cuál usar. Ej:\nConsulta inicial: https://checkout.wompi.co/l/abc\nSeguimiento: https://mpago.la/xyz\nNequi/Transferencia: 300 123 4567"}
                             value={config.payment_link}
                             onChange={e => set("payment_link", e.target.value)}
+                            rows={4}
+                            maxLength={1500}
                           />
+                          <p className="text-[11px] text-muted-foreground">Puedes poner varios links (por servicio o método). El agente enviará el que corresponda según lo que pida el cliente.</p>
                         </div>
                         <div className="space-y-1.5">
                           <Label className="text-xs">Precios / servicios</Label>
