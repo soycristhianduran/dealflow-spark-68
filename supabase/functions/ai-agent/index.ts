@@ -88,10 +88,14 @@ ${
 
 ${cfg.appointments_paid ? `\n💳 CITAS CON PAGO PREVIO: las citas de este negocio REQUIEREN pago antes de agendar.
 ${cfg.payment_info ? `- Precios/servicios:\n${cfg.payment_info}` : ""}
-${cfg.payment_link ? `- Link de pago: ${cfg.payment_link}` : "- (No hay link de pago configurado; sigue las instrucciones del negocio.)"}
-- Flujo de pago: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde y envíale el link de pago. 3) Pídele que te avise cuando haya pagado. 4) NO llames a book_appointment todavía.
-- SOLO cuando el cliente confirme que ya realizó el pago, llama a book_appointment con payment_confirmed=true.
-- Nunca agendes una cita paga sin que el cliente haya confirmado el pago.\n` : ""}
+${cfg.payment_link ? `- Link de pago: ${cfg.payment_link}` : ""}
+${cfg.payment_account_info ? `- Datos de la cuenta que debe recibir el pago: ${cfg.payment_account_info}` : ""}
+- Flujo: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde${cfg.payment_link ? " y envíale el link de pago" : ""}. ${
+  cfg.require_payment_proof
+    ? `3) Pídele que te envíe el COMPROBANTE de pago (captura o foto). 4) Cuando envíe la imagen, REVÍSALA con cuidado: verifica que (a) sea realmente un comprobante de pago/transferencia, (b) el VALOR pagado coincida con el precio del servicio${cfg.payment_account_info ? ", (c) el pago vaya a la cuenta correcta indicada arriba" : ""}, y que no se vea alterada/editada. 5) Si todo cuadra, agenda con book_appointment payment_confirmed=true. 6) Si el monto NO coincide, no es un comprobante, o algo no cuadra, NO agendes: explícale al cliente qué falta y pídele el comprobante correcto.`
+    : `3) Pídele que te avise cuando haya pagado. 4) Cuando confirme que pagó, agenda con book_appointment payment_confirmed=true.`
+}
+- Nunca agendes una cita paga sin ${cfg.require_payment_proof ? "haber validado el comprobante" : "que el cliente confirme el pago"}.\n` : ""}
 ⛔ REGLA CRÍTICA DE AGENDAMIENTO: para que una cita exista DEBES llamar a la herramienta book_appointment y esperar su respuesta de éxito. NUNCA, bajo ninguna circunstancia, le digas al cliente que la cita "quedó agendada", "ya está lista" o "te envié la invitación" si NO has llamado a book_appointment en este mismo turno y recibido la confirmación "Cita agendada correctamente". Afirmar que agendaste sin llamar la herramienta es un error grave. Si el cliente ya confirmó día, hora${cfg.appointment_modality === "both" ? ", modalidad" : ""} y correo, tu ÚNICA acción correcta es llamar book_appointment AHORA (no respondas solo texto).\n`
     : "";
 

@@ -47,6 +47,8 @@ interface AgentConfig {
   appointments_paid: boolean;
   payment_link: string;
   payment_info: string;
+  require_payment_proof: boolean;
+  payment_account_info: string;
 }
 
 const DEFAULT_HOURS: WorkingHours = {
@@ -93,6 +95,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   appointments_paid: false,
   payment_link: "",
   payment_info: "",
+  require_payment_proof: true,
+  payment_account_info: "",
 };
 
 export default function AIAgentPage() {
@@ -154,6 +158,8 @@ export default function AIAgentPage() {
           appointments_paid: data.appointments_paid ?? false,
           payment_link: data.payment_link ?? "",
           payment_info: data.payment_info ?? "",
+          require_payment_proof: data.require_payment_proof ?? true,
+          payment_account_info: data.payment_account_info ?? "",
         });
       }
     } catch (err) {
@@ -251,6 +257,8 @@ export default function AIAgentPage() {
         appointments_paid: config.appointments_paid,
         payment_link: config.payment_link.trim() || null,
         payment_info: config.payment_info.trim() || null,
+        require_payment_proof: config.require_payment_proof,
+        payment_account_info: config.payment_account_info.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -624,6 +632,27 @@ export default function AIAgentPage() {
                           />
                           <p className="text-[11px] text-muted-foreground">El agente le dirá al cliente el precio según el servicio y le enviará el link.</p>
                         </div>
+
+                        <div className="flex items-center justify-between rounded-md border p-2.5">
+                          <div>
+                            <p className="text-sm font-medium">Pedir comprobante de pago (validar imagen)</p>
+                            <p className="text-xs text-muted-foreground">El agente pide la captura del pago y verifica con IA que el monto coincida antes de agendar.</p>
+                          </div>
+                          <Switch checked={config.require_payment_proof} onCheckedChange={v => set("require_payment_proof", v)} />
+                        </div>
+
+                        {config.require_payment_proof && (
+                          <div className="space-y-1.5">
+                            <Label className="text-xs">Datos de la cuenta que recibe el pago (para validar el comprobante)</Label>
+                            <Input
+                              placeholder="Ej: Nequi 300 123 4567 a nombre de Juan Pérez / Bancolombia ahorros 123-456789-00"
+                              value={config.payment_account_info}
+                              onChange={e => set("payment_account_info", e.target.value)}
+                              maxLength={200}
+                            />
+                            <p className="text-[11px] text-muted-foreground">El agente verificará que el comprobante sea a esta cuenta y por el valor correcto.</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
