@@ -499,17 +499,6 @@ Deno.serve(async (req) => {
                 if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
 
                 // ── AI Agent: respond automatically if enabled ─────────────
-                // DEBUG: Write a marker to DB so we can confirm this block is reached
-                // even without access to Edge Function logs. Will remove after diagnosis.
-                await supabase.from("activities").insert({
-                  related_entity_type: "contact",
-                  related_entity_id: contact.id,
-                  event_type: "debug",
-                  event_source: "ai_agent_block_reached",
-                  summary: `[DEBUG] AI agent block reached at ${new Date().toISOString()}`,
-                  created_by: config.user_id,
-                }).then(() => {}).catch(() => {});
-
                 console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact.id);
                 try {
                   if (config.organization_id) {
@@ -562,16 +551,6 @@ Deno.serve(async (req) => {
                     );
 
                     const agentData = await agentRes.json();
-
-                    // DEBUG: Write agent response to DB so we can inspect it
-                    await supabase.from("activities").insert({
-                      related_entity_type: "contact",
-                      related_entity_id: contact.id,
-                      event_type: "debug",
-                      event_source: "ai_agent_response",
-                      summary: `[DEBUG] agentData: ${JSON.stringify(agentData).substring(0, 300)}`,
-                      created_by: config.user_id,
-                    }).then(() => {}).catch(() => {});
 
                     // Detailed logging so we can diagnose agent failures in production
                     if (!agentData?.response) {
