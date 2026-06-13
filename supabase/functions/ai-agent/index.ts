@@ -86,6 +86,12 @@ ${
 - Tras agendar, comparte con el cliente el enlace de Meet (si es virtual) o la dirección (si es presencial).
 - Si book_appointment devuelve que la hora está ocupada, vuelve a llamar check_availability y ofrece otra hora libre.
 
+${cfg.appointments_paid ? `\n💳 CITAS CON PAGO PREVIO: las citas de este negocio REQUIEREN pago antes de agendar.
+${cfg.payment_info ? `- Precios/servicios:\n${cfg.payment_info}` : ""}
+${cfg.payment_link ? `- Link de pago: ${cfg.payment_link}` : "- (No hay link de pago configurado; sigue las instrucciones del negocio.)"}
+- Flujo de pago: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde y envíale el link de pago. 3) Pídele que te avise cuando haya pagado. 4) NO llames a book_appointment todavía.
+- SOLO cuando el cliente confirme que ya realizó el pago, llama a book_appointment con payment_confirmed=true.
+- Nunca agendes una cita paga sin que el cliente haya confirmado el pago.\n` : ""}
 ⛔ REGLA CRÍTICA DE AGENDAMIENTO: para que una cita exista DEBES llamar a la herramienta book_appointment y esperar su respuesta de éxito. NUNCA, bajo ninguna circunstancia, le digas al cliente que la cita "quedó agendada", "ya está lista" o "te envié la invitación" si NO has llamado a book_appointment en este mismo turno y recibido la confirmación "Cita agendada correctamente". Afirmar que agendaste sin llamar la herramienta es un error grave. Si el cliente ya confirmó día, hora${cfg.appointment_modality === "both" ? ", modalidad" : ""} y correo, tu ÚNICA acción correcta es llamar book_appointment AHORA (no respondas solo texto).\n`
     : "";
 
@@ -315,6 +321,7 @@ Deno.serve(async (req) => {
             title: { type: "string", description: "Título corto de la cita. Ej: Cita con Juan Pérez" },
             notes: { type: "string", description: "Notas o tema de la cita (opcional)" },
             client_email: { type: "string", description: "Email del cliente para enviarle la invitación (opcional pero recomendado; pídeselo si no lo tienes)." },
+            payment_confirmed: { type: "boolean", description: "true SOLO si las citas requieren pago Y el cliente ya confirmó que pagó. Si el negocio no cobra, omítelo." },
           },
           required: ["datetime_iso", "mode"],
         },
@@ -403,6 +410,7 @@ Deno.serve(async (req) => {
               workingHours: cfg.working_hours,
               defaultAddress: cfg.meeting_address || null,
               modality: cfg.appointment_modality || "both",
+              requiresPayment: !!cfg.appointments_paid,
               input: b.input,
             });
             if (resultText.startsWith("Cita agendada correctamente")) bookedThisTurn = true;
@@ -566,10 +574,15 @@ async function bookAppointment(
   supabase: any,
   args: {
     organization_id: string; advisorUserId: string; contact_id: string | null;
-    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; input: any;
+    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any;
   },
 ): Promise<string> {
-  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, input } = args;
+  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, requiresPayment, input } = args;
+
+  // Paid appointments: never book until the client confirmed payment.
+  if (requiresPayment && !input?.payment_confirmed) {
+    return "Esta cita requiere pago previo. Envíale al cliente el precio y el link de pago, y NO agendes hasta que confirme que pagó (entonces llama con payment_confirmed=true).";
+  }
   const iso: string = input?.datetime_iso;
   if (!iso) return "Falta la fecha/hora.";
 
@@ -634,6 +647,7 @@ async function bookAppointment(
     title, start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
     timezone: "America/Bogota", status: "scheduled", meeting_type: meetingType,
     location_or_link: address, notes,
+    payment_status: requiresPayment ? "paid" : "not_required",
   }).select("id").single();
   if (mErr) return `No se pudo guardar la cita: ${mErr.message}`;
 

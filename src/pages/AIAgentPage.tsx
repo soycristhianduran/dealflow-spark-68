@@ -44,6 +44,9 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
+  appointments_paid: boolean;
+  payment_link: string;
+  payment_info: string;
 }
 
 const DEFAULT_HOURS: WorkingHours = {
@@ -87,6 +90,9 @@ const DEFAULT_CONFIG: AgentConfig = {
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
   appointment_modality: "both",
+  appointments_paid: false,
+  payment_link: "",
+  payment_info: "",
 };
 
 export default function AIAgentPage() {
@@ -145,6 +151,9 @@ export default function AIAgentPage() {
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
           appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
+          appointments_paid: data.appointments_paid ?? false,
+          payment_link: data.payment_link ?? "",
+          payment_info: data.payment_info ?? "",
         });
       }
     } catch (err) {
@@ -239,6 +248,9 @@ export default function AIAgentPage() {
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
         appointment_modality: config.appointment_modality,
+        appointments_paid: config.appointments_paid,
+        payment_link: config.payment_link.trim() || null,
+        payment_info: config.payment_info.trim() || null,
         updated_at: new Date().toISOString(),
       };
 
@@ -580,6 +592,40 @@ export default function AIAgentPage() {
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* Paid appointments */}
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Las citas requieren pago previo</p>
+                        <p className="text-xs text-muted-foreground">El agente enviará el link de pago y solo agendará cuando el cliente confirme que pagó.</p>
+                      </div>
+                      <Switch checked={config.appointments_paid} onCheckedChange={v => set("appointments_paid", v)} />
+                    </div>
+                    {config.appointments_paid && (
+                      <div className="space-y-3 pt-1">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Link de pago</Label>
+                          <Input
+                            placeholder="https://… (Wompi, PayU, MercadoPago, Stripe, PayPal, etc.)"
+                            value={config.payment_link}
+                            onChange={e => set("payment_link", e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">Precios / servicios</Label>
+                          <Textarea
+                            placeholder={"Ej:\nConsulta inicial: $50.000\nSesión de seguimiento: $30.000"}
+                            value={config.payment_info}
+                            onChange={e => set("payment_info", e.target.value)}
+                            rows={3}
+                            maxLength={1000}
+                          />
+                          <p className="text-[11px] text-muted-foreground">El agente le dirá al cliente el precio según el servicio y le enviará el link.</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </>
               )}
