@@ -39,8 +39,17 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) throw new Error("No authorization header");
     const token = authHeader.replace("Bearer ", "");
-    const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
-    if (authErr || !user) throw new Error("Unauthorized");
+
+    // System calls (DB trigger / cron) use the service role key — they bypass the
+    // user requirement; org is resolved from the campaign row instead.
+    const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const isSystem = !!SERVICE_KEY && token === SERVICE_KEY;
+    let user: any = null;
+    if (!isSystem) {
+      const { data, error: authErr } = await supabase.auth.getUser(token);
+      if (authErr || !data.user) throw new Error("Unauthorized");
+      user = data.user;
+    }
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY no configurado. Ve a Supabase → Settings → Edge Functions → Secrets y añade RESEND_API_KEY.");
@@ -49,35 +58,40 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // ── Resolve caller's organization (used by several actions) ───────────────
-    const { data: memberRow } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .single();
-    const orgId: string | null = memberRow?.organization_id ?? null;
+    let orgId: string | null = null;
+    if (user) {
+      const { data: memberRow } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .single();
+      orgId = memberRow?.organization_id ?? null;
+    }
 
     // ── SEND CAMPAIGN ──────────────────────────────────────────────────────────
     if (action === "send_campaign") {
       const { campaign_id } = body;
       if (!campaign_id) throw new Error("campaign_id es obligatorio");
-      if (!orgId) throw new Error("No se pudo determinar la organización del usuario");
 
-      // SECURITY: filter by organization_id to prevent IDOR (other org's campaign)
-      const { data: campaign, error: campErr } = await supabase
-        .from("email_campaigns")
-        .select("*")
-        .eq("id", campaign_id)
-        .eq("organization_id", orgId)
-        .single();
+      // For user calls, scope by org (IDOR-safe). For system calls (trigger/cron),
+      // load by id and resolve org from the campaign itself.
+      let campQuery = supabase.from("email_campaigns").select("*").eq("id", campaign_id);
+      if (!isSystem) {
+        if (!orgId) throw new Error("No se pudo determinar la organización del usuario");
+        campQuery = campQuery.eq("organization_id", orgId);
+      }
+      const { data: campaign, error: campErr } = await campQuery.single();
       if (campErr || !campaign) throw new Error("Campaña no encontrada o sin acceso");
-      if (campaign.status === "sent") throw new Error("Esta campaña ya fue enviada");
+      if (campaign.status === "sent") return new Response(JSON.stringify({ skipped: "already sent" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (isSystem) orgId = campaign.organization_id;
+      const senderUid: string = user?.id ?? campaign.user_id;
 
       // Resolve recipients — org-scoped, not owner-scoped (Fix #8)
       let contactsQuery = supabase
         .from("contacts")
-        .select("id, first_name, last_name, email: primary_email, company: company_name")
+        .select("id, first_name, last_name, full_name, email: primary_email, company: company_name")
         .not("primary_email", "is", null)
         .neq("primary_email", "");
 
@@ -85,7 +99,7 @@ Deno.serve(async (req) => {
       if (orgId) {
         contactsQuery = contactsQuery.eq("organization_id", orgId);
       } else {
-        contactsQuery = contactsQuery.eq("owner_id", user.id);
+        contactsQuery = contactsQuery.eq("owner_id", senderUid);
       }
 
       const filter = campaign.recipient_filter as any;
@@ -95,9 +109,16 @@ Deno.serve(async (req) => {
         contactsQuery = contactsQuery.in("id", filter.contact_ids);
       }
 
-      const { data: contacts, error: cErr } = await contactsQuery.limit(5000);
+      const { data: allContacts, error: cErr } = await contactsQuery.limit(10000);
       if (cErr) throw cErr;
-      if (!contacts?.length) throw new Error("No hay contactos con email en esta lista");
+      if (!allContacts?.length) throw new Error("No hay contactos con email en esta lista");
+
+      // Idempotent resume: skip contacts already sent for this campaign (so a
+      // retry / cron resume after a timeout never double-sends).
+      const { data: prior } = await supabase.from("email_sends")
+        .select("contact_id").eq("campaign_id", campaign_id).eq("status", "sent");
+      const sentSet = new Set((prior || []).map((r: any) => r.contact_id));
+      const contacts = allContacts.filter((c: any) => !sentSet.has(c.id));
 
       // Flexible sender: only send from the org's custom domain when it's been
       // verified in Resend; otherwise fall back to the shared sender so the
@@ -131,14 +152,13 @@ Deno.serve(async (req) => {
       for (let i = 0; i < contacts.length; i += BATCH) {
         const batch = contacts.slice(i, i + BATCH);
         await Promise.all(batch.map(async (contact) => {
+          const fullName = (contact.full_name || `${contact.first_name || ""} ${contact.last_name || ""}`).trim();
+          const firstName = contact.first_name || fullName.split(/\s+/)[0] || "";
+          const lastName = contact.last_name || fullName.split(/\s+/).slice(1).join(" ");
           const ctx = {
-            contact: {
-              first_name: contact.first_name || "",
-              last_name: contact.last_name || "",
-              name: `${contact.first_name || ""} ${contact.last_name || ""}`.trim(),
-              email: contact.email || "",
-              company: contact.company || "",
-            },
+            contact: { first_name: firstName, last_name: lastName, name: fullName, email: contact.email || "", company: contact.company || "" },
+            // Spanish aliases so {{nombre}}, {{empresa}}, etc. work in templates.
+            nombre: firstName, apellido: lastName, email: contact.email || "", empresa: contact.company || "",
           };
           const subject = renderVars(campaign.subject, ctx);
           const html = renderVars(campaign.html_content, ctx);
@@ -155,7 +175,7 @@ Deno.serve(async (req) => {
             await supabase.from("email_sends").insert({
               campaign_id,
               contact_id: contact.id,
-              user_id: user.id,
+              user_id: senderUid,
               organization_id: orgId,
               email_address: contact.email,
               status: "sent",
@@ -167,7 +187,7 @@ Deno.serve(async (req) => {
             await supabase.from("email_sends").insert({
               campaign_id,
               contact_id: contact.id,
-              user_id: user.id,
+              user_id: senderUid,
               organization_id: orgId,
               email_address: contact.email,
               status: "failed",

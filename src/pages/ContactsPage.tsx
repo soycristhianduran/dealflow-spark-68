@@ -100,7 +100,7 @@ interface ProfileOption {
 }
 
 const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
-const SELECT_ALL_CAP = 10000; // safety cap for "select all across pages"
+const SELECT_ALL_CAP = 50000; // safety cap for "select all across pages"
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
@@ -231,6 +231,8 @@ export default function ContactsPage() {
   const [emailBlastSending, setEmailBlastSending] = useState(false);
   const [emailBlastProgress, setEmailBlastProgress] = useState<{ done: number; total: number } | null>(null);
   const [emailCampaignName, setEmailCampaignName] = useState("");
+  const [emailScheduleMode, setEmailScheduleMode] = useState<"now" | "schedule">("now");
+  const [emailScheduleAt, setEmailScheduleAt] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   // Email template picker
@@ -640,86 +642,60 @@ export default function ContactsPage() {
   };
 
   // ── Bulk email blast ──────────────────────────────────────────────────────
-  const handleEmailBlast = async () => {
+  const handleEmailBlast = async (scheduledAt?: string) => {
     const usingTemplate = emailMode === "template" && selectedEmailTpl;
-    const htmlSource = usingTemplate ? selectedEmailTpl!.html : emailBody;
+    let htmlSource = usingTemplate ? selectedEmailTpl!.html : emailBody;
     const subjectSource = emailSubject.trim();
     if (!emailCampaignName.trim()) { toast.error("El nombre de la campaña es obligatorio"); return; }
     if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
     if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
     if (!fromEmail.trim()) { toast.error("El email del remitente es obligatorio. Configúralo en Ajustes → Remitente de emails."); return; }
-    const targets = (await fetchSelectedContacts()).filter(c => c.primary_email);
-    if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); return; }
-
-    const senderEmail = fromEmail.trim();
-    const senderName = fromName.trim();
-
-    // Get user ID directly from auth session (most reliable source)
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    const userId = authUser?.id ?? myUserId;
-    if (!userId) { toast.error("No se pudo verificar tu sesión, recarga la página"); return; }
-
-    // Create campaign record BEFORE sending
-    const { data: campData, error: campErr } = await supabase.from("email_campaigns").insert({
-      name: emailCampaignName.trim(),
-      subject: subjectSource,
-      from_name: senderName,
-      from_email: senderEmail,
-      html_content: htmlSource || "",
-      status: "sending",
-      recipient_filter: { type: "manual", contact_ids: targets.map(c => c.id) },
-      total_recipients: targets.length,
-      user_id: userId,
-    }).select("id").single();
-
-    if (campErr || !campData) {
-      console.warn("Campaign insert error:", campErr);
-      toast.error(`Error al crear la campaña: ${campErr?.message ?? "intenta de nuevo"}`);
-      return;
-    }
-    const campaignId = campData.id;
-
+    if (!usingTemplate) htmlSource = htmlSource.replace(/\n/g, "<br>"); // plain body → html
     setEmailBlastSending(true);
-    setEmailBlastProgress({ done: 0, total: targets.length });
-    let sent = 0; let failed = 0;
-    for (const c of targets) {
-      try {
-        const firstName = (c.full_name || "").split(" ")[0];
-        const html = htmlSource
-          .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "")
-          .replace(/\{\{apellido\}\}/gi, (c.full_name || "").split(" ").slice(1).join(" "))
-          .replace(/\{\{email\}\}/gi, c.primary_email || "")
-          .replace(/\{\{empresa\}\}/gi, c.company_name || "")
-          .replace(/\n/g, usingTemplate ? "\n" : "<br>");
-        const subject = subjectSource
-          .replace(/\{\{nombre\}\}/gi, firstName || c.full_name || "");
-        const { data, error } = await supabase.functions.invoke("send-email", {
-          body: { action: "send_single", to: c.primary_email, subject, html, contact_id: c.id, from_name: senderName || undefined, from_email: senderEmail, campaign_id: campaignId },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
-        sent++;
-      } catch { failed++; }
-      setEmailBlastProgress({ done: sent + failed, total: targets.length });
+    try {
+      const targets = (await fetchSelectedContacts()).filter(c => c.primary_email);
+      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); setEmailBlastSending(false); return; }
+
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      const userId = authUser?.id ?? myUserId;
+
+      // Create the campaign with its config + recipient list; the backend worker
+      // (send-email) does the sending server-side, now or scheduled.
+      const { data: campData, error: campErr } = await supabase.from("email_campaigns").insert({
+        name: emailCampaignName.trim(),
+        subject: subjectSource,
+        from_name: fromName.trim(),
+        from_email: fromEmail.trim(),
+        html_content: htmlSource || "",
+        status: scheduledAt ? "scheduled" : "queued",
+        scheduled_at: scheduledAt || null,
+        recipient_filter: { type: "manual", contact_ids: targets.map(c => c.id) },
+        total_recipients: targets.length,
+        user_id: userId,
+        organization_id: organizationId ?? null,
+      }).select("id").single();
+      if (campErr || !campData) throw new Error(campErr?.message || "No se pudo crear la campaña");
+
+      // Flip queued → sending; a DB trigger fires send-email server-side. Scheduled
+      // ones stay 'scheduled' and the cron flips them at their time.
+      if (!scheduledAt) {
+        await supabase.from("email_campaigns").update({ status: "sending" }).eq("id", campData.id);
+      }
+
+      setEmailBlastSending(false);
+      setEmailBlastOpen(false);
+      setEmailCampaignName(""); setEmailSubject(""); setEmailBody("");
+      setSelectedEmailTpl(null); setPreviewHtml(null);
+      setSelected(new Set());
+      if (scheduledAt) {
+        toast.success(`Campaña de email programada para ${new Date(scheduledAt).toLocaleString()} · ${targets.length} destinatarios.`);
+      } else {
+        toast.success(`Campaña de email enviándose a ${targets.length} destinatarios. Mira el progreso en Campañas.`);
+      }
+    } catch (e: any) {
+      setEmailBlastSending(false);
+      toast.error(e?.message || "No se pudo iniciar la campaña");
     }
-
-    // Update campaign with final counts
-    await supabase.from("email_campaigns").update({
-      status: "sent",
-      sent_at: new Date().toISOString(),
-      sent_count: sent,
-      failed_count: failed,
-    }).eq("id", campaignId);
-
-    setEmailBlastSending(false);
-    setEmailBlastOpen(false);
-    setEmailBlastProgress(null);
-    setEmailCampaignName("");
-    setEmailSubject("");
-    setEmailBody("");
-    setSelectedEmailTpl(null);
-    setPreviewHtml(null);
-    toast.success(`Email enviado a ${sent} lead${sent !== 1 ? "s" : ""}${failed ? ` (${failed} fallaron)` : ""}`);
-    setSelected(new Set());
   };
 
   // ── Voice campaign (Llamada IA) ───────────────────────────────────────────
@@ -2119,17 +2095,25 @@ export default function ContactsPage() {
                 ? "Selecciona una plantilla arriba"
                 : "Email personalizado"}
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex rounded-md border overflow-hidden">
+                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "now" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("now")}>Ahora</button>
+                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "schedule" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("schedule")}>Programar</button>
+              </div>
+              {emailScheduleMode === "schedule" && (
+                <Input type="datetime-local" value={emailScheduleAt} onChange={(e) => setEmailScheduleAt(e.target.value)}
+                  min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} className="h-9 w-44 text-xs" />
+              )}
               <Button variant="outline" size="sm" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>Cancelar</Button>
               <Button
                 size="sm"
-                onClick={handleEmailBlast}
-                disabled={emailBlastSending || !emailCampaignName.trim() || !emailSubject.trim() || !fromEmail.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim())}
+                onClick={() => handleEmailBlast(emailScheduleMode === "schedule" && emailScheduleAt ? new Date(emailScheduleAt).toISOString() : undefined)}
+                disabled={emailBlastSending || !emailCampaignName.trim() || !emailSubject.trim() || !fromEmail.trim() || (emailMode === "template" ? !selectedEmailTpl : !emailBody.trim()) || (emailScheduleMode === "schedule" && !emailScheduleAt)}
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {emailBlastSending
-                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Enviando…</>
-                  : <><Mail className="h-4 w-4 mr-1" /> Enviar email</>}
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Procesando…</>
+                  : <><Mail className="h-4 w-4 mr-1" /> {emailScheduleMode === "schedule" ? "Programar" : "Enviar email"}</>}
               </Button>
             </div>
           </div>
