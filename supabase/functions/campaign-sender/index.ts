@@ -102,7 +102,13 @@ async function processCampaign(supabase: any, campaignId: string) {
       });
       return "sent";
     } catch (e) {
-      await supabase.from("whatsapp_sends").update({ status: "failed", error_message: e instanceof Error ? e.message : String(e) }).eq("id", s.id);
+      const msg = e instanceof Error ? e.message : String(e);
+      await supabase.from("whatsapp_sends").update({ status: "failed", error_message: msg }).eq("id", s.id);
+      // Number not on WhatsApp / undeliverable / invalid → flag the contact so
+      // future campaigns auto-exclude it (learns over time, reduces wasted sends).
+      if (/131026|131009|131008|133010/.test(msg) && s.contact_id) {
+        await supabase.from("contacts").update({ wa_undeliverable: true }).eq("id", s.contact_id);
+      }
       return "failed";
     }
   };

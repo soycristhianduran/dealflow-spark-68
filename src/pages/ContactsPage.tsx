@@ -582,7 +582,7 @@ export default function ContactsPage() {
     const out: ContactRow[] = [];
     for (let i = 0; i < ids.length; i += 200) {
       const { data, error } = await supabase.from("contacts")
-        .select("id, full_name, primary_phone, primary_email, company_name")
+        .select("id, full_name, primary_phone, primary_email, company_name, wa_undeliverable")
         .in("id", ids.slice(i, i + 200));
       if (error) throw new Error(`No se pudieron cargar los contactos seleccionados: ${error.message}`);
       if (data) out.push(...(data as unknown as ContactRow[]));
@@ -601,8 +601,24 @@ export default function ContactsPage() {
     // path below (right before the queued→sending flip).
     try {
       const allSelected = await fetchSelectedContacts();
-      const targets = allSelected.filter(c => c.primary_phone);
-      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene número de teléfono"); setWaBlastSending(false); return; }
+      const withPhone = allSelected.filter(c => c.primary_phone);
+      // Validate & clean: drop malformed numbers and ones already known to not
+      // have WhatsApp (previously failed undeliverable). Reduces wasted sends.
+      const digitsOf = (p: string) => (p || "").replace(/[^0-9]/g, "");
+      let badFormat = 0, knownBad = 0;
+      const targets = withPhone.filter((c: any) => {
+        const d = digitsOf(c.primary_phone);
+        if (d.length < 8 || d.length > 15) { badFormat++; return false; }
+        if (c.wa_undeliverable) { knownBad++; return false; }
+        return true;
+      });
+      if (targets.length === 0) {
+        toast.error("Ningún lead seleccionado tiene un número de WhatsApp válido");
+        setWaBlastSending(false); return;
+      }
+      if (badFormat + knownBad > 0) {
+        toast.info(`Se excluyeron ${badFormat + knownBad} números: ${badFormat} con formato inválido, ${knownBad} sin WhatsApp (ya fallaron antes).`, { duration: 6000 });
+      }
 
       const { data: { user: waAuthUser } } = await supabase.auth.getUser();
       const waUserId = waAuthUser?.id ?? myUserId;
