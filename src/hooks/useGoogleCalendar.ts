@@ -23,6 +23,26 @@ export function useGoogleCalendar() {
 
   useEffect(() => { checkConnection(); }, [checkConnection]);
 
+  // Handle the return from the dedicated Google Calendar OAuth flow.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gcal = params.get("gcal");
+    if (!gcal) return;
+    if (gcal === "connected") {
+      setIsConnected(true);
+      setConnecting(false);
+      toast.success("Google Calendar conectado correctamente");
+      checkConnection();
+    } else if (gcal === "error") {
+      setConnecting(false);
+      toast.error("No se pudo conectar Google Calendar: " + (params.get("reason") || "intenta de nuevo"));
+    }
+    // Clean the URL so the toast doesn't fire again on refresh
+    params.delete("gcal"); params.delete("reason");
+    const clean = window.location.pathname + (params.toString() ? `?${params}` : "") + window.location.hash;
+    window.history.replaceState({}, "", clean);
+  }, [checkConnection]);
+
   // ── Capture provider_token after Google OAuth redirect ─────────────────────
   // When the user returns from the Google consent screen, Supabase fires
   // onAuthStateChange with the new session that includes provider_token.
@@ -58,29 +78,40 @@ export function useGoogleCalendar() {
   }, []);
 
   // ── Connect ─────────────────────────────────────────────────────────────────
-  // Uses Supabase's native Google OAuth. The user is redirected to Google's
-  // consent screen and back. The redirectTo URL must be in the Supabase
-  // dashboard's "Redirect URLs" allowlist (add your domain there).
+  // Dedicated Google Calendar OAuth (NOT the app login). Redirects to Google's
+  // consent screen with access_type=offline & prompt=consent so Google returns a
+  // refresh_token, then back to our google-calendar-callback edge function which
+  // exchanges the code and stores both tokens. This does NOT touch the user's
+  // login session and reliably captures the refresh token.
+  const GOOGLE_CLIENT_ID =
+    "573126544961-nbaur53qpl87sd8ujs2u8kctf9upo6sl.apps.googleusercontent.com";
+  const CALLBACK_URL =
+    "https://oqwcgvemrvimrdrzjzil.supabase.co/functions/v1/google-calendar-callback";
+
   const connect = useCallback(async () => {
     setConnecting(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          scopes: "https://www.googleapis.com/auth/calendar.events",
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-          redirectTo: window.location.href,
-        },
-      });
-      if (error) {
-        toast.error("Error al conectar Google Calendar: " + error.message);
+      // Pass the current session JWT so the callback can verify who we are.
+      const { data: { session } } = await supabase.auth.getSession();
+      const jwt = session?.access_token;
+      if (!jwt) {
+        toast.error("Inicia sesión de nuevo para conectar Google Calendar");
         setConnecting(false);
+        return;
       }
-      // If no error, the browser will redirect to Google.
-      // setConnecting stays true until the redirect.
+      const state = btoa(JSON.stringify({ jwt, return_url: window.location.href }));
+      const params = new URLSearchParams({
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: CALLBACK_URL,
+        response_type: "code",
+        scope: "https://www.googleapis.com/auth/calendar.events",
+        access_type: "offline",
+        prompt: "consent",
+        include_granted_scopes: "true",
+        state,
+      });
+      window.location.href =
+        `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
     } catch (err) {
       toast.error("Error al iniciar conexión con Google");
       setConnecting(false);
