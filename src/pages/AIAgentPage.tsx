@@ -40,6 +40,7 @@ interface AgentConfig {
   off_topic_response: string;
   channels: { whatsapp: boolean; instagram: boolean };
   appointments_enabled: boolean;
+  reminders_enabled: boolean;
   appointment_duration_min: number;
   working_hours: WorkingHours;
   meeting_address: string;
@@ -88,6 +89,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   off_topic_response: "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve.",
   channels: { whatsapp: true, instagram: false },
   appointments_enabled: false,
+  reminders_enabled: true,
   appointment_duration_min: 30,
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
@@ -151,6 +153,7 @@ export default function AIAgentPage() {
           off_topic_response: data.off_topic_response ?? DEFAULT_CONFIG.off_topic_response,
           channels: data.channels ?? { whatsapp: true, instagram: false },
           appointments_enabled: data.appointments_enabled ?? false,
+          reminders_enabled: data.reminders_enabled ?? true,
           appointment_duration_min: data.appointment_duration_min ?? 30,
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
@@ -250,6 +253,7 @@ export default function AIAgentPage() {
         off_topic_response: config.off_topic_response.trim(),
         channels: config.channels,
         appointments_enabled: config.appointments_enabled,
+        reminders_enabled: config.reminders_enabled,
         appointment_duration_min: config.appointment_duration_min,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
@@ -521,6 +525,14 @@ export default function AIAgentPage() {
 
               {config.appointments_enabled && (
                 <>
+                  <div className="flex items-center justify-between rounded-lg border p-3">
+                    <div>
+                      <p className="text-sm font-medium">Enviar recordatorios por WhatsApp</p>
+                      <p className="text-xs text-muted-foreground">El agente recuerda la cita al cliente ~24h antes y ~1h antes.</p>
+                    </div>
+                    <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
+                  </div>
+
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label>Duración de cada cita</Label>
