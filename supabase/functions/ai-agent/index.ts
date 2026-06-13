@@ -286,7 +286,7 @@ Deno.serve(async (req) => {
     // 9. Build conversation history (last 6 exchanges) + current message
     const history: { role: string; content: any }[] = [];
     if (Array.isArray(recent_messages)) {
-      for (const m of recent_messages.slice(-6)) {
+      for (const m of recent_messages.slice(-16)) {
         history.push({ role: m.role, content: m.content });
       }
     }

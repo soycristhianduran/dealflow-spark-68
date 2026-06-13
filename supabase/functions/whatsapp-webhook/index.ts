@@ -514,7 +514,7 @@ Deno.serve(async (req) => {
                 try {
                   if (config.organization_id) {
                     console.log("[AI-AGENT] Organization check passed, fetching history...");
-                    // Fetch last 12 messages for context (13 rows, skip index 0
+                    // Fetch last 16 messages for context (17 rows, skip index 0
                     // which is the current message just inserted, so history
                     // contains only PREVIOUS messages — avoids duplicate context).
                     const { data: recentMsgs } = await supabase
@@ -523,7 +523,7 @@ Deno.serve(async (req) => {
                       .eq("user_id", config.user_id)
                       .or(`phone_number.eq.${senderPhone},phone_number.eq.+${senderPhone}`)
                       .order("sent_at", { ascending: false })
-                      .limit(13);
+                      .limit(17);
 
                     // [0] is current message (just inserted) — skip it so Claude
                     // doesn't see it twice (it arrives again as the `message` field).
