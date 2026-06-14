@@ -740,7 +740,7 @@ export default function DashboardPage() {
         )}
 
         {/* ── Greeting hero (dark premium) ───────────────────────── */}
-        <div style={{ order: -2 }} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-5 py-5 md:px-7 md:py-6 text-white shadow-lg shadow-slate-900/20 ring-1 ring-white/10">
+        <div style={{ order: -2 }} className="relative shrink-0 overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-5 py-5 md:px-7 md:py-6 text-white shadow-lg shadow-slate-900/20 ring-1 ring-white/10">
           {/* accent glows */}
           <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
           <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
