@@ -72,10 +72,22 @@ function Sparkline({ data }: { data: number[] }) {
   if (!data.length) return null;
   const max = Math.max(...data, 1);
   const w = 240, h = 48, step = data.length > 1 ? w / (data.length - 1) : w;
-  const pts = data.map((v, i) => `${i * step},${h - (v / max) * (h - 6) - 3}`).join(" ");
+  const coords = data.map((v, i) => [i * step, h - (v / max) * (h - 6) - 3] as const);
+  const pts = coords.map(([x, y]) => `${x},${y}`).join(" ");
+  const area = `0,${h} ${pts} ${w},${h}`;
+  const lastX = coords.length ? coords[coords.length - 1][0] : 0;
+  const lastY = coords.length ? coords[coords.length - 1][1] : 0;
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke="#f97316" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+      <defs>
+        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f97316" stopOpacity="0.28" />
+          <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill="url(#spark-fill)" />
+      <polyline points={pts} fill="none" stroke="#f97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <circle cx={lastX} cy={lastY} r={3} fill="#f97316" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }
@@ -162,39 +174,42 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Lead acquisition */}
-      <Card className="border-none shadow-sm">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2"><TrendingUp className="h-4 w-4 text-orange-500" /> Adquisición de leads</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-4 gap-2 text-center">
+      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/25">
+            <TrendingUp className="h-4 w-4" />
+          </div>
+          <h3 className="text-sm font-bold text-foreground">Adquisición de leads</h3>
+        </div>
+        <div className="space-y-5">
+          <div className="grid grid-cols-4 gap-2.5 text-center">
             {[["Hoy", data.leads.today], ["7 días", data.leads.week], ["30 días", data.leads.month], ["Total", data.leads.total]].map(([l, v]) => (
-              <div key={l as string} className="rounded-lg bg-muted/50 py-2">
-                <p className="text-lg font-bold tabular-nums">{(v as number).toLocaleString()}</p>
-                <p className="text-[11px] text-muted-foreground">{l}</p>
+              <div key={l as string} className="rounded-xl border border-border/50 bg-gradient-to-b from-muted/40 to-transparent py-3">
+                <p className="text-xl font-bold tabular-nums tracking-tight">{(v as number).toLocaleString()}</p>
+                <p className="text-[11px] font-medium text-muted-foreground mt-0.5">{l}</p>
               </div>
             ))}
           </div>
           <div>
-            <p className="text-[11px] text-muted-foreground mb-1">Últimos 30 días</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">Últimos 30 días</p>
             <Sparkline data={series} />
           </div>
           {data.sources.length > 0 && (
-            <div className="space-y-1.5">
-              <p className="text-[11px] text-muted-foreground">Por fuente (30 días)</p>
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Por fuente (30 días)</p>
               {data.sources.slice(0, 5).map(s => (
-                <div key={s.source} className="flex items-center gap-2">
-                  <span className="text-xs w-28 truncate">{srcLabel(s.source)}</span>
-                  <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
-                    <div className="h-full rounded-full bg-orange-400" style={{ width: `${(s.n / maxSource) * 100}%` }} />
+                <div key={s.source} className="flex items-center gap-2.5">
+                  <span className="text-xs font-medium w-28 truncate">{srcLabel(s.source)}</span>
+                  <div className="flex-1 h-2.5 rounded-full bg-muted/70 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all" style={{ width: `${(s.n / maxSource) * 100}%` }} />
                   </div>
-                  <span className="text-xs font-medium tabular-nums w-12 text-right">{s.n.toLocaleString()}</span>
+                  <span className="text-xs font-bold tabular-nums w-12 text-right">{s.n.toLocaleString()}</span>
                 </div>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Agent + conversations */}

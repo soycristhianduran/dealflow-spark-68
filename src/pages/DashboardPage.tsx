@@ -129,47 +129,46 @@ function KpiCard({
   icon: React.ReactNode;
   accent: "emerald" | "blue" | "orange" | "red" | "violet";
 }) {
-  const accentMap: Record<string, string> = {
-    emerald: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/25 dark:text-emerald-400",
-    blue:    "bg-blue-50 text-blue-600 dark:bg-blue-900/25 dark:text-blue-400",
-    orange:  "bg-orange-50 text-orange-600 dark:bg-orange-900/25 dark:text-orange-400",
-    red:     "bg-red-50 text-red-600 dark:bg-red-900/25 dark:text-red-400",
-    violet:  "bg-violet-50 text-violet-600 dark:bg-violet-900/25 dark:text-violet-400",
+  const accentMap: Record<string, { chip: string; glow: string }> = {
+    emerald: { chip: "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/25", glow: "from-emerald-500/10" },
+    blue:    { chip: "bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-blue-500/25",          glow: "from-blue-500/10" },
+    orange:  { chip: "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-orange-500/25",    glow: "from-orange-500/10" },
+    red:     { chip: "bg-gradient-to-br from-red-400 to-red-600 text-white shadow-red-500/25",             glow: "from-red-500/10" },
+    violet:  { chip: "bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-violet-500/25",    glow: "from-violet-500/10" },
   };
+  const a = accentMap[accent];
 
   const trendUp   = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend < 0 : trend > 0);
   const trendDown = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend > 0 : trend < 0);
 
   return (
-    <Card className="border-none shadow-sm hover:shadow-md transition-shadow">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-3">
-          <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentMap[accent]}`}>
-            {icon}
-          </div>
-          {trend !== null && trend !== undefined && trend !== 0 && (
-            <span className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
-              trendUp
-                ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                : trendDown
-                  ? "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
-                  : ""
-            }`}>
-              {trendUp   && <ArrowUpRight   className="h-3 w-3" />}
-              {trendDown && <ArrowDownRight className="h-3 w-3" />}
-              {Math.abs(trend)}{trendIsPoints ? " pp" : "%"}
-            </span>
-          )}
+    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border">
+      {/* soft corner glow */}
+      <div className={`pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
+      <div className="relative flex items-start justify-between mb-3.5">
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-md ${a.chip}`}>
+          {icon}
         </div>
-        <p className="text-2xl font-bold text-foreground tabular-nums leading-none">
-          {value}
-        </p>
-        {subValue && (
-          <p className="text-xs text-muted-foreground mt-1">{subValue}</p>
+        {trend !== null && trend !== undefined && trend !== 0 && (
+          <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+            trendUp
+              ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+              : "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-300"
+          }`}>
+            {trendUp   && <ArrowUpRight   className="h-3 w-3" />}
+            {trendDown && <ArrowDownRight className="h-3 w-3" />}
+            {Math.abs(trend)}{trendIsPoints ? " pp" : "%"}
+          </span>
         )}
-        <p className="text-xs font-medium text-muted-foreground mt-3">{label}</p>
-      </CardContent>
-    </Card>
+      </div>
+      <p className="relative text-[28px] font-bold text-foreground tabular-nums leading-none tracking-tight">
+        {value}
+      </p>
+      {subValue && (
+        <p className="relative text-xs text-muted-foreground mt-1.5">{subValue}</p>
+      )}
+      <p className="relative text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mt-3">{label}</p>
+    </div>
   );
 }
 
@@ -703,10 +702,13 @@ export default function DashboardPage() {
         )}
 
         {/* ── Header bar ─────────────────────────────────────────── */}
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between" style={{ order: -2 }}>
-          <p className="text-sm text-muted-foreground font-medium">Resumen de rendimiento</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ order: -2 }}>
+          <div>
+            <h2 className="text-lg font-bold text-foreground tracking-tight">Resumen de rendimiento</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">Tu negocio de un vistazo</p>
+          </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setCustomizeOpen(true)}>
+            <Button variant="outline" size="sm" className="gap-1.5 rounded-lg" onClick={() => setCustomizeOpen(true)}>
               <Sliders className="h-3.5 w-3.5" /> Personalizar
             </Button>
             <PeriodSelector value={period} onChange={setPeriod} />
