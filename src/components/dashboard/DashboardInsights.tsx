@@ -415,6 +415,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
                     <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>citas</span>
                     <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>ganados</span>
                     <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>perdidos</span>
+                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{v.citas > 0 ? `${Math.round((v.cierres / v.citas) * 100)}%` : "—"}</b>conv.</span>
                     <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>ventas</span>
                   </div>
                 </div>
