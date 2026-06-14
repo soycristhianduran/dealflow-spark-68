@@ -45,6 +45,7 @@ export default function AuthPage() {
   const inviteToken = inviteTokenMatch ? inviteTokenMatch[1] : null;
   const [email, setEmail] = useState("");
   const [inviteInfo, setInviteInfo] = useState<{ email: string; org_name: string; role: string } | null>(null);
+  const [authTab, setAuthTab] = useState<"login" | "register">(inviteToken ? "register" : "login");
 
   // When arriving from an invite link, prefill + lock the email to the invited one.
   useEffect(() => {
@@ -92,11 +93,13 @@ export default function AuthPage() {
     // Supabase fires INITIAL_SESSION with it before SIGNED_IN with the new one.
     // scope:"local" = only clears localStorage (no network call needed).
     await supabase.auth.signOut({ scope: "local" });
+    // Carry the invite through OAuth so we accept it after Google returns.
+    const redirectTo = inviteToken
+      ? `${window.location.origin}/auth?redirect=${encodeURIComponent(`/invite?token=${inviteToken}`)}`
+      : `${window.location.origin}/auth`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        redirectTo: `${window.location.origin}/auth`,
-      },
+      options: { redirectTo },
     });
     if (error) {
       toast.error("Error al conectar con Google: " + error.message);
@@ -242,11 +245,17 @@ export default function AuthPage() {
             </div>
           </div>
 
-          <Tabs defaultValue={inviteToken ? "register" : "login"}>
-            <TabsList className="grid w-full grid-cols-2 mb-4">
-              <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
-              <TabsTrigger value="register">Registrarse</TabsTrigger>
-            </TabsList>
+          <Tabs value={authTab} onValueChange={(v) => setAuthTab(v as "login" | "register")}>
+            {inviteToken ? (
+              <p className="text-center text-sm font-medium mb-4">
+                {authTab === "register" ? "Crea tu cuenta para unirte" : "Inicia sesión para unirte"}
+              </p>
+            ) : (
+              <TabsList className="grid w-full grid-cols-2 mb-4">
+                <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
+                <TabsTrigger value="register">Registrarse</TabsTrigger>
+              </TabsList>
+            )}
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
@@ -268,6 +277,12 @@ export default function AuthPage() {
                 >
                   ¿Olvidaste tu contraseña?
                 </button>
+                {inviteToken && (
+                  <button type="button" onClick={() => setAuthTab("register")}
+                    className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
+                    ¿No tienes cuenta? Crea una
+                  </button>
+                )}
               </form>
             </TabsContent>
 
@@ -353,6 +368,12 @@ export default function AuthPage() {
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Creando cuenta..." : "Crear cuenta"}
                 </Button>
+                {inviteToken && (
+                  <button type="button" onClick={() => setAuthTab("login")}
+                    className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors mt-1">
+                    ¿Ya tienes una cuenta? Inicia sesión
+                  </button>
+                )}
               </form>
             </TabsContent>
           </Tabs>
