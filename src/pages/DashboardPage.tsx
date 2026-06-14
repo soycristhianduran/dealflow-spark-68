@@ -18,6 +18,7 @@ import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useProfile } from "@/hooks/useProfile";
 import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 
@@ -414,7 +415,10 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { profile } = useProfile();
+  // Prefer the edited profile name over the (possibly stale) auth metadata.
   const greetingName =
+    profile?.first_name ||
     user?.user_metadata?.given_name ||
     user?.user_metadata?.full_name?.split(" ")[0] ||
     user?.user_metadata?.first_name || "";
