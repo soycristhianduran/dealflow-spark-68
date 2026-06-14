@@ -10,6 +10,7 @@
  */
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign } from "lucide-react";
@@ -88,6 +89,17 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [groupedSig, setGroupedSig] = useState<{ key: string; n: number }[]>([]);
   const [adsRoas, setAdsRoas] = useState<any[]>([]);
   const [roasLevel, setRoasLevel] = useState<"campaign" | "ad">("campaign");
+  const [adModal, setAdModal] = useState<any | null>(null);
+  const [adPreview, setAdPreview] = useState<{ loading: boolean; html?: string; error?: string }>({ loading: false });
+
+  const openAd = async (row: any) => {
+    setAdModal(row);
+    if (roasLevel !== "ad" || !row.id) { setAdPreview({ loading: false }); return; }
+    setAdPreview({ loading: true });
+    const { data } = await supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } });
+    if (data?.preview_html) setAdPreview({ loading: false, html: data.preview_html });
+    else setAdPreview({ loading: false, error: data?.message || "No disponible" });
+  };
 
   useEffect(() => {
     if (!organizationId) return;
@@ -328,7 +340,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
                 </thead>
                 <tbody>
                   {adsRoas.map((a, i) => (
-                    <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+                    <tr key={i} onClick={() => openAd(a)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                       <td className="py-2 pr-2 font-medium truncate max-w-[160px]">{a.campaign}</td>
                       <td className="text-right py-2 px-2 tabular-nums">{a.spend ? fmtMoney(a.spend) : "—"}</td>
                       <td className="text-right py-2 px-2 tabular-nums">{a.leads}</td>
@@ -350,6 +362,45 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
           </CardContent>
         </Card>
       )}
+
+      {/* Ad detail modal */}
+      <Dialog open={!!adModal} onOpenChange={(v) => { if (!v) { setAdModal(null); setAdPreview({ loading: false }); } }}>
+        <DialogContent className="max-w-lg max-h-[88vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-base">{adModal?.campaign}</DialogTitle>
+          </DialogHeader>
+          {adModal && (
+            <div className="space-y-4">
+              {/* Stats */}
+              <div className="grid grid-cols-4 gap-2 text-center">
+                {[["Inversión", adModal.spend ? fmtMoney(adModal.spend) : "—"], ["Leads", adModal.leads], ["CPL", adModal.cpl ? fmtMoney(adModal.cpl) : "—"], ["Citas", adModal.citas]].map(([l, v]) => (
+                  <div key={l as string} className="rounded-lg bg-muted/50 py-2"><p className="text-base font-bold tabular-nums">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
+                ))}
+                {[["Cierres", adModal.cierres], ["Ventas", adModal.revenue > 0 ? fmtMoney(adModal.revenue) : "—"], ["ROAS", adModal.roas != null ? `${adModal.roas}x` : "—"]].map(([l, v]) => (
+                  <div key={l as string} className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 py-2"><p className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
+                ))}
+              </div>
+
+              {/* Creative preview (ad level) */}
+              {roasLevel === "ad" && (
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">Vista del anuncio</p>
+                  {adPreview.loading ? (
+                    <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">Cargando vista…</div>
+                  ) : adPreview.html ? (
+                    <div className="rounded-lg border overflow-hidden bg-white flex justify-center" dangerouslySetInnerHTML={{ __html: adPreview.html }} />
+                  ) : (
+                    <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
+                      {adPreview.error || "Vista no disponible."}<br />
+                      <a href={`https://business.facebook.com/adsmanager/manage/ads?selected_ad_ids=${adModal.id}`} target="_blank" rel="noopener noreferrer" className="text-primary underline mt-1 inline-block">Ver en Meta Ads Manager →</a>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Grouped objections + positive signals */}
       {(groupedObj.length > 0 || groupedSig.length > 0) && (
