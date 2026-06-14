@@ -191,7 +191,7 @@ function KpiCard({
   }
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/90 backdrop-blur-sm p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border">
+    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/90 backdrop-blur-sm p-4 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border">
       {/* soft corner glow */}
       <div className={`pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
       <div className="relative flex items-start justify-between mb-3.5">
@@ -879,7 +879,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Funnel — takes 2/3 */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm lg:col-span-2">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20 lg:col-span-2">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -953,7 +953,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Lost reasons — takes 1/3 */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -1005,7 +1005,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Upcoming meetings */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" />
@@ -1047,7 +1047,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Pending tasks */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CheckSquare className="h-4 w-4 text-primary" />
@@ -1092,7 +1092,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Recent activity */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -1127,7 +1127,7 @@ export default function DashboardPage() {
         {/* ── Objections (only if data exists) ───────────────────── */}
         {topObjections.length > 0 && (
           <div style={{ order: orderOf("objections") }} hidden={isHidden("objections")}>
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">

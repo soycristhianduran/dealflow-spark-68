@@ -219,7 +219,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   return (
     <div className="space-y-4 md:space-y-6">
       {/* Lead acquisition */}
-      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm">
+      <div className="rounded-2xl border border-border/60 bg-card p-5 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
         <div className="flex items-center gap-2 mb-4">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/25">
             <TrendingUp className="h-4 w-4" />
@@ -258,7 +258,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Agent + conversations */}
-        <Card className="rounded-2xl border border-border/60 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> Agente IA (30 días)</CardTitle>
           </CardHeader>
@@ -282,7 +282,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         </Card>
 
         {/* Last campaign */}
-        <Card className="rounded-2xl border border-border/60 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-400 to-green-600 text-white shadow-sm shadow-green-500/25"><Send className="h-3.5 w-3.5" /></span> Última campaña</CardTitle>
           </CardHeader>
@@ -306,7 +306,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Funnel conversion — per pipeline */}
-        <Card className="rounded-2xl border border-border/60 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><GitBranch className="h-3.5 w-3.5" /></span> Conversión del embudo</CardTitle>
@@ -356,7 +356,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
         {/* Per-advisor (owner only) */}
         {isOwner && (
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-sm shadow-violet-500/25"><UserCheck className="h-3.5 w-3.5" /></span> Por vendedor</CardTitle>
             </CardHeader>
@@ -384,7 +384,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       {/* Ads performance / ROAS */}
       {adsRoas.length > 0 && (
-        <Card className="rounded-2xl border border-border/60 shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><DollarSign className="h-3.5 w-3.5" /></span> Rendimiento de anuncios (Meta Ads)</CardTitle>
@@ -480,7 +480,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       {/* Grouped objections + positive signals — always visible (shows empty state) */}
       {(
         <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25"><ShieldAlert className="h-3.5 w-3.5" /></span> Objeciones agrupadas</CardTitle>
             </CardHeader>
@@ -501,7 +501,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
               })}
             </CardContent>
           </Card>
-          <Card className="rounded-2xl border border-border/60 shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><ThumbsUp className="h-3.5 w-3.5" /></span> Señales positivas agrupadas</CardTitle>
             </CardHeader>
