@@ -173,6 +173,44 @@ Deno.serve(async (req) => {
           );
           totalCampaignsSynced += campaigns.length;
 
+          // ── 2c. Sync ADS (individual) with insights for ad-level ROAS ──────
+          try {
+            const adsUrl =
+              `${GRAPH_API}/${ad_account_id}/ads` +
+              `?fields=id,name,adset_id,campaign_id,status` +
+              `,insights.date_preset(maximum){spend,impressions,clicks,actions}` +
+              `&limit=300&access_token=${access_token}`;
+            const adsRes = await fetch(adsUrl);
+            const adsData = await adsRes.json();
+            if (adsRes.ok && !adsData.error) {
+              const ads = (adsData.data || []).map((a: any) => {
+                const ins = a.insights?.data?.[0] || {};
+                const leadAct = (ins.actions || []).find((x: any) => x.action_type === "lead");
+                const leads = leadAct ? Number(leadAct.value) : 0;
+                const spend = ins.spend ? Number(ins.spend) : 0;
+                return {
+                  user_id, organization_id,
+                  ad_id: a.id, ad_name: a.name, adset_id: a.adset_id, campaign_id: a.campaign_id,
+                  status: a.status, spend,
+                  impressions: ins.impressions ? Number(ins.impressions) : 0,
+                  clicks: ins.clicks ? Number(ins.clicks) : 0,
+                  leads, cpl: leads > 0 ? spend / leads : null,
+                  ad_account_id,
+                };
+              });
+              await supabase.from("meta_ads").delete()
+                .eq("user_id", user_id).eq("organization_id", organization_id).eq("ad_account_id", ad_account_id);
+              for (const ad of ads) {
+                await supabase.from("meta_ads").upsert(ad, { onConflict: "user_id,ad_id" });
+              }
+              console.log(`meta-auto-sync [${user_id}] [${ad_account_id}]: synced ${ads.length} ad(s)`);
+            } else if (adsData.error) {
+              console.warn(`meta-auto-sync [${user_id}] [${ad_account_id}]: ads error:`, adsData.error?.message);
+            }
+          } catch (adErr) {
+            console.warn(`meta-auto-sync [${user_id}] [${ad_account_id}]: ads sync failed:`, adErr);
+          }
+
         } catch (accountErr: any) {
           const msg = accountErr?.message || String(accountErr);
           console.error(`meta-auto-sync [${user_id}] [${ad_account_id}]: unexpected error:`, msg);

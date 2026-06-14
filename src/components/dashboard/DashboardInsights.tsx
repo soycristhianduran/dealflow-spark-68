@@ -87,6 +87,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [groupedObj, setGroupedObj] = useState<{ key: string; n: number }[]>([]);
   const [groupedSig, setGroupedSig] = useState<{ key: string; n: number }[]>([]);
   const [adsRoas, setAdsRoas] = useState<any[]>([]);
+  const [roasLevel, setRoasLevel] = useState<"campaign" | "ad">("campaign");
 
   useEffect(() => {
     if (!organizationId) return;
@@ -110,9 +111,6 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       setGroupedObj(groupItems(objs, OBJECTION_CATS));
       setGroupedSig(groupItems(sigs, SIGNAL_CATS));
 
-      // Ads ROAS / attribution
-      const { data: roas } = await supabase.rpc("dashboard_ads_roas", { p_org: organizationId });
-      if (Array.isArray(roas)) setAdsRoas(roas);
 
       // Resolve advisor names (owner view)
       if (isOwner) {
@@ -123,6 +121,13 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       }
     })();
   }, [organizationId, isOwner, vendorId]);
+
+  // Ads ROAS — re-fetch when the campaign/ad level toggles
+  useEffect(() => {
+    if (!organizationId) return;
+    supabase.rpc("dashboard_ads_roas", { p_org: organizationId, p_level: roasLevel })
+      .then(({ data }) => { if (Array.isArray(data)) setAdsRoas(data); });
+  }, [organizationId, roasLevel]);
 
   if (!data) return null;
 
@@ -294,14 +299,24 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       {adsRoas.length > 0 && (
         <Card className="border-none shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" /> Rendimiento de anuncios (Meta Ads)</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" /> Rendimiento de anuncios (Meta Ads)</CardTitle>
+              <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5">
+                {(["campaign", "ad"] as const).map(lvl => (
+                  <button key={lvl} onClick={() => setRoasLevel(lvl)}
+                    className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${roasLevel === lvl ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
+                    {lvl === "campaign" ? "Por campaña" : "Por anuncio"}
+                  </button>
+                ))}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-muted-foreground border-b">
-                    <th className="text-left font-medium py-2 pr-2">Campaña</th>
+                    <th className="text-left font-medium py-2 pr-2">{roasLevel === "ad" ? "Anuncio" : "Campaña"}</th>
                     <th className="text-right font-medium py-2 px-2">Inversión</th>
                     <th className="text-right font-medium py-2 px-2">Leads</th>
                     <th className="text-right font-medium py-2 px-2">CPL</th>
