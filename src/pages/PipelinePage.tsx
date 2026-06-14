@@ -64,7 +64,7 @@ export default function PipelinePage() {
   const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId, defaultCurrency } = useOrganizationContext();
-  const { isVendor, myUserId, canEditContacts } = usePermissions();
+  const { isVendor, isSetter, myUserId, canEditContacts } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -147,7 +147,8 @@ export default function PipelinePage() {
           .eq("pipeline_id", pid)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
-        if (isVendor && myUserId) q = q.eq("owner_id", myUserId);
+        if (isSetter && myUserId) q = q.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
+        else if (isVendor && myUserId) q = q.eq("owner_id", myUserId);
         const { data } = await q;
         if (!data?.length) break;
         all.push(...data);
@@ -162,7 +163,7 @@ export default function PipelinePage() {
     ]);
     setStages(stagesData || []);
     setContacts(contactsData || []);
-  }, [isVendor, myUserId]);
+  }, [isVendor, isSetter, myUserId]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
