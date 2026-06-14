@@ -739,28 +739,29 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* ── Greeting hero ──────────────────────────────────────── */}
-        <div style={{ order: -2 }} className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-orange-500 via-orange-500 to-amber-500 px-5 py-5 md:px-7 md:py-6 text-white shadow-sm">
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-          <div className="pointer-events-none absolute right-16 -bottom-16 h-40 w-40 rounded-full bg-black/5 blur-2xl" />
-          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        {/* ── Greeting hero (dark premium) ───────────────────────── */}
+        <div style={{ order: -2 }} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 px-5 py-5 md:px-7 md:py-6 text-white shadow-lg shadow-slate-900/20 ring-1 ring-white/10">
+          {/* accent glows */}
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
+          <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-medium text-white/80 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
-              <h1 className="text-2xl md:text-[28px] font-bold tracking-tight mt-0.5">
+              <p className="text-xs font-medium text-white/60 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
+              <h1 className="text-2xl md:text-[28px] font-bold tracking-tight mt-1">
                 {(() => { const h = new Date().getHours(); return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; })()}
-                {greetingName ? `, ${greetingName}` : ""} 👋
+                {greetingName ? <>, <span className="bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">{greetingName}</span></> : ""} 👋
               </h1>
-              <p className="text-sm text-white/85 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>
+              <p className="text-sm text-white/65 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>
             </div>
             <div className="flex items-center gap-5 shrink-0">
               <div className="text-right">
                 <p className="text-2xl font-bold tabular-nums leading-none">{fmt(totalContacts)}</p>
-                <p className="text-[11px] text-white/80 mt-1">Total leads</p>
+                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">Total leads</p>
               </div>
-              <div className="h-9 w-px bg-white/25" />
+              <div className="h-10 w-px bg-white/15" />
               <div className="text-right">
                 <p className="text-2xl font-bold tabular-nums leading-none">{fmt(pipelineN)}</p>
-                <p className="text-[11px] text-white/80 mt-1">En pipeline</p>
+                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">En pipeline</p>
               </div>
             </div>
           </div>
