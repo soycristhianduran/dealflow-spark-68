@@ -213,9 +213,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Agent + conversations */}
-        <Card className="border-none shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Bot className="h-4 w-4 text-indigo-500" /> Agente IA (30 días)</CardTitle>
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> Agente IA (30 días)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
@@ -237,9 +237,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         </Card>
 
         {/* Last campaign */}
-        <Card className="border-none shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2"><Send className="h-4 w-4 text-green-500" /> Última campaña</CardTitle>
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-400 to-green-600 text-white shadow-sm shadow-green-500/25"><Send className="h-3.5 w-3.5" /></span> Última campaña</CardTitle>
           </CardHeader>
           <CardContent>
             {lastCamp ? (
@@ -261,10 +261,10 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
         {/* Funnel conversion — per pipeline */}
-        <Card className="border-none shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm flex items-center gap-2"><GitBranch className="h-4 w-4 text-blue-500" /> Conversión del embudo</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><GitBranch className="h-3.5 w-3.5" /></span> Conversión del embudo</CardTitle>
               {data.funnels.length > 1 && (
                 <select
                   value={pipelineIdx}
@@ -303,9 +303,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
         {/* Per-advisor (owner only) */}
         {isOwner && (
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><UserCheck className="h-4 w-4 text-violet-500" /> Por vendedor</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-sm shadow-violet-500/25"><UserCheck className="h-3.5 w-3.5" /></span> Por vendedor</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {data.vendors.length === 0 ? (
@@ -331,10 +331,10 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
 
       {/* Ads performance / ROAS */}
       {adsRoas.length > 0 && (
-        <Card className="border-none shadow-sm">
+        <Card className="rounded-2xl border border-border/60 shadow-sm">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" /> Rendimiento de anuncios (Meta Ads)</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><DollarSign className="h-3.5 w-3.5" /></span> Rendimiento de anuncios (Meta Ads)</CardTitle>
               <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5">
                 {(["campaign", "ad"] as const).map(lvl => (
                   <button key={lvl} onClick={() => setRoasLevel(lvl)}
@@ -427,9 +427,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       {/* Grouped objections + positive signals — always visible (shows empty state) */}
       {(
         <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><span className="text-base">🛑</span> Objeciones agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25 text-sm">🛑</span> Objeciones agrupadas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedObj.length === 0 ? (
@@ -448,9 +448,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
               })}
             </CardContent>
           </Card>
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2"><span className="text-base">✅</span> Señales positivas agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25 text-sm">✅</span> Señales positivas agrupadas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedSig.length === 0 ? (

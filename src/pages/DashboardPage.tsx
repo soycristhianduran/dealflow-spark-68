@@ -779,7 +779,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Funnel — takes 2/3 */}
-          <Card className="border-none shadow-sm lg:col-span-2">
+          <Card className="rounded-2xl border border-border/60 shadow-sm lg:col-span-2">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -853,7 +853,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Lost reasons — takes 1/3 */}
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
@@ -905,7 +905,7 @@ export default function DashboardPage() {
         <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
 
           {/* Upcoming meetings */}
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" />
@@ -947,7 +947,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Pending tasks */}
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CheckSquare className="h-4 w-4 text-primary" />
@@ -992,7 +992,7 @@ export default function DashboardPage() {
           </Card>
 
           {/* Recent activity */}
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
@@ -1027,7 +1027,7 @@ export default function DashboardPage() {
         {/* ── Objections (only if data exists) ───────────────────── */}
         {topObjections.length > 0 && (
           <div style={{ order: orderOf("objections") }} hidden={isHidden("objections")}>
-          <Card className="border-none shadow-sm">
+          <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
