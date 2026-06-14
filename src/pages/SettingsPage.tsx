@@ -83,7 +83,8 @@ const timezones = [
 
 const editableRoles = [
   { value: "admin", label: "Admin", description: "Acceso total al CRM" },
-  { value: "vendor", label: "Vendedor", description: "Crea y edita contactos, sin settings" },
+  { value: "vendor", label: "Vendedor", description: "Crea/edita y cierra ventas" },
+  { value: "setter", label: "Setter", description: "Agenda citas (mismos permisos que vendedor)" },
   { value: "readonly", label: "Solo lectura", description: "Solo puede ver, no editar" },
 ];
 
@@ -666,7 +667,7 @@ export default function SettingsPage() {
                   const isOwner = member.role === "owner";
                   const isMe = member.user_id === myUserId;
                   const canEdit = isOwnerOrAdmin && !isOwner && !isMe;
-                  const roleLabel = isOwner ? "Propietario" : member.role === "admin" ? "Admin" : member.role === "vendor" ? "Vendedor" : member.role === "readonly" ? "Solo lectura" : "Miembro";
+                  const roleLabel = isOwner ? "Propietario" : member.role === "admin" ? "Admin" : member.role === "vendor" ? "Vendedor" : member.role === "setter" ? "Setter" : member.role === "readonly" ? "Solo lectura" : "Miembro";
                   return (
                     <div key={member.id} className="flex items-center gap-3 rounded-lg border p-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium shrink-0">
@@ -745,7 +746,7 @@ export default function SettingsPage() {
                         )}
                       </div>
                       <Badge variant="outline" className="shrink-0">
-                        {inv.role === "admin" ? "Admin" : inv.role === "vendor" ? "Vendedor" : inv.role === "readonly" ? "Solo lectura" : "Miembro"}
+                        {inv.role === "admin" ? "Admin" : inv.role === "vendor" ? "Vendedor" : inv.role === "setter" ? "Setter" : inv.role === "readonly" ? "Solo lectura" : "Miembro"}
                       </Badge>
                       <Badge variant="secondary" className="text-xs shrink-0">Pendiente</Badge>
                       {isOwnerOrAdmin && (

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +24,7 @@ type CustomField = { key: string; value: string };
 
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
   const { organizationId } = useOrganizationContext();
+  const { isSetter, myUserId } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -107,6 +109,9 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       score: 0,
       custom_fields: Object.keys(customFieldsObj).length > 0 ? customFieldsObj : {},
       ...(organizationId ? { organization_id: organizationId } : {}),
+      // Setters are credited as the booker of the lead they create (and own it
+      // until a vendor is assigned to close it).
+      ...(isSetter && myUserId ? { setter_id: myUserId, owner_id: myUserId } : {}),
     }).select("id").single();
 
     if (error) {

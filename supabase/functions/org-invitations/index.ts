@@ -19,6 +19,7 @@ function brandedInviteEmail(opts: {
 }): string {
   const { inviterName, orgName, inviteUrl, role, reminder } = opts;
   const roleLabel = role === "vendor" ? "Vendedor"
+    : role === "setter" ? "Setter"
     : role === "admin" ? "Administrador"
     : role === "owner" ? "Propietario" : "Miembro";
   const heading = reminder ? "Recordatorio de invitación" : "Te invitaron a un equipo";
@@ -293,7 +294,7 @@ Deno.serve(async (req) => {
   // ── Update member role ────────────────────────────────────────────────────
   if (action === "update_role") {
     const { member_user_id, new_role } = body;
-    const validRoles = ["admin", "vendor", "readonly"];
+    const validRoles = ["admin", "vendor", "setter", "readonly"];
     if (!member_user_id || !validRoles.includes(new_role)) {
       return new Response(JSON.stringify({ error: "Parámetros inválidos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }

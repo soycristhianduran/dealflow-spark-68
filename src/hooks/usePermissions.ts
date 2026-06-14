@@ -16,7 +16,10 @@ export function usePermissions() {
 
   const myUserId = user?.id ?? null;
   const isOwnerOrAdmin = role === "owner" || role === "admin";
-  const isVendor = role === "vendor";
+  // Setter has the SAME permissions as a vendor; it only differs at the dashboard
+  // level (setters book appointments, vendors close them).
+  const isSetter = role === "setter";
+  const isVendor = role === "vendor" || isSetter;
   const isReadonly = role === "readonly";
 
   /** Can open the Settings page and manage org config */
@@ -61,6 +64,7 @@ export function usePermissions() {
     role,
     isOwnerOrAdmin,
     isVendor,
+    isSetter,
     isReadonly,
     canAccessSettings,
     canAccessPowerFeatures,

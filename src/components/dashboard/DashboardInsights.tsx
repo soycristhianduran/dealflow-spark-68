@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { formatMoney } from "@/lib/money";
-import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp, Filter } from "lucide-react";
+import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp, Filter, CalendarCheck } from "lucide-react";
 import { MetaAdsIcon } from "@/components/icons/BrandIcons";
 
 interface StageDatum { name: string; count: number; color?: string | null }
@@ -27,6 +27,7 @@ interface Insights {
   agent: { sessions_month: number; escalations_month: number };
   funnels: { pipeline_id: string; pipeline_name: string; stages: FunnelStage[] }[];
   vendors: { owner_id: string; leads: number; citas: number; cierres: number; perdidos: number; revenue: number }[];
+  setters?: { setter_id: string; leads: number; citas: number; ganados: number }[];
 }
 
 
@@ -417,6 +418,31 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
                     <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>perdidos</span>
                     <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{v.citas > 0 ? `${Math.round((v.cierres / v.citas) * 100)}%` : "—"}</b>conv.</span>
                     <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>ventas</span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Per-setter (owner only) — setters book appointments */}
+        {isOwner && (data.setters?.length ?? 0) > 0 && (
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 text-white shadow-sm shadow-cyan-500/25"><CalendarCheck className="h-3.5 w-3.5" /></span> Por setter <span className="text-[11px] font-normal text-muted-foreground">· agendan citas</span></CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {(data.setters ?? []).map(s => (
+                <div key={s.setter_id} className="flex items-center gap-2 rounded-lg border p-2.5">
+                  <div className="h-7 w-7 rounded-full bg-cyan-100 dark:bg-cyan-950 flex items-center justify-center text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 shrink-0">
+                    {(vendorNames[s.setter_id] || "?").slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-sm flex-1 truncate min-w-0">{vendorNames[s.setter_id] || "Setter"}</span>
+                  <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
+                    <span className="text-center"><b className="block text-foreground text-xs">{s.leads.toLocaleString()}</b>leads</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{s.citas}</b>citas</span>
+                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{s.ganados}</b>ganados</span>
+                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{s.citas > 0 ? `${Math.round((s.ganados / s.citas) * 100)}%` : "—"}</b>conv.</span>
                   </div>
                 </div>
               ))}
