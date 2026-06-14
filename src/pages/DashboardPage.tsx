@@ -161,7 +161,7 @@ function KpiCard({
           </span>
         )}
       </div>
-      <p className="relative text-[28px] font-bold text-foreground tabular-nums leading-none tracking-tight">
+      <p className={`relative text-[28px] font-bold tabular-nums leading-none tracking-tight ${value === "—" ? "text-muted-foreground/40" : "text-foreground"}`}>
         {value}
       </p>
       {subValue && (
@@ -380,6 +380,10 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const greetingName =
+    user?.user_metadata?.given_name ||
+    user?.user_metadata?.full_name?.split(" ")[0] ||
+    user?.user_metadata?.first_name || "";
   const { isVendor, myUserId } = usePermissions();
   const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(true);
@@ -701,8 +705,35 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* ── Greeting hero ──────────────────────────────────────── */}
+        <div style={{ order: -2 }} className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-orange-500 via-orange-500 to-amber-500 px-5 py-5 md:px-7 md:py-6 text-white shadow-sm">
+          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
+          <div className="pointer-events-none absolute right-16 -bottom-16 h-40 w-40 rounded-full bg-black/5 blur-2xl" />
+          <div className="relative flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-medium text-white/80 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
+              <h1 className="text-2xl md:text-[28px] font-bold tracking-tight mt-0.5">
+                {(() => { const h = new Date().getHours(); return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; })()}
+                {greetingName ? `, ${greetingName}` : ""} 👋
+              </h1>
+              <p className="text-sm text-white/85 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>
+            </div>
+            <div className="flex items-center gap-5 shrink-0">
+              <div className="text-right">
+                <p className="text-2xl font-bold tabular-nums leading-none">{fmt(totalContacts)}</p>
+                <p className="text-[11px] text-white/80 mt-1">Total leads</p>
+              </div>
+              <div className="h-9 w-px bg-white/25" />
+              <div className="text-right">
+                <p className="text-2xl font-bold tabular-nums leading-none">{fmt(pipelineN)}</p>
+                <p className="text-[11px] text-white/80 mt-1">En pipeline</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* ── Header bar ─────────────────────────────────────────── */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ order: -2 }}>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ order: -1 }}>
           <div>
             <h2 className="text-lg font-bold text-foreground tracking-tight">Resumen de rendimiento</h2>
             <p className="text-xs text-muted-foreground mt-0.5">Tu negocio de un vistazo</p>
