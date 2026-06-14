@@ -20,24 +20,25 @@ export function useUnreadCounts() {
       setIgUnread(0);
       return;
     }
-    // Inboxes are shared ORG-WIDE — scope by organization so badges reflect the
-    // whole team's inbox, not just messages tied to the current user.
-    // WhatsApp — count incoming messages with read_at IS NULL
+    // Badge counts unread CONVERSATIONS (matching the inbox "No leídos"), not raw
+    // messages. Scoped ORG-WIDE so it reflects the whole team's inbox.
+    // WhatsApp — distinct conversations (phone numbers) with unread incoming msgs.
     let waQ = supabase
       .from("whatsapp_messages")
-      .select("id", { count: "exact", head: true })
+      .select("phone_number")
       .eq("direction", "incoming")
-      .is("read_at", null);
+      .is("read_at", null)
+      .limit(5000);
     waQ = organizationId ? waQ.eq("organization_id", organizationId) : waQ.eq("user_id", user.id);
-    const { count: waCount } = await waQ;
-    setWaUnread(waCount || 0);
+    const { data: waRows } = await waQ;
+    const waConvs = new Set((waRows || []).map((r: any) => r.phone_number).filter(Boolean));
+    setWaUnread(waConvs.size);
 
-    // Instagram — sum unread_count across conversations
-    let igQ = supabase.from("instagram_conversations").select("unread_count");
+    // Instagram — conversations with unread_count > 0.
+    let igQ = supabase.from("instagram_conversations").select("id").gt("unread_count", 0);
     igQ = organizationId ? igQ.eq("organization_id", organizationId) : igQ.eq("user_id", user.id);
     const { data: igConvs } = await igQ;
-    const total = (igConvs || []).reduce((s, c: any) => s + (c.unread_count || 0), 0);
-    setIgUnread(total);
+    setIgUnread((igConvs || []).length);
   }, [user, organizationId]);
 
   useEffect(() => { refresh(); }, [refresh]);

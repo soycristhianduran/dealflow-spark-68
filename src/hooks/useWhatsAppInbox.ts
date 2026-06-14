@@ -74,6 +74,40 @@ export function useWhatsAppInbox() {
         }
       }
 
+      // Make sure EVERY conversation with unread incoming messages is present and
+      // has an accurate unread_count — even if its messages are older than the
+      // recent window above. Otherwise the inbox (and badge) silently miss unread
+      // replies that scrolled past the 500-message window.
+      const { data: unreadMsgs } = await supabase
+        .from("whatsapp_messages")
+        .select("phone_number, contact_id, message_text, message_type, created_at")
+        .eq("direction", "incoming")
+        .is("read_at", null)
+        .order("created_at", { ascending: false })
+        .limit(5000);
+      const unreadByPhone = new Map<string, number>();
+      for (const m of (unreadMsgs || [])) {
+        const phone = m.phone_number;
+        if (!phone) continue;
+        unreadByPhone.set(phone, (unreadByPhone.get(phone) || 0) + 1);
+        if (!phoneMap.has(phone)) {
+          phoneMap.set(phone, {
+            phone_number: phone,
+            contact_id: m.contact_id || null,
+            contact_name: null,
+            last_message: m.message_text || (m.message_type !== "text" ? `[${m.message_type}]` : ""),
+            last_message_time: m.created_at,
+            last_direction: "incoming",
+            unread_count: 0,
+            from_phone_number_id: null,
+          });
+        }
+      }
+      // Authoritative unread count per conversation (full DB, not just the window).
+      for (const conv of phoneMap.values()) {
+        conv.unread_count = unreadByPhone.get(conv.phone_number) || 0;
+      }
+
       // Resolve contact names
       const contactIds = [
         ...new Set(
