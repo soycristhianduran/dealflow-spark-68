@@ -121,13 +121,29 @@ function PeriodSelector({
   );
 }
 
+function Donut({ value, light }: { value: number; light?: boolean }) {
+  const size = 46, stroke = 5, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const pct = Math.min(100, Math.max(0, value));
+  const off = c * (1 - pct / 100);
+  return (
+    <svg width={size} height={size} className="-rotate-90 shrink-0">
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke}
+        className={light ? "stroke-white/20" : "stroke-muted"} />
+      <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
+        className={light ? "stroke-white" : "stroke-orange-500"}
+        strokeDasharray={c} strokeDashoffset={off} style={{ transition: "stroke-dashoffset .6s ease" }} />
+    </svg>
+  );
+}
+
 function KpiCard({
-  label, value, subValue, trend, trendIsPoints = false, invertTrend = false, icon, accent,
+  label, value, subValue, trend, trendIsPoints = false, invertTrend = false, icon, accent, highlight = false, gauge = null,
 }: {
   label: string; value: string | number; subValue?: string;
   trend?: number | null; trendIsPoints?: boolean; invertTrend?: boolean;
   icon: React.ReactNode;
   accent: "emerald" | "blue" | "orange" | "red" | "violet";
+  highlight?: boolean; gauge?: number | null;
 }) {
   const accentMap: Record<string, { chip: string; glow: string }> = {
     emerald: { chip: "bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-emerald-500/25", glow: "from-emerald-500/10" },
@@ -141,15 +157,33 @@ function KpiCard({
   const trendUp   = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend < 0 : trend > 0);
   const trendDown = trend !== null && trend !== undefined && trend !== 0 && (invertTrend ? trend > 0 : trend < 0);
 
+  if (highlight) {
+    return (
+      <div className="group relative overflow-hidden rounded-2xl p-4 shadow-lg shadow-indigo-500/20 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30">
+        <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
+        <div className="pointer-events-none absolute -left-6 -bottom-10 h-28 w-28 rounded-full bg-black/10 blur-2xl" />
+        <div className="relative flex items-start justify-between mb-3.5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20 backdrop-blur-sm text-white">{icon}</div>
+          {gauge !== null && gauge !== undefined && <Donut value={gauge} light />}
+        </div>
+        <p className="relative text-[28px] font-bold tabular-nums leading-none tracking-tight">{value}</p>
+        {subValue && <p className="relative text-xs text-white/80 mt-1.5">{subValue}</p>}
+        <p className="relative text-[11px] font-semibold uppercase tracking-wider text-white/75 mt-3">{label}</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border">
+    <div className="group relative overflow-hidden rounded-2xl border border-border/60 bg-card/90 backdrop-blur-sm p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:border-border">
       {/* soft corner glow */}
       <div className={`pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full bg-gradient-to-br ${a.glow} to-transparent blur-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100`} />
       <div className="relative flex items-start justify-between mb-3.5">
         <div className={`flex h-9 w-9 items-center justify-center rounded-xl shadow-md ${a.chip}`}>
           {icon}
         </div>
-        {trend !== null && trend !== undefined && trend !== 0 && (
+        {gauge !== null && gauge !== undefined ? (
+          <Donut value={gauge} />
+        ) : trend !== null && trend !== undefined && trend !== 0 ? (
           <span className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-bold ${
             trendUp
               ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
@@ -159,7 +193,7 @@ function KpiCard({
             {trendDown && <ArrowDownRight className="h-3 w-3" />}
             {Math.abs(trend)}{trendIsPoints ? " pp" : "%"}
           </span>
-        )}
+        ) : null}
       </div>
       <p className={`relative text-[28px] font-bold tabular-nums leading-none tracking-tight ${value === "—" ? "text-muted-foreground/40" : "text-foreground"}`}>
         {value}
@@ -763,6 +797,7 @@ export default function DashboardPage() {
             subValue={`${pipelineN} ${pipelineN === 1 ? "deal en curso" : "deals en curso"}`}
             icon={<BarChart3 className="h-4 w-4" />}
             accent="blue"
+            highlight
           />
           <KpiCard
             label="Win Rate"
@@ -772,8 +807,7 @@ export default function DashboardPage() {
                 ? `${wonCount} ganados · ${lostCount} perdidos`
                 : "Sin datos en el período"
             }
-            trend={winRateDelta}
-            trendIsPoints
+            gauge={winRate}
             icon={<Trophy className="h-4 w-4" />}
             accent="orange"
           />
