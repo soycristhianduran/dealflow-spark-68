@@ -24,7 +24,7 @@ type CustomField = { key: string; value: string };
 
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
   const { organizationId } = useOrganizationContext();
-  const { isSetter, myUserId } = usePermissions();
+  const { isVendor, myUserId } = usePermissions();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -109,9 +109,10 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       score: 0,
       custom_fields: Object.keys(customFieldsObj).length > 0 ? customFieldsObj : {},
       ...(organizationId ? { organization_id: organizationId } : {}),
-      // Setters are credited as the booker of the lead they create (and own it
-      // until a vendor is assigned to close it).
-      ...(isSetter && myUserId ? { setter_id: myUserId, owner_id: myUserId } : {}),
+      // Attribution by ACTION: any sales rep (vendor or setter) who CREATES a lead
+      // is credited as its setter and owns it until a vendor is (re)assigned. This
+      // supports "hybrid" people (who both set and close) without a separate role.
+      ...(isVendor && myUserId ? { setter_id: myUserId, owner_id: myUserId } : {}),
     }).select("id").single();
 
     if (error) {
