@@ -180,6 +180,9 @@ export default function SettingsPage() {
         if (data?.org?.timezone) {
           setTimezone(data.org.timezone);
         }
+        if (data?.org?.default_currency) {
+          setCurrency(data.org.default_currency);
+        }
       } catch (_) {
         // fallback to context if edge function fails
         if (organization?.slug) {
@@ -390,7 +393,7 @@ export default function SettingsPage() {
   const handleSaveGeneral = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "save_general", name: orgName.trim() || undefined, timezone },
+        body: { action: "save_general", name: orgName.trim() || undefined, timezone, default_currency: currency },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success("Configuración guardada");

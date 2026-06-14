@@ -99,7 +99,7 @@ interface IgMessageRow {
 
 export default function ConversationsPage() {
   const { user } = useAuth();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, defaultCurrency } = useOrganizationContext();
   const { canEditContacts: canEditConversations } = usePermissions();
   const wa = useWhatsAppInbox();
   const ig = useInstagramIntegration();
@@ -1169,6 +1169,7 @@ function fmtConvTime(iso: string): string {
 // ── Quick pipeline + stage changer for the conversation header ────────────────
 function StagePipelinePicker({ contactId }: { contactId: string }) {
   const { canEditContacts } = usePermissions();
+  const { defaultCurrency } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
@@ -1216,7 +1217,7 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
         const amount = Number(raw.replace(/[^\d.]/g, ""));
         if (!(amount > 0)) { toast.error("Presupuesto inválido. Debe ser mayor a 0."); return; }
         update.budget = amount;
-        update.budget_currency = c?.budget_currency || "USD";
+        update.budget_currency = c?.budget_currency || defaultCurrency;
       }
       update.lead_status = "won";
     }

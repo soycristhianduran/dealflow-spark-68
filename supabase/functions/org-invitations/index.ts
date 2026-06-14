@@ -364,7 +364,7 @@ Deno.serve(async (req) => {
 
     const { data: org } = await supabase
       .from("organizations")
-      .select("id, name, slug, timezone, public_form_token")
+      .select("id, name, slug, timezone, public_form_token, default_currency")
       .eq("id", membership.organization_id)
       .maybeSingle();
 
@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
   // ── Save workspace slug ────────────────────────────────────────────────────
   // ── Save general org settings (name, timezone) ────────────────────────────
   if (action === "save_general") {
-    const { name, timezone } = body;
+    const { name, timezone, default_currency } = body;
     const { data: membership } = await supabase
       .from("organization_members")
       .select("organization_id, role")
@@ -469,10 +469,15 @@ Deno.serve(async (req) => {
       .limit(1)
       .maybeSingle();
     if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    // Only owner/admin may change org settings.
+    if (!["owner", "admin"].includes(membership.role)) {
+      return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     const patch: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) patch.name = name.trim();
     if (typeof timezone === "string" && timezone.trim()) patch.timezone = timezone.trim();
+    if (typeof default_currency === "string" && default_currency.trim()) patch.default_currency = default_currency.trim();
     if (Object.keys(patch).length === 0) {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }

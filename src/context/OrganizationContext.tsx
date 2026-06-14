@@ -1,11 +1,14 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useOrganization, type Organization } from "@/hooks/useOrganization";
 import { getRootAppUrl, getWorkspaceSlug } from "@/lib/subdomain";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrganizationContextType {
   organizationId: string | null;
   organization: Organization | null;
   role: string | null;
+  /** Org's default currency for lead budgets (e.g. "COP"). Falls back to "USD". */
+  defaultCurrency: string;
   loading: boolean;
   error: string | null;
   accessDenied: boolean;
@@ -16,6 +19,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizationId: null,
   organization: null,
   role: null,
+  defaultCurrency: "USD",
   loading: true,
   error: null,
   accessDenied: false,
@@ -28,6 +32,15 @@ export function useOrganizationContext(): OrganizationContextType {
 
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const orgState = useOrganization();
+  const [defaultCurrency, setDefaultCurrency] = useState("USD");
+
+  useEffect(() => {
+    if (!orgState.organizationId) { setDefaultCurrency("USD"); return; }
+    let active = true;
+    supabase.from("organizations").select("default_currency").eq("id", orgState.organizationId).maybeSingle()
+      .then(({ data }) => { if (active && data?.default_currency) setDefaultCurrency(data.default_currency); });
+    return () => { active = false; };
+  }, [orgState.organizationId]);
 
   // If the user is on a workspace subdomain but is NOT a member, show an
   // access-denied screen instead of rendering the full app.
@@ -59,7 +72,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <OrganizationContext.Provider value={orgState}>
+    <OrganizationContext.Provider value={{ ...orgState, defaultCurrency }}>
       {children}
     </OrganizationContext.Provider>
   );

@@ -62,7 +62,7 @@ export default function PipelinePage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { session } = useAuth();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, defaultCurrency } = useOrganizationContext();
   const { isVendor, myUserId, canEditContacts } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
@@ -271,7 +271,7 @@ export default function PipelinePage() {
     setLeadFullName("");
     setLeadPhone("");
     setLeadBudget("");
-    setLeadCurrency("USD");
+    setLeadCurrency(defaultCurrency);
     setLeadCloseDate("");
     setLeadDialogOpen(true);
   };
@@ -378,7 +378,7 @@ export default function PipelinePage() {
       if (!contact?.budget || Number(contact.budget) <= 0) {
         setPendingWonDrop({ contactId, stageId, stageName: stage?.name ?? "" });
         setWonBudgetAmount("");
-        setWonBudgetCurrency(contact?.budget_currency || "USD");
+        setWonBudgetCurrency(contact?.budget_currency || defaultCurrency);
         setWonBudgetDialogOpen(true);
         return; // pause — will complete after user enters budget
       }

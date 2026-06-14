@@ -60,7 +60,7 @@ export default function ContactDetailPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { canDeleteContacts, canEditContacts, canSeeBudget } = usePermissions();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, defaultCurrency } = useOrganizationContext();
   const [contact, setContact] = useState<any>(null);
   const [fieldDefs, setFieldDefs] = useState<{ id: string; key: string; label: string; field_type: string; options: string[] | null }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -279,7 +279,7 @@ export default function ContactDetailPage() {
       pipeline_id: contact.pipeline_id || "",
       stage_id: contact.stage_id || "",
       budget: contact.budget != null ? String(contact.budget) : "",
-      budget_currency: contact.budget_currency || "USD",
+      budget_currency: contact.budget_currency || defaultCurrency,
       expected_close_date: contact.expected_close_date || "",
     });
     setPplDirty(false);
@@ -301,7 +301,7 @@ export default function ContactDetailPage() {
       pipeline_id: ppl.pipeline_id || null,
       stage_id: ppl.stage_id || null,
       budget: ppl.budget ? Number(ppl.budget) : null,
-      budget_currency: ppl.budget_currency || "USD",
+      budget_currency: ppl.budget_currency || defaultCurrency,
       expected_close_date: ppl.expected_close_date || null,
     }).eq("id", id);
     if (error) {
@@ -323,7 +323,7 @@ export default function ContactDetailPage() {
         pipeline_id: data?.pipeline_id || "",
         stage_id: data?.stage_id || "",
         budget: data?.budget != null ? String(data.budget) : "",
-        budget_currency: data?.budget_currency || "USD",
+        budget_currency: data?.budget_currency || defaultCurrency,
         expected_close_date: data?.expected_close_date || "",
       });
       setPplDirty(false);
@@ -361,7 +361,7 @@ export default function ContactDetailPage() {
     if (isWonStageName(stageName) && !budgetOverride && (!contact?.budget || Number(contact.budget) <= 0)) {
       setStagePickerOpen(false);
       setWonDlg({ stageId: newStageId, pipelineId: newPipelineId, stageName });
-      setWonAmt(""); setWonCur(contact?.budget_currency || "USD");
+      setWonAmt(""); setWonCur(contact?.budget_currency || defaultCurrency);
       return;
     }
     setSavingStage(true);
