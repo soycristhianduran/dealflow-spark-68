@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { formatMoney } from "@/lib/money";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -859,9 +860,9 @@ export default function ContactDetailPage() {
                               title={canEditContacts ? "Clic para editar presupuesto" : undefined}
                             >
                               <span className="text-2xl font-bold text-foreground leading-none">
-                                {ppl.budget ? `$${Number(ppl.budget).toLocaleString()}` : "—"}
+                                {ppl.budget ? formatMoney(Number(ppl.budget), ppl.budget_currency || defaultCurrency) : "—"}
                               </span>
-                              <span className="text-sm text-muted-foreground">{ppl.budget_currency}</span>
+                              <span className="text-sm text-muted-foreground">{ppl.budget_currency || defaultCurrency}</span>
                               {canEditContacts && <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />}
                             </button>
                           )}

@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { formatMoney } from "@/lib/money";
 import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign } from "lucide-react";
 
 interface StageDatum { name: string; count: number; color?: string | null }
@@ -27,11 +28,6 @@ interface Insights {
   vendors: { owner_id: string; leads: number; citas: number; cierres: number; revenue: number }[];
 }
 
-const fmtMoney = (n: number) => {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
-};
 
 // Keyword categorizer — groups many phrasings into a few buckets.
 const OBJECTION_CATS: { key: string; words: string[] }[] = [
@@ -85,7 +81,8 @@ function Sparkline({ data }: { data: number[] }) {
 }
 
 export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null }) {
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, defaultCurrency } = useOrganizationContext();
+  const fmtMoney = (n: number) => formatMoney(n, defaultCurrency, { compact: true });
   const [data, setData] = useState<Insights | null>(null);
   const [lastCamp, setLastCamp] = useState<any>(null);
   const [vendorNames, setVendorNames] = useState<Record<string, string>>({});

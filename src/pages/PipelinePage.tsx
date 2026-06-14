@@ -17,6 +17,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/money";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface Pipeline {
@@ -707,7 +708,7 @@ export default function PipelinePage() {
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-xs font-medium text-muted-foreground">
-                        ${(getStageValue(stage.id) / 1000).toFixed(0)}K
+                        {formatMoney(getStageValue(stage.id), defaultCurrency, { compact: true })}
                       </span>
                       {!manageMode && canEditContacts && (
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openCreateLead(stage.id); }}>
@@ -791,7 +792,7 @@ export default function PipelinePage() {
                         )}
                         <div className="flex items-center justify-between">
                           {contact.budget ? (
-                            <span className="text-sm font-semibold text-foreground">${Number(contact.budget).toLocaleString()}</span>
+                            <span className="text-sm font-semibold text-foreground">{formatMoney(contact.budget, contact.budget_currency || defaultCurrency)}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">Sin presupuesto</span>
                           )}
