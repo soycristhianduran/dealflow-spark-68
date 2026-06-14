@@ -99,9 +99,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       setAdModal(row);
       if (roasLevel !== "ad" || !row.id) { setAdPreview({ loading: false }); return; }
       setAdPreview({ loading: true });
-      supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } }).then(({ data }) => {
+      supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } }).then(({ data, error }) => {
         if (data?.preview_html) setAdPreview({ loading: false, html: data.preview_html });
-        else setAdPreview({ loading: false, error: data?.message || "No disponible" });
+        else setAdPreview({ loading: false, error: data?.message || data?.error || error?.message || "No disponible" });
       });
     });
   };
