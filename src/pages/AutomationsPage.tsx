@@ -621,6 +621,46 @@ function describeCron(expr: string): string {
   return `Expresión cron: ${expr}`;
 }
 
+// Pipeline + stage selector for the "stage changed" trigger (stores stage_id so
+// the runner matches reliably). Empty = any stage.
+function StageTriggerPicker({ config, onChange }: { config: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
+  const [pipelines, setPipelines] = React.useState<{ id: string; name: string }[]>([]);
+  const [stages, setStages] = React.useState<{ id: string; name: string; pipeline_id: string }[]>([]);
+  React.useEffect(() => {
+    supabase.from("pipelines").select("id, name").order("created_at").then(({ data }) => setPipelines(data || []));
+    supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order", { ascending: true }).then(({ data }) => setStages((data as any) || []));
+  }, []);
+  const pid: string = config?.pipeline_id ?? "";
+  const stagesFor = pid ? stages.filter(s => s.pipeline_id === pid) : stages;
+  const pname = (id: string) => pipelines.find(p => p.id === id)?.name ?? "";
+  return (
+    <div className="space-y-2">
+      <Label>Etapa disparadora (opcional)</Label>
+      {pipelines.length > 1 && (
+        <Select value={pid || "all"} onValueChange={v => onChange({ ...config, pipeline_id: v === "all" ? "" : v, stage_id: "", stage_name: "" })}>
+          <SelectTrigger className="mt-1"><SelectValue placeholder="Todos los pipelines" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los pipelines</SelectItem>
+            {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      )}
+      <Select value={config?.stage_id || "all"} onValueChange={v => {
+        if (v === "all") { onChange({ ...config, stage_id: "", stage_name: "" }); return; }
+        const st = stages.find(s => s.id === v);
+        onChange({ ...config, stage_id: v, stage_name: st?.name ?? "", pipeline_id: st?.pipeline_id ?? config?.pipeline_id ?? "" });
+      }}>
+        <SelectTrigger className="mt-1"><SelectValue placeholder="Cualquier etapa" /></SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Cualquier etapa</SelectItem>
+          {stagesFor.map(s => <SelectItem key={s.id} value={s.id}>{s.name}{pipelines.length > 1 ? ` · ${pname(s.pipeline_id)}` : ""}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <p className="text-xs text-muted-foreground">Se activa cuando un lead se mueve a esta etapa. Deja "Cualquier etapa" para disparar en cualquier cambio.</p>
+    </div>
+  );
+}
+
 function ScheduledTriggerEditor({
   triggerConfig, onChange,
 }: { triggerConfig: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
@@ -968,18 +1008,7 @@ function TriggerConfigEditor({
         </div>
       )}
       {triggerType === "contact_stage_changed" && (
-        <div className="space-y-2">
-          <Label>Etapa disparadora (opcional)</Label>
-          <Input
-            className="mt-1"
-            value={triggerConfig?.stage_name ?? ""}
-            onChange={e => onChange(triggerType, { ...triggerConfig, stage_name: e.target.value })}
-            placeholder="Deja vacío para cualquier etapa"
-          />
-          <p className="text-xs text-muted-foreground">
-            Se activa cuando un lead es movido a esta etapa en el pipeline. Deja vacío para disparar en cualquier cambio de etapa.
-          </p>
-        </div>
+        <StageTriggerPicker config={triggerConfig} onChange={cfg => onChange(triggerType, cfg)} />
       )}
       {triggerType === "contact_created" && (
         <div>
