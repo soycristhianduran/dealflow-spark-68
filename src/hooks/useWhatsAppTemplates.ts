@@ -55,17 +55,18 @@ export function useWhatsAppTemplates() {
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: local } = await supabase
-        .from("whatsapp_templates")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Templates are shared org-wide — scope by organization so every member
+      // (not just the user who synced) sees the same approved templates.
+      let q = supabase.from("whatsapp_templates").select("*").order("created_at", { ascending: false });
+      if (organizationId) q = q.eq("organization_id", organizationId);
+      const { data: local } = await q;
       setTemplates(local || []);
     } catch (e: any) {
       toast.error("Error al cargar plantillas: " + e.message);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [organizationId]);
 
   // Sync from Meta API (requires valid token — call explicitly)
   const syncFromMeta = useCallback(async () => {
