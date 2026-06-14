@@ -32,6 +32,34 @@ const fmtMoney = (n: number) => {
   return `$${Math.round(n).toLocaleString()}`;
 };
 
+// Keyword categorizer — groups many phrasings into a few buckets.
+const OBJECTION_CATS: { key: string; words: string[] }[] = [
+  { key: "Precio / Costoso", words: ["precio", "caro", "costoso", "costos", "plata", "dinero", "presupuesto", "barato", "económic", "economic", "cuesta", "vale", "no tengo", "sin plata"] },
+  { key: "Falta de tiempo", words: ["tiempo", "después", "despues", "luego", "ocupad", "más adelante", "mas adelante", "pensar", "ahora no", "ya veremos"] },
+  { key: "Desconfianza / Dudas", words: ["confian", "seguro", "estafa", "garant", "duda", "verdad", "real", "serio"] },
+  { key: "Competencia", words: ["otro lado", "competencia", "otra empresa", "comparar", "cotiz", "más barato en"] },
+  { key: "No le interesa", words: ["no necesito", "no me interesa", "no busco", "no quiero", "no gracias"] },
+  { key: "Ubicación", words: ["lejos", "ubicación", "ubicacion", "zona", "distancia", "muy retirado"] },
+  { key: "Financiación", words: ["crédit", "credit", "cuotas", "financ", "banco", "contado"] },
+];
+const SIGNAL_CATS: { key: string; words: string[] }[] = [
+  { key: "Interés alto", words: ["me interesa", "interesad", "quiero", "información", "informacion", "más info", "cuéntame", "cuentame"] },
+  { key: "Listo para agendar", words: ["agendar", "cita", "reunión", "reunion", "visita", "ver el proyecto", "disponible", "cuándo", "cuando"] },
+  { key: "Presupuesto OK", words: ["tengo", "puedo pagar", "de contado", "capacidad", "presupuesto disponible"] },
+  { key: "Urgencia", words: ["ya", "pronto", "rápido", "rapido", "urgente", "esta semana", "hoy", "inmediato"] },
+  { key: "Intención de compra", words: ["comprar", "adquirir", "invertir", "separar", "reservar", "cerrar"] },
+];
+function categorize(text: string, cats: { key: string; words: string[] }[]): string {
+  const t = (text || "").toLowerCase();
+  for (const c of cats) if (c.words.some(w => t.includes(w))) return c.key;
+  return "Otros";
+}
+function groupItems(items: string[], cats: { key: string; words: string[] }[]) {
+  const m = new Map<string, number>();
+  for (const it of items) { const k = categorize(it, cats); m.set(k, (m.get(k) || 0) + 1); }
+  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([key, n]) => ({ key, n }));
+}
+
 const SOURCE_LABELS: Record<string, string> = {
   facebook_ads: "Meta Ads", facebook: "Facebook", instagram: "Instagram",
   api: "API", "Importación CSV": "Importación", whatsapp: "WhatsApp",
@@ -56,6 +84,8 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [lastCamp, setLastCamp] = useState<any>(null);
   const [vendorNames, setVendorNames] = useState<Record<string, string>>({});
   const [pipelineIdx, setPipelineIdx] = useState(0);
+  const [groupedObj, setGroupedObj] = useState<{ key: string; n: number }[]>([]);
+  const [groupedSig, setGroupedSig] = useState<{ key: string; n: number }[]>([]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -67,6 +97,18 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         .select("name, total_recipients, sent_count, delivered_count, read_count, failed_count, sent_at, status")
         .eq("status", "sent").order("sent_at", { ascending: false }).limit(1).maybeSingle();
       setLastCamp(camp);
+      // Grouped objections + positive signals (categorize raw AI analysis arrays)
+      const { data: analyses } = await supabase.from("contact_ai_analyses")
+        .select("objections, signals_detected").order("analyzed_at", { ascending: false }).limit(1000);
+      const objs: string[] = [];
+      const sigs: string[] = [];
+      for (const a of (analyses || [])) {
+        if (Array.isArray(a.objections)) objs.push(...a.objections.map(String));
+        if (Array.isArray(a.signals_detected)) sigs.push(...a.signals_detected.map(String));
+      }
+      setGroupedObj(groupItems(objs, OBJECTION_CATS));
+      setGroupedSig(groupItems(sigs, SIGNAL_CATS));
+
       // Resolve advisor names (owner view)
       if (isOwner) {
         const { data: members } = await supabase.functions.invoke("org-invitations", { body: { action: "list_members" } });
@@ -242,6 +284,54 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
           </Card>
         )}
       </div>
+
+      {/* Grouped objections + positive signals */}
+      {(groupedObj.length > 0 || groupedSig.length > 0) && (
+        <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><span className="text-base">🛑</span> Objeciones agrupadas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {groupedObj.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-3 text-center">Aún no hay objeciones analizadas.</p>
+              ) : groupedObj.map((o) => {
+                const max = groupedObj[0].n;
+                return (
+                  <div key={o.key} className="flex items-center gap-2">
+                    <span className="text-xs w-36 truncate">{o.key}</span>
+                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-red-400" style={{ width: `${(o.n / max) * 100}%` }} />
+                    </div>
+                    <span className="text-xs font-medium tabular-nums w-8 text-right">{o.n}</span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+          <Card className="border-none shadow-sm">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center gap-2"><span className="text-base">✅</span> Señales positivas agrupadas</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-1.5">
+              {groupedSig.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-3 text-center">Aún no hay señales analizadas.</p>
+              ) : groupedSig.map((sg) => {
+                const max = groupedSig[0].n;
+                return (
+                  <div key={sg.key} className="flex items-center gap-2">
+                    <span className="text-xs w-36 truncate">{sg.key}</span>
+                    <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
+                      <div className="h-full rounded-full bg-emerald-400" style={{ width: `${(sg.n / max) * 100}%` }} />
+                    </div>
+                    <span className="text-xs font-medium tabular-nums w-8 text-right">{sg.n}</span>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
