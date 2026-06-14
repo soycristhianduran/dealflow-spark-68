@@ -44,11 +44,14 @@ const OBJECTION_CATS: { key: string; words: string[] }[] = [
   { key: "Financiación", words: ["crédit", "credit", "cuotas", "financ", "banco", "contado"] },
 ];
 const SIGNAL_CATS: { key: string; words: string[] }[] = [
-  { key: "Interés alto", words: ["me interesa", "interesad", "quiero", "información", "informacion", "más info", "cuéntame", "cuentame"] },
+  { key: "Interés alto", words: ["me interesa", "interesad", "interés", "interes", "quiero", "me gustaría", "me gustaria", "cuéntame", "cuentame"] },
+  { key: "Pide info / material", words: ["información", "informacion", "más info", "mas info", "brochure", "brichure", "folleto", "catálogo", "catalogo", "recibir", "enviar", "detalles", "ficha"] },
+  { key: "Precio / Promoción", words: ["precio", "precios", "costo", "cuánto", "cuanto", "vale", "lanzamiento", "promoción", "promocion", "oferta", "descuento", "cotiz"] },
   { key: "Listo para agendar", words: ["agendar", "cita", "reunión", "reunion", "visita", "ver el proyecto", "disponible", "cuándo", "cuando"] },
   { key: "Presupuesto OK", words: ["tengo", "puedo pagar", "de contado", "capacidad", "presupuesto disponible"] },
   { key: "Urgencia", words: ["ya", "pronto", "rápido", "rapido", "urgente", "esta semana", "hoy", "inmediato"] },
-  { key: "Intención de compra", words: ["comprar", "adquirir", "invertir", "separar", "reservar", "cerrar"] },
+  { key: "Intención de compra", words: ["comprar", "adquirir", "invertir", "separar", "reservar", "cerrar", "prueba", "empezar", "plan pro"] },
+  { key: "Ubicación / Zona", words: ["ubicación", "ubicacion", "zona", "dónde queda", "donde queda", "dirección", "direccion"] },
 ];
 function categorize(text: string, cats: { key: string; words: string[] }[]): string {
   const t = (text || "").toLowerCase();
@@ -56,9 +59,11 @@ function categorize(text: string, cats: { key: string; words: string[] }[]): str
   return "Otros";
 }
 function groupItems(items: string[], cats: { key: string; words: string[] }[]) {
-  const m = new Map<string, number>();
-  for (const it of items) { const k = categorize(it, cats); m.set(k, (m.get(k) || 0) + 1); }
-  return [...m.entries()].sort((a, b) => b[1] - a[1]).map(([key, n]) => ({ key, n }));
+  const m = new Map<string, string[]>();
+  for (const it of items) { const k = categorize(it, cats); const arr = m.get(k) || []; arr.push(it); m.set(k, arr); }
+  return [...m.entries()]
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([key, examples]) => ({ key, n: examples.length, examples }));
 }
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -85,8 +90,8 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [lastCamp, setLastCamp] = useState<any>(null);
   const [vendorNames, setVendorNames] = useState<Record<string, string>>({});
   const [pipelineIdx, setPipelineIdx] = useState(0);
-  const [groupedObj, setGroupedObj] = useState<{ key: string; n: number }[]>([]);
-  const [groupedSig, setGroupedSig] = useState<{ key: string; n: number }[]>([]);
+  const [groupedObj, setGroupedObj] = useState<{ key: string; n: number; examples: string[] }[]>([]);
+  const [groupedSig, setGroupedSig] = useState<{ key: string; n: number; examples: string[] }[]>([]);
   const [adsRoas, setAdsRoas] = useState<any[]>([]);
   const [roasLevel, setRoasLevel] = useState<"campaign" | "ad">("campaign");
   const [adModal, setAdModal] = useState<any | null>(null);
@@ -420,7 +425,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
               ) : groupedObj.map((o) => {
                 const max = groupedObj[0].n;
                 return (
-                  <div key={o.key} className="flex items-center gap-2">
+                  <div key={o.key} className="flex items-center gap-2" title={o.examples.join(" · ")}>
                     <span className="text-xs w-36 truncate">{o.key}</span>
                     <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full bg-red-400" style={{ width: `${(o.n / max) * 100}%` }} />
@@ -441,7 +446,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
               ) : groupedSig.map((sg) => {
                 const max = groupedSig[0].n;
                 return (
-                  <div key={sg.key} className="flex items-center gap-2">
+                  <div key={sg.key} className="flex items-center gap-2" title={sg.examples.join(" · ")}>
                     <span className="text-xs w-36 truncate">{sg.key}</span>
                     <div className="flex-1 h-2 rounded-full bg-muted overflow-hidden">
                       <div className="h-full rounded-full bg-emerald-400" style={{ width: `${(sg.n / max) * 100}%` }} />
