@@ -14,7 +14,7 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus } from "lucide-react";
+import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -117,6 +117,17 @@ export default function PipelinePage() {
   const [leadCloseDate, setLeadCloseDate] = useState("");
   const [savingLead, setSavingLead] = useState(false);
 
+  // Default editable middle stages seeded for brand-new MANUAL pipelines.
+  // (The DB trigger already creates the fixed Nuevo contacto / Ganado / Perdido.)
+  const seedDefaultStages = useCallback(async (pipelineId: string) => {
+    const defaults = [
+      { name: "Contactado",       color: "#60a5fa", probability: 20, order: 1 },
+      { name: "Calificado",       color: "#818cf8", probability: 45, order: 2 },
+      { name: "Propuesta enviada", color: "#f59e0b", probability: 70, order: 3 },
+    ].map(s => ({ ...s, pipeline_id: pipelineId, ...(organizationId ? { organization_id: organizationId } : {}) }));
+    await supabase.from("pipeline_stages").insert(defaults);
+  }, [organizationId]);
+
   const fetchPipelines = useCallback(async () => {
     const { data } = await supabase.from("pipelines").select("id, name").order("created_at", { ascending: true });
     const list = data || [];
@@ -161,6 +172,7 @@ export default function PipelinePage() {
       if (list.length === 0) {
         const { data: newPipeline } = await supabase.from("pipelines").insert({ name: "Pipeline principal", ...(organizationId ? { organization_id: organizationId } : {}) }).select("id, name").single();
         if (newPipeline) {
+          await seedDefaultStages(newPipeline.id);
           setPipelines([newPipeline]);
           pid = newPipeline.id;
         }
@@ -171,7 +183,7 @@ export default function PipelinePage() {
     setSelectedPipelineId(pid);
     if (pid) await fetchStagesAndContacts(pid);
     setLoading(false);
-  }, [selectedPipelineId, fetchPipelines, fetchStagesAndContacts]);
+  }, [selectedPipelineId, fetchPipelines, fetchStagesAndContacts, seedDefaultStages]);
 
   useEffect(() => {
     fetchData();
@@ -229,7 +241,8 @@ export default function PipelinePage() {
         setPipelines(prev => [...prev, data]);
         setSelectedPipelineId(data.id);
         setContacts([]);
-        // The DB auto-creates the Ganado/Perdido system stages — load them in.
+        // DB auto-creates Nuevo contacto / Ganado / Perdido; seed 3 editable middle stages.
+        await seedDefaultStages(data.id);
         fetchStagesAndContacts(data.id);
       }
     }
@@ -642,6 +655,7 @@ export default function PipelinePage() {
               const sys = (stage as any).is_system;
               const isWon = (stage as any).is_won;
               const isLost = (stage as any).is_lost;
+              const isFirst = (stage as any).is_first;
               return (
                 <div
                   key={stage.id}
@@ -680,7 +694,8 @@ export default function PipelinePage() {
                   {/* Stage header */}
                   <div className="flex items-center justify-between px-3 py-3 border-b">
                     <div className="flex items-center gap-2 min-w-0">
-                      {isWon ? <Trophy className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                      {isFirst ? <UserPlus className="h-3.5 w-3.5 shrink-0 text-sky-500" />
+                        : isWon ? <Trophy className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                         : isLost ? <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
                         : <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />}
                       <span className="text-sm font-semibold text-foreground truncate">{stage.name}</span>
@@ -720,7 +735,7 @@ export default function PipelinePage() {
                             )}
                             {sys ? (
                               <DropdownMenuItem disabled className="text-muted-foreground">
-                                <Trophy className="h-3.5 w-3.5 mr-2" /> Etapa de cierre (fija)
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {isFirst ? "Etapa inicial (fija)" : "Etapa de cierre (fija)"}
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
