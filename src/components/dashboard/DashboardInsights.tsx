@@ -108,6 +108,55 @@ function RadialGauge({ value, label, sub }: { value: number; label: string; sub?
   );
 }
 
+const SRC_COLORS = ["#f97316", "#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#64748b"];
+function compact(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) {
+  const top = sources.slice(0, 5);
+  const restN = sources.slice(5).reduce((s, x) => s + x.n, 0);
+  const segs = top.map((s, i) => ({ label: srcLabel(s.source), n: s.n, color: SRC_COLORS[i] }));
+  if (restN > 0) segs.push({ label: "Otros", n: restN, color: SRC_COLORS[5] });
+  const total = segs.reduce((s, x) => s + x.n, 0) || 1;
+  const size = 124, stroke = 16, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  let acc = 0;
+  return (
+    <div className="flex items-center gap-5">
+      <div className="relative shrink-0" style={{ width: size, height: size }}>
+        <svg width={size} height={size} className="-rotate-90">
+          <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted/60" />
+          {segs.map((seg, i) => {
+            const dash = c * (seg.n / total);
+            const el = (
+              <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke}
+                stroke={seg.color} strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-acc}
+                style={{ transition: "stroke-dashoffset .6s ease" }} />
+            );
+            acc += dash;
+            return el;
+          })}
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-xl font-bold tabular-nums tracking-tight">{compact(total)}</span>
+          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Leads</span>
+        </div>
+      </div>
+      <div className="flex-1 space-y-1.5 min-w-0">
+        {segs.map((seg, i) => (
+          <div key={i} className="flex items-center gap-2 text-xs">
+            <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: seg.color }} />
+            <span className="flex-1 truncate font-medium">{seg.label}</span>
+            <span className="tabular-nums font-bold">{seg.n.toLocaleString()}</span>
+            <span className="tabular-nums text-muted-foreground w-9 text-right">{Math.round((seg.n / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Sparkline({ data }: { data: number[] }) {
   if (!data.length) return <div className="h-28" />;
   const w = 600, h = 120, padY = 12;
@@ -214,7 +263,6 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
     series.push(byDay.get(d) || 0);
   }
-  const maxSource = Math.max(...data.sources.map(s => s.n), 1);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -240,17 +288,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
             <Sparkline data={series} />
           </div>
           {data.sources.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2.5 pt-1">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Por fuente (30 días)</p>
-              {data.sources.slice(0, 5).map(s => (
-                <div key={s.source} className="flex items-center gap-2.5">
-                  <span className="text-xs font-medium w-28 truncate">{srcLabel(s.source)}</span>
-                  <div className="flex-1 h-2.5 rounded-full bg-muted/70 overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-500 transition-all" style={{ width: `${(s.n / maxSource) * 100}%` }} />
-                  </div>
-                  <span className="text-xs font-bold tabular-nums w-12 text-right">{s.n.toLocaleString()}</span>
-                </div>
-              ))}
+              <SourceDonut sources={data.sources} />
             </div>
           )}
         </div>
