@@ -32,14 +32,35 @@ function brandedInviteEmail(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 12px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <!-- Header -->
-        <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:28px 32px;">
+        <!-- Header (dark orange) with official pixel-K logo in white -->
+        <tr><td bgcolor="#9a3412" style="background:#9a3412;background:linear-gradient(135deg,#c2410c,#7c2d12);padding:26px 32px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
             <td style="vertical-align:middle;">
-              <span style="display:inline-block;width:34px;height:34px;background:#ffffff;border-radius:9px;text-align:center;line-height:34px;font-weight:800;color:#f97316;font-size:20px;vertical-align:middle;">K</span>
+              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"></td>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                </tr>
+                <tr>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"></td>
+                </tr>
+                <tr>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"></td>
+                </tr>
+                <tr>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="13" height="13"></td>
+                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                </tr>
+              </table>
             </td>
-            <td style="vertical-align:middle;padding-left:12px;">
-              <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Klosify</span>
+            <td style="vertical-align:middle;padding-left:14px;">
+              <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.3px;">Klosify</span>
             </td>
           </tr></table>
         </td></tr>
