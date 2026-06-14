@@ -513,10 +513,19 @@ export default function ContactsPage() {
 
   const handleBulkStatus = async () => {
     if (!bulkStatus) return;
+    // "Ganado" requires a closing budget per lead — block bulk and direct to the lead.
+    if (bulkStatus === "won") {
+      toast.error("Marcar como “Ganado” requiere registrar el presupuesto de cierre de cada lead. Hazlo desde la ficha del lead o el pipeline.");
+      return;
+    }
     setBulkWorking(true);
     for (const part of chunkIds([...selected])) {
       const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", part);
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      if (error) {
+        const won = error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
+        toast.error(won ? "Marcar como “Ganado” requiere el presupuesto de cierre de cada lead (hazlo desde la ficha)." : "Error: " + error.message);
+        setBulkWorking(false); return;
+      }
     }
     setStatusOpen(false);
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`);

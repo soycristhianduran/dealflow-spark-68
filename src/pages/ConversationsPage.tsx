@@ -1149,9 +1149,28 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     if (error) toast.error("No se pudo cambiar el pipeline"); else toast.success("Pipeline actualizado");
   };
   const changeStage = async (sid: string) => {
+    const stageName = stages.find(s => s.id === sid)?.name || "";
+    const isWon = /ganad|won/i.test(stageName);
+    const update: Record<string, any> = { stage_id: sid };
+    // Moving to a WON stage requires a closing budget (enforced by DB trigger).
+    if (isWon) {
+      const { data: c } = await supabase.from("contacts").select("budget, budget_currency").eq("id", contactId).maybeSingle();
+      if (!c?.budget || Number(c.budget) <= 0) {
+        const raw = window.prompt(`Para marcar como ganado en "${stageName}", ingresa el presupuesto de cierre (valor de la venta):`, "");
+        if (raw === null) return; // cancelled
+        const amount = Number(raw.replace(/[^\d.]/g, ""));
+        if (!(amount > 0)) { toast.error("Presupuesto inválido. Debe ser mayor a 0."); return; }
+        update.budget = amount;
+        update.budget_currency = c?.budget_currency || "USD";
+      }
+      update.lead_status = "won";
+    }
     setStageId(sid);
-    const { error } = await supabase.from("contacts").update({ stage_id: sid }).eq("id", contactId);
-    if (error) toast.error("No se pudo cambiar la etapa"); else toast.success("Etapa actualizada");
+    const { error } = await supabase.from("contacts").update(update).eq("id", contactId);
+    if (error) {
+      const won = error.message?.includes("BUDGET") || error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
+      toast.error(won ? "Registra el presupuesto de cierre para marcar como ganado." : "No se pudo cambiar la etapa");
+    } else toast.success("Etapa actualizada");
   };
 
   if (!loaded) return null;

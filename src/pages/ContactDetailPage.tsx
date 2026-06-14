@@ -19,6 +19,7 @@ import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -87,6 +88,9 @@ export default function ContactDetailPage() {
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [adPreviewOpen, setAdPreviewOpen] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
+  const [wonDlg, setWonDlg] = useState<{ stageId: string; pipelineId: string; stageName: string } | null>(null);
+  const [wonAmt, setWonAmt] = useState("");
+  const [wonCur, setWonCur] = useState("USD");
   const [pickerPipelineId, setPickerPipelineId] = useState("");
   const [stagesForPicker, setStagesForPicker] = useState<{ id: string; name: string; color: string; order: number }[]>([]);
   const [activeTab, setActiveTab] = useState("timeline");
@@ -348,18 +352,30 @@ export default function ContactDetailPage() {
   };
 
   // Quick stage change — saves immediately, no Guardar needed
-  const quickChangeStage = async (newStageId: string, newPipelineId: string) => {
+  const isWonStageName = (n: string) => /ganad|won/i.test(n || "");
+
+  const quickChangeStage = async (newStageId: string, newPipelineId: string, budgetOverride?: { amount: number; currency: string }) => {
     if (!id || savingStage) return;
+    const stageName = stagesForPicker.find(s => s.id === newStageId)?.name || "";
+    // Moving to a WON stage requires a closing budget — ask for it if missing.
+    if (isWonStageName(stageName) && !budgetOverride && (!contact?.budget || Number(contact.budget) <= 0)) {
+      setStagePickerOpen(false);
+      setWonDlg({ stageId: newStageId, pipelineId: newPipelineId, stageName });
+      setWonAmt(""); setWonCur(contact?.budget_currency || "USD");
+      return;
+    }
     setSavingStage(true);
     setStagePickerOpen(false);
     const prevStageId = contact?.stage_id;
-    const { error } = await supabase.from("contacts").update({
-      stage_id: newStageId,
-      pipeline_id: newPipelineId,
-    }).eq("id", id);
+    const update: Record<string, any> = { stage_id: newStageId, pipeline_id: newPipelineId };
+    if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; }
+    const { error } = await supabase.from("contacts").update(update).eq("id", id);
     if (error) {
-      toast.error("Error al cambiar etapa: " + error.message);
-    } else {
+      toast.error(error.message?.includes("BUDGET") || error.message?.includes("presupuesto") ? "Registra el presupuesto de cierre para marcar como ganado." : "Error al cambiar etapa: " + error.message);
+      setSavingStage(false);
+      return;
+    }
+    if (!error) {
       const stageName = stagesForPicker.find(s => s.id === newStageId)?.name || "";
       if (newStageId !== prevStageId) {
         await supabase.from("activities").insert({
@@ -1159,6 +1175,60 @@ export default function ContactDetailPage() {
         adId={(contact as any)?.meta_ad_id ?? null}
         adName={(contact as any)?.ad ?? null}
       />
+
+      {/* Closing-budget dialog — required when moving a lead to a WON stage */}
+      <Dialog open={!!wonDlg} onOpenChange={(o) => { if (!o) setWonDlg(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Marcar como ganado</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              Para mover este lead a la etapa <span className="font-medium">"{wonDlg?.stageName}"</span> registra el presupuesto de cierre (valor de la venta). Es obligatorio.
+            </p>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs font-medium">Presupuesto de cierre</label>
+                <Input
+                  type="number" min="0" autoFocus placeholder="0"
+                  value={wonAmt}
+                  onChange={(e) => setWonAmt(e.target.value)}
+                />
+              </div>
+              <div className="w-28">
+                <label className="text-xs font-medium">Moneda</label>
+                <Select value={wonCur} onValueChange={setWonCur}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="USD">USD</SelectItem>
+                    <SelectItem value="COP">COP</SelectItem>
+                    <SelectItem value="MXN">MXN</SelectItem>
+                    <SelectItem value="EUR">EUR</SelectItem>
+                    <SelectItem value="ARS">ARS</SelectItem>
+                    <SelectItem value="PEN">PEN</SelectItem>
+                    <SelectItem value="CLP">CLP</SelectItem>
+                    <SelectItem value="BRL">BRL</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWonDlg(null)} disabled={savingStage}>Cancelar</Button>
+            <Button
+              disabled={savingStage || !(Number(wonAmt) > 0)}
+              onClick={() => {
+                const d = wonDlg;
+                if (!d || !(Number(wonAmt) > 0)) return;
+                setWonDlg(null);
+                quickChangeStage(d.stageId, d.pipelineId, { amount: Number(wonAmt), currency: wonCur });
+              }}
+            >
+              Confirmar venta
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   );
 }
