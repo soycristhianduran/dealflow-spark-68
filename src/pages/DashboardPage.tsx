@@ -30,7 +30,7 @@ type Period = "week" | "month" | "quarter" | "year";
 const DASH_BLOCKS: { id: string; label: string }[] = [
   { id: "kpis",       label: "Indicadores de ventas (KPIs)" },
   { id: "insights",   label: "Adquisición, Agente IA, Campañas y Conversión" },
-  { id: "funnel",     label: "Pipeline por etapa + Razones de pérdida" },
+  { id: "funnel",     label: "Razones de pérdida" },
   { id: "agenda",     label: "Citas, Tareas y Actividad reciente" },
   { id: "objections", label: "Objeciones principales (IA)" },
 ];
@@ -731,8 +731,6 @@ export default function DashboardPage() {
   const winRateDelta =
     winRate !== null && prevWinRate !== null ? winRate - prevWinRate : null;
 
-  const maxStageCount = Math.max(...stageData.map((s) => s.count), 1);
-
   const dismissSetup = useCallback(() => {
     try { localStorage.setItem(`crm-setup-done-${organizationId}`, "1"); } catch {}
     setSetupDismissed(true);
@@ -876,83 +874,9 @@ export default function DashboardPage() {
 
         {/* ── Pipeline funnel + Loss reasons ─────────────────────── */}
         <div style={{ order: orderOf("funnel") }} hidden={isHidden("funnel")}>
-        <div className="grid gap-4 md:gap-6 lg:grid-cols-3">
+        <div className="grid gap-4 md:gap-6">
 
-          {/* Funnel — takes 2/3 */}
-          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20 lg:col-span-2">
-            <CardHeader className="pb-4">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4 text-primary" />
-                  Pipeline por etapa
-                </CardTitle>
-                <span className="text-xs text-muted-foreground">
-                  {pipelineN} {pipelineN === 1 ? "deal activo" : "deals activos"}
-                </span>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {stageData.filter((s) => s.count > 0).length === 0 ? (
-                <EmptyState
-                  icon={<BarChart3 className="h-10 w-10" />}
-                  text="Sin deals activos en el pipeline"
-                  sub="Mueve leads al pipeline para ver el embudo"
-                />
-              ) : (
-                <div className="space-y-4">
-                  {stageData.map((stage, idx) => {
-                    const barPct = Math.round((stage.count / maxStageCount) * 100);
-                    const nextStage = stageData[idx + 1];
-                    const convRate =
-                      nextStage && stage.count > 0 && nextStage.count > 0
-                        ? Math.round((nextStage.count / stage.count) * 100)
-                        : null;
-
-                    return (
-                      <div key={stage.id}>
-                        <div className="flex items-center justify-between text-xs mb-1.5">
-                          <span className="font-medium text-foreground w-44 truncate">
-                            {stage.name}
-                          </span>
-                          <div className="flex items-center gap-4 text-muted-foreground">
-                            {stage.value > 0 && (
-                              <span className="tabular-nums hidden sm:block">
-                                {fmt(stage.value)} {pipelineCur}
-                              </span>
-                            )}
-                            <span
-                              className={`tabular-nums font-semibold w-16 text-right ${
-                                stage.count > 0 ? "text-foreground" : "text-muted-foreground/50"
-                              }`}
-                            >
-                              {stage.count} {stage.count === 1 ? "lead" : "leads"}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="h-7 w-full rounded-md bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-md transition-all duration-500"
-                            style={{
-                              width: `${Math.max(barPct, stage.count > 0 ? 3 : 0)}%`,
-                              backgroundColor: stage.color ?? "hsl(24 95% 53%)",
-                              opacity: stage.count === 0 ? 0.15 : 0.8,
-                            }}
-                          />
-                        </div>
-                        {convRate !== null && (
-                          <p className="text-[10px] text-muted-foreground mt-1 pl-1">
-                            → {convRate}% avanzan a <span className="font-medium">{nextStage.name}</span>
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Lost reasons — takes 1/3 */}
+          {/* Razones de pérdida */}
           <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
