@@ -407,8 +407,8 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         </DialogContent>
       </Dialog>
 
-      {/* Grouped objections + positive signals */}
-      {(groupedObj.length > 0 || groupedSig.length > 0) && (
+      {/* Grouped objections + positive signals — always visible (shows empty state) */}
+      {(
         <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <Card className="border-none shadow-sm">
             <CardHeader className="pb-2">
