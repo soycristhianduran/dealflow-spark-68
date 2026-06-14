@@ -103,7 +103,8 @@ export default function SettingsPage() {
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
   const [cancelingInvite, setCancelingInvite] = useState<string | null>(null);
-  const { isOwnerOrAdmin, myUserId } = usePermissions();
+  const { isOwnerOrAdmin, isReadonly, myUserId } = usePermissions();
+  const canEdit = isOwnerOrAdmin;
 
   // Tags — persisted org-wide catalog (shared with automations & Leads dropdowns)
   const { tags, colorOf, addTag: addOrgTag, setTagColor, renameTag: renameOrgTag, removeTag: removeOrgTag } = useOrgTags();
@@ -480,6 +481,11 @@ export default function SettingsPage() {
     <AppLayout>
       <AppHeader title="Configuración" />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+        {isReadonly && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
+            <Eye className="h-4 w-4 shrink-0" /> Modo solo lectura — puedes ver la configuración pero no modificarla.
+          </div>
+        )}
         <Tabs defaultValue={defaultTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="general">General</TabsTrigger>
@@ -588,11 +594,13 @@ export default function SettingsPage() {
                     {teamLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Actualizar"}
                   </Button>
                   <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+                    {canEdit && (
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="gap-1.5">
                         <Plus className="h-4 w-4" /> Invitar
                       </Button>
                     </DialogTrigger>
+                    )}
                     <DialogContent>
                       <DialogHeader>
                         <DialogTitle>Invitar al equipo</DialogTitle>

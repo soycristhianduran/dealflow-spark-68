@@ -107,6 +107,8 @@ export function AppSidebar() {
   const { path } = useWorkspace();
   const { waUnread, igUnread } = useUnreadCounts();
   const { canAccessSettings, canViewPowerFeatures } = usePermissions();
+  // Read-only members also see Settings/Billing (view-only); vendors do not.
+  const canViewBottom = canAccessSettings || canViewPowerFeatures;
 
   // Auto-open the group that contains the current page
   useEffect(() => {
@@ -260,7 +262,7 @@ export function AppSidebar() {
 
       {/* ── Bottom ── */}
       <div className="border-t border-sidebar-border p-2 space-y-0.5">
-        {canAccessSettings && bottomItems.map((item) => (
+        {canViewBottom && bottomItems.map((item) => (
           <NavLink
             key={item.url}
             to={path(item.url)}
