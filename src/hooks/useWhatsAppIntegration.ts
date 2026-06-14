@@ -79,15 +79,17 @@ export function useWhatsAppIntegration() {
   const fetchConfig = useCallback(async () => {
     if (!user) { setLoading(false); return; }
     try {
+      // WhatsApp connections are shared ORG-WIDE: scope by organization so every
+      // member sees the same connected numbers (not only the user who connected).
       let query = supabase
         .from("whatsapp_configs")
         .select("id, phone_number_id, waba_id, display_phone, business_name, label, is_primary, webhook_verified, is_active, created_at")
-        .eq("user_id", user.id)
         .eq("is_active", true)
         .neq("phone_number_id", "pending")
         .order("is_primary", { ascending: false })
         .order("created_at", { ascending: true });
       if (organizationId) query = query.eq("organization_id", organizationId);
+      else query = query.eq("user_id", user.id);
       const { data, error } = await query;
       if (error) throw error;
       setConfigs(data ?? []);
@@ -96,7 +98,7 @@ export function useWhatsAppIntegration() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, organizationId]);
 
   // Fetch configs on mount
   useEffect(() => {

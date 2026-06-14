@@ -101,15 +101,14 @@ export function useFacebookIntegration() {
     // Pull token health alongside the existence check so the UI can show a
     // "Reconnect Facebook" banner BEFORE the user notices things broken.
     // Scope by both org (SaaS multi-tenant) and user_id for backward compat.
+    // Meta connection is shared ORG-WIDE: scope by organization so every member
+    // sees it connected (not only the user who linked the account). Falls back to
+    // user_id only when there's no org context.
     let query = supabase
       .from("facebook_tokens")
-      .select("id, needs_reconnect, token_expires_at, last_refresh_error")
-      .eq("user_id", user.id);
-    // Strict org isolation: only this organization's token counts as connected,
-    // so a Facebook connection in one org never bleeds into another.
-    if (organizationId) {
-      query = query.eq("organization_id", organizationId);
-    }
+      .select("id, needs_reconnect, token_expires_at, last_refresh_error");
+    if (organizationId) query = query.eq("organization_id", organizationId);
+    else query = query.eq("user_id", user.id);
     const { data } = await query.limit(1).maybeSingle();
     setIsConnected(!!data);
 

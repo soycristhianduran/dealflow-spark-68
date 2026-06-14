@@ -408,12 +408,18 @@ Deno.serve(async (req) => {
 
     // ── GET ACTIVE ACCOUNT STATUS ─────────────────────────────────────────────
     if (action === "status") {
-      const { data: account } = await supabase
+      // Instagram connection is shared ORG-WIDE: resolve the caller's org and
+      // report the org's connected account so every member sees it connected.
+      const { data: memberships } = await supabase
+        .from("organization_members").select("organization_id").eq("user_id", user.id);
+      const orgIds = (memberships || []).map((m: any) => m.organization_id).filter(Boolean);
+
+      let accQuery = supabase
         .from("instagram_accounts")
-        .select("id, ig_user_id, ig_username, profile_picture_url, page_name")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+        .select("id, ig_user_id, ig_username, profile_picture_url, page_name, organization_id")
+        .eq("is_active", true);
+      accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
+      const { data: account } = await accQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
 
       if (!account) {
         return new Response(JSON.stringify({ connected: false }), {
@@ -421,15 +427,16 @@ Deno.serve(async (req) => {
         });
       }
 
+      const orgFilter = account.organization_id;
       const { count: conversationsCount } = await supabase
         .from("instagram_conversations")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
+        .eq(orgFilter ? "organization_id" : "user_id", orgFilter ?? user.id);
 
       const { count: commentsCount } = await supabase
         .from("instagram_comments")
         .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
+        .eq(orgFilter ? "organization_id" : "user_id", orgFilter ?? user.id);
 
       return new Response(
         JSON.stringify({
