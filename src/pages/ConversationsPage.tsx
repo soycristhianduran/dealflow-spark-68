@@ -8,13 +8,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useWhatsAppInbox } from "@/hooks/useWhatsAppInbox";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { usePermissions } from "@/hooks/usePermissions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff, ExternalLink,
+  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff, ExternalLink, Eye,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
 import {
@@ -97,6 +98,7 @@ interface IgMessageRow {
 
 export default function ConversationsPage() {
   const { user } = useAuth();
+  const { canEditContacts: canEditConversations } = usePermissions();
   const wa = useWhatsAppInbox();
   const ig = useInstagramIntegration();
 
@@ -766,7 +768,11 @@ export default function ConversationsPage() {
 
               {/* Composer */}
               <div className="border-t p-3">
-                {recording ? (
+                {!canEditConversations ? (
+                  <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
+                    <Eye className="h-3.5 w-3.5" /> Modo solo lectura — no puedes enviar mensajes.
+                  </div>
+                ) : recording ? (
                   /* Recording indicator (WA only) */
                   <div className="flex items-center gap-3 px-2">
                     <div className="flex-1 flex items-center gap-2 bg-red-500/10 rounded-lg px-3 py-2">
