@@ -14,7 +14,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { formatMoney } from "@/lib/money";
-import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp } from "lucide-react";
+import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp, Filter } from "lucide-react";
+import { MetaAdsIcon } from "@/components/icons/BrandIcons";
 
 interface StageDatum { name: string; count: number; color?: string | null }
 
@@ -349,7 +350,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><GitBranch className="h-3.5 w-3.5" /></span> Conversión del embudo</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><Filter className="h-3.5 w-3.5" /></span> Conversión del embudo</CardTitle>
               {data.funnels.length > 1 && (
                 <select
                   value={pipelineIdx}
@@ -428,7 +429,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><DollarSign className="h-3.5 w-3.5" /></span> Rendimiento de anuncios (Meta Ads)</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-border shadow-sm"><MetaAdsIcon size={16} /></span> Rendimiento de anuncios (Meta Ads)</CardTitle>
               <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5">
                 {(["campaign", "ad"] as const).map(lvl => (
                   <button key={lvl} onClick={() => setRoasLevel(lvl)}
