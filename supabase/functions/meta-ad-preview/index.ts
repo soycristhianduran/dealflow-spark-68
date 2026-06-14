@@ -27,21 +27,23 @@ Deno.serve(async (req) => {
     const { ad_id } = await req.json();
     if (!ad_id) return json({ error: "ad_id required" }, 400);
 
-    // Collect every FB token reachable for this user: their own + any token in
-    // the organizations they belong to (lead ads can live under a teammate's
-    // connection or a different org of the same owner).
+    // Security gate: only allow previewing ads that actually generated leads for
+    // an org this user belongs to (so they can't probe arbitrary ad ids).
     const { data: memberships } = await supabase
       .from("organization_members").select("organization_id").eq("user_id", user.id);
     const orgIds = (memberships || []).map((m: any) => m.organization_id);
-    const seen = new Set<string>();
-    const tokenList: { access_token: string }[] = [];
-    const { data: ownTokens } = await supabase.from("facebook_tokens").select("access_token").eq("user_id", user.id);
-    for (const t of (ownTokens || [])) if (t.access_token && !seen.has(t.access_token)) { seen.add(t.access_token); tokenList.push(t); }
     if (orgIds.length) {
-      const { data: orgTokens } = await supabase.from("facebook_tokens").select("access_token").in("organization_id", orgIds);
-      for (const t of (orgTokens || [])) if (t.access_token && !seen.has(t.access_token)) { seen.add(t.access_token); tokenList.push(t); }
+      const { data: owns } = await supabase.from("contacts").select("id")
+        .in("organization_id", orgIds).eq("meta_ad_id", String(ad_id)).limit(1).maybeSingle();
+      if (!owns) return json({ error: "not_authorized", message: "Este anuncio no está vinculado a tus leads." });
     }
-    const tokens = tokenList;
+
+    // The owning Facebook token can live under a different org of the same owner,
+    // so try every active token (the ad was already verified as the user's above).
+    const { data: allTokens } = await supabase
+      .from("facebook_tokens").select("access_token").not("access_token", "is", null);
+    const seen = new Set<string>();
+    const tokens = (allTokens || []).filter((t: any) => t.access_token && !seen.has(t.access_token) && seen.add(t.access_token));
 
     const formats = ["MOBILE_FEED_STANDARD", "DESKTOP_FEED_STANDARD", "INSTAGRAM_STANDARD"];
     for (const t of (tokens || [])) {
