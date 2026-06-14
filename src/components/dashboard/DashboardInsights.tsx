@@ -92,13 +92,18 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [adModal, setAdModal] = useState<any | null>(null);
   const [adPreview, setAdPreview] = useState<{ loading: boolean; html?: string; error?: string }>({ loading: false });
 
-  const openAd = async (row: any) => {
-    setAdModal(row);
-    if (roasLevel !== "ad" || !row.id) { setAdPreview({ loading: false }); return; }
-    setAdPreview({ loading: true });
-    const { data } = await supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } });
-    if (data?.preview_html) setAdPreview({ loading: false, html: data.preview_html });
-    else setAdPreview({ loading: false, error: data?.message || "No disponible" });
+  const openAd = (row: any) => {
+    // Defer to the next frame so the originating click doesn't get caught by the
+    // dialog's outside-pointer detection and close it immediately.
+    requestAnimationFrame(() => {
+      setAdModal(row);
+      if (roasLevel !== "ad" || !row.id) { setAdPreview({ loading: false }); return; }
+      setAdPreview({ loading: true });
+      supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } }).then(({ data }) => {
+        if (data?.preview_html) setAdPreview({ loading: false, html: data.preview_html });
+        else setAdPreview({ loading: false, error: data?.message || "No disponible" });
+      });
+    });
   };
 
   useEffect(() => {
