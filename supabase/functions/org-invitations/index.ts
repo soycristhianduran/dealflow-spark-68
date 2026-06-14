@@ -32,35 +32,35 @@ function brandedInviteEmail(opts: {
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 12px;">
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
-        <!-- Header (dark orange) with official pixel-K logo in white -->
-        <tr><td bgcolor="#9a3412" style="background:#9a3412;background:linear-gradient(135deg,#c2410c,#7c2d12);padding:26px 32px;">
+        <!-- Header (dark) with official pixel-K logo (orange gradient) + white wordmark -->
+        <tr><td bgcolor="#431407" style="background:#431407;background:linear-gradient(135deg,#7c2d12,#2c0f05);padding:26px 32px;">
           <table role="presentation" cellpadding="0" cellspacing="0"><tr>
             <td style="vertical-align:middle;">
               <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
                 <tr>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"></td>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#FFA01E;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#FF9120;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
                 </tr>
                 <tr>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#FF7E24;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#FF6B2C;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"></td>
                 </tr>
                 <tr>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#FA5A1C;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#F4521A;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"></td>
                 </tr>
                 <tr>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
-                  <td width="13" height="13"></td>
-                  <td width="13" height="13"><div style="width:10px;height:10px;background:#ffffff;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#EC4A12;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
+                  <td width="14" height="14"></td>
+                  <td width="14" height="14"><div style="width:11px;height:11px;background:#E8460E;border-radius:3px;font-size:0;line-height:0;">&nbsp;</div></td>
                 </tr>
               </table>
             </td>
             <td style="vertical-align:middle;padding-left:14px;">
-              <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.3px;">Klosify</span>
+              <span style="color:#ffffff;font-size:23px;font-weight:800;letter-spacing:-0.3px;">Klosify</span>
             </td>
           </tr></table>
         </td></tr>
