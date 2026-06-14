@@ -44,6 +44,20 @@ export default function AuthPage() {
   const inviteTokenMatch = redirectParam.match(/\/invite\?token=([^&]+)/);
   const inviteToken = inviteTokenMatch ? inviteTokenMatch[1] : null;
   const [email, setEmail] = useState("");
+  const [inviteInfo, setInviteInfo] = useState<{ email: string; org_name: string; role: string } | null>(null);
+
+  // When arriving from an invite link, prefill + lock the email to the invited one.
+  useEffect(() => {
+    if (!inviteToken) return;
+    supabase.functions.invoke("org-invitations", { body: { action: "get_invitation", token: inviteToken } })
+      .then(({ data }) => {
+        if (data?.email) {
+          setInviteInfo({ email: data.email, org_name: data.org_name, role: data.role });
+          setEmail(data.email);
+        }
+      })
+      .catch(() => {});
+  }, [inviteToken]);
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -195,8 +209,8 @@ export default function AuthPage() {
           {view === "tabs" && <>
           {inviteToken && (
             <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-center">
-              🎉 Te están invitando a unirte a un equipo. <br />
-              <span className="text-muted-foreground">Inicia sesión o crea tu cuenta para continuar.</span>
+              🎉 Te invitaron a unirte a {inviteInfo?.org_name ? <strong>{inviteInfo.org_name}</strong> : "un equipo"}. <br />
+              <span className="text-muted-foreground">Crea tu cuenta con <strong>{inviteInfo?.email || "tu correo"}</strong> para continuar.</span>
             </div>
           )}
 
@@ -238,7 +252,7 @@ export default function AuthPage() {
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Email</Label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
                 </div>
                 <div className="space-y-2">
                   <Label>Contraseña</Label>
@@ -271,7 +285,8 @@ export default function AuthPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Email *</Label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required />
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
+                  {inviteInfo && <p className="text-xs text-muted-foreground">Este correo viene de tu invitación y no se puede cambiar.</p>}
                 </div>
                 {!inviteToken && (
                   <div className="space-y-2">

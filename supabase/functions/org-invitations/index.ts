@@ -101,15 +101,36 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
+  const body = await req.json();
+  const { action } = body;
+
+  // ── Public: fetch invitation details by token (pre-login email prefill) ──────
+  // The token is a secret UUID, so possession of the link authorizes reading it.
+  if (action === "get_invitation") {
+    const { token: inviteToken } = body;
+    if (!inviteToken) return err("token requerido");
+    const { data: inv } = await supabase
+      .from("organization_invitations")
+      .select("email, role, organization_id, accepted_at, expires_at")
+      .eq("token", inviteToken)
+      .maybeSingle();
+    if (!inv) return ok({ valid: false });
+    const expired = new Date(inv.expires_at) < new Date();
+    const { data: org } = await supabase
+      .from("organizations").select("name").eq("id", inv.organization_id).maybeSingle();
+    return ok({
+      valid: !expired && !inv.accepted_at,
+      email: inv.email, role: inv.role, org_name: org?.name || "",
+      accepted: !!inv.accepted_at, expired,
+    });
+  }
+
   const authHeader = req.headers.get("authorization") || "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
   if (!token) return err("No autorizado");
 
   const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return err("No autorizado");
-
-  const body = await req.json();
-  const { action } = body;
 
   // ── Invite a user by email ──────────────────────────────────────────────────
   if (action === "invite") {
@@ -185,13 +206,13 @@ Deno.serve(async (req) => {
     const { token: inviteToken } = body;
     if (!inviteToken) return new Response(JSON.stringify({ error: "Token requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+    // Look up by token regardless of accepted_at so the flow is IDEMPOTENT:
+    // the signup trigger may have already auto-joined + marked it accepted.
     const { data: invitation } = await supabase
       .from("organization_invitations")
       .select("*")
       .eq("token", inviteToken)
-      .is("accepted_at", null)
-      .gt("expires_at", new Date().toISOString())
-      .single();
+      .maybeSingle();
 
     if (!invitation) return new Response(JSON.stringify({ error: "Invitación inválida o expirada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -203,15 +224,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Add user to org
-    const { error: memberErr } = await supabase
+    // Already a member? Treat as success (idempotent — trigger may have joined them).
+    const { data: existingMember } = await supabase
       .from("organization_members")
-      .upsert({ organization_id: invitation.organization_id, user_id: user.id, role: invitation.role }, { onConflict: "organization_id,user_id" });
+      .select("user_id")
+      .eq("organization_id", invitation.organization_id)
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-    if (memberErr) throw memberErr;
+    if (!existingMember) {
+      // Reject expired invitations only when the user isn't already in.
+      if (new Date(invitation.expires_at) < new Date()) {
+        return new Response(JSON.stringify({ error: "Invitación inválida o expirada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      const { error: memberErr } = await supabase
+        .from("organization_members")
+        .upsert({ organization_id: invitation.organization_id, user_id: user.id, role: invitation.role }, { onConflict: "organization_id,user_id" });
+      if (memberErr) throw memberErr;
+    }
 
-    // Mark accepted
-    await supabase.from("organization_invitations").update({ accepted_at: new Date().toISOString() }).eq("id", invitation.id);
+    // Mark accepted (idempotent)
+    if (!invitation.accepted_at) {
+      await supabase.from("organization_invitations").update({ accepted_at: new Date().toISOString() }).eq("id", invitation.id);
+    }
 
     return new Response(JSON.stringify({ success: true, organization_id: invitation.organization_id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }

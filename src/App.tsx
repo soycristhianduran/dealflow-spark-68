@@ -101,18 +101,23 @@ function RootRoute() {
       setChecking(false);
       return;
     }
-    // New users without company_name need onboarding before accessing workspace
-    const hasCompanyName = !!session.user.user_metadata?.company_name;
-    if (!hasCompanyName) {
-      navigate("/onboarding", { replace: true });
-      setChecking(false);
-      return;
-    }
-    supabase.rpc("get_my_organization").then(({ data }) => {
+    // New users without company_name need onboarding — UNLESS they joined an org
+    // via invitation (a non-owner member), who must skip onboarding entirely.
+    (async () => {
+      const hasCompanyName = !!session.user.user_metadata?.company_name;
+      const { data: members } = await supabase
+        .from("organization_members").select("role").eq("user_id", session.user.id);
+      const invited = (members || []).some((m: any) => m.role && m.role !== "owner");
+      if (!hasCompanyName && !invited) {
+        navigate("/onboarding", { replace: true });
+        setChecking(false);
+        return;
+      }
+      const { data } = await supabase.rpc("get_my_organization");
       const slug = data?.[0]?.org_slug;
       navigate(slug ? `/w/${slug}` : "/w/_/settings", { replace: true });
       setChecking(false);
-    });
+    })();
   }, [loading, session, navigate]);
 
   if (loading || (session && checking)) {
