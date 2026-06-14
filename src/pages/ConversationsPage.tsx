@@ -109,23 +109,34 @@ export default function ConversationsPage() {
   const [search, setSearch] = useState("");
   const [markingAll, setMarkingAll] = useState(false);
 
-  // Mark every unread conversation (WhatsApp + Instagram) as read for the org.
+  // Mark unread conversations as read for the org — scoped to the active channel
+  // tab: "all" → WhatsApp + Instagram, "whatsapp" → only WA, "instagram" → only IG.
   const markAllRead = async () => {
     if (markingAll) return;
     setMarkingAll(true);
     try {
-      let waU = supabase.from("whatsapp_messages")
-        .update({ read_at: new Date().toISOString() })
-        .eq("direction", "incoming").is("read_at", null);
-      let igU = supabase.from("instagram_conversations")
-        .update({ unread_count: 0 }).gt("unread_count", 0);
-      if (organizationId) { waU = waU.eq("organization_id", organizationId); igU = igU.eq("organization_id", organizationId); }
-      else if (user) { waU = waU.eq("user_id", user.id); igU = igU.eq("user_id", user.id); }
-      await Promise.all([waU, igU]);
-      toast.success("Todas las conversaciones marcadas como leídas");
+      const ops: Promise<any>[] = [];
+      if (channelFilter !== "instagram") {
+        let waU = supabase.from("whatsapp_messages")
+          .update({ read_at: new Date().toISOString() })
+          .eq("direction", "incoming").is("read_at", null);
+        if (organizationId) waU = waU.eq("organization_id", organizationId);
+        else if (user) waU = waU.eq("user_id", user.id);
+        ops.push(waU);
+      }
+      if (channelFilter !== "whatsapp") {
+        let igU = supabase.from("instagram_conversations")
+          .update({ unread_count: 0 }).gt("unread_count", 0);
+        if (organizationId) igU = igU.eq("organization_id", organizationId);
+        else if (user) igU = igU.eq("user_id", user.id);
+        ops.push(igU);
+      }
+      await Promise.all(ops);
+      const scope = channelFilter === "whatsapp" ? "de WhatsApp" : channelFilter === "instagram" ? "de Instagram" : "";
+      toast.success(`Conversaciones ${scope} marcadas como leídas`.replace("  ", " "));
       wa.fetchConversations(); loadIgConversations();
     } catch (e: any) {
-      toast.error("No se pudo marcar todo como leído: " + (e?.message || ""));
+      toast.error("No se pudo marcar como leído: " + (e?.message || ""));
     } finally {
       setMarkingAll(false);
     }
@@ -649,9 +660,12 @@ export default function ConversationsPage() {
               <div className="flex items-center gap-1">
                 {canEditConversations && counts.unread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
-                    onClick={markAllRead} disabled={markingAll} title="Marcar todas como leídas">
+                    onClick={markAllRead} disabled={markingAll}
+                    title={channelFilter === "whatsapp" ? "Marcar WhatsApp como leído" : channelFilter === "instagram" ? "Marcar Instagram como leído" : "Marcar todo como leído"}>
                     {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MailOpen className="h-3.5 w-3.5" />}
-                    <span className="hidden sm:inline">Marcar leído</span>
+                    <span className="hidden sm:inline">
+                      {channelFilter === "whatsapp" ? "Marcar WA leído" : channelFilter === "instagram" ? "Marcar IG leído" : "Marcar leído"}
+                    </span>
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
