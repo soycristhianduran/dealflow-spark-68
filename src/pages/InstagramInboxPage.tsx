@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
@@ -41,6 +42,7 @@ interface IgMessage {
 
 export default function InstagramInboxPage() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const { path } = useWorkspace();
   const navigate = useNavigate();
   const ig = useInstagramIntegration();
@@ -60,18 +62,17 @@ export default function InstagramInboxPage() {
   const loadConversations = useCallback(async () => {
     if (!user) return;
     setLoadingConvs(true);
-    const { data, error } = await supabase
-      .from("instagram_conversations")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("last_message_at", { ascending: false });
+    // Inbox is shared org-wide — scope by organization, not the connecting user.
+    let convQ = supabase.from("instagram_conversations").select("*");
+    convQ = organizationId ? convQ.eq("organization_id", organizationId) : convQ.eq("user_id", user.id);
+    const { data, error } = await convQ.order("last_message_at", { ascending: false });
     if (error) {
       toast.error("Error al cargar conversaciones: " + error.message);
     } else {
       setConversations((data || []) as IgConversation[]);
     }
     setLoadingConvs(false);
-  }, [user]);
+  }, [user, organizationId]);
 
   useEffect(() => { loadConversations(); }, [loadConversations]);
 

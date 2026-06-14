@@ -13,6 +13,7 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo } from "react";
 import {
@@ -1244,6 +1245,7 @@ function RoasTab({
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function MetaAdsPage() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const fb = useFacebookIntegration();
   const navigate = useNavigate();
   const { path } = useWorkspace();
@@ -1276,35 +1278,35 @@ export default function MetaAdsPage() {
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
 
   /* ── Data ─────────────────────────────────────────────────────────────── */
+  // Meta Ads data is shared ORG-WIDE: scope by organization so every member sees
+  // the same campaigns/adsets/ads (falls back to user_id without org context).
+  const orgEq = (q: any) => (organizationId ? q.eq("organization_id", organizationId) : q.eq("user_id", user!.id));
+
   const { data: adsets = [] } = useQuery({
-    queryKey: ["meta-adsets", user?.id],
+    queryKey: ["meta-adsets", organizationId || user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data } = await supabase.from("meta_adsets").select("*").eq("user_id", user.id).order("adset_name");
+      const { data } = await orgEq(supabase.from("meta_adsets").select("*")).order("adset_name");
       return (data || []) as MetaAdSet[];
     },
     enabled: !!user,
   });
 
   const { data: metaAds = [], refetch: refetchAds } = useQuery({
-    queryKey: ["meta-ads", user?.id],
+    queryKey: ["meta-ads", organizationId || user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data } = await supabase.from("meta_ads").select("*").eq("user_id", user.id).order("spend", { ascending: false });
+      const { data } = await orgEq(supabase.from("meta_ads").select("*")).order("spend", { ascending: false });
       return (data || []) as MetaAd[];
     },
     enabled: !!user,
   });
 
   const { data: campaigns = [], isLoading, refetch } = useQuery({
-    queryKey: ["meta-campaigns", user?.id],
+    queryKey: ["meta-campaigns", organizationId || user?.id],
     queryFn: async () => {
       if (!user) return [];
-      const { data, error } = await supabase
-        .from("meta_campaigns")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("spend", { ascending: false });
+      const { data, error } = await orgEq(supabase.from("meta_campaigns").select("*")).order("spend", { ascending: false });
       if (error) throw error;
       return (data || []) as Campaign[];
     },
