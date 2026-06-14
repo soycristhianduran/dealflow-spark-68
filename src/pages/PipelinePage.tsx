@@ -228,8 +228,9 @@ export default function PipelinePage() {
         toast.success("Pipeline creado");
         setPipelines(prev => [...prev, data]);
         setSelectedPipelineId(data.id);
-        setStages([]);
         setContacts([]);
+        // The DB auto-creates the Ganado/Perdido system stages — load them in.
+        fetchStagesAndContacts(data.id);
       }
     }
     setSavingPipeline(false);
@@ -354,7 +355,9 @@ export default function PipelinePage() {
     const contactId = draggedContact;
     setDraggedContact(null);
     const stage = stages.find(s => s.id === stageId);
-    const newLeadStatus = stage ? inferLeadStatus(stage.name) : "active";
+    const newLeadStatus = stage
+      ? ((stage as any).is_won ? "won" : (stage as any).is_lost ? "lost" : inferLeadStatus(stage.name))
+      : "active";
 
     // If moving to a won stage, require budget > 0
     if (newLeadStatus === "won") {
@@ -447,7 +450,9 @@ export default function PipelinePage() {
       if (error) toast.error("Error: " + error.message);
       else toast.success("Etapa actualizada");
     } else {
-      const newOrder = stages.length > 0 ? Math.max(...stages.map(s => s.order)) + 1 : 1;
+      // Insert new stages BEFORE the system won/lost stages (which sit at order 9998/9999).
+      const nonSystem = stages.filter(s => !(s as any).is_system);
+      const newOrder = nonSystem.length > 0 ? Math.max(...nonSystem.map(s => s.order)) + 1 : 1;
       const { error } = await supabase.from("pipeline_stages").insert({
         pipeline_id: selectedPipelineId,
         name: stageName.trim(),
@@ -465,6 +470,11 @@ export default function PipelinePage() {
   };
 
   const handleDeleteStage = async (stageId: string) => {
+    const target = stages.find(s => s.id === stageId);
+    if (target && (target as any).is_system) {
+      toast.error("Las etapas de cierre (Ganado/Perdido) no se pueden eliminar.");
+      return;
+    }
     const stageContacts = contacts.filter(c => c.stage_id === stageId);
     if (stageContacts.length > 0) {
       toast.error("No puedes eliminar una etapa con leads. Mueve los leads primero.");
@@ -482,6 +492,8 @@ export default function PipelinePage() {
     if (swapIdx < 0 || swapIdx >= stages.length) return;
     const current = stages[idx];
     const swap = stages[swapIdx];
+    // System stages (Ganado/Perdido) stay pinned at the end — don't reorder them.
+    if ((current as any).is_system || (swap as any).is_system) return;
     await Promise.all([
       supabase.from("pipeline_stages").update({ order: swap.order }).eq("id", current.id),
       supabase.from("pipeline_stages").update({ order: current.order }).eq("id", swap.id),
@@ -495,6 +507,12 @@ export default function PipelinePage() {
       setDragOverStageCol(null);
       return;
     }
+    const dragged = stages.find(s => s.id === draggedStageId);
+    const target = stages.find(s => s.id === targetStageId);
+    // System stages (Ganado/Perdido) are pinned last — they can't be dragged or displaced.
+    if ((dragged as any)?.is_system || (target as any)?.is_system) {
+      setDraggedStageId(null); setDragOverStageCol(null); return;
+    }
     const fromIdx = stages.findIndex(s => s.id === draggedStageId);
     const toIdx = stages.findIndex(s => s.id === targetStageId);
     if (fromIdx < 0 || toIdx < 0) return;
@@ -504,8 +522,9 @@ export default function PipelinePage() {
     setStages(reordered);
     setDraggedStageId(null);
     setDragOverStageCol(null);
+    // Persist order only for non-system stages; keep system ones at 9998/9999.
     await Promise.all(
-      reordered.map((s, i) =>
+      reordered.filter(s => !(s as any).is_system).map((s, i) =>
         supabase.from("pipeline_stages").update({ order: i + 1 }).eq("id", s.id)
       )
     );
@@ -620,12 +639,15 @@ export default function PipelinePage() {
           <div className="flex gap-4 min-w-max h-full">
             {stages.map((stage, idx) => {
               const stageContacts = contacts.filter(c => c.stage_id === stage.id);
+              const sys = (stage as any).is_system;
+              const isWon = (stage as any).is_won;
+              const isLost = (stage as any).is_lost;
               return (
                 <div
                   key={stage.id}
-                  draggable={manageMode}
+                  draggable={manageMode && !sys}
                   onDragStart={(e) => {
-                    if (!manageMode) return;
+                    if (!manageMode || sys) return;
                     setDraggedStageId(stage.id);
                     e.dataTransfer.effectAllowed = "move";
                   }}
@@ -658,7 +680,9 @@ export default function PipelinePage() {
                   {/* Stage header */}
                   <div className="flex items-center justify-between px-3 py-3 border-b">
                     <div className="flex items-center gap-2 min-w-0">
-                      <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
+                      {isWon ? <Trophy className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                        : isLost ? <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />
+                        : <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />}
                       <span className="text-sm font-semibold text-foreground truncate">{stage.name}</span>
                       <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground shrink-0">
                         {stageContacts.length}
@@ -684,22 +708,28 @@ export default function PipelinePage() {
                             <DropdownMenuItem onClick={() => openEditStage(stage)}>
                               <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
                             </DropdownMenuItem>
-                            {idx > 0 && (
+                            {!sys && idx > 0 && !(stages[idx - 1] as any)?.is_system && (
                               <DropdownMenuItem onClick={() => handleMoveStage(stage.id, "up")}>
                                 <GripVertical className="h-3.5 w-3.5 mr-2" /> Mover izquierda
                               </DropdownMenuItem>
                             )}
-                            {idx < stages.length - 1 && (
+                            {!sys && idx < stages.length - 1 && !(stages[idx + 1] as any)?.is_system && (
                               <DropdownMenuItem onClick={() => handleMoveStage(stage.id, "down")}>
                                 <GripVertical className="h-3.5 w-3.5 mr-2" /> Mover derecha
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleteStageTarget(stage.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
-                            </DropdownMenuItem>
+                            {sys ? (
+                              <DropdownMenuItem disabled className="text-muted-foreground">
+                                <Trophy className="h-3.5 w-3.5 mr-2" /> Etapa de cierre (fija)
+                              </DropdownMenuItem>
+                            ) : (
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteStageTarget(stage.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
