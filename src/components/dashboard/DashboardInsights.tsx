@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { formatMoney } from "@/lib/money";
-import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign } from "lucide-react";
+import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp } from "lucide-react";
 
 interface StageDatum { name: string; count: number; color?: string | null }
 
@@ -429,7 +429,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25 text-sm">🛑</span> Objeciones agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25"><ShieldAlert className="h-3.5 w-3.5" /></span> Objeciones agrupadas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedObj.length === 0 ? (
@@ -450,7 +450,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
           </Card>
           <Card className="rounded-2xl border border-border/60 shadow-sm">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25 text-sm">✅</span> Señales positivas agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><ThumbsUp className="h-3.5 w-3.5" /></span> Señales positivas agrupadas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedSig.length === 0 ? (

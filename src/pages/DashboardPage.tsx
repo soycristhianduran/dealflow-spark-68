@@ -12,6 +12,7 @@ import {
   CalendarDays, CheckSquare, Activity, Target, BarChart3, Loader2,
   AlertTriangle, MessageCircle, Users, GitBranch, X, CheckCircle2,
   Zap, Mail, Sparkles, Sliders, Eye, EyeOff, ChevronUp, ChevronDown,
+  Phone, FileText,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
@@ -79,10 +80,25 @@ interface ActivityRow { id: string; event_type: string; summary: string; created
 interface RatioRow    { label: string; count: number; }
 
 /* ─── Helpers ────────────────────────────────────────────────────────────── */
-const eventIcons: Record<string, string> = {
-  call: "📞", whatsapp: "💬", email: "✉️", meeting: "📅",
-  stage_change: "🔄", note: "📝", deal_created: "🤝", system: "⚙️", task_created: "✅",
+const EVENT_ICONS: Record<string, { Icon: React.ElementType; cls: string }> = {
+  call:         { Icon: Phone,         cls: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400" },
+  whatsapp:     { Icon: MessageCircle, cls: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400" },
+  email:        { Icon: Mail,          cls: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" },
+  meeting:      { Icon: CalendarDays,  cls: "bg-violet-100 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400" },
+  stage_change: { Icon: GitBranch,     cls: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400" },
+  note:         { Icon: FileText,      cls: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" },
+  deal_created: { Icon: CheckCircle2,  cls: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  task_created: { Icon: CheckSquare,   cls: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400" },
+  system:       { Icon: Zap,           cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
 };
+function EventIcon({ type }: { type: string }) {
+  const e = EVENT_ICONS[type] || { Icon: Activity, cls: "bg-muted text-muted-foreground" };
+  return (
+    <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${e.cls}`}>
+      <e.Icon className="h-3.5 w-3.5" />
+    </span>
+  );
+}
 
 function normObj(raw: string) {
   return raw.toLowerCase().replace(/[.,;:!?¿¡"'`]+/g, " ").replace(/\s+/g, " ").trim();
@@ -532,13 +548,27 @@ export default function DashboardPage() {
       .lt("created_at", startIso);
     if (vf) prevQ = prevQ.eq("owner_id", vf);
 
-    // All active pipeline contacts (current state — not period-filtered)
-    let activeQ = supabase
-      .from("contacts")
-      .select("id, budget, budget_currency, stage_id")
-      .not("pipeline_id", "is", null)
-      .eq("lead_status", "active");
-    if (vf) activeQ = activeQ.eq("owner_id", vf);
+    // All active pipeline contacts (current state — not period-filtered).
+    // Paginated past the 1000-row PostgREST cap so the count, pipeline value and
+    // funnel reflect EVERY active deal, not just the first 1000.
+    const fetchAllActive = async (): Promise<KpiContactRow[]> => {
+      const all: KpiContactRow[] = [];
+      for (let from = 0; from <= 50000; from += 1000) {
+        let q = supabase
+          .from("contacts")
+          .select("id, budget, budget_currency, stage_id")
+          .not("pipeline_id", "is", null)
+          .eq("lead_status", "active")
+          .order("id", { ascending: true })
+          .range(from, from + 999);
+        if (vf) q = q.eq("owner_id", vf);
+        const { data } = await q;
+        if (!data?.length) break;
+        all.push(...(data as unknown as KpiContactRow[]));
+        if (data.length < 1000) break;
+      }
+      return all;
+    };
 
     // Pipeline stages
     const stagesQ = supabase
@@ -596,7 +626,7 @@ export default function DashboardPage() {
       lostRes, meetRes, taskRes, actRes, objRes,
       totalCtRes, waRes,
     ] = await Promise.all([
-      curQ, prevQ, activeQ, stagesQ,
+      curQ, prevQ, fetchAllActive(), stagesQ,
       lostQ, meetQ, taskQ, actQ, objQ,
       totalCtQ, waQ,
     ]);
@@ -604,7 +634,7 @@ export default function DashboardPage() {
     /* ---------- KPI calculations ---------- */
     const cur    = (curRes.data  || []) as unknown as KpiContactRow[];
     const prev   = (prevRes.data || []) as unknown as KpiContactRow[];
-    const active = (activeRes.data || []) as unknown as KpiContactRow[];
+    const active = (activeRes as unknown as KpiContactRow[]) || [];
 
     const wonCur  = cur.filter((d) => d.lead_status === "won");
     const lostCur = cur.filter((d) => d.lead_status === "lost");
@@ -1079,7 +1109,7 @@ export default function DashboardPage() {
               ) : (
                 recentActivity.map((a) => (
                   <div key={a.id} className="flex items-start gap-2.5 py-2.5">
-                    <span className="text-sm shrink-0 mt-0.5">{eventIcons[a.event_type] || "📋"}</span>
+                    <EventIcon type={a.event_type} />
                     <div className="min-w-0">
                       <p className="text-xs text-foreground leading-snug">{a.summary}</p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
