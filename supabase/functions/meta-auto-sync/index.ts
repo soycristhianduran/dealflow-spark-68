@@ -65,9 +65,26 @@ Deno.serve(async (req) => {
       }
 
       // Deduplicate ad_account_ids
-      const adAccountIds: string[] = [
+      let adAccountIds: string[] = [
         ...new Set((existingCampaigns ?? []).map((r: any) => r.ad_account_id as string).filter(Boolean)),
       ];
+
+      // BOOTSTRAP: if we have no ad accounts yet (first sync), discover them from
+      // the Graph API. Without this the sync never starts (it only knew accounts
+      // already in meta_campaigns, which is empty on a fresh connection).
+      if (adAccountIds.length === 0) {
+        try {
+          const accRes = await fetch(`${GRAPH_API}/me/adaccounts?fields=id&limit=100&access_token=${access_token}`);
+          const accData = await accRes.json();
+          if (accData.error) {
+            console.warn(`meta-auto-sync [${user_id}]: adaccounts error:`, JSON.stringify(accData.error));
+          }
+          adAccountIds = (accData.data || []).map((a: any) => a.id).filter(Boolean);
+          console.log(`meta-auto-sync [${user_id}]: discovered ${adAccountIds.length} ad account(s) from token`);
+        } catch (e) {
+          console.warn(`meta-auto-sync [${user_id}]: failed to discover ad accounts:`, e);
+        }
+      }
 
       if (adAccountIds.length === 0) {
         console.log(`meta-auto-sync [${user_id}]: no ad accounts found, skipping`);

@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight } from "lucide-react";
+import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign } from "lucide-react";
 
 interface StageDatum { name: string; count: number; color?: string | null }
 
@@ -86,6 +86,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   const [pipelineIdx, setPipelineIdx] = useState(0);
   const [groupedObj, setGroupedObj] = useState<{ key: string; n: number }[]>([]);
   const [groupedSig, setGroupedSig] = useState<{ key: string; n: number }[]>([]);
+  const [adsRoas, setAdsRoas] = useState<any[]>([]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -108,6 +109,10 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
       }
       setGroupedObj(groupItems(objs, OBJECTION_CATS));
       setGroupedSig(groupItems(sigs, SIGNAL_CATS));
+
+      // Ads ROAS / attribution
+      const { data: roas } = await supabase.rpc("dashboard_ads_roas", { p_org: organizationId });
+      if (Array.isArray(roas)) setAdsRoas(roas);
 
       // Resolve advisor names (owner view)
       if (isOwner) {
@@ -284,6 +289,52 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
           </Card>
         )}
       </div>
+
+      {/* Ads performance / ROAS */}
+      {adsRoas.length > 0 && (
+        <Card className="border-none shadow-sm">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2"><DollarSign className="h-4 w-4 text-emerald-500" /> Rendimiento de anuncios (Meta Ads)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-muted-foreground border-b">
+                    <th className="text-left font-medium py-2 pr-2">Campaña</th>
+                    <th className="text-right font-medium py-2 px-2">Inversión</th>
+                    <th className="text-right font-medium py-2 px-2">Leads</th>
+                    <th className="text-right font-medium py-2 px-2">CPL</th>
+                    <th className="text-right font-medium py-2 px-2">Citas</th>
+                    <th className="text-right font-medium py-2 px-2">Cierres</th>
+                    <th className="text-right font-medium py-2 px-2">Ventas</th>
+                    <th className="text-right font-medium py-2 pl-2">ROAS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adsRoas.map((a, i) => (
+                    <tr key={i} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2 pr-2 font-medium truncate max-w-[160px]">{a.campaign}</td>
+                      <td className="text-right py-2 px-2 tabular-nums">{a.spend ? fmtMoney(a.spend) : "—"}</td>
+                      <td className="text-right py-2 px-2 tabular-nums">{a.leads}</td>
+                      <td className="text-right py-2 px-2 tabular-nums text-muted-foreground">{a.cpl ? fmtMoney(a.cpl) : "—"}</td>
+                      <td className="text-right py-2 px-2 tabular-nums">{a.citas}</td>
+                      <td className="text-right py-2 px-2 tabular-nums text-emerald-600 font-semibold">{a.cierres}</td>
+                      <td className="text-right py-2 px-2 tabular-nums text-emerald-600">{a.revenue > 0 ? fmtMoney(a.revenue) : "—"}</td>
+                      <td className={`text-right py-2 pl-2 tabular-nums font-bold ${a.roas == null ? "text-muted-foreground" : a.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>
+                        {a.roas != null ? `${a.roas}x` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              ROAS = ventas ÷ inversión. Se calcula cuando hay cierres ganados con presupuesto. Inversión y ventas deben estar en la misma moneda.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Grouped objections + positive signals */}
       {(groupedObj.length > 0 || groupedSig.length > 0) && (
