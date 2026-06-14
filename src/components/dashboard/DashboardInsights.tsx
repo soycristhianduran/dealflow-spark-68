@@ -25,7 +25,7 @@ interface Insights {
   sources: { source: string; n: number }[];
   agent: { sessions_month: number; escalations_month: number };
   funnels: { pipeline_id: string; pipeline_name: string; stages: FunnelStage[] }[];
-  vendors: { owner_id: string; leads: number; citas: number; cierres: number; revenue: number }[];
+  vendors: { owner_id: string; leads: number; citas: number; cierres: number; perdidos: number; revenue: number }[];
 }
 
 
@@ -412,8 +412,9 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
                   <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
                     <span className="text-center"><b className="block text-foreground text-xs">{v.leads.toLocaleString()}</b>leads</span>
                     <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>citas</span>
-                    <span className="text-center"><b className="block text-emerald-600 text-xs">{v.cierres}</b>cierres</span>
-                    <span className="text-center"><b className="block text-emerald-600 text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>ventas</span>
+                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>ganados</span>
+                    <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>perdidos</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>ventas</span>
                   </div>
                 </div>
               ))}
