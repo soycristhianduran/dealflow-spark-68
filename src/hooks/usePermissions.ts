@@ -32,11 +32,17 @@ export function usePermissions() {
   const canExportData = isOwnerOrAdmin;
 
   /**
-   * Can access power/config features: Automations, Integrations, Meta Ads,
-   * WA Templates, IG Automations, Email Campaigns.
-   * Vendors and readonly users should not manage these.
+   * Can MANAGE power/config features: Automations, Integrations, Meta Ads,
+   * WA Templates, IG Automations, Email Campaigns, AI Agents.
+   * Only owner/admin can create/edit these.
    */
   const canAccessPowerFeatures = isOwnerOrAdmin;
+
+  /**
+   * Can VIEW the power features (advanced section). Readonly members get full
+   * visibility (view-only) like a manager; vendors stay scoped out.
+   */
+  const canViewPowerFeatures = isOwnerOrAdmin || isReadonly;
 
   /**
    * Can see the budget/deal-value of a given contact.
@@ -58,6 +64,7 @@ export function usePermissions() {
     isReadonly,
     canAccessSettings,
     canAccessPowerFeatures,
+    canViewPowerFeatures,
     canDeleteContacts,
     canEditContacts,
     canExportData,

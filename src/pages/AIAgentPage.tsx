@@ -19,7 +19,8 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText } from "lucide-react";
+import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText, Eye } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -127,6 +128,7 @@ const DEFAULT_CONFIG: AgentConfig = {
 export default function AIAgentPage() {
   const { organizationId } = useOrganizationContext();
   const { subscription } = useSubscription();
+  const { canAccessPowerFeatures: canEditAgent } = usePermissions();
   const [config, setConfig] = useState<AgentConfig>(DEFAULT_CONFIG);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -834,13 +836,20 @@ export default function AIAgentPage() {
             </CardContent>
           </Card>
 
-          {/* Save */}
-          <div className="flex justify-end pb-6">
-            <Button onClick={handleSave} disabled={saving} size="lg">
-              {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-              Guardar configuración
-            </Button>
-          </div>
+          {/* Save — hidden for read-only members */}
+          {canEditAgent && (
+            <div className="flex justify-end pb-6">
+              <Button onClick={handleSave} disabled={saving} size="lg">
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Guardar configuración
+              </Button>
+            </div>
+          )}
+          {!canEditAgent && (
+            <div className="flex items-center justify-center gap-2 pb-6 text-xs text-muted-foreground">
+              <Eye className="h-3.5 w-3.5" /> Modo solo lectura — no puedes modificar la configuración del agente.
+            </div>
+          )}
 
         </div>
       </div>

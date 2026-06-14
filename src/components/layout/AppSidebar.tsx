@@ -106,7 +106,7 @@ export function AppSidebar() {
 
   const { path } = useWorkspace();
   const { waUnread, igUnread } = useUnreadCounts();
-  const { canAccessSettings, canAccessPowerFeatures } = usePermissions();
+  const { canAccessSettings, canViewPowerFeatures } = usePermissions();
 
   // Auto-open the group that contains the current page
   useEffect(() => {
@@ -193,8 +193,8 @@ export function AppSidebar() {
           );
         })}
 
-        {/* ── Secciones agrupadas (admin / owner) ── */}
-        {canAccessPowerFeatures && (
+        {/* ── Secciones agrupadas (admin / owner / solo lectura ven; vendor no) ── */}
+        {canViewPowerFeatures && (
           <div className={cn("mt-2", !collapsed && "space-y-0.5")}>
 
             {/* Separador */}

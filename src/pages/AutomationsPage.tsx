@@ -32,6 +32,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
+import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
@@ -2369,6 +2370,7 @@ function AutomationBuilder({
 }) {
   const { toast } = useToast();
   const { organizationId } = useOrganizationContext();
+  const { canAccessPowerFeatures: canEditBuilder } = usePermissions();
 
   // Editable meta
   const [name, setName] = useState(automation?.name ?? "Nueva automatización");
@@ -2544,10 +2546,12 @@ function AutomationBuilder({
             <Play className="h-3.5 w-3.5 mr-1.5" />Enrolar
           </Button>
         )}
-        <Button size="sm" onClick={handleSave} disabled={saving}>
-          <Save className="h-3.5 w-3.5 mr-1.5" />
-          {saving ? "Guardando..." : "Guardar"}
-        </Button>
+        {canEditBuilder && (
+          <Button size="sm" onClick={handleSave} disabled={saving}>
+            <Save className="h-3.5 w-3.5 mr-1.5" />
+            {saving ? "Guardando..." : "Guardar"}
+          </Button>
+        )}
       </div>
 
       {/* ── Canvas + panel ── */}
@@ -2622,11 +2626,13 @@ function AutomationCard({
   onDelete,
   onToggle,
   onEnroll,
+  canEdit = true,
 }: {
   automation: Automation;
   onEdit: () => void;
   onDelete: () => void;
   onToggle: () => void;
+  canEdit?: boolean;
   onEnroll: () => void;
 }) {
   const stepColors = (automation.steps || []).slice(0, 6);
@@ -2635,7 +2641,7 @@ function AutomationCard({
     <div className="group rounded-xl border bg-card hover:shadow-md transition-all">
       <div className="flex items-start gap-3 p-4">
         {/* Active toggle */}
-        <Switch checked={automation.is_active} onCheckedChange={onToggle} className="shrink-0 mt-0.5" />
+        <Switch checked={automation.is_active} onCheckedChange={onToggle} disabled={!canEdit} className="shrink-0 mt-0.5" />
 
         {/* Info */}
         <div className="flex-1 min-w-0 cursor-pointer" onClick={onEdit}>
@@ -2674,25 +2680,31 @@ function AutomationCard({
               <Play className="h-3.5 w-3.5 mr-1" />Enrolar
             </Button>
             <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-              <Edit className="h-3.5 w-3.5 mr-1" />Editar
+              <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? "Editar" : "Ver"}
             </Button>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
-              <Trash2 className="h-3.5 w-3.5" />
-            </Button>
+            {canEdit && (
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            )}
           </div>
         </div>
 
         {/* Actions — desktop only */}
         <div className="hidden sm:flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="sm" onClick={onEnroll} disabled={!automation.is_active} title={!automation.is_active ? "Activa para enrolar" : undefined}>
-            <Play className="h-3.5 w-3.5 mr-1" />Enrolar
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="sm" onClick={onEnroll} disabled={!automation.is_active} title={!automation.is_active ? "Activa para enrolar" : undefined}>
+              <Play className="h-3.5 w-3.5 mr-1" />Enrolar
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onEdit}>
-            <Edit className="h-3.5 w-3.5 mr-1" />Editar
+            <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? "Editar" : "Ver"}
           </Button>
-          <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8" onClick={onDelete}>
-            <Trash2 className="h-3.5 w-3.5" />
-          </Button>
+          {canEdit && (
+            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8" onClick={onDelete}>
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
       </div>
     </div>
@@ -2702,6 +2714,7 @@ function AutomationCard({
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AutomationsPage() {
   const { toast } = useToast();
+  const { canAccessPowerFeatures: canEdit } = usePermissions();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<"list" | "builder">("list");
@@ -2772,9 +2785,11 @@ export default function AutomationsPage() {
               <Zap className="h-5 w-5 text-indigo-500" />
               <h1 className="text-xl font-bold">Automatizaciones</h1>
             </div>
-            <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-              <Plus className="h-4 w-4 mr-2" />Nueva automatización
-            </Button>
+            {canEdit && (
+              <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
+                <Plus className="h-4 w-4 mr-2" />Nueva automatización
+              </Button>
+            )}
           </div>
 
 
@@ -2786,10 +2801,12 @@ export default function AutomationsPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
                   <Zap className="h-8 w-8 text-indigo-400" />
                 </div>
-                <p className="text-muted-foreground text-sm">No hay automatizaciones. Crea la primera.</p>
-                <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-                  <Plus className="h-4 w-4 mr-2" />Nueva automatización
-                </Button>
+                <p className="text-muted-foreground text-sm">No hay automatizaciones.{canEdit ? " Crea la primera." : ""}</p>
+                {canEdit && (
+                  <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
+                    <Plus className="h-4 w-4 mr-2" />Nueva automatización
+                  </Button>
+                )}
               </div>
             )}
             {automations.map(automation => (
@@ -2800,6 +2817,7 @@ export default function AutomationsPage() {
                 onDelete={() => setDeleteTarget(automation)}
                 onToggle={() => toggleActive(automation)}
                 onEnroll={() => setEnrollTarget(automation)}
+                canEdit={canEdit}
               />
             ))}
           </div>
