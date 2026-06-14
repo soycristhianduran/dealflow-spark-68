@@ -498,6 +498,9 @@ export default function SettingsPage() {
             <TabsTrigger value="api">API</TabsTrigger>
           </TabsList>
 
+          {/* Read-only members can view every tab but not edit anything. A disabled
+              fieldset neutralises all inputs/buttons inside without affecting tab nav. */}
+          <fieldset disabled={isReadonly} className="border-0 p-0 m-0 min-w-0">
           <TabsContent value="email" className="space-y-4">
             <EmailDomainsSettings />
           </TabsContent>
@@ -1082,6 +1085,7 @@ export default function SettingsPage() {
           <TabsContent value="api" className="space-y-4">
             <ApiKeysSection />
           </TabsContent>
+          </fieldset>
         </Tabs>
       </main>
     </AppLayout>
