@@ -68,26 +68,71 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 const srcLabel = (s: string) => SOURCE_LABELS[s] || s;
 
-function Sparkline({ data }: { data: number[] }) {
-  if (!data.length) return null;
-  const max = Math.max(...data, 1);
-  const w = 240, h = 48, step = data.length > 1 ? w / (data.length - 1) : w;
-  const coords = data.map((v, i) => [i * step, h - (v / max) * (h - 6) - 3] as const);
-  const pts = coords.map(([x, y]) => `${x},${y}`).join(" ");
-  const area = `0,${h} ${pts} ${w},${h}`;
-  const lastX = coords.length ? coords[coords.length - 1][0] : 0;
-  const lastY = coords.length ? coords[coords.length - 1][1] : 0;
+// Smooth (Catmull-Rom → bezier) path for a premium area chart.
+function smoothLine(pts: [number, number][]): string {
+  if (pts.length < 2) return pts.length ? `M ${pts[0][0]},${pts[0][1]}` : "";
+  let d = `M ${pts[0][0]},${pts[0][1]}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
+// Radial gauge with centered label — theme-adaptive premium ring.
+function RadialGauge({ value, label, sub }: { value: number; label: string; sub?: string }) {
+  const size = 132, stroke = 12, r = (size - stroke) / 2, c = 2 * Math.PI * r;
+  const pct = Math.min(100, Math.max(0, value));
+  const off = c * (1 - pct / 100);
+  const color = pct >= 50 ? "#10b981" : pct >= 25 ? "#f59e0b" : "#ef4444";
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <filter id="gauge-glow"><feGaussianBlur stdDeviation="3" /></filter>
+        </defs>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} className="stroke-muted" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
+          stroke={color} strokeDasharray={c} strokeDashoffset={off} opacity={0.35} filter="url(#gauge-glow)" />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke} strokeLinecap="round"
+          stroke={color} strokeDasharray={c} strokeDashoffset={off} style={{ transition: "stroke-dashoffset .7s ease" }} />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-2xl font-bold tabular-nums tracking-tight">{Math.round(pct)}%</span>
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</span>
+        {sub && <span className="text-[10px] text-muted-foreground mt-0.5">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+function Sparkline({ data }: { data: number[] }) {
+  if (!data.length) return <div className="h-28" />;
+  const w = 600, h = 120, padY = 12;
+  const max = Math.max(...data, 1);
+  const step = data.length > 1 ? w / (data.length - 1) : w;
+  const pts = data.map((v, i) => [i * step, h - padY - (v / max) * (h - padY * 2)] as [number, number]);
+  const line = smoothLine(pts);
+  const area = `${line} L ${w},${h} L 0,${h} Z`;
+  const last = pts[pts.length - 1];
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-28" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="spark-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f97316" stopOpacity="0.28" />
+        <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#f97316" stopOpacity="0.32" />
           <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
         </linearGradient>
+        <filter id="trend-glow" x="-20%" y="-50%" width="140%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="b" />
+          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
       </defs>
-      <polygon points={area} fill="url(#spark-fill)" />
-      <polyline points={pts} fill="none" stroke="#f97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
-      <circle cx={lastX} cy={lastY} r={3} fill="#f97316" vectorEffect="non-scaling-stroke" />
+      <path d={area} fill="url(#trend-fill)" />
+      <path d={line} fill="none" stroke="#f97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" filter="url(#trend-glow)" vectorEffect="non-scaling-stroke" />
+      <circle cx={last[0]} cy={last[1]} r={6} fill="#f97316" opacity={0.25} />
+      <circle cx={last[0]} cy={last[1]} r={3.5} fill="#f97316" />
     </svg>
   );
 }
@@ -280,7 +325,14 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
             {(() => {
               const fn = data.funnels[pipelineIdx];
               if (!fn || fn.stages.length === 0) return <p className="text-sm text-muted-foreground py-4 text-center">Sin etapas en este pipeline.</p>;
-              return fn.stages.map((s, i) => {
+              const first = fn.stages[0]?.count || 0;
+              const last = fn.stages[fn.stages.length - 1]?.count || 0;
+              const overall = first > 0 ? (last / first) * 100 : 0;
+              return (<>
+                <div className="flex items-center justify-center pb-3">
+                  <RadialGauge value={overall} label="Conversión" sub={`${last} de ${first}`} />
+                </div>
+                {fn.stages.map((s, i) => {
                 const prev = i > 0 ? fn.stages[i - 1].count : null;
                 const conv = prev && prev > 0 ? Math.round((s.count / prev) * 100) : null;
                 return (
@@ -295,7 +347,8 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
                     )}
                   </div>
                 );
-              });
+              })}
+              </>);
             })()}
             <p className="text-[11px] text-muted-foreground pt-1">El % es la conversión desde la etapa anterior.</p>
           </CardContent>
