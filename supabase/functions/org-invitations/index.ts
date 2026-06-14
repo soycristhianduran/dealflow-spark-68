@@ -7,6 +7,67 @@ const corsHeaders = {
 
 const RESEND_API = "https://api.resend.com";
 
+// Branded sender + email template (Klosify look & feel)
+const INVITE_FROM = "Klosify <noreply@klosify.com>";
+
+function brandedInviteEmail(opts: {
+  inviterName: string;
+  orgName: string;
+  inviteUrl: string;
+  role?: string;
+  reminder?: boolean;
+}): string {
+  const { inviterName, orgName, inviteUrl, role, reminder } = opts;
+  const roleLabel = role === "vendor" ? "Vendedor"
+    : role === "admin" ? "Administrador"
+    : role === "owner" ? "Propietario" : "Miembro";
+  const heading = reminder ? "Recordatorio de invitación" : "Te invitaron a un equipo";
+  const intro = reminder
+    ? `<strong>${inviterName}</strong> te recuerda que tienes una invitación pendiente para unirte a <strong>${orgName}</strong>.`
+    : `<strong>${inviterName}</strong> te invitó a unirte a <strong>${orgName}</strong> en Klosify.`;
+  return `<!DOCTYPE html>
+<html lang="es">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:32px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <!-- Header -->
+        <tr><td style="background:linear-gradient(135deg,#f97316,#ea580c);padding:28px 32px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+            <td style="vertical-align:middle;">
+              <span style="display:inline-block;width:34px;height:34px;background:#ffffff;border-radius:9px;text-align:center;line-height:34px;font-weight:800;color:#f97316;font-size:20px;vertical-align:middle;">K</span>
+            </td>
+            <td style="vertical-align:middle;padding-left:12px;">
+              <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.3px;">Klosify</span>
+            </td>
+          </tr></table>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:36px 32px 8px;">
+          <h1 style="margin:0 0 12px;font-size:22px;color:#18181b;font-weight:700;">${heading}</h1>
+          <p style="margin:0 0 8px;font-size:15px;line-height:1.6;color:#3f3f46;">${intro}</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#71717a;">Rol asignado: <strong style="color:#ea580c;">${roleLabel}</strong></p>
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" style="border-radius:10px;background:#f97316;">
+            <a href="${inviteUrl}" style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">Aceptar invitación</a>
+          </td></tr></table>
+          <p style="margin:24px 0 0;font-size:13px;color:#a1a1aa;">O copia y pega este enlace en tu navegador:<br>
+            <a href="${inviteUrl}" style="color:#f97316;word-break:break-all;">${inviteUrl}</a>
+          </p>
+        </td></tr>
+        <!-- Divider -->
+        <tr><td style="padding:24px 32px 0;"><div style="border-top:1px solid #f4f4f5;"></div></td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:16px 32px 32px;">
+          <p style="margin:0;font-size:12px;line-height:1.6;color:#a1a1aa;">Este enlace expira en 7 días. Si no esperabas esta invitación, puedes ignorar este correo.</p>
+          <p style="margin:12px 0 0;font-size:12px;color:#c4c4cc;">© Klosify · CRM para equipos de ventas</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
 const ok = (data: any) => new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 const err = (msg: string) => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -85,19 +146,10 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "CRM <noreply@klosify.com>",
+          from: INVITE_FROM,
           to: [email],
-          subject: `${inviterName} te invitó a unirte a ${orgName}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
-              <h2 style="color:#1a1a1a">Tienes una invitación</h2>
-              <p><strong>${inviterName}</strong> te invitó a unirte a <strong>${orgName}</strong> en Klosify CRM.</p>
-              <a href="${inviteUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
-                Aceptar invitación
-              </a>
-              <p style="color:#666;font-size:13px">Este enlace expira en 7 días. Si no esperabas esta invitación, ignora este correo.</p>
-            </div>
-          `,
+          subject: `${inviterName} te invitó a unirte a ${orgName} en Klosify`,
+          html: brandedInviteEmail({ inviterName, orgName, inviteUrl, role }),
         }),
       });
     }
@@ -314,19 +366,10 @@ Deno.serve(async (req) => {
         method: "POST",
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "CRM <noreply@klosify.com>",
+          from: INVITE_FROM,
           to: [invitation.email],
-          subject: `${inviterName} te recuerda unirte a ${orgName}`,
-          html: `
-            <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
-              <h2 style="color:#1a1a1a">Recordatorio de invitación</h2>
-              <p><strong>${inviterName}</strong> te recuerda que tienes una invitación pendiente para unirte a <strong>${orgName}</strong> en Klosify CRM.</p>
-              <a href="${inviteUrl}" style="display:inline-block;margin:24px 0;padding:12px 24px;background:#6366f1;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">
-                Aceptar invitación
-              </a>
-              <p style="color:#666;font-size:13px">Este enlace expira en 7 días. Si no esperabas esta invitación, ignora este correo.</p>
-            </div>
-          `,
+          subject: `${inviterName} te recuerda unirte a ${orgName} en Klosify`,
+          html: brandedInviteEmail({ inviterName, orgName, inviteUrl, role: invitation.role, reminder: true }),
         }),
       });
     }
