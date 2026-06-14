@@ -171,7 +171,7 @@ export default function ContactsPage() {
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
   const { tags: orgCatalogTags, colorOf } = useOrgTags();
-  const { isOwnerOrAdmin, isVendor, myUserId } = usePermissions();
+  const { isOwnerOrAdmin, isVendor, myUserId, canEditContacts, canExportData } = usePermissions();
 
   // Bulk action dialog state
   const [reassignOpen, setReassignOpen] = useState(false);
@@ -1062,17 +1062,23 @@ export default function ContactsPage() {
     <AppLayout>
       <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
         <div className="flex items-center gap-1.5 md:gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={() => setImportOpen(true)}>
-            <Upload className="h-4 w-4" />
-            <span className="hidden md:inline">Importar CSV</span>
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={exportToCSV} disabled={exportLoading}>
-            {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            <span className="hidden md:inline">Exportar CSV</span>
-          </Button>
-          <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuevo lead</span>
-          </Button>
+          {canEditContacts && (
+            <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={() => setImportOpen(true)}>
+              <Upload className="h-4 w-4" />
+              <span className="hidden md:inline">Importar CSV</span>
+            </Button>
+          )}
+          {canExportData && (
+            <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={exportToCSV} disabled={exportLoading}>
+              {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <span className="hidden md:inline">Exportar CSV</span>
+            </Button>
+          )}
+          {canEditContacts && (
+            <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuevo lead</span>
+            </Button>
+          )}
         </div>
       } />
       <main className="flex-1 overflow-y-auto p-3 md:p-6 pb-24 md:pb-24 space-y-3 md:space-y-4 scrollbar-thin">
@@ -1330,8 +1336,8 @@ export default function ContactsPage() {
           </div>
         )}
 
-        {/* Bulk action bar */}
-        {someChecked && (
+        {/* Bulk action bar — writes only, hidden for read-only members */}
+        {someChecked && canEditContacts && (
           <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 md:px-4 md:py-2.5 shadow-sm overflow-x-auto flex-nowrap min-h-[44px]">
             <span className="text-sm font-semibold text-foreground mr-1">
               {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
@@ -1486,7 +1492,7 @@ export default function ContactsPage() {
                             : "Importa tus leads desde Excel/CSV o crea el primero manualmente. También llegarán automáticamente si tienes Facebook Lead Ads conectado."
                         }
                         action={
-                          !search && statusFilter === "all" && (
+                          !search && statusFilter === "all" && canEditContacts && (
                             <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
                               <Plus className="h-4 w-4" /> Crear mi primer lead
                             </Button>

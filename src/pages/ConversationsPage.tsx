@@ -1114,6 +1114,7 @@ function fmtConvTime(iso: string): string {
 
 // ── Quick pipeline + stage changer for the conversation header ────────────────
 function StagePipelinePicker({ contactId }: { contactId: string }) {
+  const { canEditContacts } = usePermissions();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
@@ -1174,6 +1175,17 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
   };
 
   if (!loaded) return null;
+
+  // Read-only members see the current stage as a static badge (no editing).
+  if (!canEditContacts) {
+    const stName = stages.find(s => s.id === stageId)?.name;
+    if (!stName) return null;
+    return (
+      <div className="hidden md:flex items-center">
+        <span className="rounded-md border px-2.5 py-1 text-xs font-medium text-muted-foreground">{stName}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="hidden md:flex items-center gap-1.5">

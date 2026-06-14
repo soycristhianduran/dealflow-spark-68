@@ -558,7 +558,14 @@ export default function ContactDetailPage() {
                             )}
                           </>
                         )}
-                        {contact.pipeline_id && (
+                        {contact.pipeline_id && !canEditContacts && (
+                          <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium">
+                            {currentStage
+                              ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
+                              : <span className="text-muted-foreground">Sin etapa</span>}
+                          </div>
+                        )}
+                        {contact.pipeline_id && canEditContacts && (
                           <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
                             <PopoverTrigger asChild>
                               <button className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors" disabled={savingStage}>
@@ -610,9 +617,11 @@ export default function ContactDetailPage() {
                     </div>
                   </div>
                   {!editingContact ? (
-                    <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" onClick={startEditing}>
-                      <Pencil className="h-3 w-3" /> Editar
-                    </Button>
+                    canEditContacts && (
+                      <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" onClick={startEditing}>
+                        <Pencil className="h-3 w-3" /> Editar
+                      </Button>
+                    )
                   ) : (
                     <div className="flex gap-1">
                       <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={cancelEditing}>

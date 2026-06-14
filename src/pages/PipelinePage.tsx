@@ -63,7 +63,7 @@ export default function PipelinePage() {
   const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId } = useOrganizationContext();
-  const { isVendor, myUserId } = usePermissions();
+  const { isVendor, myUserId, canEditContacts } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -619,6 +619,7 @@ export default function PipelinePage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            {canEditContacts && (
             <Button
               size="sm"
               variant={manageMode ? "default" : "outline"}
@@ -628,6 +629,7 @@ export default function PipelinePage() {
               <Settings2 className="h-4 w-4" />
               {manageMode ? "Listo" : "Personalizar"}
             </Button>
+            )}
             {manageMode && (
               <Button size="sm" className="gap-1.5" onClick={openAddStage}>
                 <Plus className="h-4 w-4" /> Nueva etapa
@@ -707,7 +709,7 @@ export default function PipelinePage() {
                       <span className="text-xs font-medium text-muted-foreground">
                         ${(getStageValue(stage.id) / 1000).toFixed(0)}K
                       </span>
-                      {!manageMode && (
+                      {!manageMode && canEditContacts && (
                         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={(e) => { e.stopPropagation(); openCreateLead(stage.id); }}>
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
@@ -756,13 +758,14 @@ export default function PipelinePage() {
                     {stageContacts.map((contact) => (
                       <div
                         key={contact.id}
-                        draggable={!manageMode}
-                        onDragStart={() => setDraggedContact(contact.id)}
+                        draggable={!manageMode && canEditContacts}
+                        onDragStart={() => canEditContacts && setDraggedContact(contact.id)}
                         onClick={() => !manageMode && navigate(path(`/contacts/${contact.id}`))}
-                        className="group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
+                        className={cn("group rounded-lg border bg-card p-3 shadow-sm hover:shadow-md transition-shadow", canEditContacts ? "cursor-grab active:cursor-grabbing" : "cursor-pointer")}
                       >
                         <div className="flex items-start justify-between mb-1">
                           <p className="text-sm font-medium text-foreground flex-1 mr-1">{contact.full_name}</p>
+                          {canEditContacts && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
                               <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
@@ -781,6 +784,7 @@ export default function PipelinePage() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          )}
                         </div>
                         {contact.primary_phone && (
                           <p className="text-xs text-muted-foreground mb-1">{contact.primary_phone}</p>
