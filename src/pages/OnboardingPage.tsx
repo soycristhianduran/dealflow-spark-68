@@ -190,6 +190,24 @@ export default function OnboardingPage() {
     if (meta.family_name) setLastName(meta.family_name);
   }, [session, navigate]);
 
+  // Skip onboarding for users who JOINED an org via invitation (vendors/members).
+  // Onboarding is only for owners setting up a brand-new workspace.
+  useEffect(() => {
+    if (!session) return;
+    let active = true;
+    (async () => {
+      const { data: memberships } = await supabase
+        .from("organization_members")
+        .select("role")
+        .eq("user_id", session.user.id);
+      if (!active || !memberships?.length) return;
+      // If they belong to any org where they are NOT the owner, they were invited.
+      const invited = memberships.some((m: any) => m.role && m.role !== "owner");
+      if (invited) navigate("/", { replace: true });
+    })();
+    return () => { active = false; };
+  }, [session, navigate]);
+
   // Auto-select niche from industry if user filled it in step 1
   useEffect(() => {
     if (!industry || selectedNiche) return;
