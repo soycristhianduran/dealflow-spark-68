@@ -9,6 +9,7 @@ import { useWhatsAppInbox } from "@/hooks/useWhatsAppInbox";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -98,6 +99,7 @@ interface IgMessageRow {
 
 export default function ConversationsPage() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const { canEditContacts: canEditConversations } = usePermissions();
   const wa = useWhatsAppInbox();
   const ig = useInstagramIntegration();
@@ -105,6 +107,29 @@ export default function ConversationsPage() {
   const [channelFilter, setChannelFilter] = useState<FilterMode>("all");
   const [readFilter, setReadFilter] = useState<"all" | "unread">("all");
   const [search, setSearch] = useState("");
+  const [markingAll, setMarkingAll] = useState(false);
+
+  // Mark every unread conversation (WhatsApp + Instagram) as read for the org.
+  const markAllRead = async () => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    try {
+      let waU = supabase.from("whatsapp_messages")
+        .update({ read_at: new Date().toISOString() })
+        .eq("direction", "incoming").is("read_at", null);
+      let igU = supabase.from("instagram_conversations")
+        .update({ unread_count: 0 }).gt("unread_count", 0);
+      if (organizationId) { waU = waU.eq("organization_id", organizationId); igU = igU.eq("organization_id", organizationId); }
+      else if (user) { waU = waU.eq("user_id", user.id); igU = igU.eq("user_id", user.id); }
+      await Promise.all([waU, igU]);
+      toast.success("Todas las conversaciones marcadas como leídas");
+      wa.fetchConversations(); loadIgConversations();
+    } catch (e: any) {
+      toast.error("No se pudo marcar todo como leído: " + (e?.message || ""));
+    } finally {
+      setMarkingAll(false);
+    }
+  };
   const [selected, setSelected] = useState<UnifiedConversation | null>(null);
 
   // AI Agent pause state per conversation key
@@ -621,10 +646,19 @@ export default function ConversationsPage() {
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
               <h1 className="font-bold text-base">Conversaciones</h1>
-              <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                onClick={() => { wa.fetchConversations(); loadIgConversations(); }}>
-                <RefreshCw className="h-3.5 w-3.5" />
-              </Button>
+              <div className="flex items-center gap-1">
+                {canEditConversations && counts.unread > 0 && (
+                  <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
+                    onClick={markAllRead} disabled={markingAll} title="Marcar todas como leídas">
+                    {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MailOpen className="h-3.5 w-3.5" />}
+                    <span className="hidden sm:inline">Marcar leído</span>
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                  onClick={() => { wa.fetchConversations(); loadIgConversations(); }}>
+                  <RefreshCw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               <FilterTab active={channelFilter === "all"} onClick={() => setChannelFilter("all")}>
