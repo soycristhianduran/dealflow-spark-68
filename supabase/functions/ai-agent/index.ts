@@ -219,16 +219,18 @@ Deno.serve(async (req) => {
       });
     }
 
-    // 5. Consume session credit (billing) — enforces monthly quota + add-on overflow
+    // 5. Pre-check credit quota (billing). Billing is per-CREDIT (1 credit = 1.000
+    //    tokens); the actual credits are deducted AFTER the reply by
+    //    record_ai_agent_usage, since token usage isn't known until we generate.
     const { data: sessionData, error: sessionErr } = await supabase.rpc(
-      "consume_ai_agent_session",
+      "check_ai_agent_quota",
       { p_org_id: organization_id, p_channel: channel, p_session_key: session_key },
     );
     if (sessionErr) {
-      console.error("consume_ai_agent_session error:", sessionErr.message);
+      console.error("check_ai_agent_quota error:", sessionErr.message);
       // Non-fatal — continue anyway to not block the user experience
     }
-    if (sessionData?.quota_exceeded) {
+    if (sessionData && sessionData.allowed === false) {
       return json({ response: null, reason: "quota_exceeded" });
     }
 

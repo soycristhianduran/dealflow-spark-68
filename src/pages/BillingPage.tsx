@@ -32,6 +32,7 @@ interface UsageRow {
   automated_messages_used: number;
   email_sends_used: number;
   ai_agent_conversations_used: number;
+  ai_agent_credits_used: number;
   ai_assistant_used: number;
 }
 
@@ -89,7 +90,7 @@ export default function BillingPage() {
       const [usageRes, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
         supabase
           .from("usage_counters")
-          .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used, ai_assistant_used")
+          .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used, ai_agent_credits_used, ai_assistant_used")
           .eq("organization_id", organizationId)
           .eq("period_start", monthStart)
           .maybeSingle(),
@@ -116,7 +117,7 @@ export default function BillingPage() {
         setUsage(null);
       } else {
         // null means no row yet this month → user hasn't consumed anything, true zero
-        setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0, ai_assistant_used: 0 });
+        setUsage(usageRes.data ?? { ai_analyses_used: 0, automated_messages_used: 0, email_sends_used: 0, ai_agent_conversations_used: 0, ai_agent_credits_used: 0, ai_assistant_used: 0 });
       }
 
       setBoostCredits((boosts ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
@@ -246,9 +247,9 @@ export default function BillingPage() {
       show: subscription.featureEmailCampaigns,
     },
     {
-      label: "Agente IA",
-      used: usage?.ai_agent_conversations_used ?? 0,
-      limit: subscription.monthlyAiAgentConversations,
+      label: "Agente de Chat (créditos)",
+      used: usage?.ai_agent_credits_used ?? 0,
+      limit: subscription.monthlyAiAgentCredits,
       icon: Bot,
       color: "text-violet-500",
       show: subscription.featureAiAgent,
@@ -442,8 +443,8 @@ export default function BillingPage() {
             <PackCard
               icon={<Sparkles className="h-4 w-4 text-orange-500" />}
               title="IA Landings — Páginas de aterrizaje"
-              creditsLabel={landingCredits > 0 ? `${landingCredits.toLocaleString()} tokens disponibles` : null}
-              emptyText="Cada generación y refinamiento descuenta los tokens reales consumidos por la IA."
+              creditsLabel={landingCredits > 0 ? `${Math.floor(landingCredits / 1000).toLocaleString()} créditos disponibles` : null}
+              emptyText="Cada generación y refinamiento descuenta créditos según el consumo real de la IA (1 crédito = 1.000 tokens)."
               packs={IA_LANDINGS_PACKS}
               purchasingBoost={purchasingBoost}
               onBuy={buyBoost}
@@ -488,9 +489,9 @@ export default function BillingPage() {
             {subscription.featureAiAgent && (
               <PackCard
                 icon={<Bot className="h-4 w-4 text-violet-500" />}
-                title="Agente IA — Conversaciones extra"
-                creditsLabel={agentCredits > 0 ? `${agentCredits.toLocaleString()} conversaciones disponibles` : null}
-                emptyText="Se consumen al agotar el cupo mensual del plan para que el agente siga activo."
+                title="Agente de Chat — Créditos extra"
+                creditsLabel={agentCredits > 0 ? `${agentCredits.toLocaleString()} créditos disponibles` : null}
+                emptyText="Se consumen al agotar el cupo mensual del plan. El agente descuenta créditos según los tokens reales de cada conversación (1 crédito = 1.000 tokens)."
                 packs={IA_AGENT_PACKS}
                 purchasingBoost={purchasingBoost}
                 onBuy={buyBoost}

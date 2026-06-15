@@ -210,11 +210,11 @@ export default function AIAgentPage() {
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
       const { data } = await supabase
         .from("usage_counters")
-        .select("ai_agent_conversations_used")
+        .select("ai_agent_credits_used")
         .eq("organization_id", organizationId)
         .eq("period_start", monthStart)
         .maybeSingle();
-      setConversationsThisMonth(data?.ai_agent_conversations_used ?? 0);
+      setConversationsThisMonth(data?.ai_agent_credits_used ?? 0);
     } catch (err) {
       console.warn("Error loading agent usage:", err);
     }
@@ -374,12 +374,12 @@ export default function AIAgentPage() {
               <Separator className="my-4" />
 
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Conversaciones este mes</span>
+                <span className="text-muted-foreground">Créditos usados este mes</span>
                 <span className="font-semibold tabular-nums">
                   {conversationsThisMonth.toLocaleString()}
-                  {subscription?.monthlyAiAgentConversations != null && (
+                  {subscription?.monthlyAiAgentCredits != null && (
                     <span className="text-muted-foreground font-normal">
-                      {" "}/ {subscription.monthlyAiAgentConversations.toLocaleString()}
+                      {" "}/ {subscription.monthlyAiAgentCredits.toLocaleString()}
                     </span>
                   )}
                 </span>
