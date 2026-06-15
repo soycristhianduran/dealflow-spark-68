@@ -48,6 +48,7 @@ import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import OnboardingPage from "./pages/OnboardingPage";
+import PlatformPage from "./pages/PlatformPage";
 import IgVerifyPage from "./pages/IgVerifyPage";
 import { useLeadNotifier } from "@/hooks/useLeadNotifier";
 import { TrialBanner } from "@/components/billing/TrialBanner";
@@ -163,6 +164,9 @@ function AppRoutes() {
 
       {/* Stripe redirects back to /billing — forward to workspace-scoped billing */}
       <Route path="/billing" element={<BillingRedirect />} />
+
+      {/* Founder-only SaaS health monitor (server-gated to platform_admins) */}
+      <Route path="/platform" element={<ProtectedRoute><PlatformPage /></ProtectedRoute>} />
 
       {/* Legacy flat routes (backward compat) — redirect to slug-based */}
       <Route path="*" element={<NotFound />} />
