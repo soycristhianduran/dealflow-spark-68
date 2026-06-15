@@ -600,8 +600,15 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
 
       const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
       if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY no configurado");
+      // Email IS a real cost for us (Resend). Enforce the monthly email cap, but
+      // only consume quota when there's actually an email to send to.
+      const hasEmailQuota = contact.primary_email
+        ? (await supabase.rpc("consume_email_quota", { p_org_id: contact.organization_id, p_amount: 1 })).data
+        : false;
       if (!contact.primary_email) {
         logs = addLog("Contacto sin email — paso omitido");
+      } else if (!hasEmailQuota) {
+        logs = addLog("Límite de correos del plan alcanzado — paso omitido");
       } else {
         const res = await fetch(`${RESEND_API}/emails`, {
           method: "POST",
