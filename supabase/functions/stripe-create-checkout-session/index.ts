@@ -31,6 +31,12 @@ type RequestBody = {
   // The workspace the purchase is for. Required to bill the correct org when the
   // user belongs to more than one. Falls back to the user's membership if omitted.
   organization_id?: string;
+  // Capacity add-ons (recurring): when set, this is an extra-seats / extra-contacts
+  // subscription, kept separate from the plan subscription. The webhook reconciles
+  // the item quantity into org_addons instead of treating it as a plan change.
+  addon_kind?: "extra_seats" | "extra_contacts";
+  // Initial quantity the user wants (seats, or contact packs). User can adjust in checkout.
+  quantity?: number;
 };
 
 Deno.serve(async (req) => {
@@ -174,10 +180,17 @@ Deno.serve(async (req) => {
       `${APP_URL}${basePath}${body.cancel_path || "/billing"}?checkout_status=canceled`;
 
     // ── Create the Checkout Session ────────────────────────────────────────
+    const isAddon = body.mode === "subscription" && !!body.addon_kind;
+    const qty = Math.max(1, Math.floor(body.quantity || 1));
     const session = await stripe.checkout.sessions.create({
       mode: body.mode,
       customer: customerId,
-      line_items: [{ price: body.price_id, quantity: 1 }],
+      line_items: [{
+        price: body.price_id,
+        quantity: qty,
+        // Let the customer add/remove seats or contact packs right in checkout.
+        ...(isAddon ? { adjustable_quantity: { enabled: true, minimum: 1, maximum: 100 } } : {}),
+      }],
       success_url: successUrl,
       cancel_url: cancelUrl,
       // Pass org_id in metadata so the webhook can resolve without needing
@@ -185,16 +198,17 @@ Deno.serve(async (req) => {
       metadata: {
         organization_id: orgId,
         user_id: user.id,
-        purchase_kind: body.mode === "subscription" ? "plan" : "ai_boost",
+        purchase_kind: isAddon ? `addon:${body.addon_kind}` : (body.mode === "subscription" ? "plan" : "ai_boost"),
       },
       // Tax handling: Stripe Tax can be enabled in dashboard; we don't
       // configure here. For LATAM with LLC US, Stripe handles US sales tax
       // automatically if Tax is enabled.
       allow_promotion_codes: true,
       // For subscriptions, capture the upgrade button intent so the
-      // customer goes to portal next time (not checkout again).
+      // customer goes to portal next time (not checkout again). Capacity add-ons
+      // carry addon_kind so the webhook routes them to org_addons (NOT the plan row).
       ...(body.mode === "subscription"
-        ? { subscription_data: { metadata: { organization_id: orgId } } }
+        ? { subscription_data: { metadata: { organization_id: orgId, ...(isAddon ? { addon_kind: body.addon_kind } : {}) } } }
         : { payment_intent_data: { metadata: { organization_id: orgId, kind: "ai_boost" } } }),
     });
 

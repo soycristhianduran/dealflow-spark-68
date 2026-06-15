@@ -49,6 +49,11 @@ export default function BillingPage() {
   }>>([]);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
+  const [addonCatalog, setAddonCatalog] = useState<Array<{
+    key: string; name: string; kind: string; unit_label: string; units_per_pack: number; monthly_price_usd: number; stripe_price_id: string | null;
+  }>>([]);
+  const [orgAddons, setOrgAddons] = useState<{ extra_seats: number; extra_contacts: number }>({ extra_seats: 0, extra_contacts: 0 });
+  const [purchasingAddon, setPurchasingAddon] = useState<string | null>(null);
 
   // Show toast on checkout return (run once on mount)
   useEffect(() => {
@@ -126,9 +131,41 @@ export default function BillingPage() {
         .order("created_at", { ascending: false })
         .limit(30)
         .then(({ data }) => setLandingUsageLog(data ?? []));
+
+      // Capacity add-ons: catalog (sellable) + current purchased extras for this org.
+      supabase
+        .from("addon_catalog")
+        .select("key, name, kind, unit_label, units_per_pack, monthly_price_usd, stripe_price_id")
+        .eq("active", true)
+        .order("display_order")
+        .then(({ data }) => setAddonCatalog(data ?? []));
+      supabase
+        .from("org_addons")
+        .select("extra_seats, extra_contacts")
+        .eq("organization_id", organizationId)
+        .maybeSingle()
+        .then(({ data }) => setOrgAddons(data ?? { extra_seats: 0, extra_contacts: 0 }));
+
       setUsageLoading(false);
     })();
   }, [organizationId]);
+
+  async function buyAddon(price_id: string | null, key: string, label: string) {
+    if (!price_id) { toast.error("Este complemento aún no está disponible."); return; }
+    setPurchasingAddon(key);
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-create-checkout-session", {
+        body: { mode: "subscription", price_id, addon_kind: key, quantity: 1, success_path: "/billing", cancel_path: "/billing", organization_id: organizationId },
+      });
+      if (error || !data?.url) {
+        toast.error(`No se pudo iniciar la compra de ${label}`);
+        return;
+      }
+      window.location.href = data.url;
+    } finally {
+      setPurchasingAddon(null);
+    }
+  }
 
   async function buyBoost(price_id: string, label: string) {
     setPurchasingBoost(price_id);
@@ -333,6 +370,55 @@ export default function BillingPage() {
             </div>
           )}
         </section>
+
+        {/* ── Complementos de capacidad (asientos / contactos) ──────────────── */}
+        {addonCatalog.length > 0 && (
+          <section>
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+              Ampliar capacidad
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {addonCatalog.map((a) => {
+                const current = a.kind === "extra_seats" ? orgAddons.extra_seats : orgAddons.extra_contacts;
+                const isSeats = a.kind === "extra_seats";
+                return (
+                  <div key={a.key} className="rounded-xl border border-border bg-card p-4 flex flex-col">
+                    <div className="flex items-center gap-2 mb-1">
+                      {isSeats
+                        ? <Bot className="h-4 w-4 text-sky-500" />
+                        : <TrendingUp className="h-4 w-4 text-emerald-500" />}
+                      <h4 className="text-sm font-semibold">{a.name}</h4>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      {isSeats
+                        ? "Agrega usuarios sin cambiar de plan. Se cobra mensualmente por asiento."
+                        : "Aumenta tu límite de contactos por encima de tu plan. Cobro mensual."}
+                    </p>
+                    <div className="mt-auto flex items-end justify-between">
+                      <div>
+                        <div className="text-xl font-bold">
+                          ${a.monthly_price_usd}
+                          <span className="text-xs font-normal text-muted-foreground"> /mes · {a.unit_label}</span>
+                        </div>
+                        {current > 0 && (
+                          <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                            Activos: +{current.toLocaleString()} {isSeats ? "usuarios" : "contactos"}
+                          </div>
+                        )}
+                      </div>
+                      <Button size="sm" disabled={purchasingAddon === a.key} onClick={() => buyAddon(a.stripe_price_id, a.key, a.name)}>
+                        {purchasingAddon === a.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (current > 0 ? "Agregar más" : "Comprar")}
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-2">
+              Para reducir o cancelar complementos, usa “Administrar facturación”.
+            </p>
+          </section>
+        )}
 
         {/* ── Paquetes de créditos adicionales ──────────────────────────────── */}
         <section>

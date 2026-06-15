@@ -84,6 +84,17 @@ async function upsertSubscriptionFromStripe(
     return;
   }
 
+  // Capacity add-on (extra seats / extra contacts) — a SEPARATE subscription from
+  // the plan. Reconcile its quantity into org_addons and DO NOT touch the plan row.
+  const addonKind = (stripeSub.metadata?.addon_kind ?? item?.price?.metadata?.kind) as string | undefined;
+  if (addonKind === "extra_seats" || addonKind === "extra_contacts") {
+    const active = ["active", "trialing", "past_due"].includes(stripeSub.status);
+    const unitsPerPack = parseInt(item?.price?.metadata?.units ?? "1", 10) || 1;
+    const units = active ? (item?.quantity ?? 1) * unitsPerPack : 0;
+    await supabase.rpc("set_org_addon", { p_org_id: orgId, p_kind: addonKind, p_quantity: units });
+    return;
+  }
+
   const planMatch = await resolvePlanIdFromPriceId(supabase, priceId);
   if (!planMatch) {
     console.error(`Could not map price_id ${priceId} to any plan in DB. Webhook saved as-is.`);
@@ -177,6 +188,9 @@ async function dispatchPaymentSuccessEmail(
 ): Promise<void> {
   const orgId = stripeSub.metadata?.organization_id as string | undefined;
   if (!orgId) return;
+  // Capacity add-on renewals shouldn't trigger the "welcome to your plan" email.
+  const addonKind = (stripeSub.metadata?.addon_kind ?? stripeSub.items?.data?.[0]?.price?.metadata?.kind) as string | undefined;
+  if (addonKind === "extra_seats" || addonKind === "extra_contacts") return;
   const recipient = await getOrgOwnerEmail(supabase, orgId);
   if (!recipient) return;
 

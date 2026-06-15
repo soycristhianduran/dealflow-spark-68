@@ -423,6 +423,10 @@ Deno.serve(async (req) => {
     let aiText = "";
     let bookedThisTurn = false;
     let nudgedOnce = false;
+    // Token metering: accumulate Anthropic usage across the whole tool-calling
+    // loop so we can record the real cost of this conversation (see migration
+    // 20260615000000_ai_agent_token_metering).
+    let usageIn = 0, usageOut = 0, aiCalls = 0;
 
     // 10. Tool-calling loop (max 5 turns to allow book + send + reply + 1 nudge)
     for (let turn = 0; turn < 5; turn++) {
@@ -446,6 +450,9 @@ Deno.serve(async (req) => {
         throw new Error(`Claude API error ${claudeRes.status}: ${errText}`);
       }
       const claudeData = await claudeRes.json();
+      usageIn += claudeData.usage?.input_tokens || 0;
+      usageOut += claudeData.usage?.output_tokens || 0;
+      aiCalls++;
       const blocks: any[] = claudeData.content || [];
       aiText = blocks.filter((b) => b.type === "text").map((b) => b.text).join("\n\n").trim();
 
@@ -507,6 +514,19 @@ Deno.serve(async (req) => {
         toolResults.push({ type: "tool_result", tool_use_id: b.id, content: resultText });
       }
       history.push({ role: "user", content: toolResults });
+    }
+
+    // 10b. Record real token spend for this conversation (fire-and-forget,
+    //      non-fatal). Lets us compute true cost/conversation vs the add-on price.
+    if (sessionData?.session_id && (usageIn || usageOut)) {
+      supabase.rpc("record_ai_agent_usage", {
+        p_session_id: sessionData.session_id,
+        p_tokens_input: usageIn,
+        p_tokens_output: usageOut,
+        p_calls: aiCalls,
+      }).then(({ error }: any) => {
+        if (error) console.error("record_ai_agent_usage error:", error.message);
+      });
     }
 
     // 11. Detect AI-initiated escalation (model returned the sentinel)
