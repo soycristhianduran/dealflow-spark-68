@@ -172,13 +172,10 @@ export default function PricingPage() {
                   key={plan.id}
                   className={
                     isPro
-                      // Pro: sunset gradient border + lift + glow effect
-                      ? "relative border-0 shadow-xl scale-105 md:scale-110 z-10 ring-2 ring-primary/30"
+                      // Pro: highlighted, lift + glow — theme-adaptive bg so text stays readable
+                      ? "relative border-0 shadow-xl lg:scale-105 z-10 ring-2 ring-primary/40 bg-gradient-to-b from-orange-50 to-white dark:from-slate-900 dark:to-slate-950"
                       : "relative border shadow-sm hover:shadow-md transition-shadow"
                   }
-                  style={isPro ? {
-                    backgroundImage: "linear-gradient(180deg, hsl(24 100% 97%) 0%, hsl(0 0% 100%) 30%)",
-                  } : undefined}
                 >
                   {isPro && (
                     <>
@@ -312,7 +309,7 @@ export default function PricingPage() {
                   <tr className="border-b bg-primary/5">
                     <td className="py-2 font-semibold">Klosify CRM Pro</td>
                     <td className="py-2">3 usuarios incluidos + IA nativa</td>
-                    <td className="py-2 text-right font-bold text-primary">$39 USD</td>
+                    <td className="py-2 text-right font-bold text-primary">$59 USD</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-2">Kommo Advanced</td>
@@ -333,7 +330,7 @@ export default function PricingPage() {
               </table>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Precios públicos de cada competidor al momento de publicar esta página. Misma o mayor funcionalidad, ahorras entre $26 y $78 USD/mes.
+              Precios públicos de cada competidor al momento de publicar esta página. Con WhatsApp + IA nativa incluidos, igualas o superas su funcionalidad por menos: hasta $58 USD/mes de ahorro frente a Pipedrive.
             </p>
           </CardContent>
         </Card>
