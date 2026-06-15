@@ -21,6 +21,7 @@ import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
 import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
 import { InstagramSetupWizard } from "@/components/crm/InstagramSetupWizard";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { ShopifyIntegrationCard } from "@/components/crm/ShopifyIntegrationCard";
 
 type Integration = {
   id: string;
@@ -244,6 +245,11 @@ function WebhooksSection() {
 
   return (
     <>
+    {/* ── Shopify sales attribution ── */}
+    <div className="mt-8">
+      <ShopifyIntegrationCard />
+    </div>
+
     {/* ── Compact summary card on the main page ── */}
     <div className="mt-8">
       <div
