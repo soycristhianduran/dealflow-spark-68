@@ -192,6 +192,34 @@ Deno.serve(async (req) => {
       }
     } catch (_) { vercel = { available: false }; }
 
+    // Cloudflare (DNS/CDN): real analytics via GraphQL (last 30 days). Best-effort.
+    let cloudflare: any = { available: false };
+    try {
+      const cfToken = Deno.env.get("CLOUDFLARE_API_TOKEN");
+      const cfZone = Deno.env.get("CLOUDFLARE_ZONE_ID");
+      if (cfToken && cfZone) {
+        const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+        const q = `{ viewer { zones(filter: {zoneTag: "${cfZone}"}) { httpRequests1dGroups(limit: 31, filter: {date_geq: "${since}"}) { sum { requests bytes cachedRequests } } } } }`;
+        const r = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${cfToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ query: q }),
+        });
+        const j = await r.json();
+        const g = j?.data?.viewer?.zones?.[0]?.httpRequests1dGroups ?? [];
+        let req = 0, bytes = 0, cached = 0;
+        for (const x of g) { req += x.sum.requests; bytes += x.sum.bytes; cached += x.sum.cachedRequests; }
+        cloudflare = {
+          available: true,
+          plan: "Free",
+          requests_30d: req,
+          gb_30d: Math.round(bytes / 1e9 * 1000) / 1000,
+          cached_pct: Math.round((cached / Math.max(req, 1)) * 1000) / 10,
+          note: "Analíticas reales del dominio (últimos 30 días).",
+        };
+      }
+    } catch (_) { cloudflare = { available: false }; }
+
     const byPlan: Record<string, number> = {};
     for (const o of orgReport) if (o.active) byPlan[o.plan] = (byPlan[o.plan] ?? 0) + 1;
 
@@ -216,6 +244,7 @@ Deno.serve(async (req) => {
       supabase: supa,
       stripe,
       vercel,
+      cloudflare,
       integrations: health ?? {},
       orgs: orgReport,
     });

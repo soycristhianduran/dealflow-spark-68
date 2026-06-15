@@ -153,6 +153,19 @@ export default function PlatformPage() {
             <p className="text-[10px] text-muted-foreground">{data.vercel.note}</p>
           </div>
         )}
+
+        {/* Cloudflare */}
+        {data.cloudflare?.available && (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="flex items-center gap-2"><Cloud className="h-4 w-4 text-orange-500" /><h3 className="text-sm font-semibold">Cloudflare (CDN/DNS)</h3></div>
+            <div className="text-2xl font-bold">{Number(data.cloudflare.requests_30d).toLocaleString()}<span className="text-xs font-normal text-muted-foreground"> req/30d</span></div>
+            <div className="text-[11px] text-muted-foreground space-y-0.5">
+              <div>Transferencia: {data.cloudflare.gb_30d} GB</div>
+              <div>Caché: {data.cloudflare.cached_pct}% · Plan {data.cloudflare.plan}</div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">{data.cloudflare.note}</p>
+          </div>
+        )}
       </div>
 
       {/* Salud de integraciones */}
