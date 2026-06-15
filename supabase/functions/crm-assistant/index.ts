@@ -280,6 +280,10 @@ Deno.serve(async (req) => {
     const messages: any[] = [{ role: "system", content: SYSTEM_PROMPT + contextNote }, ...history];
 
     let action: any = null;
+    let asIn = 0, asOut = 0; // accumulate token usage across the tool loop
+    const logUsage = () => supabase.rpc("log_ai_usage", {
+      p_org_id: resolvedOrg, p_feature: "assistant", p_model: MODEL, p_in: asIn, p_out: asOut,
+    }).then(() => {}, () => {});
 
     // Tool-calling loop (max 3 rounds).
     for (let round = 0; round < 3; round++) {
@@ -289,8 +293,10 @@ Deno.serve(async (req) => {
         body: JSON.stringify({ model: MODEL, messages, tools: TOOLS, tool_choice: "auto", temperature: 0.2 }),
       });
       const data = await res.json();
+      asIn += data.usage?.prompt_tokens || 0;
+      asOut += data.usage?.completion_tokens || 0;
       const msg = data.choices?.[0]?.message;
-      if (!msg) return new Response(JSON.stringify({ error: "Sin respuesta de IA" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (!msg) { logUsage(); return new Response(JSON.stringify({ error: "Sin respuesta de IA" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }); }
       messages.push(msg);
 
       if (msg.tool_calls?.length) {
@@ -305,10 +311,12 @@ Deno.serve(async (req) => {
       }
 
       // Final assistant text
+      logUsage();
       return new Response(JSON.stringify({ reply: msg.content ?? "", action }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    logUsage();
     return new Response(JSON.stringify({ reply: "No pude completar la consulta, intenta reformularla.", action }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

@@ -389,6 +389,13 @@ Deno.serve(async (req) => {
       throw new Error(`OpenAI: ${openaiData.error?.message || "unknown error"}`);
     }
 
+    // Exact token logging for the platform monitor (fire-and-forget).
+    supabase.rpc("log_ai_usage", {
+      p_org_id: orgId, p_feature: "analysis", p_model: MODEL,
+      p_in: openaiData.usage?.prompt_tokens || 0,
+      p_out: openaiData.usage?.completion_tokens || 0,
+    }).then(() => {}, () => {});
+
     const rawContent = openaiData.choices?.[0]?.message?.content;
     if (!rawContent) throw new Error("OpenAI no devolvió contenido");
 

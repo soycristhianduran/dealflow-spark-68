@@ -237,6 +237,10 @@ question_answers: objeto con clave = field_key exacto de cada pregunta, valor = 
     }
 
     const claudeData = await claudeRes.json();
+    supabase.rpc("log_ai_usage", {
+      p_org_id: callLog.organization_id, p_feature: "call", p_model: "claude-haiku-4-5-20251001",
+      p_in: claudeData.usage?.input_tokens || 0, p_out: claudeData.usage?.output_tokens || 0,
+    }).then(() => {}, () => {});
     const rawContent: string = claudeData?.content?.[0]?.text ?? "";
 
     // ── 7. Parse JSON response ───────────────────────────────────────────────

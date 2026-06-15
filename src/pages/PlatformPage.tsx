@@ -33,6 +33,7 @@ function Bar({ m, label }: { m: any; label: string }) {
 
 export default function PlatformPage() {
   const [data, setData] = useState<any>(null);
+  const [trend, setTrend] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,6 +43,10 @@ export default function PlatformPage() {
       if (error) setError("No autorizado o error al cargar.");
       else if (data?.error) setError(data.error);
       else setData(data);
+      supabase.from("platform_daily_stats")
+        .select("snapshot_date, mrr_usd, ai_cost_usd, infra_cost_usd, resend_emails, active_orgs")
+        .order("snapshot_date", { ascending: false }).limit(14)
+        .then(({ data }) => setTrend(data ?? []));
       setLoading(false);
     })();
   }, []);
@@ -98,14 +103,16 @@ export default function PlatformPage() {
       <div className="grid md:grid-cols-3 gap-3">
         {/* Anthropic */}
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
-          <div className="flex items-center gap-2"><Bot className="h-4 w-4 text-violet-500" /><h3 className="text-sm font-semibold">Anthropic (IA)</h3></div>
+          <div className="flex items-center gap-2"><Bot className="h-4 w-4 text-violet-500" /><h3 className="text-sm font-semibold">Costo IA (real)</h3></div>
           <div className="text-2xl font-bold">{money(s.anthropic_month_usd)}<span className="text-xs font-normal text-muted-foreground">/mes</span></div>
           <div className="text-[11px] text-muted-foreground space-y-0.5">
-            <div>Agente de Chat: {money(data.anthropic.agent_usd)}</div>
-            <div>IA Landings: {money(data.anthropic.landings_usd)}</div>
-            <div>Análisis/Asistente (est.): {money(data.anthropic.analyses_est_usd)}</div>
+            <div>Agente de Chat (Anthropic): {money(data.anthropic.agent_usd)}</div>
+            <div>IA Landings (Anthropic): {money(data.anthropic.landings_usd)}</div>
+            <div>Análisis de llamadas (Anthropic): {money(data.anthropic.call_usd)}</div>
+            <div>Análisis de leads (OpenAI): {money(data.anthropic.openai_analysis_usd)}</div>
+            <div>Asistente CRM (OpenAI): {money(data.anthropic.openai_assistant_usd)}</div>
           </div>
-          <p className="text-[10px] text-muted-foreground">Pago por uso — sin límite duro, vigila el costo.</p>
+          <p className="text-[10px] text-muted-foreground">Tokens reales. Pago por uso — sin límite duro, vigila el costo.</p>
         </div>
 
         {/* Resend */}
@@ -124,6 +131,40 @@ export default function PlatformPage() {
           <p className="text-[10px] text-muted-foreground">{data.supabase.note}</p>
         </div>
       </div>
+
+      {/* Tendencia diaria */}
+      {trend.length > 0 && (
+        <div className="rounded-xl border border-border bg-card overflow-hidden">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground p-4 pb-2">Tendencia (snapshot diario)</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="text-muted-foreground">
+                <tr className="border-b border-border">
+                  <th className="text-left font-medium px-4 py-2">Fecha</th>
+                  <th className="text-right font-medium px-4 py-2">Orgs</th>
+                  <th className="text-right font-medium px-4 py-2">MRR</th>
+                  <th className="text-right font-medium px-4 py-2">Costo IA</th>
+                  <th className="text-right font-medium px-4 py-2">Infra</th>
+                  <th className="text-right font-medium px-4 py-2">Correos</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trend.map((d) => (
+                  <tr key={d.snapshot_date} className="border-b border-border/40 last:border-0">
+                    <td className="px-4 py-2">{new Date(d.snapshot_date).toLocaleDateString("es", { day: "2-digit", month: "short" })}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{d.active_orgs}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.mrr_usd))}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.ai_cost_usd))}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.infra_cost_usd))}</td>
+                    <td className="px-4 py-2 text-right tabular-nums">{Number(d.resend_emails).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-muted-foreground px-4 py-2">Valores acumulados del mes; se actualiza cada día 00:05 UTC.</p>
+        </div>
+      )}
 
       {/* Tabla por org */}
       <div className="rounded-xl border border-border bg-card overflow-hidden">

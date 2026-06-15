@@ -15,7 +15,7 @@ const json = (b: unknown, s = 200) =>
 // ── Cost model (USD) ────────────────────────────────────────────────────────
 const agentCost   = (i: number, o: number) => i / 1e6 * 1 + o / 1e6 * 5;   // Haiku
 const landingCost = (i: number, o: number) => i / 1e6 * 3 + o / 1e6 * 15;  // Sonnet
-const EST = { analysis: 0.003, objection: 0.002, assistant: 0.004 };       // per-unit estimates
+// analysis/assistant/call exact cost comes from ai_usage_cost_report (real tokens).
 
 const pct = (used: number, limit: number | null) =>
   limit == null ? null : Math.round((used / Math.max(limit, 1)) * 1000) / 10;
@@ -41,13 +41,19 @@ Deno.serve(async (req) => {
     if (!isAdmin) return json({ error: "forbidden — not a platform admin" }, 403);
 
     // ── Data ──
-    const [{ data: plansData }, { data: orgs }, { data: dbBytes }] = await Promise.all([
+    const [{ data: plansData }, { data: orgs }, { data: dbBytes }, { data: aiCost }] = await Promise.all([
       db.from("plans").select("*"),
       db.rpc("platform_org_report"),
       db.rpc("platform_db_size_bytes"),
+      db.rpc("ai_usage_cost_report"),
     ]);
     const plans: Record<string, any> = {};
     for (const p of plansData ?? []) plans[p.id] = p;
+    // Exact per-org per-feature AI cost (real tokens): { orgId: { analysis, assistant, call } }
+    const exact: Record<string, Record<string, number>> = {};
+    for (const r of aiCost ?? []) {
+      (exact[r.organization_id] ??= {})[r.feature] = Number(r.cost_usd);
+    }
 
     const activeStatuses = ["active", "trialing", "trialing_internal"];
 
@@ -79,26 +85,37 @@ Deno.serve(async (req) => {
           boost: Number(o.boost_balance),
         },
         month_cost_usd: Math.round((agentCostUsd + landingCostUsd
-          + o.ai_analyses_used * EST.analysis + o.ai_objections_used * EST.objection
-          + o.ai_assistant_used * EST.assistant) * 100) / 100,
+          + (exact[o.org_id]?.analysis ?? 0) + (exact[o.org_id]?.assistant ?? 0)
+          + (exact[o.org_id]?.call ?? 0)) * 100) / 100,
         landing_credits_used_month: Math.floor(landingTokens / 1000),
       };
     });
 
     // ── Platform aggregates ──
-    let agIn = 0, agOut = 0, laIn = 0, laOut = 0, analyses = 0, objections = 0, assistant = 0, emails = 0;
+    let agIn = 0, agOut = 0, laIn = 0, laOut = 0, emails = 0;
     for (const o of orgs ?? []) {
       agIn += Number(o.agent_tokens_in); agOut += Number(o.agent_tokens_out);
       laIn += Number(o.landing_tokens_in); laOut += Number(o.landing_tokens_out);
-      analyses += o.ai_analyses_used; objections += o.ai_objections_used;
-      assistant += o.ai_assistant_used; emails += o.email_sends_used;
+      emails += o.email_sends_used;
     }
+    // Exact totals from the AI usage log (real tokens).
+    let exactAnalysis = 0, exactAssistant = 0, exactCall = 0;
+    for (const r of aiCost ?? []) {
+      if (r.feature === "analysis") exactAnalysis += Number(r.cost_usd);
+      else if (r.feature === "assistant") exactAssistant += Number(r.cost_usd);
+      else if (r.feature === "call") exactCall += Number(r.cost_usd);
+    }
+    const r2 = (n: number) => Math.round(n * 100) / 100;
     const anthropicCost = {
-      agent_usd: Math.round(agentCost(agIn, agOut) * 100) / 100,
-      landings_usd: Math.round(landingCost(laIn, laOut) * 100) / 100,
-      analyses_est_usd: Math.round((analyses * EST.analysis + objections * EST.objection + assistant * EST.assistant) * 100) / 100,
+      agent_usd: r2(agentCost(agIn, agOut)),       // Anthropic Haiku
+      landings_usd: r2(landingCost(laIn, laOut)),  // Anthropic Sonnet
+      call_usd: r2(exactCall),                     // Anthropic Haiku (call analysis)
+      // OpenAI gpt-4o-mini (análisis + asistente) — exact, real tokens.
+      openai_analysis_usd: r2(exactAnalysis),
+      openai_assistant_usd: r2(exactAssistant),
     };
-    const anthropicTotal = Math.round((anthropicCost.agent_usd + anthropicCost.landings_usd + anthropicCost.analyses_est_usd) * 100) / 100;
+    const anthropicTotal = r2(anthropicCost.agent_usd + anthropicCost.landings_usd + anthropicCost.call_usd
+      + anthropicCost.openai_analysis_usd + anthropicCost.openai_assistant_usd);
 
     // Resend: total emails this month vs tier.
     const resendTier = emails <= 3000
