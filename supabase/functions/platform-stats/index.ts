@@ -168,6 +168,30 @@ Deno.serve(async (req) => {
     } catch (_) { stripeFees = -1; }
     const stripe = { fees_this_month_usd: stripeFees, note: stripeFees < 0 ? "No disponible" : "Comisiones reales cobradas por Stripe este mes" };
 
+    // Vercel (Hobby): the API doesn't expose bandwidth/edge usage — show deploy
+    // health + plan limits as reference. Best-effort.
+    let vercel: any = { available: false };
+    try {
+      const vToken = Deno.env.get("VERCEL_API_TOKEN");
+      const vProj = Deno.env.get("VERCEL_PROJECT_ID");
+      if (vToken && vProj) {
+        const since = Date.now() - 30 * 24 * 3600 * 1000;
+        const r = await fetch(`https://api.vercel.com/v6/deployments?projectId=${vProj}&limit=100&since=${since}`, { headers: { Authorization: `Bearer ${vToken}` } });
+        const j = await r.json();
+        const deps = j.deployments || [];
+        const latest = deps[0] || {};
+        vercel = {
+          available: true,
+          plan: "Hobby",
+          last_deploy_state: latest.state || latest.readyState || "—",
+          last_deploy_at: latest.created || latest.createdAt || null,
+          deploys_30d: deps.length,
+          limits: "100 GB transfer · 1M edge requests",
+          note: "Hobby (gratis). Consumo de transfer/requests solo en el dashboard de Vercel.",
+        };
+      }
+    } catch (_) { vercel = { available: false }; }
+
     const byPlan: Record<string, number> = {};
     for (const o of orgReport) if (o.active) byPlan[o.plan] = (byPlan[o.plan] ?? 0) + 1;
 
@@ -191,6 +215,7 @@ Deno.serve(async (req) => {
       resend,
       supabase: supa,
       stripe,
+      vercel,
       integrations: health ?? {},
       orgs: orgReport,
     });

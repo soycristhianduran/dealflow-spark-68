@@ -6,7 +6,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, AlertTriangle, CheckCircle2, TrendingUp, Bot, Mail, Database, DollarSign } from "lucide-react";
+import { Loader2, ArrowLeft, AlertTriangle, CheckCircle2, TrendingUp, Bot, Mail, Database, DollarSign, Cloud } from "lucide-react";
 
 const money = (n: number) => `$${(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const flagColor = (f: string) =>
@@ -138,6 +138,21 @@ export default function PlatformPage() {
           <div className="text-2xl font-bold">{data.stripe.fees_this_month_usd < 0 ? "—" : money(data.stripe.fees_this_month_usd)}<span className="text-xs font-normal text-muted-foreground">/mes</span></div>
           <p className="text-[10px] text-muted-foreground">{data.stripe.note}</p>
         </div>
+
+        {/* Vercel */}
+        {data.vercel?.available && (
+          <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+            <div className="flex items-center gap-2"><Cloud className="h-4 w-4 text-foreground" /><h3 className="text-sm font-semibold">Vercel (Hosting)</h3></div>
+            <div className="text-lg font-bold capitalize">
+              {data.vercel.plan} · <span className={data.vercel.last_deploy_state === "READY" ? "text-emerald-500" : "text-amber-500"}>{data.vercel.last_deploy_state}</span>
+            </div>
+            <div className="text-[11px] text-muted-foreground space-y-0.5">
+              <div>Deploys (30d): {data.vercel.deploys_30d}</div>
+              <div>Límites: {data.vercel.limits}</div>
+            </div>
+            <p className="text-[10px] text-muted-foreground">{data.vercel.note}</p>
+          </div>
+        )}
       </div>
 
       {/* Salud de integraciones */}
