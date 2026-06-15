@@ -100,7 +100,7 @@ export default function PlatformPage() {
       </div>
 
       {/* Infraestructura */}
-      <div className="grid md:grid-cols-3 gap-3">
+      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Anthropic */}
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
           <div className="flex items-center gap-2"><Bot className="h-4 w-4 text-violet-500" /><h3 className="text-sm font-semibold">Costo IA (real)</h3></div>
@@ -126,11 +126,52 @@ export default function PlatformPage() {
         {/* Supabase */}
         <div className="rounded-xl border border-border bg-card p-4 space-y-2">
           <div className="flex items-center gap-2"><Database className="h-4 w-4 text-emerald-500" /><h3 className="text-sm font-semibold">Supabase</h3></div>
-          <div className="text-2xl font-bold">{data.supabase.db_size_gb} GB<span className="text-xs font-normal text-muted-foreground"> / {data.supabase.included_gb} GB</span></div>
-          <Bar m={{ used: data.supabase.db_size_gb, limit: data.supabase.included_gb, pct: data.supabase.pct, flag: data.supabase.upgrade ? "near" : "ok" }} label="Tamaño de DB" />
+          <div className="text-lg font-bold">{data.supabase.mau}<span className="text-xs font-normal text-muted-foreground"> MAU · {data.supabase.total_users} usuarios</span></div>
+          <Bar m={{ used: data.supabase.db_size_gb, limit: data.supabase.db_included_gb, pct: data.supabase.db_pct, flag: data.supabase.upgrade ? "near" : "ok" }} label="DB (GB)" />
+          <Bar m={{ used: data.supabase.storage_gb, limit: data.supabase.storage_included_gb, pct: data.supabase.storage_pct, flag: "ok" }} label="Storage (GB)" />
           <p className="text-[10px] text-muted-foreground">{data.supabase.note}</p>
         </div>
+
+        {/* Stripe */}
+        <div className="rounded-xl border border-border bg-card p-4 space-y-2">
+          <div className="flex items-center gap-2"><DollarSign className="h-4 w-4 text-purple-500" /><h3 className="text-sm font-semibold">Stripe (comisiones)</h3></div>
+          <div className="text-2xl font-bold">{data.stripe.fees_this_month_usd < 0 ? "—" : money(data.stripe.fees_this_month_usd)}<span className="text-xs font-normal text-muted-foreground">/mes</span></div>
+          <p className="text-[10px] text-muted-foreground">{data.stripe.note}</p>
+        </div>
       </div>
+
+      {/* Salud de integraciones */}
+      {data.integrations?.whatsapp && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Integraciones · salud</h2>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+            <div>
+              <div className="font-semibold">WhatsApp</div>
+              <div className="text-xs text-muted-foreground">{data.integrations.whatsapp.active} activos / {data.integrations.whatsapp.total}</div>
+              <div className="text-[11px] text-muted-foreground">Webhook OK: {data.integrations.whatsapp.webhook_ok}</div>
+            </div>
+            <div>
+              <div className="font-semibold">Instagram</div>
+              <div className="text-xs text-muted-foreground">{data.integrations.instagram.active} activos / {data.integrations.instagram.total}</div>
+              <div className={`text-[11px] ${data.integrations.instagram.needs_reconnect > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}>
+                Reconectar: {data.integrations.instagram.needs_reconnect}
+              </div>
+            </div>
+            <div>
+              <div className="font-semibold">Google Calendar</div>
+              <div className="text-xs text-muted-foreground">{data.integrations.google_calendar.connected} conectados</div>
+            </div>
+            <div>
+              <div className="font-semibold">Voz (Vapi)</div>
+              <div className="text-xs text-muted-foreground">{data.integrations.voice_vapi.active} activos / {data.integrations.voice_vapi.total}</div>
+            </div>
+            <div>
+              <div className="font-semibold">Meta Ads</div>
+              <div className="text-xs text-muted-foreground">{data.integrations.meta_ads.orgs_connected} orgs</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tendencia diaria */}
       {trend.length > 0 && (

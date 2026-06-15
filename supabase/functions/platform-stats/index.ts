@@ -3,6 +3,7 @@
 // usage/cost (Anthropic, Resend, Supabase) with upgrade flags. Gated to
 // platform_admins.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@17.4.0?target=deno&deno-std=0.224.0";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -41,11 +42,13 @@ Deno.serve(async (req) => {
     if (!isAdmin) return json({ error: "forbidden — not a platform admin" }, 403);
 
     // ── Data ──
-    const [{ data: plansData }, { data: orgs }, { data: dbBytes }, { data: aiCost }] = await Promise.all([
+    const [{ data: plansData }, { data: orgs }, { data: dbBytes }, { data: aiCost }, { data: infraExtra }, { data: health }] = await Promise.all([
       db.from("plans").select("*"),
       db.rpc("platform_org_report"),
       db.rpc("platform_db_size_bytes"),
       db.rpc("ai_usage_cost_report"),
+      db.rpc("platform_infra_extra"),
+      db.rpc("platform_integrations_health"),
     ]);
     const plans: Record<string, any> = {};
     for (const p of plansData ?? []) plans[p.id] = p;
@@ -132,18 +135,45 @@ Deno.serve(async (req) => {
       suggestion: emails >= resendTier.cap * 0.8 ? `Acércate al límite — considera ${resendTier.next}` : "OK",
     };
 
-    // Supabase: DB size vs Pro plan (8 GB included).
+    // Supabase: DB + storage (SQL) vs Pro plan (8 GB DB, 100 GB storage incl.).
     const gb = Number(dbBytes) / 1e9;
+    const storageGb = Number(infraExtra?.storage_bytes ?? 0) / 1e9;
     const supa = {
       db_size_gb: Math.round(gb * 1000) / 1000,
-      included_gb: 8,
-      pct: Math.round((gb / 8) * 1000) / 10,
-      upgrade: gb >= 8 * 0.8,
-      note: "Egress y MAU requieren la Management API (fase 2). El tamaño de DB es la métrica principal.",
+      db_included_gb: 8,
+      db_pct: Math.round((gb / 8) * 1000) / 10,
+      storage_gb: Math.round(storageGb * 1000) / 1000,
+      storage_included_gb: 100,
+      storage_pct: Math.round((storageGb / 100) * 1000) / 10,
+      mau: Number(infraExtra?.mau ?? 0),
+      total_users: Number(infraExtra?.total_users ?? 0),
+      upgrade: gb >= 8 * 0.8 || storageGb >= 100 * 0.8,
+      note: "Egress e invocations de Edge no se exponen por API — revísalos en el dashboard de Supabase.",
     };
+
+    // Stripe fees this month (real, best-effort). fee is in cents.
+    let stripeFees = -1;
+    try {
+      const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2024-11-20.acacia" });
+      const now = new Date();
+      const monthStart = Math.floor(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000);
+      let total = 0, after: string | undefined;
+      for (let i = 0; i < 10; i++) {
+        const tx: any = await stripe.balanceTransactions.list({ created: { gte: monthStart }, limit: 100, ...(after ? { starting_after: after } : {}) });
+        for (const t of tx.data) total += t.fee || 0;
+        if (!tx.has_more) break;
+        after = tx.data[tx.data.length - 1]?.id;
+      }
+      stripeFees = Math.round(total) / 100;
+    } catch (_) { stripeFees = -1; }
+    const stripe = { fees_this_month_usd: stripeFees, note: stripeFees < 0 ? "No disponible" : "Comisiones reales cobradas por Stripe este mes" };
 
     const byPlan: Record<string, number> = {};
     for (const o of orgReport) if (o.active) byPlan[o.plan] = (byPlan[o.plan] ?? 0) + 1;
+
+    const stripeCost = stripeFees > 0 ? stripeFees : 0;
+    const infraTotal = Math.round((anthropicTotal + resendTier.cost + stripeCost) * 100) / 100;
+    const mrr = orgReport.filter((o) => o.active).reduce((s, o) => s + Number(plans[o.plan]?.monthly_price_usd ?? 0), 0);
 
     return json({
       generated_at: new Date().toISOString(),
@@ -151,14 +181,17 @@ Deno.serve(async (req) => {
         total_orgs: orgReport.length,
         active_orgs: orgReport.filter((o) => o.active).length,
         by_plan: byPlan,
-        mrr_usd: orgReport.filter((o) => o.active).reduce((s, o) => s + Number(plans[o.plan]?.monthly_price_usd ?? 0), 0),
+        mrr_usd: mrr,
         anthropic_month_usd: anthropicTotal,
         resend_month_usd: resendTier.cost,
-        infra_month_usd: Math.round((anthropicTotal + resendTier.cost) * 100) / 100,
+        stripe_fees_usd: stripeCost,
+        infra_month_usd: infraTotal,
       },
       anthropic: anthropicCost,
       resend,
       supabase: supa,
+      stripe,
+      integrations: health ?? {},
       orgs: orgReport,
     });
   } catch (e) {
