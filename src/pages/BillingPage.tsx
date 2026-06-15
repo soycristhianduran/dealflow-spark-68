@@ -254,7 +254,7 @@ export default function BillingPage() {
             )}
           </div>
           <div className="flex gap-2 shrink-0">
-            {subscription.planId !== "business" && (
+            {subscription.planId !== "agency" && (
               <Button size="sm" variant="outline" asChild>
                 <Link to="/pricing">Cambiar plan</Link>
               </Button>

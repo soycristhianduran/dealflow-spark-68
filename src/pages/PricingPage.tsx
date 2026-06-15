@@ -162,7 +162,7 @@ export default function PricingPage() {
         {loading ? (
           <p className="text-center text-muted-foreground">Cargando planes...</p>
         ) : (
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             {plans.map((plan) => {
               const price = billingInterval === "month" ? plan.monthly_price_usd : plan.annual_price_usd;
               const monthlyEffective = billingInterval === "year" ? plan.annual_price_usd / 12 : plan.monthly_price_usd;
