@@ -8,8 +8,9 @@ import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Loader2, ArrowLeft, AlertTriangle, TrendingUp, Bot, Mail, Database, DollarSign,
-  Cloud, Activity, Server, Sparkles, RefreshCw,
+  Cloud, Activity, Sparkles, RefreshCw,
 } from "lucide-react";
+import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 
 const money = (n: number) =>
   `$${(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -149,11 +150,14 @@ export default function PlatformPage() {
               <Link to="/" className="grid place-items-center h-9 w-9 rounded-xl bg-white/15 backdrop-blur-sm text-white/90 hover:bg-white/25 transition-colors shrink-0">
                 <ArrowLeft className="h-4 w-4" />
               </Link>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight flex items-center gap-2">
-                  <Server className="h-5 w-5 text-orange-300" /> Panel de Plataforma
-                </h1>
-                <p className="text-xs text-white/70 mt-0.5">Estado del SaaS · {new Date(data.generated_at).toLocaleString("es")}</p>
+              <div className="flex items-center gap-3">
+                <span className="grid place-items-center h-10 w-10 rounded-xl bg-white/15 backdrop-blur-sm shadow-inner shrink-0">
+                  <KlosifyLogo size={24} variant="white" />
+                </span>
+                <div>
+                  <h1 className="text-xl md:text-2xl font-bold tracking-tight">Panel de Plataforma</h1>
+                  <p className="text-xs text-white/70 mt-0.5">Klosify · Estado del SaaS · {new Date(data.generated_at).toLocaleString("es")}</p>
+                </div>
               </div>
             </div>
             <button onClick={load} disabled={loading}
