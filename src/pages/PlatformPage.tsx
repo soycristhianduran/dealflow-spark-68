@@ -212,7 +212,6 @@ export default function PlatformPage() {
                 <tr className="border-b border-border">
                   <th className="text-left font-medium px-4 py-2">Fecha</th>
                   <th className="text-right font-medium px-4 py-2">Orgs</th>
-                  <th className="text-right font-medium px-4 py-2">MRR</th>
                   <th className="text-right font-medium px-4 py-2">Costo IA</th>
                   <th className="text-right font-medium px-4 py-2">Infra</th>
                   <th className="text-right font-medium px-4 py-2">Correos</th>
@@ -223,7 +222,6 @@ export default function PlatformPage() {
                   <tr key={d.snapshot_date} className="border-b border-border/40 last:border-0">
                     <td className="px-4 py-2">{new Date(d.snapshot_date).toLocaleDateString("es", { day: "2-digit", month: "short" })}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{d.active_orgs}</td>
-                    <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.mrr_usd))}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.ai_cost_usd))}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{money(Number(d.infra_cost_usd))}</td>
                     <td className="px-4 py-2 text-right tabular-nums">{Number(d.resend_emails).toLocaleString()}</td>

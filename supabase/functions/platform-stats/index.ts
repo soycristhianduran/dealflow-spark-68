@@ -151,8 +151,11 @@ Deno.serve(async (req) => {
       note: "Egress e invocations de Edge no se exponen por API — revísalos en el dashboard de Supabase.",
     };
 
-    // Stripe fees this month (real, best-effort). fee is in cents.
+    // Stripe: real fees this month + REAL MRR from actual subscriptions (the true
+    // billed amount — auto-excludes comped/internal orgs and respects legacy prices).
     let stripeFees = -1;
+    let stripeMrr: number | null = null;
+    let stripeSubs = 0;
     try {
       const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, { apiVersion: "2024-11-20.acacia" });
       const now = new Date();
@@ -165,8 +168,25 @@ Deno.serve(async (req) => {
         after = tx.data[tx.data.length - 1]?.id;
       }
       stripeFees = Math.round(total) / 100;
+
+      // Real MRR: sum each active subscription's actual recurring amount (legacy
+      // prices included), normalized to monthly. Add-on subs (seats/contacts) count too.
+      let mrrCents = 0, sAfter: string | undefined;
+      for (let i = 0; i < 10; i++) {
+        const subs: any = await stripe.subscriptions.list({ status: "active", limit: 100, ...(sAfter ? { starting_after: sAfter } : {}) });
+        for (const sub of subs.data) {
+          stripeSubs++;
+          for (const it of sub.items.data) {
+            const amt = (it.price?.unit_amount || 0) * (it.quantity || 1);
+            mrrCents += it.price?.recurring?.interval === "year" ? amt / 12 : amt;
+          }
+        }
+        if (!subs.has_more) break;
+        sAfter = subs.data[subs.data.length - 1]?.id;
+      }
+      stripeMrr = Math.round(mrrCents) / 100;
     } catch (_) { stripeFees = -1; }
-    const stripe = { fees_this_month_usd: stripeFees, note: stripeFees < 0 ? "No disponible" : "Comisiones reales cobradas por Stripe este mes" };
+    const stripe = { fees_this_month_usd: stripeFees, mrr_usd: stripeMrr, paying_subs: stripeSubs, note: stripeFees < 0 ? "No disponible" : "Comisiones e ingresos reales de Stripe" };
 
     // Vercel (Hobby): the API doesn't expose bandwidth/edge usage — show deploy
     // health + plan limits as reference. Best-effort.
@@ -225,23 +245,26 @@ Deno.serve(async (req) => {
 
     const stripeCost = stripeFees > 0 ? stripeFees : 0;
     const infraTotal = Math.round((anthropicTotal + resendTier.cost + stripeCost) * 100) / 100;
-    // MRR REAL = only paying subscriptions (status 'active'). Trials don't pay yet.
+    // MRR REAL: prefer Stripe's actual billed amount (legacy prices + excludes
+    // comped/internal orgs). Fall back to plan list price only if Stripe is down.
     const priceOf = (o: any) => Number(plans[o.plan]?.monthly_price_usd ?? 0);
-    const paying = orgReport.filter((o) => o.status === "active");
     const trials = orgReport.filter((o) => o.status === "trialing" || o.status === "trialing_internal");
-    const mrr = Math.round(paying.reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
+    const mrr = stripeMrr != null ? stripeMrr
+      : Math.round(orgReport.filter((o) => o.status === "active").reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
     const mrrTrials = Math.round(trials.reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
+    const payingCount = stripeMrr != null ? stripeSubs : orgReport.filter((o) => o.status === "active").length;
 
     return json({
       generated_at: new Date().toISOString(),
       summary: {
         total_orgs: orgReport.length,
         active_orgs: orgReport.filter((o) => o.active).length,
-        paying_orgs: paying.length,
+        paying_orgs: payingCount,
         trial_orgs: trials.length,
         by_plan: byPlan,
-        mrr_usd: mrr,                 // real recurring revenue (paying only)
-        mrr_trials_usd: mrrTrials,    // potential if trials convert
+        mrr_usd: mrr,                 // REAL billed amount from Stripe
+        mrr_trials_usd: mrrTrials,    // potential if trials convert (at list price)
+        mrr_source: stripeMrr != null ? "stripe" : "plan",
         anthropic_month_usd: anthropicTotal,
         resend_month_usd: resendTier.cost,
         stripe_fees_usd: stripeCost,
