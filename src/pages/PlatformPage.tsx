@@ -76,15 +76,16 @@ export default function PlatformPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { label: "Orgs activas", value: `${s.active_orgs} / ${s.total_orgs}`, icon: TrendingUp },
-          { label: "MRR", value: money(s.mrr_usd), icon: DollarSign },
-          { label: "Costo infra/mes", value: money(s.infra_month_usd), icon: Database },
-          { label: "Margen bruto", value: `${s.mrr_usd > 0 ? Math.round((1 - s.infra_month_usd / s.mrr_usd) * 100) : 0}%`, icon: CheckCircle2 },
+          { label: `Pagando · ${s.trial_orgs ?? 0} en prueba`, value: `${s.paying_orgs ?? 0} / ${s.total_orgs}`, icon: TrendingUp, sub: null },
+          { label: "MRR real (pagando)", value: money(s.mrr_usd), icon: DollarSign, sub: s.mrr_trials_usd > 0 ? `+${money(s.mrr_trials_usd)} en trials` : null },
+          { label: "Costo infra/mes", value: money(s.infra_month_usd), icon: Database, sub: null },
+          { label: "Margen bruto", value: `${s.mrr_usd > 0 ? Math.round((1 - s.infra_month_usd / s.mrr_usd) * 100) : 0}%`, icon: CheckCircle2, sub: null },
         ].map((k) => (
           <div key={k.label} className="rounded-xl border border-border bg-card p-4">
             <k.icon className="h-4 w-4 text-muted-foreground mb-2" />
             <div className="text-lg font-bold">{k.value}</div>
             <div className="text-[11px] text-muted-foreground">{k.label}</div>
+            {k.sub && <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">{k.sub}</div>}
           </div>
         ))}
       </div>

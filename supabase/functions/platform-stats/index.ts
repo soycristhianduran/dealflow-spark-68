@@ -225,15 +225,23 @@ Deno.serve(async (req) => {
 
     const stripeCost = stripeFees > 0 ? stripeFees : 0;
     const infraTotal = Math.round((anthropicTotal + resendTier.cost + stripeCost) * 100) / 100;
-    const mrr = orgReport.filter((o) => o.active).reduce((s, o) => s + Number(plans[o.plan]?.monthly_price_usd ?? 0), 0);
+    // MRR REAL = only paying subscriptions (status 'active'). Trials don't pay yet.
+    const priceOf = (o: any) => Number(plans[o.plan]?.monthly_price_usd ?? 0);
+    const paying = orgReport.filter((o) => o.status === "active");
+    const trials = orgReport.filter((o) => o.status === "trialing" || o.status === "trialing_internal");
+    const mrr = Math.round(paying.reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
+    const mrrTrials = Math.round(trials.reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
 
     return json({
       generated_at: new Date().toISOString(),
       summary: {
         total_orgs: orgReport.length,
         active_orgs: orgReport.filter((o) => o.active).length,
+        paying_orgs: paying.length,
+        trial_orgs: trials.length,
         by_plan: byPlan,
-        mrr_usd: mrr,
+        mrr_usd: mrr,                 // real recurring revenue (paying only)
+        mrr_trials_usd: mrrTrials,    // potential if trials convert
         anthropic_month_usd: anthropicTotal,
         resend_month_usd: resendTier.cost,
         stripe_fees_usd: stripeCost,
