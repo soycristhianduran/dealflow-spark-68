@@ -617,7 +617,6 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                     <th className="text-right font-medium py-2 px-2">CPL</th>
                     <th className="text-right font-medium py-2 px-2">Citas</th>
                     <th className="text-right font-medium py-2 px-2">Ganados</th>
-                    <th className="text-right font-medium py-2 px-2">Perdidos</th>
                     <th className="text-right font-medium py-2 px-2">Ventas</th>
                     <th className="text-right font-medium py-2 pl-2">ROAS</th>
                   </tr>
@@ -634,7 +633,6 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                       <td className="text-right py-2 px-2 tabular-nums text-muted-foreground">{a.cpl ? fmtMoney(a.cpl) : "—"}</td>
                       <td className="text-right py-2 px-2 tabular-nums">{a.citas}</td>
                       <td className="text-right py-2 px-2 tabular-nums text-emerald-600 font-semibold">{a.cierres}</td>
-                      <td className="text-right py-2 px-2 tabular-nums text-red-500">{a.perdidos ?? 0}</td>
                       <td className="text-right py-2 px-2 tabular-nums text-emerald-600">{a.revenue > 0 ? fmtMoney(a.revenue) : "—"}</td>
                       <td className={`text-right py-2 pl-2 tabular-nums font-bold ${a.roas == null ? "text-muted-foreground" : a.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>
                         {a.roas != null ? `${a.roas}x` : "—"}

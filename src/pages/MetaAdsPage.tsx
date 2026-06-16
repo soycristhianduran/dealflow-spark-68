@@ -1997,6 +1997,7 @@ export default function MetaAdsPage() {
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
                       <th className="pb-2 pr-3 font-medium">Campaña</th>
+                      {accountsWithData.length > 1 && <th className="pb-2 pr-3 font-medium">Cuenta</th>}
                       <th className="pb-2 pr-3 font-medium">Estado</th>
                       <th className="pb-2 pr-3 font-medium">Score</th>
                       <th className="pb-2 pr-3 font-medium">Objetivo</th>
@@ -2012,11 +2013,6 @@ export default function MetaAdsPage() {
                       <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors group">
                         <td className="py-2.5 pr-3 font-medium text-foreground max-w-[180px]">
                           <div className="truncate" title={c.campaign_name}>{c.campaign_name}</div>
-                          {accountFilter === "all" && accountsWithData.length > 1 && c.ad_account_id && (
-                            <div className="truncate text-[10px] text-muted-foreground" title={accountNameMap[c.ad_account_id] || c.ad_account_id}>
-                              {accountNameMap[c.ad_account_id] || c.ad_account_id}
-                            </div>
-                          )}
                           {c.insights.length > 0 && (
                             <div className="flex gap-1 mt-0.5 flex-wrap">
                               {c.insights.slice(0, 2).map((ins, i) => (
@@ -2027,6 +2023,13 @@ export default function MetaAdsPage() {
                             </div>
                           )}
                         </td>
+                        {accountsWithData.length > 1 && (
+                          <td className="py-2.5 pr-3 text-muted-foreground text-xs max-w-[140px]">
+                            <span className="truncate block" title={c.ad_account_id ? (accountNameMap[c.ad_account_id] || c.ad_account_id) : "—"}>
+                              {c.ad_account_id ? (accountNameMap[c.ad_account_id] || c.ad_account_id) : "—"}
+                            </span>
+                          </td>
+                        )}
                         <td className="py-2.5 pr-3">
                           <StatusToggle
                             campaign={c}
