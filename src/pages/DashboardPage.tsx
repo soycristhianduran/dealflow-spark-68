@@ -470,7 +470,18 @@ export default function DashboardPage() {
     user?.user_metadata?.full_name?.split(" ")[0] ||
     user?.user_metadata?.first_name || "";
   const { isVendor, myUserId } = usePermissions();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, timezone } = useOrganizationContext();
+  // Live clock so the greeting + hora reflect the org timezone and tick over.
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setClock(new Date()), 30_000);
+    return () => clearInterval(t);
+  }, []);
+  // Hour of day in the org's configured timezone (drives buenos días/tardes/noches).
+  const tzHour = Number(clock.toLocaleString("en-US", { timeZone: timezone, hour: "2-digit", hour12: false }));
+  const greeting = tzHour < 12 ? "Buenos días" : tzHour < 19 ? "Buenas tardes" : "Buenas noches";
+  const tzDate = clock.toLocaleDateString("es", { timeZone: timezone, weekday: "long", day: "numeric", month: "long" });
+  const tzTime = clock.toLocaleTimeString("es", { timeZone: timezone, hour: "2-digit", minute: "2-digit" });
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
   const [customRange, setCustomRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
@@ -820,9 +831,11 @@ export default function DashboardPage() {
           <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-orange-400/20 blur-3xl" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-medium text-white/60 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
+              <p className="text-xs font-medium text-white/60">
+                <span className="capitalize">{tzDate}</span> · <span className="tabular-nums">{tzTime}</span>
+              </p>
               <h1 className="text-2xl md:text-[28px] font-bold tracking-tight mt-1">
-                {(() => { const h = new Date().getHours(); return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; })()}
+                {greeting}
                 {greetingName ? <>, <span className="bg-gradient-to-r from-amber-100 to-white bg-clip-text text-transparent">{greetingName}</span></> : ""} 👋
               </h1>
               <p className="text-sm text-white/65 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>

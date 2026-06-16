@@ -9,6 +9,8 @@ interface OrganizationContextType {
   role: string | null;
   /** Org's default currency for lead budgets (e.g. "COP"). Falls back to "USD". */
   defaultCurrency: string;
+  /** Org's configured IANA timezone (e.g. "America/Bogota"). Falls back to the browser tz. */
+  timezone: string;
   loading: boolean;
   error: string | null;
   accessDenied: boolean;
@@ -20,6 +22,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organization: null,
   role: null,
   defaultCurrency: "USD",
+  timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
   loading: true,
   error: null,
   accessDenied: false,
@@ -33,12 +36,17 @@ export function useOrganizationContext(): OrganizationContextType {
 export function OrganizationProvider({ children }: { children: React.ReactNode }) {
   const orgState = useOrganization();
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
+  const [timezone, setTimezone] = useState(typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC");
 
   useEffect(() => {
     if (!orgState.organizationId) { setDefaultCurrency("USD"); return; }
     let active = true;
-    supabase.from("organizations").select("default_currency").eq("id", orgState.organizationId).maybeSingle()
-      .then(({ data }) => { if (active && data?.default_currency) setDefaultCurrency(data.default_currency); });
+    supabase.from("organizations").select("default_currency, timezone").eq("id", orgState.organizationId).maybeSingle()
+      .then(({ data }) => {
+        if (!active) return;
+        if (data?.default_currency) setDefaultCurrency(data.default_currency);
+        if (data?.timezone) setTimezone(data.timezone);
+      });
     return () => { active = false; };
   }, [orgState.organizationId]);
 
@@ -72,7 +80,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <OrganizationContext.Provider value={{ ...orgState, defaultCurrency }}>
+    <OrganizationContext.Provider value={{ ...orgState, defaultCurrency, timezone }}>
       {children}
     </OrganizationContext.Provider>
   );
