@@ -253,6 +253,8 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
   const [groupedSig, setGroupedSig] = useState<{ key: string; n: number; examples: string[] }[]>([]);
   const [adsRoas, setAdsRoas] = useState<any[]>([]);
   const [roasLevel, setRoasLevel] = useState<"campaign" | "ad">("campaign");
+  const [adAccountFilter, setAdAccountFilter] = useState<string>("all"); // "all" | ad_account_id
+  const [adAccountNames, setAdAccountNames] = useState<Record<string, string>>({});
   const [adModal, setAdModal] = useState<any | null>(null);
   const [adPreview, setAdPreview] = useState<{ loading: boolean; html?: string; error?: string }>({ loading: false });
 
@@ -309,6 +311,50 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
     supabase.rpc("dashboard_ads_roas", { p_org: organizationId, p_level: roasLevel })
       .then(({ data }) => { if (Array.isArray(data)) setAdsRoas(data); });
   }, [organizationId, roasLevel]);
+
+  // Distinct ad accounts present in the ROAS rows (for the per-account breakdown)
+  const adAccountIds = useMemo(
+    () => [...new Set(adsRoas.map(a => a.account).filter(Boolean) as string[])],
+    [adsRoas]
+  );
+
+  // Resolve ad-account names (act_123 → "Mi Marca") when there's more than one.
+  useEffect(() => {
+    if (!organizationId || adAccountIds.length < 2) return;
+    supabase.functions.invoke("facebook-api", { body: { action: "get_ad_accounts", organization_id: organizationId } })
+      .then(({ data }) => {
+        const m: Record<string, string> = {};
+        for (const acc of (data?.ad_accounts || [])) m[acc.id] = acc.name || acc.id;
+        setAdAccountNames(m);
+      }).catch(() => {});
+  }, [organizationId, adAccountIds.length]);
+
+  const acctName = (id?: string) => (id ? (adAccountNames[id] || id) : "—");
+
+  // Rows filtered by the selected account
+  const visibleRoas = useMemo(
+    () => adAccountFilter === "all" ? adsRoas : adsRoas.filter(a => a.account === adAccountFilter),
+    [adsRoas, adAccountFilter]
+  );
+
+  // Per-account totals for the summary band (leads/citas/ganados/perdidos/inversión/ventas/ROAS)
+  const accountSummaries = useMemo(() => {
+    const by: Record<string, any> = {};
+    for (const a of adsRoas) {
+      const k = a.account || "—";
+      if (!by[k]) by[k] = { account: a.account, spend: 0, leads: 0, citas: 0, cierres: 0, perdidos: 0, revenue: 0 };
+      by[k].spend += Number(a.spend) || 0;
+      by[k].leads += Number(a.leads) || 0;
+      by[k].citas += Number(a.citas) || 0;
+      by[k].cierres += Number(a.cierres) || 0;
+      by[k].perdidos += Number(a.perdidos) || 0;
+      by[k].revenue += Number(a.revenue) || 0;
+    }
+    return Object.values(by).map((s: any) => ({
+      ...s,
+      roas: s.spend > 0 && s.revenue > 0 ? Math.round((s.revenue / s.spend) * 100) / 100 : null,
+    })).sort((a: any, b: any) => b.spend - a.spend);
+  }, [adsRoas]);
 
   if (!data) return null;
 
@@ -516,31 +562,79 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                 ))}
               </div>
             </div>
+
+            {/* Per-account filter (only when more than one ad account) */}
+            {adAccountIds.length > 1 && (
+              <div className="flex items-center gap-1 flex-wrap mt-3">
+                <button onClick={() => setAdAccountFilter("all")}
+                  className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors ${adAccountFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:text-foreground"}`}>
+                  Todas las cuentas
+                </button>
+                {adAccountIds.map(id => (
+                  <button key={id} onClick={() => setAdAccountFilter(id)}
+                    className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors max-w-[180px] truncate ${adAccountFilter === id ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:text-foreground"}`}
+                    title={acctName(id)}>
+                    {acctName(id)}
+                  </button>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
+            {/* Summary band: one card per ad account with its results */}
+            {adAccountIds.length > 1 && (
+              <div className="grid gap-3 sm:grid-cols-2 mb-4">
+                {accountSummaries.map((s) => (
+                  <button key={s.account || "none"} type="button"
+                    onClick={() => setAdAccountFilter(adAccountFilter === s.account ? "all" : s.account)}
+                    className={`text-left rounded-xl border p-3 transition-colors ${adAccountFilter === s.account ? "border-primary ring-1 ring-primary/30 bg-primary/[0.03]" : "border-border/60 hover:border-primary/40"}`}>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <FacebookIcon size={14} />
+                      <span className="text-xs font-semibold truncate" title={acctName(s.account)}>{acctName(s.account)}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-y-2 gap-x-1 text-center">
+                      <div><p className="text-sm font-bold tabular-nums">{s.spend ? fmtMoney(s.spend) : "—"}</p><p className="text-[10px] text-muted-foreground">Inversión</p></div>
+                      <div><p className="text-sm font-bold tabular-nums">{s.leads}</p><p className="text-[10px] text-muted-foreground">Leads</p></div>
+                      <div><p className="text-sm font-bold tabular-nums">{s.citas}</p><p className="text-[10px] text-muted-foreground">Citas</p></div>
+                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.cierres}</p><p className="text-[10px] text-muted-foreground">Ganados</p></div>
+                      <div><p className="text-sm font-bold tabular-nums text-red-500">{s.perdidos}</p><p className="text-[10px] text-muted-foreground">Perdidos</p></div>
+                      <div><p className={`text-sm font-bold tabular-nums ${s.roas == null ? "text-muted-foreground" : s.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>{s.roas != null ? `${s.roas}x` : "—"}</p><p className="text-[10px] text-muted-foreground">ROAS</p></div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-muted-foreground border-b">
                     <th className="text-left font-medium py-2 pr-2">{roasLevel === "ad" ? "Anuncio" : "Campaña"}</th>
+                    {adAccountIds.length > 1 && adAccountFilter === "all" && (
+                      <th className="text-left font-medium py-2 px-2">Cuenta</th>
+                    )}
                     <th className="text-right font-medium py-2 px-2">Inversión</th>
                     <th className="text-right font-medium py-2 px-2">Leads</th>
                     <th className="text-right font-medium py-2 px-2">CPL</th>
                     <th className="text-right font-medium py-2 px-2">Citas</th>
-                    <th className="text-right font-medium py-2 px-2">Cierres</th>
+                    <th className="text-right font-medium py-2 px-2">Ganados</th>
+                    <th className="text-right font-medium py-2 px-2">Perdidos</th>
                     <th className="text-right font-medium py-2 px-2">Ventas</th>
                     <th className="text-right font-medium py-2 pl-2">ROAS</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {adsRoas.map((a, i) => (
+                  {visibleRoas.map((a, i) => (
                     <tr key={i} onClick={() => openAd(a)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                       <td className="py-2 pr-2 font-medium truncate max-w-[160px]">{a.campaign}</td>
+                      {adAccountIds.length > 1 && adAccountFilter === "all" && (
+                        <td className="py-2 px-2 text-muted-foreground truncate max-w-[120px]" title={acctName(a.account)}>{acctName(a.account)}</td>
+                      )}
                       <td className="text-right py-2 px-2 tabular-nums">{a.spend ? fmtMoney(a.spend) : "—"}</td>
                       <td className="text-right py-2 px-2 tabular-nums">{a.leads}</td>
                       <td className="text-right py-2 px-2 tabular-nums text-muted-foreground">{a.cpl ? fmtMoney(a.cpl) : "—"}</td>
                       <td className="text-right py-2 px-2 tabular-nums">{a.citas}</td>
                       <td className="text-right py-2 px-2 tabular-nums text-emerald-600 font-semibold">{a.cierres}</td>
+                      <td className="text-right py-2 px-2 tabular-nums text-red-500">{a.perdidos ?? 0}</td>
                       <td className="text-right py-2 px-2 tabular-nums text-emerald-600">{a.revenue > 0 ? fmtMoney(a.revenue) : "—"}</td>
                       <td className={`text-right py-2 pl-2 tabular-nums font-bold ${a.roas == null ? "text-muted-foreground" : a.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>
                         {a.roas != null ? `${a.roas}x` : "—"}
@@ -570,7 +664,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                 {[["Inversión", adModal.spend ? fmtMoney(adModal.spend) : "—"], ["Leads", adModal.leads], ["CPL", adModal.cpl ? fmtMoney(adModal.cpl) : "—"], ["Citas", adModal.citas]].map(([l, v]) => (
                   <div key={l as string} className="rounded-lg bg-muted/50 py-2"><p className="text-base font-bold tabular-nums">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
                 ))}
-                {[["Cierres", adModal.cierres], ["Ventas", adModal.revenue > 0 ? fmtMoney(adModal.revenue) : "—"], ["ROAS", adModal.roas != null ? `${adModal.roas}x` : "—"]].map(([l, v]) => (
+                {[["Ganados", adModal.cierres], ["Perdidos", adModal.perdidos ?? 0], ["Ventas", adModal.revenue > 0 ? fmtMoney(adModal.revenue) : "—"], ["ROAS", adModal.roas != null ? `${adModal.roas}x` : "—"]].map(([l, v]) => (
                   <div key={l as string} className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 py-2"><p className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
                 ))}
               </div>
