@@ -576,6 +576,9 @@ export default function DashboardPage() {
   const [recentActivity,   setRecentActivity]   = useState<ActivityRow[]>([]);
 
   const fetchDashboard = useCallback(async () => {
+    // Switching to "custom" just opens the calendar — don't reload until the user
+    // has actually picked a full range.
+    if (period === "custom" && (!customRange.from || !customRange.to)) return;
     setLoading(true);
     const vf = isVendor && myUserId ? myUserId : null;
 
