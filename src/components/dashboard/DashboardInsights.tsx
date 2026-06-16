@@ -255,6 +255,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
   const [roasLevel, setRoasLevel] = useState<"campaign" | "ad">("campaign");
   const [adAccountFilter, setAdAccountFilter] = useState<string>("all"); // "all" | ad_account_id
   const [adAccountNames, setAdAccountNames] = useState<Record<string, string>>({});
+  const [accountRollup, setAccountRollup] = useState<any[]>([]); // registered accounts (incl. spend-only)
   const [adModal, setAdModal] = useState<any | null>(null);
   const [adPreview, setAdPreview] = useState<{ loading: boolean; html?: string; error?: string }>({ loading: false });
 
@@ -312,49 +313,59 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
       .then(({ data }) => { if (Array.isArray(data)) setAdsRoas(data); });
   }, [organizationId, roasLevel]);
 
-  // Distinct ad accounts present in the ROAS rows (for the per-account breakdown)
-  const adAccountIds = useMemo(
-    () => [...new Set(adsRoas.map(a => a.account).filter(Boolean) as string[])],
-    [adsRoas]
-  );
-
-  // Resolve ad-account names (act_123 → "Mi Marca") when there's more than one.
+  // Registered ad accounts for this org (includes accounts with spend but 0 leads).
   useEffect(() => {
-    if (!organizationId || adAccountIds.length < 2) return;
-    supabase.functions.invoke("facebook-api", { body: { action: "get_ad_accounts", organization_id: organizationId } })
-      .then(({ data }) => {
-        const m: Record<string, string> = {};
-        for (const acc of (data?.ad_accounts || [])) m[acc.id] = acc.name || acc.id;
-        setAdAccountNames(m);
-      }).catch(() => {});
-  }, [organizationId, adAccountIds.length]);
+    if (!organizationId) return;
+    supabase.rpc("dashboard_ads_accounts", { p_org: organizationId })
+      .then(({ data }) => { if (Array.isArray(data)) setAccountRollup(data); });
+  }, [organizationId]);
+
+  // Names map: prefer the registered account names; fall back to a live lookup.
+  useEffect(() => {
+    const m: Record<string, string> = {};
+    for (const a of accountRollup) if (a.account) m[a.account] = a.name || a.account;
+    if (Object.keys(m).length) setAdAccountNames(prev => ({ ...prev, ...m }));
+  }, [accountRollup]);
 
   const acctName = (id?: string) => (id ? (adAccountNames[id] || id) : "—");
 
-  // Rows filtered by the selected account
-  const visibleRoas = useMemo(
-    () => adAccountFilter === "all" ? adsRoas : adsRoas.filter(a => a.account === adAccountFilter),
-    [adsRoas, adAccountFilter]
-  );
-
-  // Per-account totals for the summary band (leads/citas/ganados/perdidos/inversión/ventas/ROAS)
+  // Per-account summary band — prefer the registry (shows spend-only accounts);
+  // fall back to rolling up the lead-driven ROAS rows.
   const accountSummaries = useMemo(() => {
+    if (accountRollup.length) {
+      return accountRollup.map((a: any) => ({
+        account: a.account, spend: Number(a.spend) || 0, leads: Number(a.leads) || 0,
+        citas: Number(a.citas) || 0, cierres: Number(a.cierres) || 0, revenue: Number(a.revenue) || 0,
+        roas: a.roas != null ? Number(a.roas) : null,
+      }));
+    }
     const by: Record<string, any> = {};
     for (const a of adsRoas) {
       const k = a.account || "—";
-      if (!by[k]) by[k] = { account: a.account, spend: 0, leads: 0, citas: 0, cierres: 0, perdidos: 0, revenue: 0 };
+      if (!by[k]) by[k] = { account: a.account, spend: 0, leads: 0, citas: 0, cierres: 0, revenue: 0 };
       by[k].spend += Number(a.spend) || 0;
       by[k].leads += Number(a.leads) || 0;
       by[k].citas += Number(a.citas) || 0;
       by[k].cierres += Number(a.cierres) || 0;
-      by[k].perdidos += Number(a.perdidos) || 0;
       by[k].revenue += Number(a.revenue) || 0;
     }
     return Object.values(by).map((s: any) => ({
       ...s,
       roas: s.spend > 0 && s.revenue > 0 ? Math.round((s.revenue / s.spend) * 100) / 100 : null,
     })).sort((a: any, b: any) => b.spend - a.spend);
-  }, [adsRoas]);
+  }, [accountRollup, adsRoas]);
+
+  // The set of accounts to offer as filters (registry first, else lead-driven).
+  const adAccountIds = useMemo(
+    () => accountSummaries.map(s => s.account).filter(Boolean) as string[],
+    [accountSummaries]
+  );
+
+  // Rows filtered by the selected account
+  const visibleRoas = useMemo(
+    () => adAccountFilter === "all" ? adsRoas : adsRoas.filter(a => a.account === adAccountFilter),
+    [adsRoas, adAccountFilter]
+  );
 
   if (!data) return null;
 
@@ -597,7 +608,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                       <div><p className="text-sm font-bold tabular-nums">{s.leads}</p><p className="text-[10px] text-muted-foreground">Leads</p></div>
                       <div><p className="text-sm font-bold tabular-nums">{s.citas}</p><p className="text-[10px] text-muted-foreground">Citas</p></div>
                       <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.cierres}</p><p className="text-[10px] text-muted-foreground">Ganados</p></div>
-                      <div><p className="text-sm font-bold tabular-nums text-red-500">{s.perdidos}</p><p className="text-[10px] text-muted-foreground">Perdidos</p></div>
+                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.revenue > 0 ? fmtMoney(s.revenue) : "—"}</p><p className="text-[10px] text-muted-foreground">Ventas</p></div>
                       <div><p className={`text-sm font-bold tabular-nums ${s.roas == null ? "text-muted-foreground" : s.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>{s.roas != null ? `${s.roas}x` : "—"}</p><p className="text-[10px] text-muted-foreground">ROAS</p></div>
                     </div>
                   </button>

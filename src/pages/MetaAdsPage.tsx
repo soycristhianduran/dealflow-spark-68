@@ -1453,6 +1453,17 @@ export default function MetaAdsPage() {
       return;
     }
 
+    // Register the synced accounts for this org so the dashboard can show every
+    // connected account (even one with spend but no attributed leads yet).
+    if (organizationId) {
+      const rows = accountIds.map(id => {
+        const a = accounts.find(x => x.id === id);
+        return { organization_id: organizationId, ad_account_id: id, name: a?.name || id, currency: a?.currency || null, updated_at: new Date().toISOString() };
+      });
+      supabase.from("meta_org_ad_accounts").upsert(rows, { onConflict: "organization_id,ad_account_id" })
+        .then(({ error }) => { if (error) console.warn("register ad accounts:", error.message); });
+    }
+
     // Step 2: import each account sequentially (avoids Meta rate limits)
     const nameOf = (id: string) => accounts.find(a => a.id === id)?.name || id;
     let done = 0;
