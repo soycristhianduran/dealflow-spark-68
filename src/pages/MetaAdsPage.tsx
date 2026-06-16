@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   DollarSign, Eye, MousePointerClick, Users, TrendingUp, BarChart3,
   RefreshCw, Loader2, CalendarIcon, X, Pause, Play, AlertTriangle,
@@ -23,7 +23,7 @@ import {
   Image as ImageIcon, Download, ChevronRight, Layers, Video, Plus,
   ExternalLink, Maximize2,
 } from "lucide-react";
-import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { useFacebookIntegration, type FbAdAccount } from "@/hooks/useFacebookIntegration";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { format } from "date-fns";
@@ -1277,6 +1277,26 @@ export default function MetaAdsPage() {
   const [adStatusFilter,    setAdStatusFilter]    = useState("all");
   const [createCampaignOpen, setCreateCampaignOpen] = useState(false);
 
+  // All ad accounts linked to the connected Meta portfolio (for multi-account sync + filter)
+  const [adAccounts, setAdAccounts] = useState<FbAdAccount[]>([]);
+  const [accountFilter, setAccountFilter] = useState("all"); // "all" | ad_account_id
+
+  // Load the list of ad accounts once Meta is connected so we can sync each one
+  // and let the user filter campaigns/ads by account.
+  useEffect(() => {
+    if (!fb.isConnected) { setAdAccounts([]); return; }
+    let active = true;
+    fb.getAdAccounts().then(accs => { if (active) setAdAccounts(accs); });
+    return () => { active = false; };
+  }, [fb.isConnected]);
+
+  // Map ad_account_id → display name ("act_123" → "Mi Marca")
+  const accountNameMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const a of adAccounts) m[a.id] = a.name || a.id;
+    return m;
+  }, [adAccounts]);
+
   /* ── Data ─────────────────────────────────────────────────────────────── */
   // Meta Ads data is shared ORG-WIDE: scope by organization so every member sees
   // the same campaigns/adsets/ads (falls back to user_id without org context).
@@ -1375,40 +1395,54 @@ export default function MetaAdsPage() {
     setTogglingIds(prev => { const s = new Set(prev); s.delete(entityId); return s; });
   };
 
-  // Single "sync all" — campaigns first, then full ads structure
+  // "Sync all" — imports EVERY linked ad account, campaigns + full ads structure
+  // for each, so a portfolio/Business Manager with multiple accounts is fully
+  // mirrored (just like the Ads Manager account switcher).
   const handleSyncAll = async () => {
-    if (!fb.status?.pages?.length && !campaigns.length) return;
     setSyncing(true);
+    const { toast } = await import("sonner");
 
-    // Step 1: figure out the ad account to sync
-    // (prefer the one already imported; fallback to ad accounts API)
-    let adAccountId = campaigns[0]?.ad_account_id || null;
-    if (!adAccountId) {
-      setSyncStep("Buscando cuenta publicitaria…");
-      const accounts = await fb.getAdAccounts();
-      adAccountId = accounts[0]?.id || null;
+    // Step 1: gather every ad account. Prefer the freshly-loaded list; fall back
+    // to a live fetch, then to whatever accounts are already present in campaigns.
+    setSyncStep("Buscando cuentas publicitarias…");
+    let accounts = adAccounts.length ? adAccounts : await fb.getAdAccounts();
+    if (accounts.length) setAdAccounts(accounts);
+
+    let accountIds = accounts.map(a => a.id);
+    if (!accountIds.length) {
+      // last-resort: distinct accounts already imported
+      accountIds = [...new Set(campaigns.map(c => c.ad_account_id).filter(Boolean) as string[])];
     }
 
-    if (!adAccountId) {
+    if (!accountIds.length) {
       setSyncing(false);
       setSyncStep(null);
-      const { toast } = await import("sonner");
       toast.error("No se encontró ninguna cuenta publicitaria vinculada");
       return;
     }
 
-    // Step 2: import campaigns
-    setSyncStep("Importando campañas…");
-    await fb.importCampaigns(adAccountId);
-    await refetch();
+    // Step 2: import each account sequentially (avoids Meta rate limits)
+    const nameOf = (id: string) => accounts.find(a => a.id === id)?.name || id;
+    let done = 0;
+    for (const accId of accountIds) {
+      done++;
+      const label = accountIds.length > 1 ? ` (${done}/${accountIds.length})` : "";
+      setSyncStep(`Importando campañas de ${nameOf(accId)}${label}…`);
+      await fb.importCampaigns(accId);
+      setSyncStep(`Importando anuncios de ${nameOf(accId)}${label}…`);
+      await fb.importAdsStructure(accId);
+    }
 
-    // Step 3: import ad sets + ads + creatives
-    setSyncStep("Importando conjuntos y anuncios…");
-    await fb.importAdsStructure(adAccountId);
+    await refetch();
     await refetchAds();
 
     setSyncing(false);
     setSyncStep(null);
+    toast.success(
+      accountIds.length > 1
+        ? `${accountIds.length} cuentas publicitarias sincronizadas`
+        : "Cuenta publicitaria sincronizada"
+    );
     const now = Date.now();
     setLastSyncAt(now);
     try { localStorage.setItem(`meta_sync_last_${user?.id}`, String(now)); } catch {}
@@ -1416,10 +1450,11 @@ export default function MetaAdsPage() {
 
   /* ── Ad filters ────────────────────────────────────────────────────────── */
   const filteredAds = useMemo(() => metaAds.filter(a => {
+    if (accountFilter    !== "all" && a.ad_account_id !== accountFilter)   return false;
     if (adCampaignFilter !== "all" && a.campaign_id !== adCampaignFilter) return false;
     if (adStatusFilter   !== "all" && a.status       !== adStatusFilter)  return false;
     return true;
-  }), [metaAds, adCampaignFilter, adStatusFilter]);
+  }), [metaAds, accountFilter, adCampaignFilter, adStatusFilter]);
 
   // Build lookup maps for breadcrumb display
   const campaignNameById = useMemo(() => {
@@ -1442,6 +1477,7 @@ export default function MetaAdsPage() {
   }, [campaigns]);
 
   const filtered = useMemo(() => campaigns.filter(c => {
+    if (accountFilter !== "all" && c.ad_account_id !== accountFilter) return false;
     if (statusFilter !== "all" && c.status !== statusFilter) return false;
     if (objectiveFilter !== "all" && c.objective !== objectiveFilter) return false;
     if (dateFrom && c.start_time && new Date(c.start_time) < dateFrom) return false;
@@ -1450,7 +1486,17 @@ export default function MetaAdsPage() {
       if (new Date(c.start_time) > end) return false;
     }
     return true;
-  }), [campaigns, statusFilter, objectiveFilter, dateFrom, dateTo]);
+  }), [campaigns, accountFilter, statusFilter, objectiveFilter, dateFrom, dateTo]);
+
+  // Accounts that actually have imported data (for the filter dropdown), with names.
+  const accountsWithData = useMemo(() => {
+    const ids = new Set<string>();
+    campaigns.forEach(c => { if (c.ad_account_id) ids.add(c.ad_account_id); });
+    metaAds.forEach(a => { if (a.ad_account_id) ids.add(a.ad_account_id); });
+    adAccounts.forEach(a => ids.add(a.id));
+    return [...ids].map(id => ({ id, name: accountNameMap[id] || id }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [campaigns, metaAds, adAccounts, accountNameMap]);
 
   /* ── Analysis ─────────────────────────────────────────────────────────── */
   const scored = useMemo(() => analyzeCampaigns(filtered), [filtered]);
@@ -1590,6 +1636,20 @@ export default function MetaAdsPage() {
           <>
             {/* Ad filters */}
             <div className="flex items-center gap-2 flex-wrap">
+              {accountsWithData.length > 1 && (
+                <Select value={accountFilter} onValueChange={setAccountFilter}>
+                  <SelectTrigger className="w-[190px] h-8 text-xs font-medium">
+                    <SelectValue placeholder="Cuenta publicitaria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas las cuentas ({accountsWithData.length})</SelectItem>
+                    {accountsWithData.map(acc => (
+                      <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+
               <Select value={adCampaignFilter} onValueChange={setAdCampaignFilter}>
                 <SelectTrigger className="w-[200px] h-8 text-xs">
                   <SelectValue placeholder="Campaña" />
@@ -1667,6 +1727,20 @@ export default function MetaAdsPage() {
         {/* ── Filters ──────────────────────────────────────────────────── */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 flex-wrap">
+            {accountsWithData.length > 1 && (
+              <Select value={accountFilter} onValueChange={setAccountFilter}>
+                <SelectTrigger className="w-[190px] h-8 text-xs font-medium">
+                  <SelectValue placeholder="Cuenta publicitaria" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las cuentas ({accountsWithData.length})</SelectItem>
+                  {accountsWithData.map(acc => (
+                    <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[150px] h-8 text-xs">
                 <SelectValue placeholder="Estado" />
@@ -1848,6 +1922,11 @@ export default function MetaAdsPage() {
                       <tr key={c.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors group">
                         <td className="py-2.5 pr-3 font-medium text-foreground max-w-[180px]">
                           <div className="truncate" title={c.campaign_name}>{c.campaign_name}</div>
+                          {accountFilter === "all" && accountsWithData.length > 1 && c.ad_account_id && (
+                            <div className="truncate text-[10px] text-muted-foreground" title={accountNameMap[c.ad_account_id] || c.ad_account_id}>
+                              {accountNameMap[c.ad_account_id] || c.ad_account_id}
+                            </div>
+                          )}
                           {c.insights.length > 0 && (
                             <div className="flex gap-1 mt-0.5 flex-wrap">
                               {c.insights.slice(0, 2).map((ins, i) => (

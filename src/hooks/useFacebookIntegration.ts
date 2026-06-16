@@ -20,7 +20,7 @@ interface FbForm {
   questions?: { key: string; label: string; type: string }[];
 }
 
-interface FbAdAccount {
+export interface FbAdAccount {
   id: string;
   name: string;
   account_status: number;
