@@ -21,7 +21,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 type Plan = {
-  id: "starter" | "pro" | "business";
+  id: "starter" | "pro" | "business" | "agency";
   name: string;
   display_order: number;
   monthly_price_usd: number;
@@ -31,12 +31,20 @@ type Plan = {
   max_users: number | null;
   max_contacts: number | null;
   max_active_deals: number | null;
-  monthly_automated_messages: number | null;
+  max_wa_accounts: number | null;
+  max_ig_accounts: number | null;
+  max_fb_accounts: number | null;
+  max_published_landings: number | null;
+  max_automation_flows: number | null;
   monthly_ai_analyses: number | null;
   monthly_ai_objections: number | null;
+  monthly_ai_assistant: number | null;
+  monthly_ai_agent_credits: number | null;
   monthly_email_sends: number | null;
   feature_meta_ads: boolean;
   feature_email_campaigns: boolean;
+  feature_ig_automations: boolean;
+  feature_ai_agent: boolean;
   feature_api_access: boolean;
   feature_priority_support: boolean;
 };
@@ -241,34 +249,61 @@ export default function PricingPage() {
                       <FeatureRow ok>{formatLimit(plan.max_contacts)} contactos</FeatureRow>
                       <FeatureRow ok>{formatLimit(plan.max_active_deals)} deals activos</FeatureRow>
                       <FeatureRow ok>
-                        {formatLimit(plan.monthly_automated_messages)} mensajes automatizados/mes
+                        {plan.max_wa_accounts === null
+                          ? "Cuentas ilimitadas de WhatsApp, Instagram y Meta"
+                          : `${plan.max_wa_accounts} cuenta${plan.max_wa_accounts > 1 ? "s" : ""} por canal: WhatsApp, Instagram y Meta`}
+                      </FeatureRow>
+                      <FeatureRow ok>{formatLimit(plan.max_published_landings)} landing pages publicadas</FeatureRow>
+                      <FeatureRow ok>{formatLimit(plan.max_automation_flows)} flujos de automatización</FeatureRow>
+                      <FeatureRow ok>
+                        WhatsApp ilimitado <span className="text-muted-foreground">(mensajes y automatizaciones)</span>
+                      </FeatureRow>
+
+                      <FeatureRow ok={plan.feature_email_campaigns}>
+                        Email marketing
+                        {plan.feature_email_campaigns && plan.monthly_email_sends !== null && (
+                          <span className="text-muted-foreground"> · {formatLimit(plan.monthly_email_sends)} emails/mes</span>
+                        )}
+                      </FeatureRow>
+
+                      <FeatureRow ok={plan.feature_ai_agent}>
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                          {plan.monthly_ai_agent_credits === null
+                            ? "Agente de Chat IA"
+                            : `${formatLimit(plan.monthly_ai_agent_credits)} créditos Agente de Chat IA/mes`}
+                        </span>
+                      </FeatureRow>
+                      <FeatureRow ok={plan.monthly_ai_assistant !== null}>
+                        <span className="flex items-center gap-1">
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                          {plan.monthly_ai_assistant === null
+                            ? "Sin asistente IA"
+                            : `${formatLimit(plan.monthly_ai_assistant)} usos del Asistente IA/mes`}
+                        </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.monthly_ai_analyses !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_analyses === null
-                            ? "Sin IA Boost"
-                            : `${formatLimit(plan.monthly_ai_analyses)} análisis IA/mes`}
+                            ? "Análisis IA con IA Boost"
+                            : `${formatLimit(plan.monthly_ai_analyses)} análisis de contactos IA/mes`}
                         </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.monthly_ai_objections !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_objections === null
-                            ? "Sin detección de objeciones"
-                            : `${formatLimit(plan.monthly_ai_objections)} detecciones objeción/mes`}
+                            ? "Detección de objeciones con IA Boost"
+                            : `${formatLimit(plan.monthly_ai_objections)} detecciones de objeción/mes`}
                         </span>
                       </FeatureRow>
-                      <FeatureRow ok={plan.feature_email_campaigns}>
-                        Email Campaigns
-                        {plan.feature_email_campaigns && plan.monthly_email_sends !== null && (
-                          <span className="text-muted-foreground"> ({formatLimit(plan.monthly_email_sends)}/mes)</span>
-                        )}
-                      </FeatureRow>
+
+                      <FeatureRow ok={plan.feature_ig_automations}>Automatizaciones de Instagram</FeatureRow>
                       <FeatureRow ok={plan.feature_meta_ads}>Dashboard de Meta Ads</FeatureRow>
-                      <FeatureRow ok={plan.feature_api_access}>API access</FeatureRow>
+                      <FeatureRow ok={plan.feature_api_access}>Acceso a la API</FeatureRow>
                       <FeatureRow ok={plan.feature_priority_support}>
-                        Soporte priority + onboarding 1-on-1
+                        Soporte prioritario + onboarding 1-a-1
                       </FeatureRow>
                     </ul>
                   </CardContent>
