@@ -3,6 +3,8 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
@@ -150,21 +152,31 @@ function PeriodSelector({
           Personalizado
         </button>
       </div>
-      {value === "custom" && (
-        <div className="flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1.5 text-xs">
-          <input
-            type="date" value={customRange.from} max={customRange.to || today}
-            onChange={(e) => onCustomChange({ ...customRange, from: e.target.value })}
-            className="bg-transparent outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
-          />
-          <span className="text-muted-foreground">→</span>
-          <input
-            type="date" value={customRange.to} min={customRange.from} max={today}
-            onChange={(e) => onCustomChange({ ...customRange, to: e.target.value })}
-            className="bg-transparent outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
-          />
-        </div>
-      )}
+      {value === "custom" && (() => {
+        const parse = (s: string) => { const [y, m, d] = s.split("-").map(Number); return s ? new Date(y, m - 1, d) : undefined; };
+        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        const pretty = (s: string) => s ? new Date(s + "T00:00:00").toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+        return (
+          <Popover>
+            <PopoverTrigger asChild>
+              <button className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs font-medium hover:bg-muted transition-colors">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                {customRange.from && customRange.to ? <>{pretty(customRange.from)} → {pretty(customRange.to)}</> : "Elegir fechas"}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                numberOfMonths={2}
+                defaultMonth={parse(customRange.from)}
+                selected={{ from: parse(customRange.from), to: parse(customRange.to) }}
+                onSelect={(r: any) => onCustomChange({ from: r?.from ? fmt(r.from) : "", to: r?.to ? fmt(r.to) : (r?.from ? fmt(r.from) : "") })}
+                disabled={{ after: new Date() }}
+              />
+            </PopoverContent>
+          </Popover>
+        );
+      })()}
     </div>
   );
 }

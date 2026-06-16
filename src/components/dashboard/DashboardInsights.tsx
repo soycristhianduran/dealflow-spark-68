@@ -21,7 +21,7 @@ interface StageDatum { name: string; count: number; color?: string | null }
 
 interface FunnelStage { name: string; count: number; color?: string | null }
 interface Insights {
-  leads: { today: number; week: number; month: number; total: number };
+  leads: { today: number; week: number; month: number; total: number; period?: number };
   trend: { d: string; n: number }[];
   sources: { source: string; n: number }[];
   agent: { sessions_month: number; escalations_month: number };
@@ -330,11 +330,11 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
           <h3 className="text-sm font-bold text-foreground">Adquisición de leads</h3>
         </div>
         <div className="space-y-5">
-          <div className="grid grid-cols-4 gap-2.5 text-center">
-            {[["Hoy", data.leads.today], ["7 días", data.leads.week], ["30 días", data.leads.month], ["Total", data.leads.total]].map(([l, v]) => (
-              <div key={l as string} className="rounded-xl border border-border/50 bg-gradient-to-b from-muted/40 to-transparent py-3">
+          <div className="grid grid-cols-3 gap-2.5 text-center">
+            {[["Hoy", data.leads.today], [periodLabel, data.leads.period ?? data.leads.month], ["Total", data.leads.total]].map(([l, v], i) => (
+              <div key={i} className={`rounded-xl border py-3 ${i === 1 ? "border-primary/30 bg-primary/[0.06]" : "border-border/50 bg-gradient-to-b from-muted/40 to-transparent"}`}>
                 <p className="text-xl font-bold tabular-nums tracking-tight">{(v as number).toLocaleString()}</p>
-                <p className="text-[11px] font-medium text-muted-foreground mt-0.5">{l}</p>
+                <p className="text-[11px] font-medium text-muted-foreground mt-0.5 truncate">{l as string}</p>
               </div>
             ))}
           </div>
