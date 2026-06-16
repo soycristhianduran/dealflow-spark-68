@@ -117,6 +117,7 @@ function compact(n: number) {
   return `${n}`;
 }
 function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) {
+  const [hi, setHi] = useState<number | null>(null);
   const top = sources.slice(0, 5);
   const restN = sources.slice(5).reduce((s, x) => s + x.n, 0);
   const segs = top.map((s, i) => ({ label: srcLabel(s.source), n: s.n, color: SRC_COLORS[i] }));
@@ -124,6 +125,7 @@ function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) 
   const total = segs.reduce((s, x) => s + x.n, 0) || 1;
   const size = 124, stroke = 16, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   let acc = 0;
+  const active = hi != null ? segs[hi] : null;
   return (
     <div className="flex items-center gap-5">
       <div className="relative shrink-0" style={{ width: size, height: size }}>
@@ -132,22 +134,37 @@ function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) 
           {segs.map((seg, i) => {
             const dash = c * (seg.n / total);
             const el = (
-              <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none" strokeWidth={stroke}
+              <circle key={i} cx={size / 2} cy={size / 2} r={r} fill="none"
+                strokeWidth={hi === i ? stroke + 3 : stroke}
                 stroke={seg.color} strokeDasharray={`${dash} ${c - dash}`} strokeDashoffset={-acc}
-                style={{ transition: "stroke-dashoffset .6s ease" }} />
+                onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
+                className="cursor-pointer"
+                style={{ transition: "stroke-dashoffset .6s ease, stroke-width .15s ease, opacity .15s ease", opacity: hi == null || hi === i ? 1 : 0.35 }} />
             );
             acc += dash;
             return el;
           })}
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-xl font-bold tabular-nums tracking-tight">{compact(total)}</span>
-          <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Leads</span>
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-2">
+          {active ? (
+            <>
+              <span className="text-lg font-bold tabular-nums tracking-tight leading-none">{active.n.toLocaleString()}</span>
+              <span className="text-[10px] text-muted-foreground mt-0.5 truncate max-w-full">{active.label}</span>
+              <span className="text-[10px] font-semibold" style={{ color: active.color }}>{Math.round((active.n / total) * 100)}%</span>
+            </>
+          ) : (
+            <>
+              <span className="text-xl font-bold tabular-nums tracking-tight">{compact(total)}</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Leads</span>
+            </>
+          )}
         </div>
       </div>
       <div className="flex-1 space-y-1.5 min-w-0">
         {segs.map((seg, i) => (
-          <div key={i} className="flex items-center gap-2 text-xs">
+          <div key={i}
+            onMouseEnter={() => setHi(i)} onMouseLeave={() => setHi(null)}
+            className={`flex items-center gap-2 text-xs rounded-md px-1.5 -mx-1.5 py-0.5 cursor-pointer transition-colors ${hi === i ? "bg-muted" : ""}`}>
             <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: seg.color }} />
             <span className="flex-1 truncate font-medium">{seg.label}</span>
             <span className="tabular-nums font-bold">{seg.n.toLocaleString()}</span>
@@ -160,6 +177,7 @@ function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) 
 }
 
 function Sparkline({ data }: { data: number[] }) {
+  const [hi, setHi] = useState<number | null>(null);
   if (!data.length) return <div className="h-28" />;
   const w = 600, h = 120, padY = 12;
   const max = Math.max(...data, 1);
@@ -168,23 +186,58 @@ function Sparkline({ data }: { data: number[] }) {
   const line = smoothLine(pts);
   const area = `${line} L ${w},${h} L 0,${h} Z`;
   const last = pts[pts.length - 1];
+  const n = data.length;
+
+  // The series ends today; label each point with its calendar day.
+  const dayLabel = (i: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (n - 1 - i));
+    return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
+  };
+
+  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const r = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    setHi(Math.round(r * (n - 1)));
+  };
+
+  const xPct = hi != null ? (hi / Math.max(n - 1, 1)) * 100 : 0;
+  const yPct = hi != null ? (pts[hi][1] / h) * 100 : 0;
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-28" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#f97316" stopOpacity="0.32" />
-          <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-        </linearGradient>
-        <filter id="trend-glow" x="-20%" y="-50%" width="140%" height="200%">
-          <feGaussianBlur stdDeviation="4" result="b" />
-          <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
-        </filter>
-      </defs>
-      <path d={area} fill="url(#trend-fill)" />
-      <path d={line} fill="none" stroke="#f97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" filter="url(#trend-glow)" vectorEffect="non-scaling-stroke" />
-      <circle cx={last[0]} cy={last[1]} r={6} fill="#f97316" opacity={0.25} />
-      <circle cx={last[0]} cy={last[1]} r={3.5} fill="#f97316" />
-    </svg>
+    <div className="relative w-full h-28" onMouseMove={onMove} onMouseLeave={() => setHi(null)}>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="trend-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#f97316" stopOpacity="0.32" />
+            <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+          </linearGradient>
+          <filter id="trend-glow" x="-20%" y="-50%" width="140%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="b" />
+            <feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge>
+          </filter>
+        </defs>
+        <path d={area} fill="url(#trend-fill)" />
+        <path d={line} fill="none" stroke="#f97316" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" filter="url(#trend-glow)" vectorEffect="non-scaling-stroke" />
+        <circle cx={last[0]} cy={last[1]} r={6} fill="#f97316" opacity={0.25} />
+        <circle cx={last[0]} cy={last[1]} r={3.5} fill="#f97316" />
+      </svg>
+
+      {/* Hover guide + dot + tooltip (HTML overlay → no SVG distortion) */}
+      {hi != null && (
+        <>
+          <div className="pointer-events-none absolute top-0 bottom-0 w-px bg-orange-400/40" style={{ left: `${xPct}%` }} />
+          <div className="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-orange-500 ring-2 ring-background shadow" style={{ left: `${xPct}%`, top: `${yPct}%` }} />
+          <div
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full rounded-lg border border-border bg-popover px-2.5 py-1.5 text-center shadow-lg"
+            style={{ left: `${Math.min(Math.max(xPct, 8), 92)}%`, top: `${yPct}%`, marginTop: -10 }}
+          >
+            <div className="text-sm font-bold leading-none tabular-nums">{data[hi].toLocaleString()}</div>
+            <div className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">{dayLabel(hi)}</div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
