@@ -980,8 +980,8 @@ function ConvItem({
             {initials || "?"}
           </div>
         )}
-        <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full ring-2 ring-background flex items-center justify-center overflow-hidden">
-          {conv.channel === "whatsapp" ? <WhatsAppIcon size={20} /> : <InstagramIcon size={20} />}
+        <div className="absolute -bottom-1.5 -right-1.5 flex items-center justify-center rounded-full bg-background p-[1.5px] shadow-sm">
+          {conv.channel === "whatsapp" ? <WhatsAppIcon size={18} /> : <InstagramIcon size={18} />}
         </div>
       </div>
 
