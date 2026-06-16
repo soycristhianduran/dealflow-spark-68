@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X, Webhook, Copy, Eye, EyeOff } from "lucide-react";
-import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
+import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon, GoogleAdsIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -140,6 +140,28 @@ const integrations: Integration[] = [
     ],
     requirements: ["Cuenta de TikTok for Business", "TikTok Ads Manager activo", "Acceso a TikTok Marketing API"],
     docsUrl: "https://ads.tiktok.com",
+  },
+  {
+    id: "google-ads",
+    name: "Google Ads",
+    description: "Importa leads y mide conversiones de tus campañas de Google Ads.",
+    icon: GoogleAdsIcon,
+    color: "hsl(217, 89%, 61%)",
+    comingSoon: true,
+    features: [
+      "Captura de leads desde Google Lead Form Ads",
+      "Sincronización de campañas y conversiones",
+      "Atribución de ventas por campaña",
+      "Audiencias personalizadas desde el CRM",
+    ],
+    setupSteps: [
+      "Crea una cuenta en Google Ads",
+      "Accede al administrador de Google Ads",
+      "Autoriza el acceso a la API de Google Ads",
+      "Conecta tu cuenta en Klosify",
+    ],
+    requirements: ["Cuenta de Google Ads activa", "Acceso a Google Ads API"],
+    docsUrl: "https://ads.google.com",
   },
 ];
 
@@ -802,7 +824,7 @@ export default function IntegrationsPage() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...integrations]
             .sort((a, b) => {
-              const order = ["facebook", "whatsapp", "instagram", "google-calendar", "tiktok"];
+              const order = ["facebook", "whatsapp", "instagram", "google-calendar", "tiktok", "google-ads"];
               return order.indexOf(a.id) - order.indexOf(b.id);
             })
             .flatMap((integration) => {
