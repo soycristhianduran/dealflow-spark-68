@@ -624,27 +624,6 @@ export default function DashboardPage() {
     // All active pipeline contacts (current state — not period-filtered).
     // Paginated past the 1000-row PostgREST cap so the count, pipeline value and
     // funnel reflect EVERY active deal, not just the first 1000.
-    const fetchAllActive = async (): Promise<KpiContactRow[]> => {
-      const all: KpiContactRow[] = [];
-      for (let from = 0; from <= 50000; from += 1000) {
-        let q = supabase
-          .from("contacts")
-          .select("id, budget, budget_currency, stage_id")
-          .not("pipeline_id", "is", null)
-          .eq("lead_status", "active")
-          .gte("created_at", startIso)
-          .lt("created_at", endIso)
-          .order("id", { ascending: true })
-          .range(from, from + 999);
-        if (vf) q = q.eq("owner_id", vf);
-        const { data } = await q;
-        if (!data?.length) break;
-        all.push(...(data as unknown as KpiContactRow[]));
-        if (data.length < 1000) break;
-      }
-      return all;
-    };
-
     // Pipeline stages
     const stagesQ = supabase
       .from("pipeline_stages")
@@ -705,7 +684,9 @@ export default function DashboardPage() {
       lostRes, meetRes, taskRes, actRes, objRes,
       totalCtRes, waRes,
     ] = await Promise.all([
-      curQ, prevQ, fetchAllActive(), stagesQ,
+      curQ, prevQ,
+      supabase.rpc("dashboard_pipeline", { p_org: organizationId, p_vendor: vf, p_start: startIso, p_end: endIso }),
+      stagesQ,
       lostQ, meetQ, taskQ, actQ, objQ,
       totalCtQ, waQ,
     ]);
@@ -713,7 +694,9 @@ export default function DashboardPage() {
     /* ---------- KPI calculations ---------- */
     const cur    = (curRes.data  || []) as unknown as KpiContactRow[];
     const prev   = (prevRes.data || []) as unknown as KpiContactRow[];
-    const active = (activeRes as unknown as KpiContactRow[]) || [];
+    // Pipeline is now a single server-side aggregate (count + value + per-stage).
+    const pipe: { count?: number; value?: number; currency?: string; stages?: Record<string, { count: number; value: number }> } =
+      ((activeRes as any)?.data) || {};
 
     const wonCur  = cur.filter((d) => d.lead_status === "won");
     const lostCur = cur.filter((d) => d.lead_status === "lost");
@@ -731,24 +714,17 @@ export default function DashboardPage() {
     setPrevWonN(wonPrev.length);
     setPrevLostN(lostPrev.length);
 
-    const pv = active.reduce((s, d) => s + Number(d.budget || 0), 0);
-    const pc = active[0]?.budget_currency || "USD";
-    setPipelineVal(pv);
-    setPipelineCur(pc);
-    setPipelineN(active.length);
+    setPipelineVal(Number(pipe.value || 0));
+    setPipelineCur(pipe.currency || "USD");
+    setPipelineN(Number(pipe.count || 0));
 
     /* ---------- Funnel ---------- */
     const stages = (stagesRes.data || []) as unknown as StageDbRow[];
-    const sMap = new Map<string, { count: number; value: number }>();
-    for (const c of active) {
-      if (!c.stage_id) continue;
-      const p = sMap.get(c.stage_id) || { count: 0, value: 0 };
-      sMap.set(c.stage_id, { count: p.count + 1, value: p.value + Number(c.budget || 0) });
-    }
+    const sAgg = pipe.stages || {};
     setStageData(
       stages.map((s) => ({
         id: s.id, name: s.name, position: (s as any).order ?? (s as any).position, color: s.color,
-        ...(sMap.get(s.id) || { count: 0, value: 0 }),
+        count: Number(sAgg[s.id]?.count || 0), value: Number(sAgg[s.id]?.value || 0),
       }))
     );
 
@@ -794,7 +770,7 @@ export default function DashboardPage() {
     setWaConnected((waRes.data?.length ?? 0) > 0);
 
     setLoading(false);
-  }, [isVendor, myUserId, period, customRange.from, customRange.to]);
+  }, [organizationId, isVendor, myUserId, period, customRange.from, customRange.to]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
