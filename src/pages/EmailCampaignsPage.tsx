@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { supabase } from "@/integrations/supabase/client";
 import {
   Mail, MessageSquare, Users, Eye, XCircle, Loader2,
-  ChevronRight, MousePointerClick, CheckCircle2, RefreshCw,
+  ChevronRight, MousePointerClick, CheckCircle2, RefreshCw, ShoppingBag,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -292,6 +292,15 @@ export default function CampaignsPage() {
     read: a.read + c.read_count, failed: a.failed + c.failed_count,
   }), { recipients: 0, sent: 0, delivered: 0, read: 0, failed: 0 });
 
+  // Total attributed Shopify sales per channel
+  const sumSales = (list: { id: string }[]) => list.reduce((a, c) => {
+    const s = salesById[c.id]; return s ? { rev: a.rev + s.revenue, ord: a.ord + s.orders, cur: s.currency || a.cur } : a;
+  }, { rev: 0, ord: 0, cur: null as string | null });
+  const emailSales = sumSales(emailCampaigns);
+  const waSales = sumSales(waCampaigns);
+  const fmtSales = (s: { rev: number; ord: number; cur: string | null }) =>
+    `${s.cur ? s.cur + " " : "$"}${s.rev.toLocaleString("en-US", { maximumFractionDigits: 0 })} (${s.ord})`;
+
   return (
     <AppLayout>
       <AppHeader
@@ -323,7 +332,8 @@ export default function CampaignsPage() {
             <StatPill icon={<Users className="h-3 w-3" />} label="Enviados" value={emailTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
             <StatPill icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${emailTotals.opened} (${pct(emailTotals.opened, emailTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
             <StatPill icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${emailTotals.clicked} (${pct(emailTotals.clicked, emailTotals.sent)})`} color="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300" />
-            <StatPill icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={emailTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
+            <StatPill icon={<XCircle className="h-3 w-3" />} label="Rebotados" value={emailTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
+            {emailSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label="Ventas" value={fmtSales(emailSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
           </div>
         )}
         {tab === "whatsapp" && waCampaigns.length > 0 && (
@@ -333,6 +343,7 @@ export default function CampaignsPage() {
             <StatPill icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${waTotals.delivered} (${pct(waTotals.delivered, waTotals.sent)})`} color="bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300" />
             <StatPill icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${waTotals.read} (${pct(waTotals.read, waTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
             <StatPill icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={waTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
+            {waSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label="Ventas" value={fmtSales(waSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
           </div>
         )}
 
