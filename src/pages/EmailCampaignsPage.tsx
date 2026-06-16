@@ -113,7 +113,18 @@ function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: strin
 }
 
 // ── Campaign rows ─────────────────────────────────────────────────────────────
-function EmailCampaignRow({ campaign: c, onClick }: { campaign: EmailCampaign; onClick: () => void }) {
+function SalesMetric({ sales }: { sales?: { orders: number; revenue: number; currency: string | null } }) {
+  if (!sales || sales.orders === 0) return null;
+  const fmt = `${sales.currency ? sales.currency + " " : "$"}${Number(sales.revenue).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+  return (
+    <div className="text-center">
+      <p className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt}</p>
+      <p className="text-[11px] text-muted-foreground">ventas ({sales.orders})</p>
+    </div>
+  );
+}
+
+function EmailCampaignRow({ campaign: c, sales, onClick }: { campaign: EmailCampaign; sales?: { orders: number; revenue: number; currency: string | null }; onClick: () => void }) {
   const openRate = c.sent_count > 0 ? Math.round((c.opened_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
@@ -130,13 +141,14 @@ function EmailCampaignRow({ campaign: c, onClick }: { campaign: EmailCampaign; o
         <div className="text-center"><p className="font-semibold text-green-600">{c.opened_count} <span className="text-xs font-normal text-muted-foreground">({openRate}%)</span></p><p className="text-[11px] text-muted-foreground">abiertos</p></div>
         <div className="text-center"><p className="font-semibold text-purple-600">{c.clicked_count}</p><p className="text-[11px] text-muted-foreground">clics</p></div>
         {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">fallidos</p></div>}
+        <SalesMetric sales={sales} />
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0 group-hover:text-foreground transition-colors" />
     </button>
   );
 }
 
-function WaCampaignRow({ campaign: c, onClick }: { campaign: WaCampaign; onClick: () => void }) {
+function WaCampaignRow({ campaign: c, sales, onClick }: { campaign: WaCampaign; sales?: { orders: number; revenue: number; currency: string | null }; onClick: () => void }) {
   const readRate = c.sent_count > 0 ? Math.round((c.read_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
@@ -154,6 +166,7 @@ function WaCampaignRow({ campaign: c, onClick }: { campaign: WaCampaign; onClick
         <div className="text-center"><p className="font-semibold text-teal-600">{c.delivered_count}</p><p className="text-[11px] text-muted-foreground">entregados</p></div>
         <div className="text-center"><p className="font-semibold text-green-600">{c.read_count} <span className="text-xs font-normal text-muted-foreground">({readRate}%)</span></p><p className="text-[11px] text-muted-foreground">leídos</p></div>
         {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">fallidos</p></div>}
+        <SalesMetric sales={sales} />
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0 group-hover:text-foreground transition-colors" />
     </button>
@@ -163,6 +176,7 @@ function WaCampaignRow({ campaign: c, onClick }: { campaign: WaCampaign; onClick
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
   const [tab, setTab] = useState<TabType>("email");
+  const [salesById, setSalesById] = useState<Record<string, { orders: number; revenue: number; currency: string | null }>>({});
   const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([]);
   const [waCampaigns, setWaCampaigns] = useState<WaCampaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,6 +199,12 @@ export default function CampaignsPage() {
         .order("created_at", { ascending: false }).limit(100),
     ]);
     if (emailRes.data) setEmailCampaigns(emailRes.data as EmailCampaign[]);
+    // Attributed Shopify sales per campaign (email + whatsapp)
+    supabase.from("campaign_sales_roi").select("campaign_id, attributed_orders, attributed_revenue, currency").then(({ data }) => {
+      const map: Record<string, { orders: number; revenue: number; currency: string | null }> = {};
+      for (const r of data ?? []) map[(r as any).campaign_id] = { orders: Number((r as any).attributed_orders), revenue: Number((r as any).attributed_revenue), currency: (r as any).currency };
+      setSalesById(map);
+    });
     if (waRes.data) {
       let wa = waRes.data as (WaCampaign & { organization_id?: string })[];
       // Override stored counters with LIVE stats from whatsapp_sends so the list
@@ -324,11 +344,11 @@ export default function CampaignsPage() {
         ) : tab === "email" ? (
           emailCampaigns.length === 0
             ? <EmptyState icon={<Mail className="h-10 w-10 text-muted-foreground/40" />} title="Sin campañas de email" desc="Los envíos masivos desde el pipeline aparecerán aquí con sus estadísticas." />
-            : <div className="space-y-2">{emailCampaigns.map(c => <EmailCampaignRow key={c.id} campaign={c} onClick={() => openDetail(c, "email")} />)}</div>
+            : <div className="space-y-2">{emailCampaigns.map(c => <EmailCampaignRow key={c.id} campaign={c} sales={salesById[c.id]} onClick={() => openDetail(c, "email")} />)}</div>
         ) : (
           waCampaigns.length === 0
             ? <EmptyState icon={<MessageSquare className="h-10 w-10 text-muted-foreground/40" />} title="Sin campañas de WhatsApp" desc="Los envíos masivos de WhatsApp desde el pipeline aparecerán aquí." />
-            : <div className="space-y-2">{waCampaigns.map(c => <WaCampaignRow key={c.id} campaign={c} onClick={() => openDetail(c, "whatsapp")} />)}</div>
+            : <div className="space-y-2">{waCampaigns.map(c => <WaCampaignRow key={c.id} campaign={c} sales={salesById[c.id]} onClick={() => openDetail(c, "whatsapp")} />)}</div>
         )}
       </div>
 
