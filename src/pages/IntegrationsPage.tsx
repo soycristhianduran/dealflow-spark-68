@@ -847,11 +847,15 @@ export default function IntegrationsPage() {
       <AppHeader title="Integraciones" subtitle="Conecta tus herramientas favoritas" />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          <ShopifyIntegrationCard />
-          {integrations.map((integration) => {
+          {[...integrations]
+            .sort((a, b) => {
+              const order = ["facebook", "whatsapp", "instagram", "google-calendar", "tiktok"];
+              return order.indexOf(a.id) - order.indexOf(b.id);
+            })
+            .flatMap((integration) => {
             const isConnected = isIntegrationConnected(integration.id);
             const isLoading = isIntegrationLoading(integration.id);
-            return (
+            const card = (
               <Card
                 key={integration.id}
                 className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer"
@@ -1044,6 +1048,7 @@ export default function IntegrationsPage() {
                 </CardContent>
               </Card>
             );
+            return integration.id === "google-calendar" ? [card, <ShopifyIntegrationCard key="shopify" />] : card;
           })}
         </div>
 
