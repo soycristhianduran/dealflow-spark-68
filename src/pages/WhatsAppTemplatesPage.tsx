@@ -16,11 +16,12 @@ import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
-  Plus, RefreshCw, Trash2, MessageCircle, CheckCircle2,
+  Plus, RefreshCw, Trash2, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { WhatsAppIcon } from "@/components/icons/BrandIcons";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   APPROVED: { label: "Aprobada", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle2 },
@@ -457,7 +458,9 @@ export default function WhatsAppTemplatesPage() {
       <AppLayout>
         <AppHeader title="Plantillas WhatsApp" />
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
-          <MessageCircle className="h-16 w-16 text-muted-foreground" />
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+            <WhatsAppIcon className="h-11 w-11" />
+          </div>
           <h2 className="text-xl font-semibold">WhatsApp no conectado</h2>
           <p className="text-muted-foreground text-center max-w-md">
             Para gestionar plantillas necesitas conectar tu cuenta de WhatsApp Business primero.
@@ -475,28 +478,54 @@ export default function WhatsAppTemplatesPage() {
       <AppHeader title="Plantillas WhatsApp" />
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Plantillas de mensajes</h1>
-            <p className="text-muted-foreground text-sm mt-1">
-              Crea y gestiona plantillas aprobadas por Meta para iniciar conversaciones
-            </p>
+        {/* Hero header */}
+        <div className="relative overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-green-500/5 to-transparent p-6">
+          {/* watermark logo */}
+          <WhatsAppIcon className="pointer-events-none absolute -right-6 -top-8 h-44 w-44 opacity-[0.06]" />
+          <div className="relative flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                <WhatsAppIcon className="h-9 w-9" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Plantillas de mensajes</h1>
+                <p className="text-muted-foreground text-sm mt-1 max-w-md">
+                  Crea y gestiona plantillas aprobadas por Meta para iniciar conversaciones de WhatsApp.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={syncFromMeta} disabled={loading} className="bg-background/60 backdrop-blur">
+                <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} />
+                Sincronizar
+              </Button>
+              <Button size="sm" onClick={() => setShowCreate(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                <Plus className="h-4 w-4 mr-1" />
+                Nueva plantilla
+              </Button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={syncFromMeta} disabled={loading}>
-              <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} />
-              Sincronizar
-            </Button>
-            <Button size="sm" onClick={() => setShowCreate(true)}>
-              <Plus className="h-4 w-4 mr-1" />
-              Nueva plantilla
-            </Button>
-          </div>
+
+          {/* Stat pills */}
+          {templates.length > 0 && (
+            <div className="relative mt-5 flex flex-wrap gap-2">
+              {[
+                { label: "Total", value: templates.length, cls: "bg-background/70 text-foreground ring-border" },
+                { label: "Aprobadas", value: templates.filter(t => t.status === "APPROVED").length, cls: "bg-green-100 text-green-700 ring-green-200" },
+                { label: "Pendientes", value: templates.filter(t => t.status === "PENDING" || t.status === "IN_APPEAL").length, cls: "bg-yellow-100 text-yellow-700 ring-yellow-200" },
+                { label: "Rechazadas", value: templates.filter(t => t.status === "REJECTED").length, cls: "bg-red-100 text-red-700 ring-red-200" },
+              ].map(s => (
+                <div key={s.label} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1", s.cls)}>
+                  <span className="font-bold tabular-nums">{s.value}</span>
+                  <span className="opacity-80">{s.label}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Info banner */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-800 flex gap-3">
+        <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-300 flex gap-3">
           <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <div>
             <strong>¿Cómo funcionan las plantillas?</strong> Meta revisa cada plantilla antes de aprobarla (24-48h).
@@ -513,7 +542,9 @@ export default function WhatsAppTemplatesPage() {
         ) : templates.length === 0 ? (
           <Card className="border-dashed">
             <CardContent className="flex flex-col items-center justify-center py-12 gap-3">
-              <MessageCircle className="h-12 w-12 text-muted-foreground" />
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
+                <WhatsAppIcon className="h-9 w-9" />
+              </div>
               <p className="text-muted-foreground font-medium">No tienes plantillas todavía</p>
               <p className="text-sm text-muted-foreground text-center max-w-sm">
                 Crea tu primera plantilla para poder iniciar conversaciones de WhatsApp con tus contactos.
@@ -525,20 +556,32 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((t) => (
+            {templates.map((t) => {
+              const mediaChip = t.header_type && t.header_type !== "TEXT" && t.header_type !== "NONE"
+                ? (t.header_type === "IMAGE" ? { icon: "🖼", label: "Imagen" }
+                  : t.header_type === "VIDEO" ? { icon: "🎬", label: "Video" }
+                  : t.header_type === "DOCUMENT" ? { icon: "📄", label: "Documento" } : null)
+                : null;
+              return (
               <Card
                 key={t.id}
-                className="hover:shadow-md transition-shadow cursor-pointer"
+                className="group relative overflow-hidden border-border/70 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5 transition-all cursor-pointer"
                 onClick={() => setViewTemplate(t)}
               >
+                {/* left accent bar */}
+                <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500/70 opacity-0 group-hover:opacity-100 transition-opacity" />
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <CardTitle className="text-sm font-semibold truncate">{t.name}</CardTitle>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-muted-foreground">{t.category}</span>
-                        <span className="text-xs text-muted-foreground">·</span>
-                        <span className="text-xs text-muted-foreground">{t.language}</span>
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 ring-1 ring-emerald-500/15">
+                        <WhatsAppIcon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0">
+                        <CardTitle className="text-sm font-semibold truncate">{t.name}</CardTitle>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t.category}</span>
+                          <span className="text-[10px] text-muted-foreground">{t.language}</span>
+                        </div>
                       </div>
                     </div>
                     <TemplateStatusBadge status={t.status} />
@@ -550,30 +593,30 @@ export default function WhatsAppTemplatesPage() {
                       {t.header_text}
                     </p>
                   )}
-                  {t.header_type && t.header_type !== "TEXT" && t.header_type !== "NONE" && (
-                    <p className="text-xs text-muted-foreground">
-                      {t.header_type === "IMAGE" ? "🖼 Imagen" : t.header_type === "VIDEO" ? "🎬 Video" : t.header_type === "DOCUMENT" ? "📄 Documento" : ""}
-                    </p>
+                  {mediaChip && (
+                    <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                      <span>{mediaChip.icon}</span>{mediaChip.label}
+                    </span>
                   )}
-                  <p className="text-sm text-foreground line-clamp-3 whitespace-pre-wrap">{t.body_text}</p>
+                  <p className="text-sm text-foreground line-clamp-3 whitespace-pre-wrap leading-relaxed">{t.body_text}</p>
                   {t.footer_text && (
                     <p className="text-xs text-muted-foreground italic">{t.footer_text}</p>
                   )}
                   {t.buttons && t.buttons.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
                       {t.buttons.map((b, i) => (
-                        <span key={i} className="text-xs border rounded px-2 py-0.5 text-muted-foreground">
+                        <span key={i} className="text-xs border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 font-medium">
                           {b.text}
                         </span>
                       ))}
                     </div>
                   )}
                   {t.rejection_reason && t.rejection_reason !== "NONE" && (
-                    <p className="text-xs text-red-600 bg-red-50 rounded p-2">
+                    <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/30 rounded p-2">
                       ⚠️ {t.rejection_reason}
                     </p>
                   )}
-                  <div className="flex justify-end gap-1 pt-1" onClick={e => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1 pt-1 border-t mt-1" onClick={e => e.stopPropagation()}>
                     <Button
                       variant="ghost" size="sm"
                       className="h-7 px-2 text-muted-foreground hover:text-foreground"
@@ -591,7 +634,8 @@ export default function WhatsAppTemplatesPage() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
