@@ -33,6 +33,7 @@ type Integration = {
   setupSteps: string[];
   requirements: string[];
   docsUrl: string;
+  comingSoon?: boolean;
 };
 
 const integrations: Integration[] = [
@@ -124,6 +125,7 @@ const integrations: Integration[] = [
     description: "Integra TikTok Ads para capturar leads de tus campañas de video.",
     icon: TikTokIcon,
     color: "hsl(0, 0%, 10%)",
+    comingSoon: true,
     features: [
       "Captura de leads desde TikTok Lead Gen",
       "Sincronización de formularios de TikTok",
@@ -810,7 +812,7 @@ export default function IntegrationsPage() {
               <Card
                 key={integration.id}
                 className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => setSelectedIntegration(integration)}
+                onClick={() => { if (!integration.comingSoon) setSelectedIntegration(integration); }}
               >
                 <CardContent className="p-5 space-y-4">
                   <div className="flex items-start justify-between">
@@ -821,9 +823,11 @@ export default function IntegrationsPage() {
                     </div>
                     <Badge
                       variant={isConnected ? "default" : "secondary"}
-                      className={`text-xs gap-1 ${isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}
+                      className={`text-xs gap-1 ${integration.comingSoon ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15" : isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}
                     >
-                      {isConnected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
+                      {integration.comingSoon
+                        ? <><Circle className="h-3 w-3" /> Muy pronto</>
+                        : isConnected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
                     </Badge>
                   </div>
                   <div>
@@ -985,10 +989,12 @@ export default function IntegrationsPage() {
                     size="sm"
                     variant={isConnected ? "outline" : "default"}
                     className="w-full"
-                    disabled={isLoading}
-                    onClick={(e) => { e.stopPropagation(); handleCardAction(integration); }}
+                    disabled={isLoading || integration.comingSoon}
+                    onClick={(e) => { e.stopPropagation(); if (!integration.comingSoon) handleCardAction(integration); }}
                   >
-                    {isLoading ? (
+                    {integration.comingSoon ? (
+                      <>Muy pronto</>
+                    ) : isLoading ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
                     ) : isConnected ? (
                       <>{integration.id === "whatsapp" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : integration.id === "facebook" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
