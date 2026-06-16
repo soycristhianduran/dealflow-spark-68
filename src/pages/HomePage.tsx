@@ -31,23 +31,31 @@ const plans: Plan[] = [
     id: "starter",
     name: "Starter", monthly: 29, annual: 24,
     desc: "Para emprendedores que están comenzando",
-    features: ["1 usuario", "500 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "3 landings con IA", "3 flujos de automatización", "WhatsApp Business nativo", "Meta Ads + ROAS", "Agente IA — 100 conversaciones/mes"],
-    notIncluded: ["IA Boost (scoring)", "Detección de objeciones IA", "Automatizaciones de Instagram", "Email campaigns", "API access"],
+    features: ["1 usuario", "500 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "3 landings con IA", "3 flujos de automatización", "WhatsApp ilimitado", "Meta Ads + ROAS", "1.000 emails/mes", "Agente de Chat IA — 500 créditos/mes", "Asistente IA — 100 usos/mes"],
+    notIncluded: ["IA Boost (análisis + objeciones)", "Automatizaciones de Instagram", "API access"],
     cta: "Empezar gratis", popular: false,
   },
   {
     id: "pro",
-    name: "Pro", monthly: 39, annual: 32,
+    name: "Pro", monthly: 59, annual: 49,
     desc: "Para equipos de ventas en crecimiento",
-    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "15 landings con IA", "Flujos ilimitados", "IA Boost — 1.000 análisis/mes", "Detección de objeciones IA", "Agente IA — 500 conversaciones/mes", "Agente de voz (llamadas)", "Automatizaciones de Instagram", "Email campaigns", "WhatsApp Business nativo", "Meta Ads + ROAS"],
+    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "WhatsApp ilimitado", "Meta Ads + ROAS", "5.000 emails/mes", "IA Boost — 1.000 análisis/mes", "Detección de objeciones IA", "Agente de Chat IA — 3.000 créditos/mes", "Asistente IA — 1.000 usos/mes", "Agente de voz (llamadas)", "Automatizaciones de Instagram", "Email marketing"],
     notIncluded: ["API access"],
     cta: "Comenzar ahora →", popular: true,
   },
   {
     id: "business",
-    name: "Business", monthly: 89, annual: 74,
-    desc: "Para agencias y equipos grandes",
-    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "IA Boost — 5.000 análisis/mes", "Agente IA — 2.500 conversaciones/mes", "Agente de voz (llamadas)", "Email campaigns", "API access", "Soporte prioritario + onboarding 1-on-1", "Todo lo del Pro"],
+    name: "Business", monthly: 99, annual: 82,
+    desc: "Para equipos grandes y de alto volumen",
+    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "25.000 emails/mes", "IA Boost — 5.000 análisis/mes", "Agente de Chat IA — 15.000 créditos/mes", "Asistente IA — 10.000 usos/mes", "Agente de voz (llamadas)", "Email marketing", "API access", "Soporte prioritario + onboarding 1-a-1", "Todo lo del Pro"],
+    notIncluded: [],
+    cta: "Suscribirse ahora →", popular: false,
+  },
+  {
+    id: "agency",
+    name: "Agencia", monthly: 249, annual: 207,
+    desc: "Para agencias que gestionan varias marcas",
+    features: ["25 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "Landings ilimitadas", "75.000 emails/mes", "IA Boost — 20.000 análisis/mes", "Agente de Chat IA — 60.000 créditos/mes", "Asistente IA — 50.000 usos/mes", "Agente de voz (llamadas)", "Cuentas ilimitadas de WhatsApp, Instagram y Meta", "API access", "Soporte prioritario + onboarding 1-a-1", "Todo lo del Business"],
     notIncluded: [],
     cta: "Suscribirse ahora →", popular: false,
   },
@@ -91,7 +99,7 @@ const testimonials: Testimonial[] = [
 
 const addOns: AddOn[] = [
   { icon: Target,   label: "+1.000 IA Boost (análisis + objeciones)", price: "$19",   iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
-  { icon: Rocket,   label: "+5.000 IA Boost (análisis + objeciones)", price: "$39",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
+  { icon: Rocket,   label: "+5.000 IA Boost (análisis + objeciones)", price: "$49",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
   { icon: UserPlus, label: "Seat adicional",  price: "$9/mes",iconColor: "text-teal-600",   iconBg: "bg-teal-100"   },
 ];
 
@@ -880,7 +888,7 @@ export default function HomePage() {
                     <div className="space-y-2.5">
                       {[
                         { msg: "Hola, ¿cuánto cuesta el plan Pro?", time: "23:14", out: false },
-                        { msg: "¡Hola! El plan Pro está a $39/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
+                        { msg: "¡Hola! El plan Pro está a $59/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
                         { msg: "Sí, quiero hablar con alguien para comprarlo", time: "23:15", out: false },
                         { msg: "¡Perfecto! Voy a comunicarte con uno de nuestros asesores ahora mismo 😊", time: "23:15", out: true, ai: true },
                       ].map((m, i) => (
@@ -1165,11 +1173,11 @@ export default function HomePage() {
                     ))}
                   </div>
                   <div className="bg-slate-950 rounded-xl p-5 mt-6 text-center">
-                    <p className="text-3xl font-black text-white font-mono mb-2">$39/mes</p>
+                    <p className="text-3xl font-black text-white font-mono mb-2">$59/mes</p>
                     <div className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold mb-2">
-                      <BadgePercent className="w-3.5 h-3.5" /> Ahorras $138/mes
+                      <BadgePercent className="w-3.5 h-3.5" /> Ahorras $118/mes
                     </div>
-                    <p className="text-slate-500 text-xs">$1.656/año en tu bolsillo</p>
+                    <p className="text-slate-500 text-xs">$1.416/año en tu bolsillo</p>
                   </div>
                 </div>
               </FadeUp>
@@ -1191,7 +1199,7 @@ export default function HomePage() {
               </div>
             </FadeUp>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start max-w-5xl mx-auto pb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start max-w-6xl mx-auto pb-8">
               {plans.map((plan, i) => (
                 <FadeUp key={plan.name} delay={i * 100}>
                   <PlanCard
