@@ -310,48 +310,45 @@ Deno.serve(async (req) => {
                 }
               }
 
-              // Try to find contact by phone — search org-wide so leads from
-              // other channels (Facebook Ads, landing pages) are matched correctly.
-              let { data: contact } = await supabase
-                .from("contacts")
-                .select("id")
-                .eq("organization_id", config.organization_id)
-                .or(`primary_phone.eq.${senderPhone},primary_phone.eq.+${senderPhone}`)
-                .maybeSingle();
+              // ── Find-or-create the contact atomically ──────────────────────
+              // Uses a DB function guarded by a per-(org,phone) advisory lock so
+              // two webhook deliveries arriving at the same time cannot each
+              // insert a duplicate contact (classic find-then-insert race).
+              // The lookup also normalizes the phone (digits-only) so numbers
+              // stored with/without "+" or spaces match the same lead.
+              const waProfile = (value.contacts || []).find(
+                (c: any) => c.wa_id === senderPhone || c.wa_id === `+${senderPhone}`,
+              );
+              const displayName: string | null = waProfile?.profile?.name || null;
+              const nameParts = displayName ? displayName.trim().split(/\s+/) : [];
+              const firstName = nameParts[0] || null;
+              const lastName = nameParts.slice(1).join(" ") || null;
+              const normalizedPhone = senderPhone.startsWith("+") ? senderPhone : `+${senderPhone}`;
 
-              // ── Auto-create lead from first WhatsApp message ───────────────
-              // If no contact exists yet, create one so the lead isn't lost.
-              // Meta sometimes sends the WhatsApp display name in value.contacts[].profile.name
-              if (!contact && config.organization_id) {
-                const waProfile = (value.contacts || []).find(
-                  (c: any) => c.wa_id === senderPhone || c.wa_id === `+${senderPhone}`,
-                );
-                const displayName: string | null = waProfile?.profile?.name || null;
-                const nameParts = displayName ? displayName.trim().split(/\s+/) : [];
-                const firstName = nameParts[0] || null;
-                const lastName = nameParts.slice(1).join(" ") || null;
-                // Normalize: always store with leading "+"
-                const normalizedPhone = senderPhone.startsWith("+") ? senderPhone : `+${senderPhone}`;
+              let contact: { id: string } | null = null;
+              let wasCreated = false;
+              if (config.organization_id) {
+                const { data: foc, error: focErr } = await supabase.rpc("wa_find_or_create_contact", {
+                  p_org: config.organization_id,
+                  p_owner: config.user_id,
+                  p_phone: senderPhone,
+                  p_first: firstName,
+                  p_last: lastName,
+                  p_full: displayName,
+                });
+                if (focErr) {
+                  console.error("find_or_create_contact error:", focErr.message);
+                } else if (foc && foc[0]) {
+                  contact = { id: foc[0].contact_id };
+                  wasCreated = foc[0].was_created;
+                }
+              }
 
-                const { data: newContact, error: createErr } = await supabase
-                  .from("contacts")
-                  .insert({
-                    owner_id: config.user_id,
-                    organization_id: config.organization_id,
-                    primary_phone: normalizedPhone,
-                    first_name: firstName,
-                    last_name: lastName,
-                    full_name: displayName || normalizedPhone,
-                    source: "whatsapp",
-                  })
-                  .select("id")
-                  .single();
-
-                if (createErr) {
-                  console.error("Auto-create contact error:", createErr.message);
-                } else if (newContact) {
+              // ── Post-create setup (only on the first WhatsApp message) ─────
+              if (contact && wasCreated) {
+                {
+                  const newContact = contact;
                   console.log(`Auto-created contact ${newContact.id} from WhatsApp number ${normalizedPhone}`);
-                  contact = newContact;
 
                   // Fire contact_created automation trigger (fire-and-forget)
                   fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
