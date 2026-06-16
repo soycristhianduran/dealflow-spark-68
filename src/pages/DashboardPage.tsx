@@ -125,58 +125,44 @@ function PeriodSelector({
   customRange: { from: string; to: string };
   onCustomChange: (r: { from: string; to: string }) => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
+  const [calOpen, setCalOpen] = useState(false);
   const btn = (active: boolean) =>
     `px-2.5 py-2 min-h-[36px] text-xs font-medium rounded-md transition-all ${
       active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`;
+  const parse = (s: string) => { if (!s) return undefined; const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const pretty = (s: string) => s ? new Date(s + "T00:00:00").toLocaleDateString("es", { day: "2-digit", month: "short" }) : "";
+  const customLabel = value === "custom" && customRange.from && customRange.to
+    ? `${pretty(customRange.from)} → ${pretty(customRange.to)}` : "Personalizado";
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
-        {PERIOD_OPTIONS.map((opt) => (
-          <button key={opt.value} onClick={() => onChange(opt.value)} className={btn(value === opt.value)}>
-            {opt.label}
-          </button>
-        ))}
-        <button
-          onClick={() => {
-            // Default the custom range to the last 30 days when first opened.
-            if (!customRange.from || !customRange.to) {
-              const to = today;
-              const from = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
-              onCustomChange({ from, to });
-            }
-            onChange("custom");
-          }}
-          className={btn(value === "custom")}
-        >
-          Personalizado
+    <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+      {PERIOD_OPTIONS.map((opt) => (
+        <button key={opt.value} onClick={() => onChange(opt.value)} className={btn(value === opt.value)}>
+          {opt.label}
         </button>
-      </div>
-      {value === "custom" && (() => {
-        const parse = (s: string) => { const [y, m, d] = s.split("-").map(Number); return s ? new Date(y, m - 1, d) : undefined; };
-        const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        const pretty = (s: string) => s ? new Date(s + "T00:00:00").toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }) : "—";
-        return (
-          <Popover>
-            <PopoverTrigger asChild>
-              <button className="flex items-center gap-2 rounded-lg border bg-muted/50 px-3 py-2 text-xs font-medium hover:bg-muted transition-colors">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                {customRange.from && customRange.to ? <>{pretty(customRange.from)} → {pretty(customRange.to)}</> : "Elegir fechas"}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end">
-              <Calendar
-                mode="range"
-                numberOfMonths={2}
-                defaultMonth={parse(customRange.from)}
-                selected={{ from: parse(customRange.from), to: parse(customRange.to) }}
-                onSelect={(r: any) => onCustomChange({ from: r?.from ? fmt(r.from) : "", to: r?.to ? fmt(r.to) : (r?.from ? fmt(r.from) : "") })}
-                disabled={{ after: new Date() }}
-              />
-            </PopoverContent>
-          </Popover>
-        );
-      })()}
+      ))}
+      <Popover open={calOpen} onOpenChange={(o) => { setCalOpen(o); if (o) onChange("custom"); }}>
+        <PopoverTrigger asChild>
+          <button className={`${btn(value === "custom")} inline-flex items-center gap-1.5`}>
+            <CalendarDays className="h-3.5 w-3.5" /> {customLabel}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0" align="end">
+          <Calendar
+            mode="range"
+            numberOfMonths={2}
+            defaultMonth={parse(customRange.from) ?? new Date(Date.now() - 30 * 86_400_000)}
+            selected={{ from: parse(customRange.from), to: parse(customRange.to) }}
+            onSelect={(r: any) => {
+              const from = r?.from ? fmt(r.from) : "";
+              const to = r?.to ? fmt(r.to) : (r?.from ? fmt(r.from) : "");
+              onCustomChange({ from, to });
+              if (from && to && r?.to) setCalOpen(false); // close once a full range is picked
+            }}
+            disabled={{ after: new Date() }}
+          />
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
