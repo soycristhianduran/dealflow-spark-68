@@ -497,6 +497,7 @@ function VapiSection() {
   }, [organizationId]);
 
   const isConnected = !!configId;
+  const [open, setOpen] = useState(false);
 
   const handleSave = async () => {
     if (!organizationId || !apiKey.trim() || !phoneNumberId.trim()) return;
@@ -540,127 +541,80 @@ function VapiSection() {
     toast.success("Vapi desconectado");
   };
 
+  const VapiLogo = ({ size = 30 }: { size?: number }) => (
+    <svg viewBox="0 0 36 36" width={size} height={size} fill="none">
+      <rect width="36" height="36" rx="8" fill="#0d9488" />
+      <path d="M10 18a8 8 0 0 1 16 0M18 26V18M14 22l4-4 4 4" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+
   return (
-    <div className="mt-8">
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3 px-0.5">
-        Proveedores de voz / IA
-      </h2>
-      <Card className="border-none shadow-sm">
-        <CardContent className="p-5">
-          <div className="flex items-start gap-4">
-            {/* Icon */}
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-50 dark:bg-teal-950/30">
-              <svg viewBox="0 0 36 36" className="h-7 w-7" fill="none">
-                <rect width="36" height="36" rx="8" fill="#0d9488"/>
-                <path d="M10 18a8 8 0 0 1 16 0M18 26V18M14 22l4-4 4 4" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </div>
+    <>
+      <Card className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => setOpen(true)}>
+        <CardContent className="p-5 space-y-4">
+          <div className="flex items-start justify-between">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/30"><VapiLogo /></div>
+            <Badge variant={isConnected ? "default" : "secondary"} className={`text-xs gap-1 ${isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}>
+              {isConnected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
+            </Badge>
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-foreground">Vapi.ai · Agente de Voz</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Agente de llamadas con IA. Conecta tu cuenta de vapi.ai para llamar a tus leads.</p>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5 text-primary" /> Llamadas con IA · BYOK</div>
+          <Button variant="outline" size="sm" className="w-full" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
+            {isConnected ? "Gestionar" : "Conectar"} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </CardContent>
+      </Card>
 
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <h3 className="text-sm font-semibold">Vapi.ai</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Agente de llamadas con IA. Necesitas una cuenta en{" "}
-                    <a href="https://vapi.ai" target="_blank" rel="noreferrer" className="text-primary underline hover:no-underline">vapi.ai</a>.
-                  </p>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><VapiLogo size={22} /> Vapi.ai · Agente de Voz</DialogTitle>
+          </DialogHeader>
+          {loading ? (
+            <p className="text-sm text-muted-foreground py-4">Cargando...</p>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-xs">API Key</Label>
+                <div className="relative mt-1">
+                  <Input type={showKey ? "text" : "password"} value={apiKey} onChange={e => setApiKey(e.target.value)} placeholder="vapi_xxxxxxxxxxxxxxxx" className="pr-9 font-mono text-xs" />
+                  <button type="button" onClick={() => setShowKey(p => !p)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+                    {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
                 </div>
-                <Badge
-                  variant={isConnected ? "default" : "secondary"}
-                  className={`text-xs gap-1 shrink-0 ${isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}
-                >
-                  {isConnected
-                    ? <><CheckCircle2 className="h-3 w-3" /> Conectado</>
-                    : <><Circle className="h-3 w-3" /> No conectado</>
-                  }
-                </Badge>
+                <p className="text-[11px] text-muted-foreground mt-0.5">Encuéntrala en <span className="font-medium">vapi.ai → Account → API Keys</span></p>
               </div>
-
-              {loading ? (
-                <p className="text-xs text-muted-foreground mt-3">Cargando...</p>
-              ) : (
-                <div className="mt-4 space-y-3">
-                  {/* API Key */}
-                  <div>
-                    <Label className="text-xs">API Key</Label>
-                    <div className="flex gap-2 mt-1">
-                      <div className="relative flex-1">
-                        <Input
-                          type={showKey ? "text" : "password"}
-                          value={apiKey}
-                          onChange={e => setApiKey(e.target.value)}
-                          placeholder="vapi_xxxxxxxxxxxxxxxx"
-                          className="pr-9 font-mono text-xs"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowKey(p => !p)}
-                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      Encuéntrala en <span className="font-medium">vapi.ai → Account → API Keys</span>
-                    </p>
-                  </div>
-
-                  {/* Phone Number ID */}
-                  <div>
-                    <Label className="text-xs">Phone Number ID</Label>
-                    <Input
-                      className="mt-1 font-mono text-xs"
-                      value={phoneNumberId}
-                      onChange={e => setPhoneNumberId(e.target.value)}
-                      placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                    />
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      En <span className="font-medium">vapi.ai → Phone Numbers → copia el ID del número</span>
-                    </p>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      className="flex-1"
-                      disabled={saving || !apiKey.trim() || !phoneNumberId.trim()}
-                      onClick={handleSave}
-                    >
-                      {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Guardando…</> : isConnected ? "Actualizar" : "Conectar"}
-                    </Button>
-                    {isConnected && (
-                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving} onClick={handleDisconnect}>
-                        Desconectar
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* How-to steps */}
-                  {!isConnected && (
-                    <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5">
-                      <p className="text-xs font-semibold text-muted-foreground">Cómo obtener tus credenciales</p>
-                      {[
-                        "Crea una cuenta gratis en vapi.ai",
-                        "Ve a Account → API Keys y copia tu clave secreta",
-                        "Ve a Phone Numbers, compra o importa un número y copia su ID",
-                        "Pega ambos aquí y haz clic en Conectar",
-                      ].map((step, i) => (
-                        <div key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold mt-0.5">{i + 1}</span>
-                          {step}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+              <div>
+                <Label className="text-xs">Phone Number ID</Label>
+                <Input className="mt-1 font-mono text-xs" value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                <p className="text-[11px] text-muted-foreground mt-0.5">En <span className="font-medium">vapi.ai → Phone Numbers → copia el ID del número</span></p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" className="flex-1" disabled={saving || !apiKey.trim() || !phoneNumberId.trim()} onClick={handleSave}>
+                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Guardando…</> : isConnected ? "Actualizar" : "Conectar"}
+                </Button>
+                {isConnected && (
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving} onClick={handleDisconnect}>Desconectar</Button>
+                )}
+              </div>
+              {!isConnected && (
+                <div className="rounded-xl bg-muted/50 p-3 text-[11px] text-muted-foreground space-y-1">
+                  <p className="font-medium text-foreground">Cómo obtener tus credenciales</p>
+                  <p>1. Crea una cuenta gratis en <b>vapi.ai</b>.</p>
+                  <p>2. <b>Account → API Keys</b> → copia tu clave secreta.</p>
+                  <p>3. <b>Phone Numbers</b> → compra/importa un número y copia su ID.</p>
+                  <p>4. Pega ambos aquí y haz clic en Conectar.</p>
                 </div>
               )}
             </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -1050,10 +1004,9 @@ export default function IntegrationsPage() {
             );
             return integration.id === "google-calendar" ? [card, <ShopifyIntegrationCard key="shopify" />] : card;
           })}
+          {/* Vapi (voice AI) as the last grid card */}
+          <VapiSection />
         </div>
-
-        {/* Vapi (voice AI provider) */}
-        <VapiSection />
 
         {/* Webhooks */}
         <WebhooksSection />
