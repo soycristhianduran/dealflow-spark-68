@@ -542,10 +542,7 @@ function VapiSection() {
   };
 
   const VapiLogo = ({ size = 30 }: { size?: number }) => (
-    <svg viewBox="0 0 36 36" width={size} height={size} fill="none">
-      <rect width="36" height="36" rx="8" fill="#0d9488" />
-      <path d="M10 18a8 8 0 0 1 16 0M18 26V18M14 22l4-4 4 4" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <img src="/vapi-logo.svg" alt="Vapi" width={size} height={size} className="rounded-lg object-contain" />
   );
 
   return (
