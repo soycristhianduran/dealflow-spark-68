@@ -245,11 +245,6 @@ function WebhooksSection() {
 
   return (
     <>
-    {/* ── Shopify sales attribution ── */}
-    <div className="mt-8">
-      <ShopifyIntegrationCard />
-    </div>
-
     {/* ── Compact summary card on the main page ── */}
     <div className="mt-8">
       <div
@@ -851,6 +846,9 @@ export default function IntegrationsPage() {
     <AppLayout>
       <AppHeader title="Integraciones" subtitle="Conecta tus herramientas favoritas" />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+        <div className="mb-4">
+          <ShopifyIntegrationCard />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {integrations.map((integration) => {
             const isConnected = isIntegrationConnected(integration.id);
