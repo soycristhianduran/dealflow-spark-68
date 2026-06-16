@@ -12,7 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, ShoppingBag, CheckCircle2, Circle, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, Circle, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import { ShopifyIcon } from "@/components/icons/PlatformBrandIcons";
 
 const money = (n: number, c?: string | null) =>
   `${c ? c + " " : "$"}${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -65,9 +66,7 @@ export function ShopifyIntegrationCard() {
         <CardContent className="p-5 space-y-4">
           <div className="flex items-start justify-between">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/30">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-green-600 text-white shadow-sm">
-                <ShoppingBag className="h-5 w-5" />
-              </span>
+              <ShopifyIcon size={30} />
             </div>
             <Badge variant={connected ? "default" : "secondary"} className={`text-xs gap-1 ${connected ? "bg-green-600 hover:bg-green-600" : ""}`}>
               {connected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
@@ -96,8 +95,7 @@ export function ShopifyIntegrationCard() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-green-600 text-white"><ShoppingBag className="h-4 w-4" /></span>
-              Shopify · Atribución de ventas
+              <ShopifyIcon size={22} /> Shopify · Atribución de ventas
             </DialogTitle>
           </DialogHeader>
 
