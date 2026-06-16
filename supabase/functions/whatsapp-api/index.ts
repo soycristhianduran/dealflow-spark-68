@@ -734,22 +734,24 @@ Deno.serve(async (req) => {
       const { config_id } = body;
 
       if (config_id) {
-        // Disconnect a specific number by ID
-        await supabase.from("whatsapp_configs")
+        // Disconnect a specific number by ID. WhatsApp is shared ORG-WIDE (status
+        // is checked per-org), so scope by org — not by the caller's user_id —
+        // otherwise a number connected by another member can't be disconnected.
+        let oneQ = supabase.from("whatsapp_configs")
           .update({ is_active: false, is_primary: false })
-          .eq("id", config_id)
-          .eq("user_id", user.id);
+          .eq("id", config_id);
+        oneQ = orgId ? oneQ.eq("organization_id", orgId) : oneQ.eq("user_id", user.id);
+        await oneQ;
 
         // Promote next active number within the same org as new primary
         let nextQ = supabase
           .from("whatsapp_configs")
           .select("id")
-          .eq("user_id", user.id)
           .eq("is_active", true)
           .neq("phone_number_id", "pending")
           .order("created_at", { ascending: true })
           .limit(1);
-        if (orgId) nextQ = nextQ.eq("organization_id", orgId);
+        nextQ = orgId ? nextQ.eq("organization_id", orgId) : nextQ.eq("user_id", user.id);
         const { data: remaining } = await nextQ;
 
         if (remaining?.[0]) {
@@ -763,11 +765,9 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id)
           .eq("type", "whatsapp");
       } else {
-        // Disconnect ALL numbers for THIS org only — never touch other orgs
-        let disconnectQ = supabase.from("whatsapp_configs")
-          .update({ is_active: false })
-          .eq("user_id", user.id);
-        if (orgId) disconnectQ = disconnectQ.eq("organization_id", orgId);
+        // Disconnect ALL numbers for THIS org (org-wide, matching the status check)
+        let disconnectQ = supabase.from("whatsapp_configs").update({ is_active: false });
+        disconnectQ = orgId ? disconnectQ.eq("organization_id", orgId) : disconnectQ.eq("user_id", user.id);
         await disconnectQ;
 
         let channelsQ = supabase.from("channels")
