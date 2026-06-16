@@ -133,15 +133,20 @@ Deno.serve(async (req) => {
         || "Lead";
     }
 
-    // ── Dedup by email ──────────────────────────────────────────────────────
+    // ── Dedup by normalized phone OR email ──────────────────────────────────
+    // Recognizes the same lead arriving from another channel (e.g. WhatsApp
+    // first, then this landing) even if the phone format differs.
     let contactId: string | null = null;
-    if (contactData.primary_email) {
-      const { data: existing } = await supabase
-        .from("contacts")
-        .select("id, tags")
-        .eq("organization_id", orgId)
-        .eq("primary_email", contactData.primary_email)
-        .maybeSingle();
+    if (contactData.primary_email || contactData.primary_phone) {
+      const { data: matchId } = await supabase.rpc("match_contact", {
+        p_org: orgId,
+        p_phone: contactData.primary_phone || null,
+        p_email: contactData.primary_email || null,
+      });
+      const existingId = (matchId as string) || null;
+      const { data: existing } = existingId
+        ? await supabase.from("contacts").select("id, tags").eq("id", existingId).maybeSingle()
+        : { data: null };
 
       if (existing) {
         contactId = existing.id;

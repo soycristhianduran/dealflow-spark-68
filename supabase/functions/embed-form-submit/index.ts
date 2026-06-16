@@ -81,18 +81,20 @@ Deno.serve(async (req) => {
       throw new Error("Se requiere al menos email o teléfono");
     }
 
-    // Dedup by email, then phone.
+    // Dedup by NORMALIZED phone (digits-only) or email so the same lead from
+    // another channel is recognized regardless of phone format.
     let contactId: string | null = null;
     let existing: any = null;
-    if (contactData.primary_email) {
-      ({ data: existing } = await supabase.from("contacts")
-        .select("id, tags").eq("organization_id", orgId)
-        .eq("primary_email", contactData.primary_email).maybeSingle());
-    }
-    if (!existing && contactData.primary_phone) {
-      ({ data: existing } = await supabase.from("contacts")
-        .select("id, tags").eq("organization_id", orgId)
-        .eq("primary_phone", contactData.primary_phone).maybeSingle());
+    if (contactData.primary_email || contactData.primary_phone) {
+      const { data: matchId } = await supabase.rpc("match_contact", {
+        p_org: orgId,
+        p_phone: contactData.primary_phone || null,
+        p_email: contactData.primary_email || null,
+      });
+      if (matchId) {
+        ({ data: existing } = await supabase.from("contacts")
+          .select("id, tags").eq("id", matchId as string).maybeSingle());
+      }
     }
 
     if (existing) {

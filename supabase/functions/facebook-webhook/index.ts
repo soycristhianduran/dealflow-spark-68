@@ -306,26 +306,17 @@ async function processLeadgenChange(
     contactData.custom_fields = customFields;
   }
 
+  // Match an existing lead by NORMALIZED phone (digits-only) or email so the
+  // same person arriving from another channel (e.g. WhatsApp first, then a Meta
+  // Lead Form) is recognized even when the phone is stored in a different format.
   let existingContactId: string | null = null;
-  if (contactData.primary_email && organizationId) {
-    const { data } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("primary_email", contactData.primary_email)
-      .eq("organization_id", organizationId)
-      .limit(1)
-      .maybeSingle();
-    existingContactId = data?.id || null;
-  }
-  if (!existingContactId && contactData.primary_phone && organizationId) {
-    const { data } = await supabase
-      .from("contacts")
-      .select("id")
-      .eq("primary_phone", contactData.primary_phone)
-      .eq("organization_id", organizationId)
-      .limit(1)
-      .maybeSingle();
-    existingContactId = data?.id || null;
+  if (organizationId && (contactData.primary_email || contactData.primary_phone)) {
+    const { data: matchId } = await supabase.rpc("match_contact", {
+      p_org: organizationId,
+      p_phone: contactData.primary_phone || null,
+      p_email: contactData.primary_email || null,
+    });
+    existingContactId = (matchId as string) || null;
   }
 
   if (existingContactId) {

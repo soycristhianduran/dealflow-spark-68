@@ -355,45 +355,24 @@ Deno.serve(async (req) => {
         || "Sin nombre";
     }
 
-    // Upsert on email if provided (avoids duplicates)
-    if (fields.primary_email) {
-      const { data: existing } = await admin
-        .from("contacts")
-        .select("id")
-        .eq("organization_id", auth.organization_id)
-        .eq("primary_email", fields.primary_email)
-        .maybeSingle();
-
-      if (existing) {
-        // Merge custom_fields instead of overwriting
-        const updateFields = await mergeCustomFields(admin, existing.id, fields);
+    // Match an existing lead by NORMALIZED phone (digits-only) or email so the
+    // same person from another channel (e.g. WhatsApp first, then this API) is
+    // recognized regardless of phone format — keeps the original source.
+    if (fields.primary_email || fields.primary_phone) {
+      const { data: matchId } = await admin.rpc("match_contact", {
+        p_org: auth.organization_id,
+        p_phone: (fields.primary_phone as string) || null,
+        p_email: (fields.primary_email as string) || null,
+      });
+      if (matchId) {
+        const updateFields = await mergeCustomFields(admin, matchId as string, fields);
+        // Preserve the lead's original first-touch source/created_at on merge.
+        delete (updateFields as Record<string, unknown>).source;
+        delete (updateFields as Record<string, unknown>).created_at;
         const { data, error } = await admin
           .from("contacts")
           .update(updateFields)
-          .eq("id", existing.id)
-          .select("*")
-          .single();
-        if (error) return json({ error: error.message }, 500);
-        return json({ data, created: false }, 200);
-      }
-    }
-
-    // Upsert on phone if provided and no email match found (avoids duplicates
-    // when the same person entered via WhatsApp first, then via a landing page)
-    if (fields.primary_phone) {
-      const { data: existing } = await admin
-        .from("contacts")
-        .select("id")
-        .eq("organization_id", auth.organization_id)
-        .eq("primary_phone", fields.primary_phone)
-        .maybeSingle();
-
-      if (existing) {
-        const updateFields = await mergeCustomFields(admin, existing.id, fields);
-        const { data, error } = await admin
-          .from("contacts")
-          .update(updateFields)
-          .eq("id", existing.id)
+          .eq("id", matchId as string)
           .select("*")
           .single();
         if (error) return json({ error: error.message }, 500);
