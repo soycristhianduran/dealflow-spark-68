@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
@@ -1280,6 +1281,9 @@ export default function MetaAdsPage() {
   // All ad accounts linked to the connected Meta portfolio (for multi-account sync + filter)
   const [adAccounts, setAdAccounts] = useState<FbAdAccount[]>([]);
   const [accountFilter, setAccountFilter] = useState("all"); // "all" | ad_account_id
+  // Which accounts the user chose to sync (defaults to all). Persisted per user.
+  const [syncSelection, setSyncSelection] = useState<string[]>([]);
+  const [syncPickerOpen, setSyncPickerOpen] = useState(false);
 
   // Load the list of ad accounts once Meta is connected so we can sync each one
   // and let the user filter campaigns/ads by account.
@@ -1289,6 +1293,28 @@ export default function MetaAdsPage() {
     fb.getAdAccounts().then(accs => { if (active) setAdAccounts(accs); });
     return () => { active = false; };
   }, [fb.isConnected]);
+
+  // Initialize the sync selection: restore the saved choice, else select all.
+  useEffect(() => {
+    if (!adAccounts.length) return;
+    setSyncSelection(prev => {
+      if (prev.length) return prev.filter(id => adAccounts.some(a => a.id === id));
+      try {
+        const saved = JSON.parse(localStorage.getItem(`meta_sync_sel_${user?.id}`) || "[]");
+        const valid = Array.isArray(saved) ? saved.filter((id: string) => adAccounts.some(a => a.id === id)) : [];
+        if (valid.length) return valid;
+      } catch { /* ignore */ }
+      return adAccounts.map(a => a.id); // default: all
+    });
+  }, [adAccounts, user?.id]);
+
+  const toggleSyncAccount = (id: string) => {
+    setSyncSelection(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      try { localStorage.setItem(`meta_sync_sel_${user?.id}`, JSON.stringify(next)); } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   // Map ad_account_id → display name ("act_123" → "Mi Marca")
   const accountNameMap = useMemo(() => {
@@ -1412,6 +1438,12 @@ export default function MetaAdsPage() {
     if (!accountIds.length) {
       // last-resort: distinct accounts already imported
       accountIds = [...new Set(campaigns.map(c => c.ad_account_id).filter(Boolean) as string[])];
+    }
+
+    // Honor the user's account selection (sync only the chosen accounts).
+    if (syncSelection.length) {
+      const chosen = accountIds.filter(id => syncSelection.includes(id));
+      if (chosen.length) accountIds = chosen;
     }
 
     if (!accountIds.length) {
@@ -1612,17 +1644,75 @@ export default function MetaAdsPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={handleSyncAll} disabled={syncing || syncOnCooldown}
-              title={syncOnCooldown ? `Próxima sincronización disponible en ${Math.ceil(syncCooldownRemaining / 60000)} minutos` : undefined}>
-              {syncing
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-                : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-              {syncing
-                ? (syncStep || "Sincronizando…")
-                : syncOnCooldown
-                  ? syncCooldownLabel!
-                  : "Sincronizar todo"}
-            </Button>
+            <div className="flex items-center">
+              <Button size="sm" onClick={handleSyncAll} disabled={syncing || syncOnCooldown}
+                className={adAccounts.length > 1 ? "rounded-r-none" : ""}
+                title={syncOnCooldown ? `Próxima sincronización disponible en ${Math.ceil(syncCooldownRemaining / 60000)} minutos` : undefined}>
+                {syncing
+                  ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                  : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                {syncing
+                  ? (syncStep || "Sincronizando…")
+                  : syncOnCooldown
+                    ? syncCooldownLabel!
+                    : adAccounts.length > 1
+                      ? (syncSelection.length === adAccounts.length || !syncSelection.length
+                          ? "Sincronizar todas"
+                          : `Sincronizar (${syncSelection.length})`)
+                      : "Sincronizar todo"}
+              </Button>
+
+              {/* Account picker — choose which ad accounts to sync */}
+              {adAccounts.length > 1 && (
+                <Popover open={syncPickerOpen} onOpenChange={setSyncPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button size="sm" variant="default" disabled={syncing}
+                      className="rounded-l-none border-l border-primary-foreground/20 px-2"
+                      title="Elegir qué cuentas sincronizar">
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="end" className="w-72 p-0">
+                    <div className="flex items-center justify-between px-3 py-2 border-b">
+                      <span className="text-xs font-semibold">Cuentas a sincronizar</span>
+                      <div className="flex gap-2">
+                        <button className="text-[11px] text-primary hover:underline"
+                          onClick={() => { const all = adAccounts.map(a => a.id); setSyncSelection(all); try { localStorage.setItem(`meta_sync_sel_${user?.id}`, JSON.stringify(all)); } catch { /* ignore */ } }}>
+                          Todas
+                        </button>
+                        <button className="text-[11px] text-muted-foreground hover:underline"
+                          onClick={() => { setSyncSelection([]); try { localStorage.setItem(`meta_sync_sel_${user?.id}`, "[]"); } catch { /* ignore */ } }}>
+                          Ninguna
+                        </button>
+                      </div>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto py-1">
+                      {adAccounts.map(acc => (
+                        <label key={acc.id} className="flex items-center gap-2.5 px-3 py-1.5 hover:bg-muted/50 cursor-pointer">
+                          <Checkbox
+                            checked={syncSelection.includes(acc.id)}
+                            onCheckedChange={() => toggleSyncAccount(acc.id)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium truncate">{acc.name || acc.id}</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {acc.currency}{acc.account_status === 1 ? " · Activa" : " · Inactiva"}
+                            </p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <div className="px-3 py-2 border-t">
+                      <Button size="sm" className="w-full h-8"
+                        disabled={syncing || !syncSelection.length}
+                        onClick={() => { setSyncPickerOpen(false); handleSyncAll(); }}>
+                        Sincronizar {syncSelection.length === adAccounts.length ? "todas" : `${syncSelection.length} cuenta${syncSelection.length === 1 ? "" : "s"}`}
+                      </Button>
+                    </div>
+                  </PopoverContent>
+                </Popover>
+              )}
+            </div>
             {lastSyncAt && !syncing && (
               <span className="text-[10px] text-muted-foreground">
                 Últ. sync: {format(new Date(lastSyncAt), "HH:mm", { locale: es })}
