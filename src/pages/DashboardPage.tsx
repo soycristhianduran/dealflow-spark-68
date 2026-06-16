@@ -583,22 +583,26 @@ export default function DashboardPage() {
     const prevIso   = prevStart.toISOString();
 
     /* ---------- build queries ---------- */
-    // Current-period deal contacts (won + lost within period)
+    // Deals CLOSED (won/lost) within the period. We scope by updated_at — the
+    // moment the deal moved to won/lost — so the filter reflects "deals cerrados
+    // en este período", not when the lead was originally created.
     let curQ = supabase
       .from("contacts")
       .select("id, lead_status, budget, budget_currency, stage_id")
       .not("pipeline_id", "is", null)
-      .gte("created_at", startIso)
-      .lt("created_at", endIso);
+      .in("lead_status", ["won", "lost"])
+      .gte("updated_at", startIso)
+      .lt("updated_at", endIso);
     if (vf) curQ = curQ.eq("owner_id", vf);
 
-    // Previous-period deal contacts
+    // Previous-period closed deals (same length window, immediately before).
     let prevQ = supabase
       .from("contacts")
       .select("id, lead_status, budget, budget_currency")
       .not("pipeline_id", "is", null)
-      .gte("created_at", prevIso)
-      .lt("created_at", startIso);
+      .in("lead_status", ["won", "lost"])
+      .gte("updated_at", prevIso)
+      .lt("updated_at", startIso);
     if (vf) prevQ = prevQ.eq("owner_id", vf);
 
     // All active pipeline contacts (current state — not period-filtered).
@@ -825,10 +829,10 @@ export default function DashboardPage() {
         )}
 
         {/* ── Greeting hero (dark premium) ───────────────────────── */}
-        <div style={{ order: -2 }} className="relative shrink-0 overflow-hidden rounded-2xl px-5 py-5 md:px-7 md:py-6 text-white shadow-lg ring-1 ring-white/10 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 shadow-orange-500/25 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-slate-900/40">
-          {/* accent glows */}
-          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-amber-300/30 blur-3xl" />
-          <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-orange-400/20 blur-3xl" />
+        <div style={{ order: -2 }} className="relative shrink-0 overflow-hidden rounded-2xl px-5 py-5 md:px-7 md:py-6 text-white shadow-lg ring-1 ring-white/10 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800 shadow-slate-900/30">
+          {/* accent glows — brand orange on a dark navy base */}
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-orange-500/25 blur-3xl" />
+          <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-orange-600/15 blur-3xl" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-medium text-white/60">
