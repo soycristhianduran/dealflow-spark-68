@@ -22,7 +22,6 @@ interface Plan {
 interface AddOn { icon: LucideIcon; label: string; price: string; iconColor: string; iconBg: string }
 interface StackTool { domain: string; name: string; price: string; brandColor: string }
 interface IntegrationLogo { domain: string; name: string; brandColor: string }
-interface Testimonial { quote: string; name: string; role: string; company: string; initials: string; color: string }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -91,11 +90,6 @@ const integrationLogos: IntegrationLogo[] = [
   { domain: "stripe.com",    name: "Stripe",    brandColor: "bg-violet-600"},
 ];
 
-const testimonials: Testimonial[] = [
-  { quote: "El lead scoring de la IA nos cambió cómo priorizamos. En 2 semanas ya recuperamos la inversión.", name: "Carlos M.", role: "Director Comercial", company: "Agencia de ventas · Colombia", initials: "CM", color: "bg-blue-600" },
-  { quote: "Teníamos Kommo, ManyChat y Zapier. Ahora solo usamos Klosify y pagamos menos de la mitad.", name: "Laura G.", role: "CEO", company: "E-commerce · México", initials: "LG", color: "bg-purple-600" },
-  { quote: "El agente IA responde a las 2am cuando yo ya no puedo. Los leads llegan calificados a la mañana.", name: "Andrés T.", role: "Fundador", company: "Inmobiliaria · Bogotá", initials: "AT", color: "bg-teal-600" },
-];
 
 const addOns: AddOn[] = [
   { icon: Target,   label: "+1.000 IA Boost (análisis + objeciones)", price: "$19",   iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
@@ -871,7 +865,19 @@ export default function HomePage() {
                 </div>
               </FadeUp>
 
-              <FadeUp className="md:col-span-2" delay={160}>
+              {/* Honest CTA card — closes the row (replaces the inflated stat) */}
+              <FadeUp delay={160}>
+                <div className="h-full bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-7 flex flex-col gap-3 hover:from-orange-400 hover:to-orange-500 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/30">
+                  <p className="text-white text-xl font-black leading-tight">Todo tu stack de ventas en una sola plataforma</p>
+                  <p className="text-orange-100 text-sm leading-relaxed">CRM, WhatsApp, Meta Ads, IA y automatizaciones — sin Zapier, sin apps externas.</p>
+                  <Link to="/auth" className="inline-flex items-center gap-1.5 bg-white text-orange-600 font-semibold text-sm px-4 py-2.5 rounded-xl mt-auto w-fit hover:bg-orange-50 transition-colors group">
+                    Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                  <p className="text-orange-100/80 text-xs">7 días gratis · sin tarjeta</p>
+                </div>
+              </FadeUp>
+
+              <FadeUp className="md:col-span-3" delay={200}>
                 <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-violet-500/20 hover:shadow-xl hover:shadow-violet-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_0%,rgba(139,92,246,0.08),transparent)] pointer-events-none" />
                   <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center shadow-lg bento-icon">
@@ -909,17 +915,6 @@ export default function HomePage() {
                       <span key={t} className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">{t}</span>
                     ))}
                   </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp delay={180}>
-                <div className="h-full bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-7 flex flex-col gap-3 hover:from-orange-400 hover:to-orange-500 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/30">
-                  <p className="text-orange-100 text-sm font-medium">Equipos activos en LATAM</p>
-                  <p className="text-5xl font-black text-white font-mono leading-none">2,400<span className="text-3xl text-orange-200">+</span></p>
-                  <p className="text-orange-100 text-sm leading-relaxed mt-auto">Empresas que ya reemplazaron 5 herramientas con Klosify.</p>
-                  <Link to="/auth" className="inline-flex items-center gap-1.5 text-white font-semibold text-sm mt-2 group">
-                    Únete ahora <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </Link>
                 </div>
               </FadeUp>
 
@@ -1229,33 +1224,6 @@ export default function HomePage() {
                 })}
               </div>
             </FadeUp>
-          </div>
-        </section>
-
-        {/* ── TESTIMONIALS ──────────────────────────────────────────────────── */}
-        <section className="bg-slate-950 py-24">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <FadeUp className="text-center mb-14">
-              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Testimonios</p>
-              <h2 className="text-4xl font-black text-white">Lo que dicen nuestros clientes</h2>
-            </FadeUp>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {testimonials.map((t, i) => (
-                <FadeUp key={t.name} delay={i * 120}>
-                  <div className="bg-slate-900 border border-slate-800 rounded-2xl p-7 flex flex-col gap-5 hover:border-slate-700 hover:-translate-y-1 transition-all duration-300">
-                    <div className="text-4xl text-orange-500/30 font-serif leading-none select-none">"</div>
-                    <p className="text-slate-300 text-sm leading-relaxed flex-1">"{t.quote}"</p>
-                    <div className="flex items-center gap-3 pt-4 border-t border-slate-800">
-                      <div className={`w-9 h-9 rounded-full ${t.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>{t.initials}</div>
-                      <div>
-                        <p className="text-white text-sm font-semibold">{t.name}</p>
-                        <p className="text-slate-500 text-xs">{t.role} · {t.company}</p>
-                      </div>
-                    </div>
-                  </div>
-                </FadeUp>
-              ))}
-            </div>
           </div>
         </section>
 
