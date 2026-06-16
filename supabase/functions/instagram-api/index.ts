@@ -396,10 +396,16 @@ Deno.serve(async (req) => {
 
     // ── DISCONNECT ────────────────────────────────────────────────────────────
     if (action === "disconnect") {
-      await supabase
-        .from("instagram_accounts")
-        .update({ is_active: false })
-        .eq("user_id", user.id);
+      // Instagram is shared ORG-WIDE (status() checks the whole org), so the
+      // disconnect must also be org-wide — otherwise an account connected by a
+      // different member stays active and the integration shows connected again.
+      const { data: memberships } = await supabase
+        .from("organization_members").select("organization_id").eq("user_id", user.id);
+      const orgIds = (memberships || []).map((m: any) => m.organization_id).filter(Boolean);
+
+      const q = supabase.from("instagram_accounts").update({ is_active: false });
+      if (orgIds.length) await q.in("organization_id", orgIds);
+      else await q.eq("user_id", user.id);
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
