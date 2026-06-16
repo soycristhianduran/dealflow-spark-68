@@ -485,6 +485,21 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
   const [customRange, setCustomRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  // Period window (start/end ISO + label) shared with the insights widgets so
+  // EVERYTHING on the dashboard reflects the selected period.
+  const periodWindow = (() => {
+    const n = new Date();
+    if (period === "custom" && customRange.from && customRange.to) {
+      return {
+        start: new Date(customRange.from + "T00:00:00").toISOString(),
+        end: new Date(customRange.to + "T23:59:59.999").toISOString(),
+        label: "Personalizado",
+      };
+    }
+    const opt = PERIOD_OPTIONS.find((x) => x.value === period);
+    const d = opt?.days ?? 30;
+    return { start: new Date(n.getTime() - d * 86_400_000).toISOString(), end: n.toISOString(), label: opt?.label ?? "30 días" };
+  })();
 
   // Setup banner state
   const [waConnected, setWaConnected]   = useState(false);
@@ -616,6 +631,8 @@ export default function DashboardPage() {
           .select("id, budget, budget_currency, stage_id")
           .not("pipeline_id", "is", null)
           .eq("lead_status", "active")
+          .gte("created_at", startIso)
+          .lt("created_at", endIso)
           .order("id", { ascending: true })
           .range(from, from + 999);
         if (vf) q = q.eq("owner_id", vf);
@@ -638,7 +655,9 @@ export default function DashboardPage() {
       .from("contacts")
       .select("lost_reason")
       .eq("lead_status", "lost")
-      .not("lost_reason", "is", null);
+      .not("lost_reason", "is", null)
+      .gte("updated_at", startIso)
+      .lt("updated_at", endIso);
     if (vf) lostQ = lostQ.eq("owner_id", vf);
 
     // Upcoming meetings
@@ -672,7 +691,9 @@ export default function DashboardPage() {
     const objQ = supabase
       .from("contact_ai_analyses")
       .select("objections")
-      .not("objections", "is", null);
+      .not("objections", "is", null)
+      .gte("created_at", startIso)
+      .lt("created_at", endIso);
 
     // Setup banner: total contacts + WhatsApp config
     const totalCtQ = supabase.from("contacts").select("id", { count: "exact", head: true });
@@ -928,6 +949,9 @@ export default function DashboardPage() {
           stageData={stageData.map((s) => ({ name: s.name, count: s.count, color: s.color }))}
           isOwner={!isVendor}
           vendorId={isVendor && myUserId ? myUserId : null}
+          periodStart={periodWindow.start}
+          periodEnd={periodWindow.end}
+          periodLabel={periodWindow.label}
         />
         </div>
 

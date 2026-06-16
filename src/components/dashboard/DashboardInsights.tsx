@@ -241,7 +241,7 @@ function Sparkline({ data }: { data: number[] }) {
   );
 }
 
-export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null }) {
+export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, periodLabel = "30 días" }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null; periodStart?: string; periodEnd?: string; periodLabel?: string }) {
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const fmtMoney = (n: number) => formatMoney(n, defaultCurrency, { compact: true });
   const [data, setData] = useState<Insights | null>(null);
@@ -272,7 +272,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
   useEffect(() => {
     if (!organizationId) return;
     (async () => {
-      const { data: ins } = await supabase.rpc("dashboard_extra", { p_org: organizationId, p_vendor: vendorId });
+      const { data: ins } = await supabase.rpc("dashboard_extra", { p_org: organizationId, p_vendor: vendorId, p_start: periodStart ?? null, p_end: periodEnd ?? null });
       if (ins) setData(ins as Insights);
       // Last WhatsApp campaign
       const { data: camp } = await supabase.from("whatsapp_campaigns")
@@ -300,7 +300,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         setVendorNames(map);
       }
     })();
-  }, [organizationId, isOwner, vendorId]);
+  }, [organizationId, isOwner, vendorId, periodStart, periodEnd]);
 
   // Ads ROAS — re-fetch when the campaign/ad level toggles
   useEffect(() => {
@@ -339,12 +339,12 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
             ))}
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">Últimos 30 días</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">Tendencia · {periodLabel}</p>
             <Sparkline data={series} />
           </div>
           {data.sources.length > 0 && (
             <div className="space-y-2.5 pt-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Por fuente (30 días)</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Por fuente · {periodLabel}</p>
               <SourceDonut sources={data.sources} />
             </div>
           )}
@@ -355,7 +355,7 @@ export function DashboardInsights({ isOwner, vendorId }: { stageData?: StageDatu
         {/* Agent + conversations */}
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> Agente IA (30 días)</CardTitle>
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> Agente IA · {periodLabel}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
