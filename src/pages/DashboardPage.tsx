@@ -24,7 +24,7 @@ import { DashboardInsights } from "@/components/dashboard/DashboardInsights";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
-type Period = "week" | "month" | "quarter" | "year";
+type Period = "week" | "month" | "quarter" | "year" | "custom";
 
 // Dashboard sections the user can show/hide and reorder.
 const DASH_BLOCKS: { id: string; label: string }[] = [
@@ -117,23 +117,54 @@ function trendPct(curr: number, prev: number): number | null {
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
 function PeriodSelector({
-  value, onChange,
-}: { value: Period; onChange: (p: Period) => void }) {
+  value, onChange, customRange, onCustomChange,
+}: {
+  value: Period; onChange: (p: Period) => void;
+  customRange: { from: string; to: string };
+  onCustomChange: (r: { from: string; to: string }) => void;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const btn = (active: boolean) =>
+    `px-2.5 py-2 min-h-[36px] text-xs font-medium rounded-md transition-all ${
+      active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`;
   return (
-    <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
-      {PERIOD_OPTIONS.map((opt) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+        {PERIOD_OPTIONS.map((opt) => (
+          <button key={opt.value} onClick={() => onChange(opt.value)} className={btn(value === opt.value)}>
+            {opt.label}
+          </button>
+        ))}
         <button
-          key={opt.value}
-          onClick={() => onChange(opt.value)}
-          className={`px-2.5 py-2 min-h-[36px] text-xs font-medium rounded-md transition-all ${
-            value === opt.value
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground"
-          }`}
+          onClick={() => {
+            // Default the custom range to the last 30 days when first opened.
+            if (!customRange.from || !customRange.to) {
+              const to = today;
+              const from = new Date(Date.now() - 30 * 86_400_000).toISOString().slice(0, 10);
+              onCustomChange({ from, to });
+            }
+            onChange("custom");
+          }}
+          className={btn(value === "custom")}
         >
-          {opt.label}
+          Personalizado
         </button>
-      ))}
+      </div>
+      {value === "custom" && (
+        <div className="flex items-center gap-1.5 rounded-lg border bg-muted/50 px-2 py-1.5 text-xs">
+          <input
+            type="date" value={customRange.from} max={customRange.to || today}
+            onChange={(e) => onCustomChange({ ...customRange, from: e.target.value })}
+            className="bg-transparent outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+          />
+          <span className="text-muted-foreground">→</span>
+          <input
+            type="date" value={customRange.to} min={customRange.from} max={today}
+            onChange={(e) => onCustomChange({ ...customRange, to: e.target.value })}
+            className="bg-transparent outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -176,7 +207,7 @@ function KpiCard({
 
   if (highlight) {
     return (
-      <div className="group relative overflow-hidden rounded-2xl p-4 shadow-lg shadow-indigo-500/20 bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-indigo-500/30">
+      <div className="group relative overflow-hidden rounded-2xl p-4 shadow-lg shadow-orange-500/25 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 text-white transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-orange-500/30">
         <div className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-white/15 blur-2xl" />
         <div className="pointer-events-none absolute -left-6 -bottom-10 h-28 w-28 rounded-full bg-black/10 blur-2xl" />
         <div className="relative flex items-start justify-between mb-3.5">
@@ -442,6 +473,7 @@ export default function DashboardPage() {
   const { organizationId } = useOrganizationContext();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<Period>("month");
+  const [customRange, setCustomRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   // Setup banner state
   const [waConnected, setWaConnected]   = useState(false);
@@ -523,11 +555,20 @@ export default function DashboardPage() {
     setLoading(true);
     const vf = isVendor && myUserId ? myUserId : null;
 
-    const days      = PERIOD_OPTIONS.find((x) => x.value === period)!.days;
-    const now       = new Date();
-    const startDate = new Date(now.getTime() - days * 86_400_000);
+    const now = new Date();
+    let days: number, startDate: Date, endDate: Date;
+    if (period === "custom" && customRange.from && customRange.to) {
+      startDate = new Date(customRange.from + "T00:00:00");
+      endDate   = new Date(customRange.to + "T23:59:59.999");
+      days      = Math.max(1, Math.round((endDate.getTime() - startDate.getTime()) / 86_400_000));
+    } else {
+      days      = PERIOD_OPTIONS.find((x) => x.value === period)?.days ?? 30;
+      startDate = new Date(now.getTime() - days * 86_400_000);
+      endDate   = now;
+    }
     const prevStart = new Date(startDate.getTime() - days * 86_400_000);
     const startIso  = startDate.toISOString();
+    const endIso    = endDate.toISOString();
     const prevIso   = prevStart.toISOString();
 
     /* ---------- build queries ---------- */
@@ -536,7 +577,8 @@ export default function DashboardPage() {
       .from("contacts")
       .select("id, lead_status, budget, budget_currency, stage_id")
       .not("pipeline_id", "is", null)
-      .gte("created_at", startIso);
+      .gte("created_at", startIso)
+      .lt("created_at", endIso);
     if (vf) curQ = curQ.eq("owner_id", vf);
 
     // Previous-period deal contacts
@@ -715,7 +757,7 @@ export default function DashboardPage() {
     setWaConnected((waRes.data?.length ?? 0) > 0);
 
     setLoading(false);
-  }, [isVendor, myUserId, period]);
+  }, [isVendor, myUserId, period, customRange.from, customRange.to]);
 
   useEffect(() => { fetchDashboard(); }, [fetchDashboard]);
 
@@ -772,16 +814,16 @@ export default function DashboardPage() {
         )}
 
         {/* ── Greeting hero (dark premium) ───────────────────────── */}
-        <div style={{ order: -2 }} className="relative shrink-0 overflow-hidden rounded-2xl px-5 py-5 md:px-7 md:py-6 text-white shadow-lg ring-1 ring-white/10 bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 shadow-violet-500/20 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-slate-900/40">
+        <div style={{ order: -2 }} className="relative shrink-0 overflow-hidden rounded-2xl px-5 py-5 md:px-7 md:py-6 text-white shadow-lg ring-1 ring-white/10 bg-gradient-to-br from-orange-500 via-orange-600 to-amber-600 shadow-orange-500/25 dark:from-slate-900 dark:via-slate-900 dark:to-slate-800 dark:shadow-slate-900/40">
           {/* accent glows */}
-          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-orange-500/30 blur-3xl" />
-          <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-indigo-500/20 blur-3xl" />
+          <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-amber-300/30 blur-3xl" />
+          <div className="pointer-events-none absolute -left-10 -bottom-20 h-48 w-48 rounded-full bg-orange-400/20 blur-3xl" />
           <div className="relative flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="text-xs font-medium text-white/60 capitalize">{format(new Date(), "EEEE, d 'de' MMMM", { locale: es })}</p>
               <h1 className="text-2xl md:text-[28px] font-bold tracking-tight mt-1">
                 {(() => { const h = new Date().getHours(); return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; })()}
-                {greetingName ? <>, <span className="bg-gradient-to-r from-orange-400 to-amber-300 bg-clip-text text-transparent">{greetingName}</span></> : ""} 👋
+                {greetingName ? <>, <span className="bg-gradient-to-r from-amber-100 to-white bg-clip-text text-transparent">{greetingName}</span></> : ""} 👋
               </h1>
               <p className="text-sm text-white/65 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>
             </div>
@@ -809,7 +851,7 @@ export default function DashboardPage() {
             <Button variant="outline" size="sm" className="gap-1.5 rounded-lg" onClick={() => setCustomizeOpen(true)}>
               <Sliders className="h-3.5 w-3.5" /> Personalizar
             </Button>
-            <PeriodSelector value={period} onChange={setPeriod} />
+            <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomChange={setCustomRange} />
           </div>
         </div>
 
@@ -858,7 +900,7 @@ export default function DashboardPage() {
             value={avgDeal > 0 ? `${fmt(avgDeal)} ${wonCurrency}` : "—"}
             subValue="Por deal ganado"
             icon={<Target className="h-4 w-4" />}
-            accent="violet"
+            accent="blue"
           />
         </div>
         </div>
