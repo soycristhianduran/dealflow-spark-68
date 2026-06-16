@@ -176,7 +176,7 @@ function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) 
   );
 }
 
-function Sparkline({ data }: { data: number[] }) {
+function Sparkline({ data, dates }: { data: number[]; dates?: string[] }) {
   const [hi, setHi] = useState<number | null>(null);
   if (!data.length) return <div className="h-28" />;
   const w = 600, h = 120, padY = 12;
@@ -188,8 +188,9 @@ function Sparkline({ data }: { data: number[] }) {
   const last = pts[pts.length - 1];
   const n = data.length;
 
-  // The series ends today; label each point with its calendar day.
+  // Prefer the real date from the series; fall back to a today-relative day.
   const dayLabel = (i: number) => {
+    if (dates && dates[i]) return new Date(dates[i] + "T00:00:00").toLocaleDateString("es", { day: "2-digit", month: "short" });
     const d = new Date();
     d.setDate(d.getDate() - (n - 1 - i));
     return d.toLocaleDateString("es", { day: "2-digit", month: "short" });
@@ -311,13 +312,9 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
 
   if (!data) return null;
 
-  // Build a continuous 30-day series from the sparse trend
-  const byDay = new Map(data.trend.map(t => [t.d, t.n]));
-  const series: number[] = [];
-  for (let i = 29; i >= 0; i--) {
-    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    series.push(byDay.get(d) || 0);
-  }
+  // The RPC already returns one zero-filled point per day of the selected period.
+  const series: number[] = data.trend.map(t => t.n);
+  const seriesDates: string[] = data.trend.map(t => t.d);
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -340,7 +337,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
           </div>
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">Tendencia · {periodLabel}</p>
-            <Sparkline data={series} />
+            <Sparkline data={series} dates={seriesDates} />
           </div>
           {data.sources.length > 0 && (
             <div className="space-y-2.5 pt-1">

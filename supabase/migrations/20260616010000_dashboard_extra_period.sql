@@ -38,11 +38,15 @@ begin
     'trend', (
       select coalesce(jsonb_agg(jsonb_build_object('d', d, 'n', n) order by d), '[]'::jsonb)
       from (
-        select date_trunc('day', created_at)::date d, count(*) n
-        from contacts
-        where organization_id = p_org and (p_vendor is null or owner_id = p_vendor)
-          and created_at >= v_start and created_at < v_end
-        group by 1
+        select gs::date d, coalesce(c.cnt, 0) n
+        from generate_series(v_start::date, (v_end - interval '1 microsecond')::date, interval '1 day') gs
+        left join (
+          select date_trunc('day', created_at)::date dd, count(*) cnt
+          from contacts
+          where organization_id = p_org and (p_vendor is null or owner_id = p_vendor)
+            and created_at >= v_start and created_at < v_end
+          group by 1
+        ) c on c.dd = gs::date
       ) t
     ),
     'sources', (
