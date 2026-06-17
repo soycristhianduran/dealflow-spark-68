@@ -1201,7 +1201,7 @@ export default function HomePage() {
 
             <FadeUp delay={200} className="mt-10">
               <p className="text-center text-xs font-semibold text-slate-400 mb-5 uppercase tracking-widest">Complementos disponibles en cualquier plan</p>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
                 {addOns.map((addon) => {
                   const AddonIcon = addon.icon;
                   return (
