@@ -440,18 +440,20 @@ function useIsDesktop() {
 function MobileFeature({ feature }: { feature: Feature }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
-  const ref = useRef<HTMLDivElement>(null);
+  const visualRef = useRef<HTMLDivElement>(null);
   const progress = useMotionValue(0);
   useEffect(() => {
-    const el = ref.current;
+    const el = visualRef.current;
     if (!el) return;
     let raf = 0;
     const update = () => {
       raf = 0;
       const r = el.getBoundingClientRect();
       const vh = window.innerHeight;
-      // 0 as the feature enters from the bottom → 1 once it's well into view.
-      const p = Math.max(0, Math.min(1, (vh * 0.92 - r.top) / (r.height * 0.72)));
+      // Driven by the VISUAL's own position: 0 as it enters from the bottom →
+      // 1 once it has scrolled up into the upper part of the screen. So the
+      // animation plays *while you see the visual*, not before.
+      const p = Math.max(0, Math.min(1, (vh - r.top) / (vh * 0.7)));
       progress.set(p);
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
@@ -461,7 +463,7 @@ function MobileFeature({ feature }: { feature: Feature }) {
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, [progress]);
   return (
-    <div ref={ref} className="px-5 py-12 border-b border-white/5">
+    <div className="px-5 py-12 border-b border-white/5">
       <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
         <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
         {feature.eyebrow}
@@ -476,7 +478,7 @@ function MobileFeature({ feature }: { feature: Feature }) {
           </li>
         ))}
       </ul>
-      <div className="rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-xl">
+      <div ref={visualRef} className="rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-xl">
         {feature.visual(progress)}
       </div>
     </div>
