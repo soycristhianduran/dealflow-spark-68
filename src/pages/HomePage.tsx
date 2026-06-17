@@ -6,6 +6,7 @@ import {
   MessageCircle, BarChart3, Brain, GitBranch, Check, X, Menu, Shield,
   TrendingUp, Layout, Plus, Minus, Zap, Sparkles, Star, BadgePercent,
   Target, Rocket, UserPlus, Heart, ArrowRight, Users, Activity, ChevronRight, Loader2, Bot, PhoneCall, PieChart,
+  Mail, Calendar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -902,6 +903,85 @@ export default function HomePage() {
                   <div className="flex flex-wrap gap-2">
                     {["Generación con IA", "Publica en tu dominio", "Captura leads al CRM"].map((t) => (
                       <span key={t} className="text-xs text-indigo-300/80 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full">{t}</span>
+                    ))}
+                  </div>
+                </div>
+              </FadeUp>
+
+              {/* Agente de Voz */}
+              <FadeUp delay={170}>
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-sky-500/20 hover:shadow-xl hover:shadow-sky-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(14,165,233,0.08),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-sky-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
+                    <PhoneCall className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Agente de Voz</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">La IA llama, califica y agenda por ti. Transcribe y analiza cada llamada.</p>
+                  </div>
+                  <div className="mt-auto space-y-2">
+                    {[
+                      { label: "Llamadas este mes", val: "128" },
+                      { label: "Citas agendadas", val: "34" },
+                      { label: "Intención de compra", val: "8.7/10" },
+                    ].map((r) => (
+                      <div key={r.label} className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-slate-500">{r.label}</span>
+                        <span className="text-sm font-bold font-mono text-sky-300">{r.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </FadeUp>
+
+              {/* Email marketing */}
+              <FadeUp delay={180}>
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-amber-500/20 hover:shadow-xl hover:shadow-amber-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(245,158,11,0.08),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
+                    <Mail className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Email marketing</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">Campañas masivas desde tu propio dominio, con métricas de apertura y clics.</p>
+                  </div>
+                  <div className="mt-auto grid grid-cols-3 gap-2">
+                    {[
+                      { label: "Enviados", val: "5.000" },
+                      { label: "Apertura", val: "42%" },
+                      { label: "Clics", val: "9%" },
+                    ].map((r) => (
+                      <div key={r.label} className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-2.5 text-center">
+                        <p className="text-sm font-bold font-mono text-amber-300">{r.val}</p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">{r.label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </FadeUp>
+
+              {/* Calendario & Tareas */}
+              <FadeUp delay={190}>
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(59,130,246,0.08),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
+                    <Calendar className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Calendario & Tareas</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">Agenda citas y da seguimiento sin que ningún lead se enfríe.</p>
+                  </div>
+                  <div className="mt-auto space-y-2">
+                    {[
+                      { time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" },
+                      { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" },
+                      { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" },
+                    ].map((r) => (
+                      <div key={r.time} className="flex items-center gap-3 rounded-xl bg-slate-800/40 border border-slate-700/40 px-3 py-2">
+                        <span className="text-xs font-mono text-slate-400 w-10 shrink-0">{r.time}</span>
+                        <span className={`h-2 w-2 rounded-full ${r.color} shrink-0`} />
+                        <span className="text-xs text-slate-300 truncate">{r.label}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
