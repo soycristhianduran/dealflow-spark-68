@@ -463,6 +463,13 @@ export default function HomePage() {
     return () => window.removeEventListener("scroll", fn);
   }, []);
 
+  // Cursor-following spotlight over the hero grid (interactive background texture)
+  const handleHeroMouse = (e: React.MouseEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty("--mx", `${e.clientX - rect.left}px`);
+    e.currentTarget.style.setProperty("--my", `${e.clientY - rect.top}px`);
+  };
+
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
     setMobileOpen(false);
@@ -603,9 +610,25 @@ export default function HomePage() {
         </nav>
 
         {/* ── HERO ──────────────────────────────────────────────────────────── */}
-        <section className="bg-slate-950 pt-32 pb-20 relative overflow-hidden">
+        <section onMouseMove={handleHeroMouse} className="hero-spotlight group/hero bg-slate-950 pt-32 pb-20 relative overflow-hidden [--mx:50%] [--my:30%]">
           <div ref={heroGlowRef} className="hero-parallax-glow absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.10),transparent_70%)] pointer-events-none" />
           <div ref={heroGridRef} className="hero-parallax-grid absolute inset-0 opacity-[0.025] pointer-events-none" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "64px 64px" }} />
+
+          {/* Brighter grid that only reveals around the cursor (interactive texture) */}
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity duration-300 opacity-0 group-hover/hero:opacity-100"
+            style={{
+              backgroundImage: "linear-gradient(rgba(249,115,22,0.55) 1px,transparent 1px),linear-gradient(90deg,rgba(249,115,22,0.55) 1px,transparent 1px)",
+              backgroundSize: "64px 64px",
+              WebkitMaskImage: "radial-gradient(220px circle at var(--mx) var(--my), #000 0%, transparent 70%)",
+              maskImage: "radial-gradient(220px circle at var(--mx) var(--my), #000 0%, transparent 70%)",
+            }}
+          />
+          {/* Soft glow that follows the cursor */}
+          <div
+            className="absolute inset-0 pointer-events-none transition-opacity duration-300 opacity-0 group-hover/hero:opacity-100"
+            style={{ background: "radial-gradient(500px circle at var(--mx) var(--my), rgba(249,115,22,0.08), transparent 60%)" }}
+          />
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
