@@ -892,13 +892,45 @@ const FEATURES: Feature[] = [
     bullets: ["Sincroniza múltiples cuentas publicitarias", "ROAS real cruzado con tu pipeline", "Inversión, leads y ventas por campaña"],
     visual: (p) => (
       <div className="space-y-3">
-        <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+        <div className="flex items-center gap-2 pb-2.5 border-b border-slate-800">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
           <span className="text-sm font-semibold text-white">Rendimiento · Meta Ads</span>
         </div>
-        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">Inversión Ads</span><CountUp progress={p} to={1.2} prefix="$" suffix="k" decimals={1} className="text-base font-bold font-mono text-blue-300" /></div>
-        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">Ingresos pipeline</span><CountUp progress={p} to={4.1} prefix="$" suffix="k" decimals={1} className="text-base font-bold font-mono text-emerald-300" /></div>
-        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">ROAS</span><CountUp progress={p} to={3.4} suffix="×" decimals={1} className="text-base font-bold font-mono text-orange-300" /></div>
+        {/* Campaign */}
+        <div className="flex items-center justify-between rounded-lg bg-slate-800/50 border border-slate-700/40 px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+            <span className="text-xs font-medium text-white truncate">Campaña: Lanzamiento Verano</span>
+          </div>
+          <span className="text-[10px] text-slate-500 shrink-0">Activa</span>
+        </div>
+        {/* Spend → results */}
+        <div className="grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">
+            <p className="text-[10px] text-amber-200/70 mb-0.5">Inversión</p>
+            <CountUp progress={p} to={1.2} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-amber-300" />
+          </div>
+          <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
+            <p className="text-[10px] text-slate-500 mb-0.5">Leads</p>
+            <CountUp progress={p} to={84} className="text-sm font-bold font-mono text-white" />
+          </div>
+          <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
+            <p className="text-[10px] text-slate-500 mb-0.5">Citas</p>
+            <CountUp progress={p} to={23} className="text-sm font-bold font-mono text-cyan-300" />
+          </div>
+          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+            <p className="text-[10px] text-emerald-200/70 mb-0.5">Ganados</p>
+            <CountUp progress={p} to={7} className="text-sm font-bold font-mono text-emerald-300" />
+          </div>
+          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+            <p className="text-[10px] text-emerald-200/70 mb-0.5">Ventas</p>
+            <CountUp progress={p} to={4.1} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-emerald-300" />
+          </div>
+          <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30 p-2.5">
+            <p className="text-[10px] text-orange-200/80 mb-0.5">ROAS</p>
+            <CountUp progress={p} to={3.4} suffix="×" decimals={1} className="text-base font-black font-mono text-orange-300" />
+          </div>
+        </div>
       </div>
     ),
   },
