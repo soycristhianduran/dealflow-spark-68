@@ -417,7 +417,7 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   return (
     // Tall scroll "track" — gives the section room to stay pinned while it reveals.
-    <section data-pin className="relative h-[185vh]">
+    <section data-pin className="relative h-[300vh]">
       <div className={`sticky top-0 h-screen flex items-center overflow-hidden ${reverse ? "bg-slate-50" : "bg-white"}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
           {/* progress bar of this feature */}
@@ -425,25 +425,28 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
             <div data-pin-bar className={`h-full ${a.iconBg} origin-left`} style={{ transform: "scaleX(0)" }} />
           </div>
           <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            {/* Copy — reveals as you scroll through the pinned section */}
-            <div data-pin-reveal data-range="0.06,0.40" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-2" : "lg:order-1"}`}>
-              <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+            {/* Copy — each element reveals one after another as you scroll */}
+            <div className={reverse ? "lg:order-2" : "lg:order-1"}>
+              <div data-pin-reveal data-range="0.06,0.20" style={{ opacity: 0 }} className={`will-change-transform inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
                 <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
                 {feature.eyebrow}
               </div>
-              <h3 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
-              <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+              <h3 data-pin-reveal data-range="0.14,0.32" style={{ opacity: 0 }} className="will-change-transform text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
+              <p data-pin-reveal data-range="0.26,0.44" style={{ opacity: 0 }} className="will-change-transform text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
               <ul className="space-y-3">
-                {feature.bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-3">
-                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                    <span className="text-slate-700 text-lg">{b}</span>
-                  </li>
-                ))}
+                {feature.bullets.map((b, bi) => {
+                  const start = 0.40 + bi * 0.07;
+                  return (
+                    <li key={b} data-pin-reveal data-range={`${start.toFixed(2)},${(start + 0.12).toFixed(2)}`} style={{ opacity: 0 }} className="will-change-transform flex items-start gap-3">
+                      <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                      <span className="text-slate-700 text-lg">{b}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             {/* Visual */}
-            <div data-pin-reveal data-range="0.18,0.55" data-scale="0.1" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
+            <div data-pin-reveal data-range="0.16,0.62" data-scale="0.1" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
               <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
                 {feature.visual}
               </div>
