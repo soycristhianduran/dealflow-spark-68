@@ -422,40 +422,35 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   return (
-    // Tall scroll "track" — gives the section room to stay pinned while it reveals.
-    <section data-pin className="relative h-[300vh]">
-      <div className={`sticky top-0 h-screen flex items-center overflow-hidden ${reverse ? "bg-slate-50" : "bg-white"}`}>
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-          {/* progress bar of this feature */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-slate-200/40">
-            <div data-pin-bar className={`h-full ${a.iconBg} origin-left`} style={{ transform: "scaleX(0)" }} />
-          </div>
-          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-            {/* Copy — each element reveals one after another as you scroll */}
-            <div className={reverse ? "lg:order-2" : "lg:order-1"}>
-              <div data-pin-reveal data-range="0.06,0.20" style={{ opacity: 0 }} className={`will-change-transform inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
-                <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-                {feature.eyebrow}
-              </div>
-              <h3 data-pin-reveal data-range="0.14,0.32" style={{ opacity: 0 }} className="will-change-transform text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
-              <p data-pin-reveal data-range="0.26,0.44" style={{ opacity: 0 }} className="will-change-transform text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
-              <ul className="space-y-3">
-                {feature.bullets.map((b, bi) => {
-                  const start = 0.40 + bi * 0.07;
-                  return (
-                    <li key={b} data-pin-reveal data-range={`${start.toFixed(2)},${(start + 0.12).toFixed(2)}`} style={{ opacity: 0 }} className="will-change-transform flex items-start gap-3">
-                      <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                      <span className="text-slate-700 text-lg">{b}</span>
-                    </li>
-                  );
-                })}
-              </ul>
+    // Full-screen section. Content reveals as the section scrolls INTO view
+    // (no empty pinned state) and fades out as it leaves — reversible, scroll-linked.
+    <section data-reveal-section className={`min-h-screen flex items-center py-20 ${reverse ? "bg-slate-50" : "bg-white"}`}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          {/* Copy — each element reveals one after another as you scroll in */}
+          <div className={reverse ? "lg:order-2" : "lg:order-1"}>
+            <div data-reveal data-range="0.16,0.30" style={{ opacity: 0 }} className={`will-change-transform inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+              {feature.eyebrow}
             </div>
-            {/* Visual */}
-            <div data-pin-reveal data-range="0.16,0.62" data-scale="0.1" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
-              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
-                {feature.visual}
-              </div>
+            <h3 data-reveal data-range="0.22,0.38" style={{ opacity: 0 }} className="will-change-transform text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
+            <p data-reveal data-range="0.30,0.46" style={{ opacity: 0 }} className="will-change-transform text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+            <ul className="space-y-3">
+              {feature.bullets.map((b, bi) => {
+                const start = 0.38 + bi * 0.05;
+                return (
+                  <li key={b} data-reveal data-range={`${start.toFixed(2)},${(start + 0.12).toFixed(2)}`} style={{ opacity: 0 }} className="will-change-transform flex items-start gap-3">
+                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                    <span className="text-slate-700 text-lg">{b}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+          {/* Visual */}
+          <div data-reveal data-range="0.20,0.48" data-scale="0.1" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
+            <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+              {feature.visual}
             </div>
           </div>
         </div>
@@ -808,15 +803,13 @@ export default function HomePage() {
   // scroll position, like thetinypod. Direct DOM writes, zero React re-renders. ──
   useEffect(() => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const parallaxEls = Array.from(document.querySelectorAll<HTMLElement>("[data-parallax]"));
-    const tracks = Array.from(document.querySelectorAll<HTMLElement>("[data-pin]")).map((track) => ({
-      track,
-      bar: track.querySelector<HTMLElement>("[data-pin-bar]"),
-      items: Array.from(track.querySelectorAll<HTMLElement>("[data-pin-reveal]")),
+    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal-section]")).map((section) => ({
+      section,
+      items: Array.from(section.querySelectorAll<HTMLElement>("[data-reveal]")),
     }));
-    if (!parallaxEls.length && !tracks.length) return;
+    if (!sections.length) return;
     if (reduce) {
-      tracks.forEach((t) => t.items.forEach((el) => { el.style.opacity = "1"; el.style.transform = "none"; }));
+      sections.forEach((s) => s.items.forEach((el) => { el.style.opacity = "1"; el.style.transform = "none"; }));
       return;
     }
     const smooth = (x: number) => x * x * (3 - 2 * x);
@@ -824,30 +817,22 @@ export default function HomePage() {
     const apply = () => {
       raf = 0;
       const vh = window.innerHeight;
-      // Parallax (continuous)
-      for (const el of parallaxEls) {
-        const rect = el.getBoundingClientRect();
-        const center = rect.top + rect.height / 2;
-        const prog = Math.max(-1.2, Math.min(1.2, (center - vh / 2) / (vh / 2 + rect.height / 2)));
-        const speed = parseFloat(el.dataset.speed || "0");
-        const scaleK = parseFloat(el.dataset.scale || "0");
-        const sc = scaleK ? (1 - Math.abs(prog) * scaleK) : 1;
-        el.style.transform = `translate3d(0,${(prog * speed).toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
-      }
-      // Pinned sections: reveal content based on scroll progress through the track
-      for (const { track, bar, items } of tracks) {
-        const rect = track.getBoundingClientRect();
-        const span = rect.height - vh; // scrollable distance while pinned
-        const p = span > 0 ? Math.max(0, Math.min(1, -rect.top / span)) : 0;
-        if (bar) bar.style.transform = `scaleX(${p.toFixed(3)})`;
+      // Reveal content as each section scrolls through the viewport.
+      for (const { section, items } of sections) {
+        const rect = section.getBoundingClientRect();
+        // p: 0 when the section's top is at the bottom of the viewport (just
+        // entering), ~0.5 when centered, 1 when it has fully scrolled past the top.
+        const p = Math.max(0, Math.min(1, (vh - rect.top) / (vh + rect.height)));
+        // Fade everything out as the section leaves (keeps one in focus at a time)
+        const out = 1 - smooth(Math.max(0, Math.min(1, (p - 0.80) / 0.18)));
         for (const el of items) {
-          const [a, b] = (el.dataset.range || "0,0.5").split(",").map(Number);
+          const [a, b] = (el.dataset.range || "0.2,0.5").split(",").map(Number);
           const local = Math.max(0, Math.min(1, (p - a) / ((b - a) || 1)));
-          const e = smooth(local);
+          const e = smooth(local) * out;
           el.style.opacity = e.toFixed(3);
           const scaleK = parseFloat(el.dataset.scale || "0");
           const sc = scaleK ? (1 - (1 - e) * scaleK) : 1;
-          el.style.transform = `translate3d(0,${((1 - e) * 44).toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
+          el.style.transform = `translate3d(0,${((1 - e) * 36).toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
         }
       }
     };
