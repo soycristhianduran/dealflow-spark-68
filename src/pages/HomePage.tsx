@@ -427,8 +427,10 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
   // Focus: this slide is full/large when it's centered, dim/small otherwise.
   const focus = useTransform(scrollYProgress, [center - step, center, center + step], [0.35, 1, 0.35], { clamp: true });
   const scale = useTransform(focus, [0.35, 1], [0.92, 1]);
-  // Per-slide "play" progress: 0 as it enters from the right → 1 right at center.
-  const playProgress = useTransform(scrollYProgress, [center - step * 0.85, center], [0, 1], { clamp: true });
+  // Per-slide "play" progress: the visual's animation runs WHILE this feature is
+  // the one on screen — from just before it reaches center (0) to just after it
+  // leaves center (1). So it plays as you scroll *through* this specific feature.
+  const playProgress = useTransform(scrollYProgress, [center - step * 0.55, center + step * 0.45], [0, 1], { clamp: true });
 
   return (
     <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0 will-change-transform">
