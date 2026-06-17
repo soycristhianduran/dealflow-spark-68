@@ -1208,41 +1208,18 @@ export default function HomePage() {
               className="relative text-center"
             >
               {/* subtle orange glow accent */}
-              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-24 h-56 w-[34rem] -translate-x-1/2 rounded-full bg-orange-500/12 blur-3xl" />
+              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-28 h-64 w-[40rem] -translate-x-1/2 rounded-full bg-orange-500/12 blur-3xl" />
 
-              {/* tool chips with official logos — animated in on scroll */}
-              <div className="relative flex flex-wrap items-center justify-center gap-2.5 mb-7">
-                {[
-                  { name: "CRM", node: <KlosifyLogo size={14} /> },
-                  { name: "WhatsApp", node: <WhatsAppIcon size={15} /> },
-                  { name: "Meta Ads", node: <FacebookIcon size={15} /> },
-                  { name: "Instagram", node: <InstagramIcon size={15} /> },
-                  { name: "IA", node: <Sparkles className="w-3.5 h-3.5 text-violet-300" /> },
-                  { name: "Automatizaciones", node: <Zap className="w-3.5 h-3.5 text-pink-300" /> },
-                ].map((c, i) => (
-                  <motion.span
-                    key={c.name}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: 0.1 + i * 0.07, duration: 0.35, ease: "backOut" }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[13px] text-slate-300"
-                  >
-                    {c.node}{c.name}
-                  </motion.span>
-                ))}
-              </div>
-
-              <h3 className="relative text-2xl sm:text-4xl font-black text-white tracking-tight">
+              <h3 className="relative text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.1]">
                 Todo tu stack de ventas, <span className="text-orange-400">en un solo lugar</span>
               </h3>
-              <p className="relative text-slate-400 text-base mt-3 max-w-lg mx-auto">
+              <p className="relative text-slate-400 text-lg mt-4 max-w-xl mx-auto">
                 Sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.
               </p>
 
-              <div className="relative mt-8 flex flex-col items-center gap-2.5">
+              <div className="relative mt-9 flex flex-col items-center gap-3">
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                  <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-8 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
+                  <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-9 py-4 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
                     Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </motion.div>
