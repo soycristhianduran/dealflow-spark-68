@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
+import { motion, useTransform, useMotionValue, useMotionValueEvent, useInView, animate, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
@@ -421,6 +421,55 @@ const FA: Record<string, { text: string; soft: string; ring: string; iconBg: str
 
 interface Feature { eyebrow: string; title: string; desc: string; bullets: string[]; accent: string; icon: LucideIcon | (() => JSX.Element); visual: (progress: MotionValue<number>) => React.ReactNode }
 
+function useIsDesktop() {
+  const [desktop, setDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(min-width: 1024px)").matches : true
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const on = () => setDesktop(mq.matches);
+    on();
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return desktop;
+}
+
+// Mobile layout for a feature: stacked text + visual, animation plays once on view.
+function MobileFeature({ feature }: { feature: Feature }) {
+  const a = FA[feature.accent] || FA.orange;
+  const Icon = feature.icon as React.ComponentType<{ className?: string }>;
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.35 });
+  const progress = useMotionValue(0);
+  useEffect(() => {
+    if (!inView) return;
+    const controls = animate(progress, 1, { duration: 1.4, ease: "easeOut" });
+    return () => controls.stop();
+  }, [inView, progress]);
+  return (
+    <div ref={ref} className="px-5 py-12 border-b border-white/5">
+      <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
+        <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+        {feature.eyebrow}
+      </div>
+      <h3 className="text-2xl font-black text-white tracking-tight mb-3">{feature.title}</h3>
+      <p className="text-slate-400 text-base leading-relaxed mb-5">{feature.desc}</p>
+      <ul className="space-y-2.5 mb-6">
+        {feature.bullets.map((b) => (
+          <li key={b} className="flex items-start gap-3">
+            <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+            <span className="text-slate-300 text-sm">{b}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-xl">
+        {feature.visual(progress)}
+      </div>
+    </div>
+  );
+}
+
 function FeatureSlide({ feature, scrollYProgress, index, total }: {
   feature: Feature; scrollYProgress: MotionValue<number>; index: number; total: number;
 }) {
@@ -479,6 +528,7 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 // each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
   const N = FEATURES.length;
+  const isDesktop = useIsDesktop();
   const ref = useRef<HTMLElement>(null);
   // Pin progress (0..1) computed manually from scroll — avoids useScroll's
   // ScrollTimeline path (which threw "Offsets must be in [0,1]" in some browsers).
@@ -514,6 +564,22 @@ function HorizontalFeatures() {
   const xIndex = useTransform(scrollYProgress, inputs, outputs);
   const x = useTransform(xIndex, (v) => `-${(v * 100).toFixed(3)}vw`);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+
+  // ── Mobile/tablet: stacked vertical features (no horizontal pin) ──
+  if (!isDesktop) {
+    return (
+      <section id="features" className="bg-slate-950">
+        <div className="pt-20 pb-6 text-center px-5">
+          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">Todo en una sola plataforma</h2>
+        </div>
+        <div>
+          {FEATURES.map((f) => <MobileFeature key={f.title} feature={f} />)}
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
@@ -1096,7 +1162,7 @@ export default function HomePage() {
                   IA nativa · Agente 24/7 · WhatsApp + Instagram
                 </motion.div>
 
-                <motion.h1 variants={titleContainer} className="text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight">
+                <motion.h1 variants={titleContainer} className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.08] tracking-tight">
                   {HEADLINE.map((line, li) => (
                     <span key={li} className="block">
                       {line.text.split(" ").map((word, wi) => (
