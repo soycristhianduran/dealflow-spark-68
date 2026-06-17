@@ -361,7 +361,7 @@ function PlanCard({ plan, isAnnual, onCta, loading }: {
 }) {
   const price = isAnnual ? plan.annual : plan.monthly;
   return (
-    <div className={`relative flex flex-col rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-2 border-orange-500 shadow-2xl shadow-orange-500/10 md:scale-105 bg-white hover:shadow-orange-500/20" : "border border-slate-200 bg-white shadow-sm hover:shadow-lg"}`}>
+    <div className={`relative flex flex-col h-full rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-2 border-orange-500 shadow-2xl shadow-orange-500/10 bg-white hover:shadow-orange-500/20" : "border border-slate-200 bg-white shadow-sm hover:shadow-lg"}`}>
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">
@@ -1194,9 +1194,9 @@ export default function HomePage() {
               </div>
             </FadeUp>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-start max-w-6xl mx-auto pb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch max-w-6xl mx-auto pb-8">
               {plans.map((plan, i) => (
-                <FadeUp key={plan.name} delay={i * 100}>
+                <FadeUp key={plan.name} delay={i * 100} className="h-full">
                   <PlanCard
                     plan={plan}
                     isAnnual={isAnnual}
