@@ -867,6 +867,49 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
   );
 }
 
+// Automation flow builder: nodes connect one after another as you scroll.
+function FlowLink({ progress, start, end }: { progress: MotionValue<number>; start: number; end: number }) {
+  const scaleY = useTransform(progress, [start, end], [0, 1], { clamp: true });
+  return (
+    <div className="flex justify-start pl-[26px]">
+      <motion.div style={{ scaleY, transformOrigin: "top" }} className="h-5 w-px bg-gradient-to-b from-pink-400/70 to-pink-400/20" />
+    </div>
+  );
+}
+function FlowNode({ progress, start, icon, iconBg, title, sub, tag }: {
+  progress: MotionValue<number>; start: number; icon: React.ReactNode; iconBg: string; title: string; sub: string; tag: string;
+}) {
+  return (
+    <Reveal progress={progress} start={start} y={10}>
+      <div className="flex items-center gap-3 rounded-xl bg-slate-800/60 border border-slate-700/40 px-3 py-2.5">
+        <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>{icon}</div>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs font-semibold text-white truncate">{title}</p>
+          <p className="text-[10px] text-slate-500 truncate">{sub}</p>
+        </div>
+        <span className="text-[8px] font-bold uppercase tracking-wider text-slate-600 shrink-0">{tag}</span>
+      </div>
+    </Reveal>
+  );
+}
+function FlowBuilderDemo({ progress }: { progress: MotionValue<number> }) {
+  return (
+    <div className="space-y-0">
+      <div className="flex items-center justify-between pb-3">
+        <span className="text-sm font-semibold text-white">Constructor de flujos</span>
+        <span className="inline-flex items-center gap-1 text-[10px] text-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> Activo</span>
+      </div>
+      <FlowNode progress={progress} start={0.05} iconBg="bg-green-500/20 text-green-300" icon={<WhatsAppIcon size={16} />} title="Nuevo lead" sub="Entra por WhatsApp" tag="Disparador" />
+      <FlowLink progress={progress} start={0.16} end={0.24} />
+      <FlowNode progress={progress} start={0.24} iconBg="bg-pink-500/20 text-pink-300" icon={<MessageCircle className="h-4 w-4" />} title="Mensaje de bienvenida" sub="Plantilla automática" tag="Acción" />
+      <FlowLink progress={progress} start={0.36} end={0.44} />
+      <FlowNode progress={progress} start={0.44} iconBg="bg-amber-500/20 text-amber-300" icon={<GitBranch className="h-4 w-4" />} title="¿Sin respuesta en 24h?" sub="Condición / filtro" tag="Condición" />
+      <FlowLink progress={progress} start={0.56} end={0.64} />
+      <FlowNode progress={progress} start={0.64} iconBg="bg-blue-500/20 text-blue-300" icon={<Users className="h-4 w-4" />} title="Seguimiento + asignar" sub="Vendedor disponible" tag="Acción" />
+    </div>
+  );
+}
+
 // Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
 // Messenger (official logos), each sliding in from the right as you scroll.
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
@@ -998,16 +1041,7 @@ const FEATURES: Feature[] = [
     title: "Automatizaciones",
     desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
     bullets: ["WhatsApp + email automáticos", "Condiciones y filtros", "Disparadores por evento"],
-    visual: (p) => (
-      <div className="space-y-2">
-        {["Lead entra por WhatsApp", "Se asigna al vendedor", "Mensaje de bienvenida", "Seguimiento a las 24h"].map((s, i) => (
-          <Reveal key={s} progress={p} start={0.15 + i * 0.13} y={8} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">{i + 1}</span>
-            <span className="text-xs text-slate-300">{s}</span>
-          </Reveal>
-        ))}
-      </div>
-    ),
+    visual: (p) => <FlowBuilderDemo progress={p} />,
   },
   {
     eyebrow: "Landings con IA", accent: "indigo", icon: Layout,
