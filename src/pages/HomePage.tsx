@@ -580,6 +580,31 @@ function WhatsAppChatDemo({ progress }: { progress?: MotionValue<number> }) {
   );
 }
 
+// ── Scroll-driven visual helpers (driven by each slide's playProgress) ──
+function CountUp({ progress, to, prefix = "", suffix = "", decimals = 0, className }: {
+  progress: MotionValue<number>; to: number; prefix?: string; suffix?: string; decimals?: number; className?: string;
+}) {
+  const mv = useTransform(progress, [0.15, 0.9], [0, to], { clamp: true });
+  const [v, setV] = useState(0);
+  useMotionValueEvent(mv, "change", (x) => setV(x));
+  const text = decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString("es");
+  return <span className={className}>{prefix}{text}{suffix}</span>;
+}
+function Bar({ progress, pct, className, start = 0.2, end = 0.85 }: {
+  progress: MotionValue<number>; pct: number; className?: string; start?: number; end?: number;
+}) {
+  const w = useTransform(progress, [start, end], ["0%", `${pct}%`], { clamp: true });
+  return <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden"><motion.div style={{ width: w }} className={`h-full rounded-full ${className}`} /></div>;
+}
+function Reveal({ progress, start, end, y = 12, className, children }: {
+  progress: MotionValue<number>; start: number; end?: number; y?: number; className?: string; children: React.ReactNode;
+}) {
+  const e = end ?? start + 0.14;
+  const opacity = useTransform(progress, [start, e], [0, 1], { clamp: true });
+  const ty = useTransform(progress, [start, e], [y, 0], { clamp: true });
+  return <motion.div style={{ opacity, y: ty }} className={className}>{children}</motion.div>;
+}
+
 const FEATURES: Feature[] = [
   {
     eyebrow: "WhatsApp nativo", accent: "green", icon: MessageCircle,
@@ -593,22 +618,15 @@ const FEATURES: Feature[] = [
     title: "Dashboard de Marketing & Ventas",
     desc: "Sincroniza tus cuentas de Meta Ads y ve, en un solo lugar, inversión, leads, ventas y ROAS real.",
     bullets: ["Sincroniza múltiples cuentas publicitarias", "ROAS real cruzado con tu pipeline", "Inversión, leads y ventas por campaña"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-3">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
           <span className="text-sm font-semibold text-white">Rendimiento · Meta Ads</span>
         </div>
-        {[
-          { label: "Inversión Ads", val: "$1.2k", color: "text-blue-300" },
-          { label: "Ingresos pipeline", val: "$4.1k", color: "text-emerald-300" },
-          { label: "ROAS", val: "3.4×", color: "text-orange-300" },
-        ].map((r) => (
-          <div key={r.label} className="flex items-center justify-between">
-            <span className="text-sm text-slate-400">{r.label}</span>
-            <span className={`text-base font-bold font-mono ${r.color}`}>{r.val}</span>
-          </div>
-        ))}
+        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">Inversión Ads</span><CountUp progress={p} to={1.2} prefix="$" suffix="k" decimals={1} className="text-base font-bold font-mono text-blue-300" /></div>
+        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">Ingresos pipeline</span><CountUp progress={p} to={4.1} prefix="$" suffix="k" decimals={1} className="text-base font-bold font-mono text-emerald-300" /></div>
+        <div className="flex items-center justify-between"><span className="text-sm text-slate-400">ROAS</span><CountUp progress={p} to={3.4} suffix="×" decimals={1} className="text-base font-bold font-mono text-orange-300" /></div>
       </div>
     ),
   },
@@ -617,13 +635,13 @@ const FEATURES: Feature[] = [
     title: "IA Boost — Lead Scoring",
     desc: "La IA puntúa cada lead por su probabilidad de cierre para que tu equipo se enfoque en lo que vende.",
     bullets: ["Score automático con IA", "Prioriza los leads más calientes", "Menos tiempo perdido en leads fríos"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-3">
         {[{ name: "Juan M.", score: 9.1, color: "bg-green-500" }, { name: "Ana S.", score: 8.8, color: "bg-green-500" }, { name: "Pedro R.", score: 6.2, color: "bg-yellow-500" }].map((l) => (
           <div key={l.name} className="flex items-center gap-3">
             <span className="text-xs text-slate-400 w-16 shrink-0">{l.name}</span>
-            <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden"><div className={`h-full ${l.color} rounded-full`} style={{ width: `${l.score * 10}%` }} /></div>
-            <span className="text-sm font-bold font-mono text-white w-8 text-right">{l.score}</span>
+            <Bar progress={p} pct={l.score * 10} className={l.color} />
+            <CountUp progress={p} to={l.score} decimals={1} className="text-sm font-bold font-mono text-white w-8 text-right" />
           </div>
         ))}
       </div>
@@ -634,20 +652,20 @@ const FEATURES: Feature[] = [
     title: "Pipeline Visual",
     desc: "Un Kanban de oportunidades con pronóstico de ingresos en tiempo real. Arrastra y suelta entre etapas.",
     bullets: ["Pronóstico de ingresos en vivo", "Arrastrar y soltar entre etapas", "Vista clara de todo tu embudo"],
-    visual: () => (
+    visual: (p) => (
       <div className="grid grid-cols-2 gap-2">
         {[
-          { stage: "Nuevo", amount: "$8.2k", count: 5, color: "bg-slate-500" },
-          { stage: "Calificado", amount: "$12.4k", count: 3, color: "bg-blue-500" },
-          { stage: "Propuesta", amount: "$9.1k", count: 2, color: "bg-purple-500" },
-          { stage: "Cerrado", amount: "$8.5k", count: 1, color: "bg-orange-500" },
-        ].map((s) => (
-          <div key={s.stage} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3">
+          { stage: "Nuevo", amount: 8.2, count: 5, color: "bg-slate-500" },
+          { stage: "Calificado", amount: 12.4, count: 3, color: "bg-blue-500" },
+          { stage: "Propuesta", amount: 9.1, count: 2, color: "bg-purple-500" },
+          { stage: "Cerrado", amount: 8.5, count: 1, color: "bg-orange-500" },
+        ].map((s, i) => (
+          <Reveal key={s.stage} progress={p} start={0.15 + i * 0.12} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3">
             <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
             <p className="text-[11px] text-slate-500">{s.stage}</p>
-            <p className="text-sm font-bold text-white font-mono">{s.amount}</p>
+            <CountUp progress={p} to={s.amount} prefix="$" suffix="k" decimals={1} className="text-sm font-bold text-white font-mono" />
             <p className="text-[10px] text-slate-600 font-mono">{s.count} leads</p>
-          </div>
+          </Reveal>
         ))}
       </div>
     ),
@@ -657,17 +675,17 @@ const FEATURES: Feature[] = [
     title: "Analizador de Llamadas",
     desc: "La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.",
     bullets: ["Transcripción automática", "Detecta objeciones e intención", "Sugiere el siguiente paso"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-3">
         {[
           { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-300 bg-yellow-500/10 border-yellow-500/20" },
           { label: "Intención de compra", tag: "Alta — 8.7/10", color: "text-green-300 bg-green-500/10 border-green-500/20" },
           { label: "Próximo paso", tag: "Enviar propuesta", color: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20" },
-        ].map((r) => (
-          <div key={r.label} className="flex items-center justify-between gap-2">
+        ].map((r, i) => (
+          <Reveal key={r.label} progress={p} start={0.18 + i * 0.16} className="flex items-center justify-between gap-2">
             <span className="text-xs text-slate-400">{r.label}</span>
             <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${r.color}`}>{r.tag}</span>
-          </div>
+          </Reveal>
         ))}
       </div>
     ),
@@ -677,13 +695,13 @@ const FEATURES: Feature[] = [
     title: "Automatizaciones",
     desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
     bullets: ["WhatsApp + email automáticos", "Condiciones y filtros", "Disparadores por evento"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-2">
         {["Lead entra por WhatsApp", "Se asigna al vendedor", "Mensaje de bienvenida", "Seguimiento a las 24h"].map((s, i) => (
-          <div key={s} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2">
+          <Reveal key={s} progress={p} start={0.15 + i * 0.13} y={8} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">{i + 1}</span>
             <span className="text-xs text-slate-300">{s}</span>
-          </div>
+          </Reveal>
         ))}
       </div>
     ),
@@ -693,17 +711,17 @@ const FEATURES: Feature[] = [
     title: "Landing pages con IA",
     desc: "Describe tu oferta y la IA crea una landing lista para captar leads, publicada en tu dominio en minutos.",
     bullets: ["Generación con IA", "Publica en tu propio dominio", "Captura leads directo al CRM"],
-    visual: () => (
+    visual: (p) => (
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-2.5">
-        <div className="h-2.5 w-1/2 rounded-full bg-indigo-400/70" />
-        <div className="h-1.5 w-3/4 rounded-full bg-slate-600" />
-        <div className="h-1.5 w-2/3 rounded-full bg-slate-600" />
-        <div className="grid grid-cols-3 gap-2 pt-1">
+        <Reveal progress={p} start={0.12}><div className="h-2.5 w-1/2 rounded-full bg-indigo-400/70" /></Reveal>
+        <Reveal progress={p} start={0.22}><div className="h-1.5 w-3/4 rounded-full bg-slate-600" /></Reveal>
+        <Reveal progress={p} start={0.30}><div className="h-1.5 w-2/3 rounded-full bg-slate-600" /></Reveal>
+        <Reveal progress={p} start={0.40} className="grid grid-cols-3 gap-2 pt-1">
           <div className="h-10 rounded-lg bg-slate-700/50" />
           <div className="h-10 rounded-lg bg-slate-700/50" />
           <div className="h-10 rounded-lg bg-slate-700/50" />
-        </div>
-        <div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" />
+        </Reveal>
+        <Reveal progress={p} start={0.55}><div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" /></Reveal>
       </div>
     ),
   },
@@ -712,14 +730,11 @@ const FEATURES: Feature[] = [
     title: "Agente de Voz",
     desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
     bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-2">
-        {[{ label: "Llamadas este mes", val: "128" }, { label: "Citas agendadas", val: "34" }, { label: "Intención de compra", val: "8.7/10" }].map((r) => (
-          <div key={r.label} className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
-            <span className="text-xs text-slate-400">{r.label}</span>
-            <span className="text-sm font-bold font-mono text-sky-300">{r.val}</span>
-          </div>
-        ))}
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Llamadas este mes</span><CountUp progress={p} to={128} className="text-sm font-bold font-mono text-sky-300" /></div>
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Citas agendadas</span><CountUp progress={p} to={34} className="text-sm font-bold font-mono text-sky-300" /></div>
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Intención de compra</span><CountUp progress={p} to={8.7} decimals={1} suffix="/10" className="text-sm font-bold font-mono text-sky-300" /></div>
       </div>
     ),
   },
@@ -728,14 +743,11 @@ const FEATURES: Feature[] = [
     title: "Email marketing",
     desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
     bullets: ["Envíos desde tu dominio", "Métricas de apertura y clics", "Plantillas listas para usar"],
-    visual: () => (
+    visual: (p) => (
       <div className="grid grid-cols-3 gap-2">
-        {[{ label: "Enviados", val: "5.000" }, { label: "Apertura", val: "42%" }, { label: "Clics", val: "9%" }].map((r) => (
-          <div key={r.label} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center">
-            <p className="text-base font-bold font-mono text-amber-300">{r.val}</p>
-            <p className="text-[10px] text-slate-500 mt-0.5">{r.label}</p>
-          </div>
-        ))}
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={5000} className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Enviados</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={42} suffix="%" className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Apertura</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={9} suffix="%" className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Clics</p></div>
       </div>
     ),
   },
@@ -744,14 +756,14 @@ const FEATURES: Feature[] = [
     title: "Calendario & Tareas",
     desc: "Agenda citas y da seguimiento sin que ningún lead se enfríe.",
     bullets: ["Agenda de citas", "Recordatorios y tareas", "Seguimiento a tiempo"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-2">
-        {[{ time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" }, { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" }, { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" }].map((r) => (
-          <div key={r.time} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
+        {[{ time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" }, { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" }, { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" }].map((r, i) => (
+          <Reveal key={r.time} progress={p} start={0.16 + i * 0.16} y={8} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
             <span className="text-xs font-mono text-slate-400 w-10 shrink-0">{r.time}</span>
             <span className={`h-2 w-2 rounded-full ${r.color} shrink-0`} />
             <span className="text-xs text-slate-300 truncate">{r.label}</span>
-          </div>
+          </Reveal>
         ))}
       </div>
     ),
@@ -761,7 +773,7 @@ const FEATURES: Feature[] = [
     title: "Agente IA 24/7",
     desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
     bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
-    visual: () => (
+    visual: (p) => (
       <div className="space-y-2.5">
         {[
           { msg: "¿Cuánto cuesta el plan Pro?", out: false },
@@ -769,12 +781,12 @@ const FEATURES: Feature[] = [
           { msg: "Quiero hablar con alguien para comprarlo", out: false },
           { msg: "¡Perfecto! Te conecto con un asesor ahora mismo 😊", out: true, ai: true },
         ].map((m, i) => (
-          <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+          <Reveal key={i} progress={p} start={0.12 + i * 0.16} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
             <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
               <p className="text-xs text-slate-200">{m.msg}</p>
               {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• IA</p>}
             </div>
-          </div>
+          </Reveal>
         ))}
       </div>
     ),
