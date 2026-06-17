@@ -708,10 +708,10 @@ function WhatsAppChatDemo({ progress }: { progress?: MotionValue<number> }) {
 }
 
 // ── Scroll-driven visual helpers (driven by each slide's playProgress) ──
-function CountUp({ progress, to, prefix = "", suffix = "", decimals = 0, className }: {
-  progress: MotionValue<number>; to: number; prefix?: string; suffix?: string; decimals?: number; className?: string;
+function CountUp({ progress, to, prefix = "", suffix = "", decimals = 0, className, start = 0.15, end = 0.9 }: {
+  progress: MotionValue<number>; to: number; prefix?: string; suffix?: string; decimals?: number; className?: string; start?: number; end?: number;
 }) {
-  const mv = useTransform(progress, [0.15, 0.9], [0, to], { clamp: true });
+  const mv = useTransform(progress, [start, end], [0, to], { clamp: true });
   const [v, setV] = useState(0);
   useMotionValueEvent(mv, "change", (x) => setV(x));
   const text = decimals ? v.toFixed(decimals) : Math.round(v).toLocaleString("es");
@@ -811,6 +811,44 @@ function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
         <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Transcripción en vivo</p>
         <p className="text-xs text-slate-300 leading-relaxed">"Perfecto, te agendo la visita para el martes a las 3:00 pm 🗓️"</p>
       </Reveal>
+    </div>
+  );
+}
+
+// IA Boost: the AI reads the conversation, detects buying signals and raises the
+// lead score live as you scroll.
+function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
+  const signals = ["✓ Presupuesto", "✓ Intención alta", "✓ Pidió visita"];
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/20 text-orange-300 text-xs font-bold">JM</div>
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-white leading-tight">Juan M.</p>
+          <p className="text-[11px] text-orange-300/80 flex items-center gap-1"><Brain className="h-3 w-3" /> IA analizando conversación…</p>
+        </div>
+      </div>
+      <Reveal progress={progress} start={0.06} className="flex justify-start">
+        <div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">Tengo el presupuesto listo para esta semana 💰</p></div>
+      </Reveal>
+      <Reveal progress={progress} start={0.2} className="flex justify-start">
+        <div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">¿Cuándo pueden agendar la visita?</p></div>
+      </Reveal>
+      <div className="flex flex-wrap gap-1.5">
+        {signals.map((s, i) => (
+          <Reveal key={s} progress={progress} start={0.36 + i * 0.08}>
+            <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-medium text-emerald-300">{s}</span>
+          </Reveal>
+        ))}
+      </div>
+      <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-slate-400">Lead Score</span>
+          <CountUp progress={progress} to={9.2} decimals={1} start={0.55} end={0.92} className="text-lg font-black font-mono text-emerald-300" />
+        </div>
+        <Bar progress={progress} pct={92} start={0.55} end={0.92} className="bg-gradient-to-r from-orange-500 to-emerald-400" />
+        <Reveal progress={progress} start={0.86}><p className="mt-2 text-[11px] font-medium text-emerald-300">🔥 Lead caliente — prioridad alta</p></Reveal>
+      </div>
     </div>
   );
 }
@@ -939,17 +977,7 @@ const FEATURES: Feature[] = [
     title: "IA Boost — Lead Scoring",
     desc: "La IA puntúa cada lead por su probabilidad de cierre para que tu equipo se enfoque en lo que vende.",
     bullets: ["Score automático con IA", "Prioriza los leads más calientes", "Menos tiempo perdido en leads fríos"],
-    visual: (p) => (
-      <div className="space-y-3">
-        {[{ name: "Juan M.", score: 9.1, color: "bg-green-500" }, { name: "Ana S.", score: 8.8, color: "bg-green-500" }, { name: "Pedro R.", score: 6.2, color: "bg-yellow-500" }].map((l) => (
-          <div key={l.name} className="flex items-center gap-3">
-            <span className="text-xs text-slate-400 w-16 shrink-0">{l.name}</span>
-            <Bar progress={p} pct={l.score * 10} className={l.color} />
-            <CountUp progress={p} to={l.score} decimals={1} className="text-sm font-bold font-mono text-white w-8 text-right" />
-          </div>
-        ))}
-      </div>
-    ),
+    visual: (p) => <LeadScoringDemo progress={p} />,
   },
   {
     eyebrow: "IA en llamadas", accent: "cyan", icon: PhoneCall,
