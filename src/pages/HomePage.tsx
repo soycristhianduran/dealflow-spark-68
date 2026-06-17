@@ -416,36 +416,32 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   return (
-    <section className={`py-16 sm:py-20 ${reverse ? "bg-slate-50" : "bg-white"}`}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className={`min-h-screen flex items-center py-20 ${reverse ? "bg-slate-50" : "bg-white"}`}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          {/* Copy */}
-          <FadeUp from={reverse ? "right" : "left"} className={reverse ? "lg:order-2" : "lg:order-1"}>
-            <div data-parallax data-speed="-28">
-              <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
-                <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-                {feature.eyebrow}
-              </div>
-              <h3 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-4">{feature.title}</h3>
-              <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
-              <ul className="space-y-3">
-                {feature.bullets.map((b) => (
-                  <li key={b} className="flex items-start gap-3">
-                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                    <span className="text-slate-700">{b}</span>
-                  </li>
-                ))}
-              </ul>
+          {/* Copy — appears as it enters the viewport center, fades out as it leaves */}
+          <div data-reveal data-speed="-34" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-2" : "lg:order-1"}`}>
+            <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+              {feature.eyebrow}
             </div>
-          </FadeUp>
+            <h3 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
+            <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+            <ul className="space-y-3">
+              {feature.bullets.map((b) => (
+                <li key={b} className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                  <span className="text-slate-700 text-lg">{b}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
           {/* Visual */}
-          <FadeUp from={reverse ? "left" : "right"} delay={140} className={reverse ? "lg:order-1" : "lg:order-2"}>
-            <div data-parallax data-speed="52" data-scale="0.06" className="will-change-transform">
-              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
-                {feature.visual}
-              </div>
+          <div data-reveal data-speed="44" data-scale="0.08" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
+            <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+              {feature.visual}
             </div>
-          </FadeUp>
+          </div>
         </div>
       </div>
     </section>
@@ -739,9 +735,10 @@ export default function HomePage() {
   // ── Scroll-linked parallax (scrubbing) — elements move/scale continuously with
   // scroll position, like thetinypod. Direct DOM writes, zero React re-renders. ──
   useEffect(() => {
-    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
-    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-parallax]"));
+    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-parallax],[data-reveal]"));
     if (!els.length) return;
+    if (reduce) { els.forEach(el => { el.style.opacity = "1"; }); return; }
     let raf = 0;
     const apply = () => {
       raf = 0;
@@ -754,8 +751,17 @@ export default function HomePage() {
         const speed = parseFloat(el.dataset.speed || "0");
         const scaleK = parseFloat(el.dataset.scale || "0");
         const ty = prog * speed;
-        const sc = scaleK ? (1 - Math.abs(prog) * scaleK) : 1;
-        el.style.transform = `translate3d(0,${ty.toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
+        if (el.hasAttribute("data-reveal")) {
+          // Reversible reveal: visible when centered, fades out as it leaves view
+          const focus = Math.max(0, Math.min(1, 1 - Math.abs(prog) * 1.5));
+          const eased = focus * focus * (3 - 2 * focus); // smoothstep
+          el.style.opacity = eased.toFixed(3);
+          const sc = scaleK ? (1 - (1 - eased) * scaleK) : 1;
+          el.style.transform = `translate3d(0,${ty.toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
+        } else {
+          const sc = scaleK ? (1 - Math.abs(prog) * scaleK) : 1;
+          el.style.transform = `translate3d(0,${ty.toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
+        }
       }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
