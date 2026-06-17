@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion } from "framer-motion";
+import { motion, useScroll, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
@@ -415,13 +415,23 @@ const FA: Record<string, { text: string; soft: string; ring: string; iconBg: str
   violet: { text: "text-violet-600", soft: "bg-violet-50", ring: "ring-violet-100", iconBg: "bg-violet-500" },
 };
 
-interface Feature { eyebrow: string; title: string; desc: string; bullets: string[]; accent: string; icon: LucideIcon | (() => JSX.Element); visual: React.ReactNode }
+interface Feature { eyebrow: string; title: string; desc: string; bullets: string[]; accent: string; icon: LucideIcon | (() => JSX.Element); visual: (progress: MotionValue<number>) => React.ReactNode }
 
-function FeatureSlide({ feature }: { feature: Feature }) {
+function FeatureSlide({ feature, scrollYProgress, index, total }: {
+  feature: Feature; scrollYProgress: MotionValue<number>; index: number; total: number;
+}) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
+  const center = total > 1 ? index / (total - 1) : 0;
+  const step = total > 1 ? 1 / (total - 1) : 1;
+  // Focus: this slide is full/large when it's centered, dim/small otherwise.
+  const focus = useTransform(scrollYProgress, [center - step, center, center + step], [0.35, 1, 0.35], { clamp: true });
+  const scale = useTransform(focus, [0.35, 1], [0.92, 1]);
+  // Per-slide "play" progress: 0 as it enters from the right → 1 right at center.
+  const playProgress = useTransform(scrollYProgress, [center - step * 0.85, center], [0, 1], { clamp: true });
+
   return (
-    <div data-hslide className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0">
+    <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0 will-change-transform">
       <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center w-full">
         {/* Copy */}
         <div>
@@ -440,22 +450,27 @@ function FeatureSlide({ feature }: { feature: Feature }) {
             ))}
           </ul>
         </div>
-        {/* Visual */}
+        {/* Visual — its inner animation is driven by playProgress (scroll) */}
         <div>
           <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
-            {feature.visual}
+            {feature.visual(playProgress)}
           </div>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
-// Pinned section whose features scroll HORIZONTALLY as you scroll vertically.
+// Pinned section whose features scroll HORIZONTALLY as you scroll vertically,
+// each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
   const N = FEATURES.length;
+  const ref = useRef<HTMLElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  const x = useTransform(scrollYProgress, [0, 1], ["0vw", `-${(N - 1) * 100}vw`]);
+  const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
-    <section id="features" data-hscroll className="relative bg-white" style={{ height: `${N * 72}vh` }}>
+    <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
         {/* Header (stays pinned above the slider) */}
         <div className="pt-24 pb-4 text-center px-4 shrink-0">
@@ -464,58 +479,71 @@ function HorizontalFeatures() {
         </div>
         {/* Horizontal track */}
         <div className="flex-1 min-h-0">
-          <div data-hscroll-track className="flex h-full will-change-transform" style={{ width: `${N * 100}vw` }}>
-            {FEATURES.map((f) => <FeatureSlide key={f.title} feature={f} />)}
-          </div>
+          <motion.div className="flex h-full will-change-transform" style={{ width: `${N * 100}vw`, x }}>
+            {FEATURES.map((f, i) => (
+              <FeatureSlide key={f.title} feature={f} scrollYProgress={scrollYProgress} index={i} total={N} />
+            ))}
+          </motion.div>
         </div>
         {/* Progress bar */}
         <div className="shrink-0 h-1 bg-slate-200/50">
-          <div data-hscroll-bar className="h-full bg-orange-500 origin-left" style={{ transform: "scaleX(0)" }} />
+          <motion.div className="h-full bg-orange-500 origin-left" style={{ scaleX: barScaleX }} />
         </div>
       </div>
     </section>
   );
 }
 
-// Self-animating WhatsApp chat: messages appear one by one, with a typing
-// indicator before the AI agent replies, then loops.
-function WhatsAppChatDemo() {
-  type Step = { typing?: boolean; who?: "them" | "me"; ai?: boolean; text?: string; time?: string };
-  const SCRIPT: Step[] = [
-    { who: "them", text: "Hola, me interesa el plan Pro", time: "10:32" },
-    { typing: true },
-    { who: "me", ai: true, text: "¡Hola! 👋 El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", time: "10:32" },
-    { who: "them", text: "Perfecto, ¿puedo hablar con alguien?", time: "10:33" },
-    { typing: true },
-    { who: "me", ai: true, text: "¡Claro! Te conecto con un asesor ahora mismo 😊", time: "10:33" },
-  ];
+type ChatMsg = { who: "them" | "me"; ai?: boolean; text: string; time: string };
+const CHAT_SCRIPT: ChatMsg[] = [
+  { who: "them", text: "Hola, me interesa el plan Pro", time: "10:32" },
+  { who: "me", ai: true, text: "¡Hola! 👋 El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", time: "10:32" },
+  { who: "them", text: "Perfecto, ¿puedo hablar con alguien?", time: "10:33" },
+  { who: "me", ai: true, text: "¡Claro! Te conecto con un asesor ahora mismo 😊", time: "10:33" },
+];
+
+// WhatsApp chat. If `progress` (0..1) is given, the conversation is driven by
+// scroll (messages + AI typing appear as you scroll the slide). Otherwise it
+// plays on a timed loop.
+function WhatsAppChatDemo({ progress }: { progress?: MotionValue<number> }) {
+  const msgs = CHAT_SCRIPT;
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState(false);
 
+  // Timed loop (only when not scroll-driven)
   useEffect(() => {
+    if (progress) return;
     let cancelled = false;
     const timers: ReturnType<typeof setTimeout>[] = [];
     const run = () => {
       setCount(0); setTyping(false);
       let delay = 500;
-      SCRIPT.forEach((step) => {
-        if (step.typing) {
-          timers.push(setTimeout(() => !cancelled && setTyping(true), delay));
-          delay += 1400;
-          timers.push(setTimeout(() => !cancelled && setTyping(false), delay));
-        } else {
-          const at = delay;
-          timers.push(setTimeout(() => !cancelled && setCount((c) => c + 1), at));
-          delay += 1200;
-        }
+      msgs.forEach((m) => {
+        if (m.ai) { timers.push(setTimeout(() => !cancelled && setTyping(true), delay)); delay += 1400; timers.push(setTimeout(() => !cancelled && setTyping(false), delay)); }
+        timers.push(setTimeout(() => !cancelled && setCount((c) => c + 1), delay));
+        delay += 1200;
       });
       timers.push(setTimeout(() => { if (!cancelled) run(); }, delay + 2600));
     };
     run();
     return () => { cancelled = true; timers.forEach(clearTimeout); };
-  }, []);
+  }, [progress, msgs]);
 
-  const msgs = SCRIPT.filter((s) => !s.typing);
+  // Scroll-driven
+  const fallback = useMotionValue(0);
+  useMotionValueEvent(progress ?? fallback, "change", (v) => {
+    if (!progress) return;
+    const total = msgs.length;
+    const points = msgs.map((_, k) => (k + 1) / (total + 1)); // appearance threshold per msg
+    const c = points.filter((pt) => v >= pt).length;
+    let t = false;
+    if (c < total && msgs[c].ai) {
+      const prev = c > 0 ? points[c - 1] : 0;
+      if (v > points[c] - (points[c] - prev) * 0.6) t = true;
+    }
+    setCount(c); setTyping(t);
+  });
+
   const visible = msgs.slice(0, count);
 
   return (
@@ -558,14 +586,14 @@ const FEATURES: Feature[] = [
     title: "WhatsApp Business Nativo",
     desc: "Envía, recibe y automatiza desde el CRM. Sin apps externas, sin pagar a terceros.",
     bullets: ["Plantillas aprobadas por Meta", "Respuestas automáticas 24/7", "WhatsApp + Instagram DMs en un solo inbox"],
-    visual: <WhatsAppChatDemo />,
+    visual: (p) => <WhatsAppChatDemo progress={p} />,
   },
   {
     eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
     title: "Dashboard de Marketing & Ventas",
     desc: "Sincroniza tus cuentas de Meta Ads y ve, en un solo lugar, inversión, leads, ventas y ROAS real.",
     bullets: ["Sincroniza múltiples cuentas publicitarias", "ROAS real cruzado con tu pipeline", "Inversión, leads y ventas por campaña"],
-    visual: (
+    visual: () => (
       <div className="space-y-3">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
@@ -589,7 +617,7 @@ const FEATURES: Feature[] = [
     title: "IA Boost — Lead Scoring",
     desc: "La IA puntúa cada lead por su probabilidad de cierre para que tu equipo se enfoque en lo que vende.",
     bullets: ["Score automático con IA", "Prioriza los leads más calientes", "Menos tiempo perdido en leads fríos"],
-    visual: (
+    visual: () => (
       <div className="space-y-3">
         {[{ name: "Juan M.", score: 9.1, color: "bg-green-500" }, { name: "Ana S.", score: 8.8, color: "bg-green-500" }, { name: "Pedro R.", score: 6.2, color: "bg-yellow-500" }].map((l) => (
           <div key={l.name} className="flex items-center gap-3">
@@ -606,7 +634,7 @@ const FEATURES: Feature[] = [
     title: "Pipeline Visual",
     desc: "Un Kanban de oportunidades con pronóstico de ingresos en tiempo real. Arrastra y suelta entre etapas.",
     bullets: ["Pronóstico de ingresos en vivo", "Arrastrar y soltar entre etapas", "Vista clara de todo tu embudo"],
-    visual: (
+    visual: () => (
       <div className="grid grid-cols-2 gap-2">
         {[
           { stage: "Nuevo", amount: "$8.2k", count: 5, color: "bg-slate-500" },
@@ -629,7 +657,7 @@ const FEATURES: Feature[] = [
     title: "Analizador de Llamadas",
     desc: "La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.",
     bullets: ["Transcripción automática", "Detecta objeciones e intención", "Sugiere el siguiente paso"],
-    visual: (
+    visual: () => (
       <div className="space-y-3">
         {[
           { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-300 bg-yellow-500/10 border-yellow-500/20" },
@@ -649,7 +677,7 @@ const FEATURES: Feature[] = [
     title: "Automatizaciones",
     desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
     bullets: ["WhatsApp + email automáticos", "Condiciones y filtros", "Disparadores por evento"],
-    visual: (
+    visual: () => (
       <div className="space-y-2">
         {["Lead entra por WhatsApp", "Se asigna al vendedor", "Mensaje de bienvenida", "Seguimiento a las 24h"].map((s, i) => (
           <div key={s} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2">
@@ -665,7 +693,7 @@ const FEATURES: Feature[] = [
     title: "Landing pages con IA",
     desc: "Describe tu oferta y la IA crea una landing lista para captar leads, publicada en tu dominio en minutos.",
     bullets: ["Generación con IA", "Publica en tu propio dominio", "Captura leads directo al CRM"],
-    visual: (
+    visual: () => (
       <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-2.5">
         <div className="h-2.5 w-1/2 rounded-full bg-indigo-400/70" />
         <div className="h-1.5 w-3/4 rounded-full bg-slate-600" />
@@ -684,7 +712,7 @@ const FEATURES: Feature[] = [
     title: "Agente de Voz",
     desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
     bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
-    visual: (
+    visual: () => (
       <div className="space-y-2">
         {[{ label: "Llamadas este mes", val: "128" }, { label: "Citas agendadas", val: "34" }, { label: "Intención de compra", val: "8.7/10" }].map((r) => (
           <div key={r.label} className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
@@ -700,7 +728,7 @@ const FEATURES: Feature[] = [
     title: "Email marketing",
     desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
     bullets: ["Envíos desde tu dominio", "Métricas de apertura y clics", "Plantillas listas para usar"],
-    visual: (
+    visual: () => (
       <div className="grid grid-cols-3 gap-2">
         {[{ label: "Enviados", val: "5.000" }, { label: "Apertura", val: "42%" }, { label: "Clics", val: "9%" }].map((r) => (
           <div key={r.label} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center">
@@ -716,7 +744,7 @@ const FEATURES: Feature[] = [
     title: "Calendario & Tareas",
     desc: "Agenda citas y da seguimiento sin que ningún lead se enfríe.",
     bullets: ["Agenda de citas", "Recordatorios y tareas", "Seguimiento a tiempo"],
-    visual: (
+    visual: () => (
       <div className="space-y-2">
         {[{ time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" }, { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" }, { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" }].map((r) => (
           <div key={r.time} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
@@ -733,7 +761,7 @@ const FEATURES: Feature[] = [
     title: "Agente IA 24/7",
     desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
     bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
-    visual: (
+    visual: () => (
       <div className="space-y-2.5">
         {[
           { msg: "¿Cuánto cuesta el plan Pro?", out: false },
@@ -815,50 +843,6 @@ export default function HomePage() {
     };
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
-  }, []);
-
-  // ── Scroll-linked parallax (scrubbing) — elements move/scale continuously with
-  // scroll position, like thetinypod. Direct DOM writes, zero React re-renders. ──
-  useEffect(() => {
-    const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const hsections = Array.from(document.querySelectorAll<HTMLElement>("[data-hscroll]")).map((section) => ({
-      section,
-      track: section.querySelector<HTMLElement>("[data-hscroll-track]"),
-      bar: section.querySelector<HTMLElement>("[data-hscroll-bar]"),
-    }));
-    if (!hsections.length) return;
-    if (reduce) return; // leave the track at start; user can't scroll-drive it
-    const smooth = (x: number) => x * x * (3 - 2 * x);
-    let raf = 0;
-    const apply = () => {
-      raf = 0;
-      const vh = window.innerHeight;
-      // Drive horizontal translation of each pinned slider from vertical scroll.
-      for (const { section, track, bar } of hsections) {
-        if (!track) continue;
-        const rect = section.getBoundingClientRect();
-        const span = rect.height - vh; // vertical scroll distance while pinned
-        const p = span > 0 ? Math.max(0, Math.min(1, -rect.top / span)) : 0;
-        const maxX = Math.max(0, track.scrollWidth - window.innerWidth);
-        track.style.transform = `translate3d(${(-p * maxX).toFixed(1)}px,0,0)`;
-        if (bar) bar.style.transform = `scaleX(${p.toFixed(3)})`;
-        // Focus effect: the slide nearest the viewport center is full, others dim.
-        const slides = track.querySelectorAll<HTMLElement>("[data-hslide]");
-        const cx = window.innerWidth / 2;
-        slides.forEach((sl) => {
-          const r = sl.getBoundingClientRect();
-          const dist = Math.abs((r.left + r.width / 2) - cx) / window.innerWidth;
-          const f = smooth(Math.max(0, Math.min(1, 1 - dist * 1.3)));
-          sl.style.opacity = (0.25 + 0.75 * f).toFixed(3);
-          sl.style.transform = `scale(${(0.92 + 0.08 * f).toFixed(3)})`;
-        });
-      }
-    };
-    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
-    apply();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("resize", onScroll, { passive: true });
-    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, []);
 
   // Cursor-following spotlight over the hero grid (interactive background texture)
