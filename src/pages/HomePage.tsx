@@ -421,25 +421,29 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
         <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
           {/* Copy */}
           <FadeUp from={reverse ? "right" : "left"} className={reverse ? "lg:order-2" : "lg:order-1"}>
-            <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
-              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-              {feature.eyebrow}
+            <div data-parallax data-speed="-28">
+              <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+                {feature.eyebrow}
+              </div>
+              <h3 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-4">{feature.title}</h3>
+              <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+              <ul className="space-y-3">
+                {feature.bullets.map((b) => (
+                  <li key={b} className="flex items-start gap-3">
+                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                    <span className="text-slate-700">{b}</span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <h3 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-4">{feature.title}</h3>
-            <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
-            <ul className="space-y-3">
-              {feature.bullets.map((b) => (
-                <li key={b} className="flex items-start gap-3">
-                  <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                  <span className="text-slate-700">{b}</span>
-                </li>
-              ))}
-            </ul>
           </FadeUp>
           {/* Visual */}
           <FadeUp from={reverse ? "left" : "right"} delay={140} className={reverse ? "lg:order-1" : "lg:order-2"}>
-            <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
-              {feature.visual}
+            <div data-parallax data-speed="52" data-scale="0.06" className="will-change-transform">
+              <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+                {feature.visual}
+              </div>
             </div>
           </FadeUp>
         </div>
@@ -730,6 +734,35 @@ export default function HomePage() {
     };
     window.addEventListener("scroll", fn, { passive: true });
     return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // ── Scroll-linked parallax (scrubbing) — elements move/scale continuously with
+  // scroll position, like thetinypod. Direct DOM writes, zero React re-renders. ──
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    const els = Array.from(document.querySelectorAll<HTMLElement>("[data-parallax]"));
+    if (!els.length) return;
+    let raf = 0;
+    const apply = () => {
+      raf = 0;
+      const vh = window.innerHeight;
+      for (const el of els) {
+        const rect = el.getBoundingClientRect();
+        const center = rect.top + rect.height / 2;
+        // prog: 1 below viewport center → 0 at center → -1 above
+        const prog = Math.max(-1.2, Math.min(1.2, (center - vh / 2) / (vh / 2 + rect.height / 2)));
+        const speed = parseFloat(el.dataset.speed || "0");
+        const scaleK = parseFloat(el.dataset.scale || "0");
+        const ty = prog * speed;
+        const sc = scaleK ? (1 - Math.abs(prog) * scaleK) : 1;
+        el.style.transform = `translate3d(0,${ty.toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
+      }
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
+    apply();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, []);
 
   // Cursor-following spotlight over the hero grid (interactive background texture)
