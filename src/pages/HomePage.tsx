@@ -86,50 +86,32 @@ const addOns: AddOn[] = [
 
 // ─── Animation helpers ────────────────────────────────────────────────────────
 
-/** Fade-up / slide-in on scroll using IntersectionObserver */
+/** Reveal on scroll, powered by framer-motion's whileInView. */
 function FadeUp({
   children, delay = 0, from = "bottom", className = "",
 }: {
   children: React.ReactNode; delay?: number;
   from?: "bottom" | "left" | "right" | "scale"; className?: string;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(
-      ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
-      // Trigger when the element is ~18% up from the bottom of the viewport, so
-      // the reveal animation plays *while you're looking at it*, not before.
-      { threshold: 0, rootMargin: "0px 0px -18% 0px" }
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, []);
-
-  const hiddenTransform =
-    from === "left"  ? "translateX(-36px)" :
-    from === "right" ? "translateX(36px)"  :
-    from === "scale" ? "scaleX(0)"         :
-    "translateY(28px)";
-
+  const hidden =
+    from === "left"  ? { opacity: 0, x: -36 } :
+    from === "right" ? { opacity: 0, x: 36 }  :
+    from === "scale" ? { opacity: 0, scaleX: 0 } :
+                       { opacity: 0, y: 28 };
+  const show =
+    from === "scale" ? { opacity: 1, scaleX: 1 } :
+                       { opacity: 1, x: 0, y: 0 };
   return (
-    <div
-      ref={ref}
+    <motion.div
       className={className}
-      style={{
-        opacity: visible ? 1 : 0,
-        transform: visible ? (from === "scale" ? "scaleX(1)" : "none") : hiddenTransform,
-        transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
-        willChange: "transform, opacity",
-        transformOrigin: from === "scale" ? "left center" : undefined,
-        pointerEvents: visible ? undefined : "none",
-      }}
+      initial={hidden}
+      whileInView={show}
+      viewport={{ once: true, amount: 0.2, margin: "0px 0px -12% 0px" }}
+      transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1], delay: delay / 1000 }}
+      style={from === "scale" ? { transformOrigin: "left center" } : undefined}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
