@@ -65,6 +65,7 @@ export default function PricingPage() {
       const { data, error } = await supabase
         .from("plans")
         .select("*")
+        .neq("id", "agency")
         .order("display_order");
       if (!error && data) setPlans(data as unknown as Plan[]);
       setLoading(false);
@@ -170,7 +171,7 @@ export default function PricingPage() {
         {loading ? (
           <p className="text-center text-muted-foreground">Cargando planes...</p>
         ) : (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
             {plans.map((plan) => {
               const price = billingInterval === "month" ? plan.monthly_price_usd : plan.annual_price_usd;
               const monthlyEffective = billingInterval === "year" ? plan.annual_price_usd / 12 : plan.monthly_price_usd;

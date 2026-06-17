@@ -50,14 +50,6 @@ const plans: Plan[] = [
     notIncluded: [],
     cta: "Suscribirse ahora →", popular: false,
   },
-  {
-    id: "agency",
-    name: "Agencia", monthly: 249, annual: 207,
-    desc: "Para agencias que gestionan varias marcas",
-    features: ["25 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "Landings ilimitadas", "75.000 emails/mes", "IA Boost — 20.000 análisis/mes", "Agente de Chat IA — 60.000 créditos/mes", "Asistente IA — 50.000 usos/mes", "Agente de voz (llamadas)", "Cuentas ilimitadas de WhatsApp, Instagram y Meta", "API access", "Soporte prioritario + onboarding 1-a-1", "Todo lo del Business"],
-    notIncluded: [],
-    cta: "Suscribirse ahora →", popular: false,
-  },
 ];
 
 const faqItems: FaqItem[] = [
@@ -1194,7 +1186,7 @@ export default function HomePage() {
               </div>
             </FadeUp>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 items-stretch max-w-6xl mx-auto pb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch max-w-5xl mx-auto pb-8">
               {plans.map((plan, i) => (
                 <FadeUp key={plan.name} delay={i * 100} className="h-full">
                   <PlanCard
