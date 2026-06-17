@@ -1385,7 +1385,7 @@ export default function HomePage() {
               </Link>
 
               <div className="hidden md:flex items-center gap-8">
-                {[["features", "Funcionalidades"], ["pricing", "Precios"]].map(([id, label]) => (
+                {[["features", "Funcionalidades"], ["pricing", "Precios"], ["faq", "Preguntas"]].map(([id, label]) => (
                   <button key={id} onClick={() => scrollTo(id)} className="text-slate-400 hover:text-white text-sm font-medium transition-colors relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-orange-500 after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-200">
                     {label}
                   </button>
@@ -1410,7 +1410,7 @@ export default function HomePage() {
           {mobileOpen && (
             <div className="md:hidden border-t border-slate-800 bg-slate-950">
               <div className="px-4 py-4 space-y-2">
-                {[["features", "Funcionalidades"], ["pricing", "Precios"]].map(([id, label]) => (
+                {[["features", "Funcionalidades"], ["pricing", "Precios"], ["faq", "Preguntas"]].map(([id, label]) => (
                   <button key={id} onClick={() => scrollTo(id)} className="block w-full text-left text-slate-300 hover:text-white py-2 px-3 rounded-lg hover:bg-slate-800 text-sm font-medium">{label}</button>
                 ))}
                 <div className="pt-2 border-t border-slate-800 space-y-2">
@@ -1907,7 +1907,7 @@ export default function HomePage() {
         </section>
 
         {/* ── FAQ ───────────────────────────────────────────────────────────── */}
-        <section className="bg-white py-24">
+        <section id="faq" className="bg-white py-24">
           <div className="max-w-2xl mx-auto px-4 sm:px-6">
             <FadeUp className="text-center mb-14">
               <h2 className="text-4xl font-black text-slate-900">Preguntas frecuentes</h2>
