@@ -716,19 +716,20 @@ export default function HomePage() {
         <Marquee />
 
         {/* ── FEATURES — BENTO GRID ─────────────────────────────────────────── */}
-        <section id="features" className="bg-white py-24">
+        <section id="features" className="bg-gradient-to-b from-white to-slate-50 py-28">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <FadeUp className="text-center mb-14">
+            <FadeUp className="text-center mb-16 max-w-2xl mx-auto">
               <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Por qué Klosify</p>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900">Todo en una sola plataforma</h2>
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
+              <p className="text-slate-500 text-lg mt-5 leading-relaxed">Deja de pagar y conectar 5 herramientas distintas. Klosify reúne WhatsApp, Meta Ads, IA y tu pipeline en un solo lugar.</p>
             </FadeUp>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
               <FadeUp className="md:col-span-2" delay={0}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 overflow-hidden relative group cursor-default transition-all duration-300 hover:border hover:border-green-500/20 hover:shadow-xl hover:shadow-green-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 overflow-hidden relative group cursor-default transition-all duration-300 hover:border hover:border-green-500/20 hover:shadow-xl hover:shadow-green-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_100%_0%,rgba(34,197,94,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <WhatsAppIcon size={28} />
                   </div>
                   <div>
@@ -760,9 +761,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp delay={80}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_0%,rgba(59,130,246,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <FacebookIcon size={24} />
                   </div>
                   <div>
@@ -785,9 +786,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp delay={120}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-orange-500/20 hover:shadow-xl hover:shadow-orange-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-orange-500/20 hover:shadow-xl hover:shadow-orange-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_100%,rgba(249,115,22,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <Brain className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -808,9 +809,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp className="md:col-span-2" delay={60}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-teal-500/20 hover:shadow-xl hover:shadow-teal-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-teal-500/20 hover:shadow-xl hover:shadow-teal-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_0%_100%,rgba(20,184,166,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-teal-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-teal-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <TrendingUp className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -839,9 +840,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp delay={100}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_100%_100%,rgba(6,182,212,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-cyan-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <PhoneCall className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -863,9 +864,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp delay={140}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-pink-500/20 hover:shadow-xl hover:shadow-pink-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-pink-500/20 hover:shadow-xl hover:shadow-pink-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_0%_100%,rgba(236,72,153,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-pink-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <GitBranch className="w-5 h-5 text-white" />
                   </div>
                   <div>
@@ -893,9 +894,9 @@ export default function HomePage() {
               </FadeUp>
 
               <FadeUp className="md:col-span-3" delay={200}>
-                <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-violet-500/20 hover:shadow-xl hover:shadow-violet-500/5">
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-violet-500/20 hover:shadow-xl hover:shadow-violet-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_0%,rgba(139,92,246,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-violet-600 rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                  <div className="w-10 h-10 bg-violet-600 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
                     <Bot className="w-5 h-5 text-white" />
                   </div>
                   <div>
