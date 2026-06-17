@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { motion } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
@@ -394,6 +395,16 @@ function PlanCard({ plan, isAnnual, onCta, loading }: {
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
+
+// ─── Hero entrance animation (framer-motion) ───
+const heroContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.12, delayChildren: 0.1 } },
+};
+const heroItem = {
+  hidden: { opacity: 0, y: 26 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const } },
+};
 
 // ─── Feature section (one per feature, animates on scroll, alternates sides) ───
 const FA: Record<string, { text: string; soft: string; ring: string; iconBg: string }> = {
@@ -1024,27 +1035,27 @@ export default function HomePage() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
 
-              {/* Left — copy, each child animated separately */}
-              <div>
-                <div className="hero-anim inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-7" style={{ animationDelay: "0ms" }}>
+              {/* Left — copy, staggered entrance with framer-motion */}
+              <motion.div variants={heroContainer} initial="hidden" animate="show">
+                <motion.div variants={heroItem} className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-7">
                   <Sparkles className="w-3.5 h-3.5" />
                   IA nativa · Agente 24/7 · WhatsApp + Instagram
-                </div>
+                </motion.div>
 
-                <h1 className="hero-anim text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight" style={{ animationDelay: "80ms" }}>
+                <motion.h1 variants={heroItem} className="text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight">
                   <span className="gradient-text">El CRM con IA</span>
                   <br />
                   que hace el trabajo fuerte.
                   <br />
                   Tu equipo solo cierra.
-                </h1>
+                </motion.h1>
 
-                <p className="hero-anim text-lg text-slate-400 mt-6 leading-relaxed max-w-lg" style={{ animationDelay: "180ms" }}>
+                <motion.p variants={heroItem} className="text-lg text-slate-400 mt-6 leading-relaxed max-w-lg">
                   Lead scoring automático, agente IA 24/7 en WhatsApp e Instagram, Meta Ads con
                   ROAS y pipeline visual — todo desde <span className="text-white font-semibold">$29/mes</span>.
-                </p>
+                </motion.p>
 
-                <div className="hero-anim flex flex-col sm:flex-row items-start gap-4 mt-10" style={{ animationDelay: "280ms" }}>
+                <motion.div variants={heroItem} className="flex flex-col sm:flex-row items-start gap-4 mt-10">
                   <Link to="/auth" className="shimmer-btn inline-flex items-center gap-2 text-white px-7 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
                     Crear cuenta gratis
                     <ArrowRight className="w-4 h-4" />
@@ -1052,18 +1063,18 @@ export default function HomePage() {
                   <button onClick={() => scrollTo("pricing")} className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-all">
                     Ver planes <ChevronRight className="w-4 h-4" />
                   </button>
-                </div>
+                </motion.div>
 
-                <div className="hero-anim flex flex-wrap items-center gap-x-5 gap-y-2 mt-7" style={{ animationDelay: "360ms" }}>
+                <motion.div variants={heroItem} className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-7">
                   {["Sin tarjeta de crédito", "7 días gratis", "Cancela cuando quieras"].map((b) => (
                     <div key={b} className="flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
                       <span className="text-sm text-slate-500">{b}</span>
                     </div>
                   ))}
-                </div>
+                </motion.div>
 
-                <div className="hero-anim mt-10 pt-8 border-t border-slate-800/60" style={{ animationDelay: "440ms" }}>
+                <motion.div variants={heroItem} className="mt-10 pt-8 border-t border-slate-800/60">
                   <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-4">Se integra con</p>
                   <div className="flex items-center gap-3 flex-wrap">
                     {[
@@ -1072,20 +1083,25 @@ export default function HomePage() {
                       { name: "Instagram", Icon: InstagramIcon },
                       { name: "Google Calendar", Icon: GoogleCalendarIcon },
                     ].map(({ name, Icon }, i) => (
-                      <div key={name} title={name}
-                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 shadow-sm ring-1 ring-white/10 opacity-90 hover:opacity-100 hover:scale-110 transition-all duration-300"
-                        style={{ transitionDelay: `${i * 40}ms` }}>
+                      <motion.div key={name} title={name}
+                        initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 0.9, scale: 1 }}
+                        transition={{ delay: 0.9 + i * 0.08, duration: 0.4, ease: "backOut" }}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 shadow-sm ring-1 ring-white/10 hover:opacity-100 hover:scale-110 transition-transform duration-300">
                         <Icon size={22} />
-                      </div>
+                      </motion.div>
                     ))}
                   </div>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
 
               {/* Right — product mockup */}
-              <div className="hidden lg:block hero-anim-right scan-line-track" style={{ animationDelay: "200ms" }}>
+              <motion.div
+                initial={{ opacity: 0, x: 48, scale: 0.96 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
+                className="hidden lg:block scan-line-track">
                 <PipelineMockup />
-              </div>
+              </motion.div>
             </div>
           </div>
         </section>
