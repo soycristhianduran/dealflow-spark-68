@@ -405,6 +405,19 @@ const heroItem = {
   hidden: { opacity: 0, y: 26 },
   show: { opacity: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] as const } },
 };
+const titleContainer = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.05, delayChildren: 0.15 } },
+};
+const wordItem = {
+  hidden: { opacity: 0, y: 20, filter: "blur(10px)" },
+  show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const } },
+};
+const HEADLINE: { text: string; gradient?: boolean }[] = [
+  { text: "El CRM con IA", gradient: true },
+  { text: "que hace el trabajo fuerte." },
+  { text: "Tu equipo solo cierra." },
+];
 
 // ─── Feature section (one per feature, animates on scroll, alternates sides) ───
 const FA: Record<string, { text: string; soft: string; ring: string; iconBg: string }> = {
@@ -1013,6 +1026,21 @@ export default function HomePage() {
 
         {/* ── HERO ──────────────────────────────────────────────────────────── */}
         <section onMouseMove={handleHeroMouse} className="hero-spotlight group/hero bg-slate-950 pt-32 pb-20 relative overflow-hidden [--mx:50%] [--my:30%]">
+          {/* Animated aurora blobs (framer-motion, looping) */}
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute -top-40 -left-32 h-[520px] w-[520px] rounded-full blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(249,115,22,0.18), transparent 70%)" }}
+            animate={{ x: [0, 60, 0], y: [0, 40, 0], scale: [1, 1.15, 1] }}
+            transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <motion.div
+            aria-hidden
+            className="pointer-events-none absolute top-10 right-0 h-[460px] w-[460px] rounded-full blur-3xl"
+            style={{ background: "radial-gradient(circle, rgba(244,63,94,0.14), transparent 70%)" }}
+            animate={{ x: [0, -50, 0], y: [0, 50, 0], scale: [1, 1.2, 1] }}
+            transition={{ duration: 18, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          />
           <div ref={heroGlowRef} className="hero-parallax-glow absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] bg-[radial-gradient(ellipse_at_top,rgba(249,115,22,0.10),transparent_70%)] pointer-events-none" />
           <div ref={heroGridRef} className="hero-parallax-grid absolute inset-0 opacity-[0.025] pointer-events-none" style={{ backgroundImage: "linear-gradient(#fff 1px,transparent 1px),linear-gradient(90deg,#fff 1px,transparent 1px)", backgroundSize: "64px 64px" }} />
 
@@ -1042,12 +1070,16 @@ export default function HomePage() {
                   IA nativa · Agente 24/7 · WhatsApp + Instagram
                 </motion.div>
 
-                <motion.h1 variants={heroItem} className="text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight">
-                  <span className="gradient-text">El CRM con IA</span>
-                  <br />
-                  que hace el trabajo fuerte.
-                  <br />
-                  Tu equipo solo cierra.
+                <motion.h1 variants={titleContainer} className="text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.06] tracking-tight">
+                  {HEADLINE.map((line, li) => (
+                    <span key={li} className="block">
+                      {line.text.split(" ").map((word, wi) => (
+                        <motion.span key={wi} variants={wordItem} className={`inline-block ${line.gradient ? "gradient-text" : ""}`} style={{ marginRight: "0.22em" }}>
+                          {word}
+                        </motion.span>
+                      ))}
+                    </span>
+                  ))}
                 </motion.h1>
 
                 <motion.p variants={heroItem} className="text-lg text-slate-400 mt-6 leading-relaxed max-w-lg">
@@ -1056,13 +1088,15 @@ export default function HomePage() {
                 </motion.p>
 
                 <motion.div variants={heroItem} className="flex flex-col sm:flex-row items-start gap-4 mt-10">
-                  <Link to="/auth" className="shimmer-btn inline-flex items-center gap-2 text-white px-7 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
-                    Crear cuenta gratis
-                    <ArrowRight className="w-4 h-4" />
-                  </Link>
-                  <button onClick={() => scrollTo("pricing")} className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-all">
+                  <motion.div whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} className="inline-block">
+                    <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-7 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 transition-shadow">
+                      Crear cuenta gratis
+                      <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                  </motion.div>
+                  <motion.button whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} onClick={() => scrollTo("pricing")} className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-colors">
                     Ver planes <ChevronRight className="w-4 h-4" />
-                  </button>
+                  </motion.button>
                 </motion.div>
 
                 <motion.div variants={heroItem} className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-7">
@@ -1094,13 +1128,18 @@ export default function HomePage() {
                 </motion.div>
               </motion.div>
 
-              {/* Right — product mockup */}
+              {/* Right — product mockup: slides in, then floats idly */}
               <motion.div
                 initial={{ opacity: 0, x: 48, scale: 0.96 }}
                 animate={{ opacity: 1, x: 0, scale: 1 }}
                 transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-                className="hidden lg:block scan-line-track">
-                <PipelineMockup />
+                className="hidden lg:block">
+                <motion.div
+                  className="scan-line-track"
+                  animate={{ y: [0, -14, 0] }}
+                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}>
+                  <PipelineMockup />
+                </motion.div>
               </motion.div>
             </div>
           </div>
