@@ -965,6 +965,50 @@ function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
   );
 }
 
+// Email campaign: compose → send to 2.000 contacts → metrics, driven by scroll.
+function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
+  const sendingOpacity = useTransform(progress, [0.62, 0.7], [1, 0]);
+  const sentOpacity = useTransform(progress, [0.66, 0.74], [0, 1]);
+  return (
+    <div className="space-y-3">
+      {/* composer */}
+      <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-800/40">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/20 text-amber-300"><Mail className="h-3.5 w-3.5" /></div>
+          <span className="text-xs font-semibold text-white">Nueva campaña</span>
+          <span className="ml-auto text-[9px] text-slate-500">Borrador</span>
+        </div>
+        <div className="p-3 space-y-2">
+          <Reveal progress={progress} start={0.08}><p className="text-[11px] text-slate-300"><span className="text-slate-500">Asunto: </span>🏡 Nuevas propiedades esta semana</p></Reveal>
+          <Reveal progress={progress} start={0.16}><div className="h-1.5 w-5/6 rounded-full bg-slate-700" /></Reveal>
+          <Reveal progress={progress} start={0.20}><div className="h-1.5 w-2/3 rounded-full bg-slate-700" /></Reveal>
+          <Reveal progress={progress} start={0.26} className="flex items-center gap-2 pt-0.5">
+            <Users className="h-3.5 w-3.5 text-amber-300" />
+            <span className="text-[11px] text-slate-300">Para: <b className="text-white">2.000 contactos</b></span>
+          </Reveal>
+        </div>
+      </div>
+      {/* send progress */}
+      <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
+        <div className="flex items-center justify-between mb-2 h-4">
+          <div className="relative flex-1">
+            <motion.span style={{ opacity: sendingOpacity }} className="absolute inset-0 text-[11px] text-amber-300 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" /> Enviando campaña…</motion.span>
+            <motion.span style={{ opacity: sentOpacity }} className="absolute inset-0 text-[11px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> Enviado a 2.000 contactos</motion.span>
+          </div>
+          <span className="font-mono text-xs text-white"><CountUp progress={progress} to={2000} start={0.4} end={0.66} className="font-bold" /><span className="text-slate-500"> / 2.000</span></span>
+        </div>
+        <Bar progress={progress} pct={100} start={0.4} end={0.66} className="bg-gradient-to-r from-amber-500 to-orange-400" />
+      </div>
+      {/* metrics */}
+      <Reveal progress={progress} start={0.74} className="grid grid-cols-3 gap-2">
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={2000} start={0.74} end={0.9} className="text-sm font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Enviados</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={42} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-emerald-300" /><p className="text-[10px] text-slate-500 mt-0.5">Apertura</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={9} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-cyan-300" /><p className="text-[10px] text-slate-500 mt-0.5">Clics</p></div>
+      </Reveal>
+    </div>
+  );
+}
+
 // Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
 // Messenger (official logos), each sliding in from the right as you scroll.
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
@@ -1110,13 +1154,7 @@ const FEATURES: Feature[] = [
     title: "Email marketing",
     desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
     bullets: ["Envíos desde tu dominio", "Métricas de apertura y clics", "Plantillas listas para usar"],
-    visual: (p) => (
-      <div className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={5000} className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Enviados</p></div>
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={42} suffix="%" className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Apertura</p></div>
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center"><CountUp progress={p} to={9} suffix="%" className="text-base font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Clics</p></div>
-      </div>
-    ),
+    visual: (p) => <EmailCampaignDemo progress={p} />,
   },
   {
     eyebrow: "Calendario", accent: "teal", icon: Calendar,
