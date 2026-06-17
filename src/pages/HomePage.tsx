@@ -417,42 +417,60 @@ const FA: Record<string, { text: string; soft: string; ring: string; iconBg: str
 
 interface Feature { eyebrow: string; title: string; desc: string; bullets: string[]; accent: string; icon: LucideIcon | (() => JSX.Element); visual: React.ReactNode }
 
-function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
-  const reverse = index % 2 === 1;
+function FeatureSlide({ feature }: { feature: Feature }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   return (
-    // Full-screen section. Content reveals as the section scrolls INTO view
-    // (no empty pinned state) and fades out as it leaves — reversible, scroll-linked.
-    <section data-reveal-section className={`min-h-screen flex items-center py-20 ${reverse ? "bg-slate-50" : "bg-white"}`}>
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
-        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-          {/* Copy — each element reveals one after another as you scroll in */}
-          <div className={reverse ? "lg:order-2" : "lg:order-1"}>
-            <div data-reveal data-range="0.16,0.30" style={{ opacity: 0 }} className={`will-change-transform inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
-              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-              {feature.eyebrow}
-            </div>
-            <h3 data-reveal data-range="0.22,0.38" style={{ opacity: 0 }} className="will-change-transform text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
-            <p data-reveal data-range="0.30,0.46" style={{ opacity: 0 }} className="will-change-transform text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
-            <ul className="space-y-3">
-              {feature.bullets.map((b, bi) => {
-                const start = 0.38 + bi * 0.05;
-                return (
-                  <li key={b} data-reveal data-range={`${start.toFixed(2)},${(start + 0.12).toFixed(2)}`} style={{ opacity: 0 }} className="will-change-transform flex items-start gap-3">
-                    <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                    <span className="text-slate-700 text-lg">{b}</span>
-                  </li>
-                );
-              })}
-            </ul>
+    <div data-hslide className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0">
+      <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center w-full">
+        {/* Copy */}
+        <div>
+          <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+            <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+            {feature.eyebrow}
           </div>
-          {/* Visual */}
-          <div data-reveal data-range="0.20,0.48" data-scale="0.1" style={{ opacity: 0 }} className={`will-change-transform ${reverse ? "lg:order-1" : "lg:order-2"}`}>
-            <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
-              {feature.visual}
-            </div>
+          <h3 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
+          <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+          <ul className="space-y-3">
+            {feature.bullets.map((b) => (
+              <li key={b} className="flex items-start gap-3">
+                <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                <span className="text-slate-700 text-lg">{b}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {/* Visual */}
+        <div>
+          <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+            {feature.visual}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Pinned section whose features scroll HORIZONTALLY as you scroll vertically.
+function HorizontalFeatures() {
+  const N = FEATURES.length;
+  return (
+    <section id="features" data-hscroll className="relative bg-white" style={{ height: `${N * 72}vh` }}>
+      <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
+        {/* Header (stays pinned above the slider) */}
+        <div className="pt-24 pb-4 text-center px-4 shrink-0">
+          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
+          <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
+        </div>
+        {/* Horizontal track */}
+        <div className="flex-1 min-h-0">
+          <div data-hscroll-track className="flex h-full will-change-transform" style={{ width: `${N * 100}vw` }}>
+            {FEATURES.map((f) => <FeatureSlide key={f.title} feature={f} />)}
+          </div>
+        </div>
+        {/* Progress bar */}
+        <div className="shrink-0 h-1 bg-slate-200/50">
+          <div data-hscroll-bar className="h-full bg-orange-500 origin-left" style={{ transform: "scaleX(0)" }} />
         </div>
       </div>
     </section>
@@ -803,37 +821,37 @@ export default function HomePage() {
   // scroll position, like thetinypod. Direct DOM writes, zero React re-renders. ──
   useEffect(() => {
     const reduce = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const sections = Array.from(document.querySelectorAll<HTMLElement>("[data-reveal-section]")).map((section) => ({
+    const hsections = Array.from(document.querySelectorAll<HTMLElement>("[data-hscroll]")).map((section) => ({
       section,
-      items: Array.from(section.querySelectorAll<HTMLElement>("[data-reveal]")),
+      track: section.querySelector<HTMLElement>("[data-hscroll-track]"),
+      bar: section.querySelector<HTMLElement>("[data-hscroll-bar]"),
     }));
-    if (!sections.length) return;
-    if (reduce) {
-      sections.forEach((s) => s.items.forEach((el) => { el.style.opacity = "1"; el.style.transform = "none"; }));
-      return;
-    }
+    if (!hsections.length) return;
+    if (reduce) return; // leave the track at start; user can't scroll-drive it
     const smooth = (x: number) => x * x * (3 - 2 * x);
     let raf = 0;
     const apply = () => {
       raf = 0;
       const vh = window.innerHeight;
-      // Reveal content as each section scrolls through the viewport.
-      for (const { section, items } of sections) {
+      // Drive horizontal translation of each pinned slider from vertical scroll.
+      for (const { section, track, bar } of hsections) {
+        if (!track) continue;
         const rect = section.getBoundingClientRect();
-        // p: 0 when the section's top is at the bottom of the viewport (just
-        // entering), ~0.5 when centered, 1 when it has fully scrolled past the top.
-        const p = Math.max(0, Math.min(1, (vh - rect.top) / (vh + rect.height)));
-        // Fade everything out as the section leaves (keeps one in focus at a time)
-        const out = 1 - smooth(Math.max(0, Math.min(1, (p - 0.80) / 0.18)));
-        for (const el of items) {
-          const [a, b] = (el.dataset.range || "0.2,0.5").split(",").map(Number);
-          const local = Math.max(0, Math.min(1, (p - a) / ((b - a) || 1)));
-          const e = smooth(local) * out;
-          el.style.opacity = e.toFixed(3);
-          const scaleK = parseFloat(el.dataset.scale || "0");
-          const sc = scaleK ? (1 - (1 - e) * scaleK) : 1;
-          el.style.transform = `translate3d(0,${((1 - e) * 36).toFixed(1)}px,0)${scaleK ? ` scale(${sc.toFixed(3)})` : ""}`;
-        }
+        const span = rect.height - vh; // vertical scroll distance while pinned
+        const p = span > 0 ? Math.max(0, Math.min(1, -rect.top / span)) : 0;
+        const maxX = Math.max(0, track.scrollWidth - window.innerWidth);
+        track.style.transform = `translate3d(${(-p * maxX).toFixed(1)}px,0,0)`;
+        if (bar) bar.style.transform = `scaleX(${p.toFixed(3)})`;
+        // Focus effect: the slide nearest the viewport center is full, others dim.
+        const slides = track.querySelectorAll<HTMLElement>("[data-hslide]");
+        const cx = window.innerWidth / 2;
+        slides.forEach((sl) => {
+          const r = sl.getBoundingClientRect();
+          const dist = Math.abs((r.left + r.width / 2) - cx) / window.innerWidth;
+          const f = smooth(Math.max(0, Math.min(1, 1 - dist * 1.3)));
+          sl.style.opacity = (0.25 + 0.75 * f).toFixed(3);
+          sl.style.transform = `scale(${(0.92 + 0.08 * f).toFixed(3)})`;
+        });
       }
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
@@ -1135,19 +1153,8 @@ export default function HomePage() {
         {/* ── MARQUEE ───────────────────────────────────────────────────────── */}
         <Marquee />
 
-        {/* ── FEATURES (one section per feature, animated on scroll) ────────── */}
-        <section id="features" className="bg-white">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-4 text-center">
-            <FadeUp className="max-w-2xl mx-auto">
-              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Por qué Klosify</p>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
-              <p className="text-slate-500 text-lg mt-5 leading-relaxed">Deja de pagar y conectar 5 herramientas distintas. Cada pieza de tu operación, en un solo lugar.</p>
-            </FadeUp>
-          </div>
-        </section>
-        {FEATURES.map((f, i) => (
-          <FeatureBlock key={f.title} feature={f} index={i} />
-        ))}
+        {/* ── FEATURES — horizontal scroll-driven slider (pinned) ───────────── */}
+        <HorizontalFeatures />
 
         {/* ── STACK CTA BAND ────────────────────────────────────────────────── */}
         <section className="bg-gradient-to-b from-slate-50 to-white py-16">
