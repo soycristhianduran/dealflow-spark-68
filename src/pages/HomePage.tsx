@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
-import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
+import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -732,13 +732,50 @@ function Reveal({ progress, start, end, y = 12, className, children }: {
   return <motion.div style={{ opacity, y: ty }} className={className}>{children}</motion.div>;
 }
 
+// Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
+// Messenger (official logos), each sliding in from the right as you scroll.
+function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
+  progress: MotionValue<number>; start: number; name: string; channel: string; msg: string; time: string; logo: React.ReactNode;
+}) {
+  const x = useTransform(progress, [start, start + 0.16], [44, 0], { clamp: true });
+  const opacity = useTransform(progress, [start, start + 0.16], [0, 1], { clamp: true });
+  return (
+    <motion.div style={{ opacity, x }} className="flex items-start gap-3 rounded-xl bg-slate-800/60 border border-slate-700/40 p-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white shadow">{logo}</div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-white truncate">{name}</span>
+          <span className="text-[10px] text-slate-500 shrink-0">{time}</span>
+        </div>
+        <p className="text-[10px] text-slate-500 mb-0.5">vía {channel}</p>
+        <p className="text-xs text-slate-300 truncate">{msg}</p>
+      </div>
+      <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-green-400" />
+    </motion.div>
+  );
+}
+
+function MetaInboxDemo({ progress }: { progress: MotionValue<number> }) {
+  return (
+    <div className="space-y-2.5 min-h-[230px]">
+      <div className="flex items-center justify-between pb-1">
+        <span className="text-sm font-semibold text-white">Inbox unificado</span>
+        <span className="text-[10px] text-slate-400">Meta · 3 canales</span>
+      </div>
+      <NotifBubble progress={progress} start={0.12} name="María G." channel="WhatsApp" msg="Hola, ¿tienen disponibilidad?" time="10:32" logo={<WhatsAppIcon size={18} />} />
+      <NotifBubble progress={progress} start={0.34} name="@carlos.fit" channel="Instagram" msg="Me interesa el plan 👀" time="10:33" logo={<InstagramIcon size={18} />} />
+      <NotifBubble progress={progress} start={0.56} name="Pedro L." channel="Messenger" msg="¿Me das más info del CRM?" time="10:34" logo={<MessengerIcon size={18} />} />
+    </div>
+  );
+}
+
 const FEATURES: Feature[] = [
   {
     eyebrow: "Meta nativo", accent: "green", icon: MessageCircle,
     title: "Conexión Nativa con Meta",
     desc: "Conecta WhatsApp, Instagram y Messenger directo al CRM. Recibe, responde y automatiza sin apps externas.",
     bullets: ["WhatsApp, Instagram y Messenger en un solo inbox", "Plantillas aprobadas por Meta", "Respuestas automáticas 24/7"],
-    visual: (p) => <WhatsAppChatDemo progress={p} />,
+    visual: (p) => <MetaInboxDemo progress={p} />,
   },
   {
     eyebrow: "Agente de Chat", accent: "violet", icon: Bot,
