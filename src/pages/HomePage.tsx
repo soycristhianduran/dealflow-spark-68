@@ -910,6 +910,43 @@ function FlowBuilderDemo({ progress }: { progress: MotionValue<number> }) {
   );
 }
 
+// Landing builder: the AI assembles a landing block by block as you scroll.
+function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
+  const buildingOpacity = useTransform(progress, [0.62, 0.74], [1, 0]);
+  const doneOpacity = useTransform(progress, [0.68, 0.8], [0, 1]);
+  return (
+    <div className="space-y-3">
+      {/* prompt */}
+      <div className="flex items-center gap-2 rounded-lg bg-indigo-500/10 border border-indigo-500/25 px-3 py-2">
+        <Sparkles className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
+        <p className="text-[11px] text-indigo-100 truncate">“Landing para captar leads de inmobiliaria”</p>
+      </div>
+      {/* status */}
+      <div className="relative h-4">
+        <motion.p style={{ opacity: buildingOpacity }} className="absolute inset-0 text-[10px] text-slate-500 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" /> Generando con IA…</motion.p>
+        <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> Publicada en tu dominio</motion.p>
+      </div>
+      {/* building canvas */}
+      <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-4">
+        <div className="flex gap-1 mb-3">
+          <span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+        </div>
+        <div className="space-y-2.5">
+          <Reveal progress={progress} start={0.16}><div className="h-3 w-2/3 rounded-full bg-gradient-to-r from-indigo-400 to-violet-400" /></Reveal>
+          <Reveal progress={progress} start={0.26}><div className="h-1.5 w-3/4 rounded-full bg-slate-700" /></Reveal>
+          <Reveal progress={progress} start={0.32}><div className="h-1.5 w-1/2 rounded-full bg-slate-700" /></Reveal>
+          <Reveal progress={progress} start={0.40}><div className="h-14 rounded-lg bg-slate-800 border border-slate-700/50" /></Reveal>
+          <Reveal progress={progress} start={0.50} className="grid grid-cols-2 gap-2">
+            <div className="h-7 rounded-md bg-slate-800 border border-slate-700/50" />
+            <div className="h-7 rounded-md bg-slate-800 border border-slate-700/50" />
+          </Reveal>
+          <Reveal progress={progress} start={0.60}><div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500" /></Reveal>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
 // Messenger (official logos), each sliding in from the right as you scroll.
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
@@ -1048,19 +1085,7 @@ const FEATURES: Feature[] = [
     title: "Landing pages con IA",
     desc: "Describe tu oferta y la IA crea una landing lista para captar leads, publicada en tu dominio en minutos.",
     bullets: ["Generación con IA", "Publica en tu propio dominio", "Captura leads directo al CRM"],
-    visual: (p) => (
-      <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-2.5">
-        <Reveal progress={p} start={0.12}><div className="h-2.5 w-1/2 rounded-full bg-indigo-400/70" /></Reveal>
-        <Reveal progress={p} start={0.22}><div className="h-1.5 w-3/4 rounded-full bg-slate-600" /></Reveal>
-        <Reveal progress={p} start={0.30}><div className="h-1.5 w-2/3 rounded-full bg-slate-600" /></Reveal>
-        <Reveal progress={p} start={0.40} className="grid grid-cols-3 gap-2 pt-1">
-          <div className="h-10 rounded-lg bg-slate-700/50" />
-          <div className="h-10 rounded-lg bg-slate-700/50" />
-          <div className="h-10 rounded-lg bg-slate-700/50" />
-        </Reveal>
-        <Reveal progress={p} start={0.55}><div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" /></Reveal>
-      </div>
-    ),
+    visual: (p) => <LandingBuilderDemo progress={p} />,
   },
   {
     eyebrow: "Email marketing", accent: "amber", icon: Mail,
