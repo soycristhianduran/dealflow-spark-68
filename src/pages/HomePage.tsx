@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, useTransform, useMotionValue, useMotionValueEvent, useInView, animate, type MotionValue } from "framer-motion";
+import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
@@ -435,18 +435,31 @@ function useIsDesktop() {
   return desktop;
 }
 
-// Mobile layout for a feature: stacked text + visual, animation plays once on view.
+// Mobile layout for a feature: stacked text + visual whose animation is driven
+// by scroll as you move through the feature (scrubbing, like desktop).
 function MobileFeature({ feature }: { feature: Feature }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, amount: 0.35 });
   const progress = useMotionValue(0);
   useEffect(() => {
-    if (!inView) return;
-    const controls = animate(progress, 1, { duration: 1.4, ease: "easeOut" });
-    return () => controls.stop();
-  }, [inView, progress]);
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const r = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      // 0 as the feature enters from the bottom → 1 once it's well into view.
+      const p = Math.max(0, Math.min(1, (vh * 0.92 - r.top) / (r.height * 0.72)));
+      progress.set(p);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+  }, [progress]);
   return (
     <div ref={ref} className="px-5 py-12 border-b border-white/5">
       <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
