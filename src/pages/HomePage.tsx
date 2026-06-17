@@ -393,6 +393,279 @@ function PlanCard({ plan, isAnnual, onCta, loading }: {
 
 // ─── Main component ────────────────────────────────────────────────────────────
 
+// ─── Feature section (one per feature, animates on scroll, alternates sides) ───
+const FA: Record<string, { text: string; soft: string; ring: string; iconBg: string }> = {
+  green:  { text: "text-green-600",  soft: "bg-green-50",  ring: "ring-green-100",  iconBg: "bg-green-500"  },
+  blue:   { text: "text-blue-600",   soft: "bg-blue-50",   ring: "ring-blue-100",   iconBg: "bg-blue-500"   },
+  orange: { text: "text-orange-600", soft: "bg-orange-50", ring: "ring-orange-100", iconBg: "bg-orange-500" },
+  teal:   { text: "text-teal-600",   soft: "bg-teal-50",   ring: "ring-teal-100",   iconBg: "bg-teal-500"   },
+  cyan:   { text: "text-cyan-600",   soft: "bg-cyan-50",   ring: "ring-cyan-100",   iconBg: "bg-cyan-500"   },
+  pink:   { text: "text-pink-600",   soft: "bg-pink-50",   ring: "ring-pink-100",   iconBg: "bg-pink-500"   },
+  indigo: { text: "text-indigo-600", soft: "bg-indigo-50", ring: "ring-indigo-100", iconBg: "bg-indigo-500" },
+  sky:    { text: "text-sky-600",    soft: "bg-sky-50",    ring: "ring-sky-100",    iconBg: "bg-sky-500"    },
+  amber:  { text: "text-amber-600",  soft: "bg-amber-50",  ring: "ring-amber-100",  iconBg: "bg-amber-500"  },
+  violet: { text: "text-violet-600", soft: "bg-violet-50", ring: "ring-violet-100", iconBg: "bg-violet-500" },
+};
+
+interface Feature { eyebrow: string; title: string; desc: string; bullets: string[]; accent: string; icon: LucideIcon | (() => JSX.Element); visual: React.ReactNode }
+
+function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
+  const reverse = index % 2 === 1;
+  const a = FA[feature.accent] || FA.orange;
+  const Icon = feature.icon as React.ComponentType<{ className?: string }>;
+  return (
+    <section className={`py-16 sm:py-20 ${reverse ? "bg-slate-50" : "bg-white"}`}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+          {/* Copy */}
+          <FadeUp from={reverse ? "right" : "left"} className={reverse ? "lg:order-2" : "lg:order-1"}>
+            <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+              <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+              {feature.eyebrow}
+            </div>
+            <h3 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-4">{feature.title}</h3>
+            <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
+            <ul className="space-y-3">
+              {feature.bullets.map((b) => (
+                <li key={b} className="flex items-start gap-3">
+                  <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+                  <span className="text-slate-700">{b}</span>
+                </li>
+              ))}
+            </ul>
+          </FadeUp>
+          {/* Visual */}
+          <FadeUp from={reverse ? "left" : "right"} className={reverse ? "lg:order-1" : "lg:order-2"}>
+            <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+              {feature.visual}
+            </div>
+          </FadeUp>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const FEATURES: Feature[] = [
+  {
+    eyebrow: "WhatsApp nativo", accent: "green", icon: MessageCircle,
+    title: "WhatsApp Business Nativo",
+    desc: "Envía, recibe y automatiza desde el CRM. Sin apps externas, sin pagar a terceros.",
+    bullets: ["Plantillas aprobadas por Meta", "Respuestas automáticas 24/7", "WhatsApp + Instagram DMs en un solo inbox"],
+    visual: (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><WhatsAppIcon size={20} /></div>
+          <span className="text-sm font-semibold text-white">Chat · WhatsApp Business</span>
+        </div>
+        {[
+          { msg: "Hola, me interesa el plan Pro", out: false, time: "10:32" },
+          { msg: "¡Hola! Aquí tienes el detalle → klosify.link/pro", out: true, time: "10:32" },
+          { msg: "Perfecto, ¿puedo hablar con alguien?", out: false, time: "10:33" },
+        ].map((m, i) => (
+          <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-green-600/30 border border-green-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
+              <p className="text-xs text-slate-200">{m.msg}</p>
+              <p className="text-[10px] text-slate-500 mt-0.5 text-right">{m.time}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
+    title: "Dashboard de Marketing & Ventas",
+    desc: "Sincroniza tus cuentas de Meta Ads y ve, en un solo lugar, inversión, leads, ventas y ROAS real.",
+    bullets: ["Sincroniza múltiples cuentas publicitarias", "ROAS real cruzado con tu pipeline", "Inversión, leads y ventas por campaña"],
+    visual: (
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
+          <span className="text-sm font-semibold text-white">Rendimiento · Meta Ads</span>
+        </div>
+        {[
+          { label: "Inversión Ads", val: "$1.2k", color: "text-blue-300" },
+          { label: "Ingresos pipeline", val: "$4.1k", color: "text-emerald-300" },
+          { label: "ROAS", val: "3.4×", color: "text-orange-300" },
+        ].map((r) => (
+          <div key={r.label} className="flex items-center justify-between">
+            <span className="text-sm text-slate-400">{r.label}</span>
+            <span className={`text-base font-bold font-mono ${r.color}`}>{r.val}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Lead scoring IA", accent: "orange", icon: Brain,
+    title: "IA Boost — Lead Scoring",
+    desc: "La IA puntúa cada lead por su probabilidad de cierre para que tu equipo se enfoque en lo que vende.",
+    bullets: ["Score automático con IA", "Prioriza los leads más calientes", "Menos tiempo perdido en leads fríos"],
+    visual: (
+      <div className="space-y-3">
+        {[{ name: "Juan M.", score: 9.1, color: "bg-green-500" }, { name: "Ana S.", score: 8.8, color: "bg-green-500" }, { name: "Pedro R.", score: 6.2, color: "bg-yellow-500" }].map((l) => (
+          <div key={l.name} className="flex items-center gap-3">
+            <span className="text-xs text-slate-400 w-16 shrink-0">{l.name}</span>
+            <div className="flex-1 bg-slate-800 rounded-full h-2 overflow-hidden"><div className={`h-full ${l.color} rounded-full`} style={{ width: `${l.score * 10}%` }} /></div>
+            <span className="text-sm font-bold font-mono text-white w-8 text-right">{l.score}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Pipeline", accent: "teal", icon: TrendingUp,
+    title: "Pipeline Visual",
+    desc: "Un Kanban de oportunidades con pronóstico de ingresos en tiempo real. Arrastra y suelta entre etapas.",
+    bullets: ["Pronóstico de ingresos en vivo", "Arrastrar y soltar entre etapas", "Vista clara de todo tu embudo"],
+    visual: (
+      <div className="grid grid-cols-2 gap-2">
+        {[
+          { stage: "Nuevo", amount: "$8.2k", count: 5, color: "bg-slate-500" },
+          { stage: "Calificado", amount: "$12.4k", count: 3, color: "bg-blue-500" },
+          { stage: "Propuesta", amount: "$9.1k", count: 2, color: "bg-purple-500" },
+          { stage: "Cerrado", amount: "$8.5k", count: 1, color: "bg-orange-500" },
+        ].map((s) => (
+          <div key={s.stage} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3">
+            <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
+            <p className="text-[11px] text-slate-500">{s.stage}</p>
+            <p className="text-sm font-bold text-white font-mono">{s.amount}</p>
+            <p className="text-[10px] text-slate-600 font-mono">{s.count} leads</p>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "IA en llamadas", accent: "cyan", icon: PhoneCall,
+    title: "Analizador de Llamadas",
+    desc: "La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.",
+    bullets: ["Transcripción automática", "Detecta objeciones e intención", "Sugiere el siguiente paso"],
+    visual: (
+      <div className="space-y-3">
+        {[
+          { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-300 bg-yellow-500/10 border-yellow-500/20" },
+          { label: "Intención de compra", tag: "Alta — 8.7/10", color: "text-green-300 bg-green-500/10 border-green-500/20" },
+          { label: "Próximo paso", tag: "Enviar propuesta", color: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20" },
+        ].map((r) => (
+          <div key={r.label} className="flex items-center justify-between gap-2">
+            <span className="text-xs text-slate-400">{r.label}</span>
+            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${r.color}`}>{r.tag}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Automatización", accent: "pink", icon: GitBranch,
+    title: "Automatizaciones",
+    desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
+    bullets: ["WhatsApp + email automáticos", "Condiciones y filtros", "Disparadores por evento"],
+    visual: (
+      <div className="space-y-2">
+        {["Lead entra por WhatsApp", "Se asigna al vendedor", "Mensaje de bienvenida", "Seguimiento a las 24h"].map((s, i) => (
+          <div key={s} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2">
+            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500/20 text-pink-300 text-[10px] font-bold">{i + 1}</span>
+            <span className="text-xs text-slate-300">{s}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Landings con IA", accent: "indigo", icon: Layout,
+    title: "Landing pages con IA",
+    desc: "Describe tu oferta y la IA crea una landing lista para captar leads, publicada en tu dominio en minutos.",
+    bullets: ["Generación con IA", "Publica en tu propio dominio", "Captura leads directo al CRM"],
+    visual: (
+      <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-2.5">
+        <div className="h-2.5 w-1/2 rounded-full bg-indigo-400/70" />
+        <div className="h-1.5 w-3/4 rounded-full bg-slate-600" />
+        <div className="h-1.5 w-2/3 rounded-full bg-slate-600" />
+        <div className="grid grid-cols-3 gap-2 pt-1">
+          <div className="h-10 rounded-lg bg-slate-700/50" />
+          <div className="h-10 rounded-lg bg-slate-700/50" />
+          <div className="h-10 rounded-lg bg-slate-700/50" />
+        </div>
+        <div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" />
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Agente de voz", accent: "sky", icon: PhoneCall,
+    title: "Agente de Voz",
+    desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
+    bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
+    visual: (
+      <div className="space-y-2">
+        {[{ label: "Llamadas este mes", val: "128" }, { label: "Citas agendadas", val: "34" }, { label: "Intención de compra", val: "8.7/10" }].map((r) => (
+          <div key={r.label} className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
+            <span className="text-xs text-slate-400">{r.label}</span>
+            <span className="text-sm font-bold font-mono text-sky-300">{r.val}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Email marketing", accent: "amber", icon: Mail,
+    title: "Email marketing",
+    desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
+    bullets: ["Envíos desde tu dominio", "Métricas de apertura y clics", "Plantillas listas para usar"],
+    visual: (
+      <div className="grid grid-cols-3 gap-2">
+        {[{ label: "Enviados", val: "5.000" }, { label: "Apertura", val: "42%" }, { label: "Clics", val: "9%" }].map((r) => (
+          <div key={r.label} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3 text-center">
+            <p className="text-base font-bold font-mono text-amber-300">{r.val}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">{r.label}</p>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Calendario", accent: "blue", icon: Calendar,
+    title: "Calendario & Tareas",
+    desc: "Agenda citas y da seguimiento sin que ningún lead se enfríe.",
+    bullets: ["Agenda de citas", "Recordatorios y tareas", "Seguimiento a tiempo"],
+    visual: (
+      <div className="space-y-2">
+        {[{ time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" }, { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" }, { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" }].map((r) => (
+          <div key={r.time} className="flex items-center gap-3 rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5">
+            <span className="text-xs font-mono text-slate-400 w-10 shrink-0">{r.time}</span>
+            <span className={`h-2 w-2 rounded-full ${r.color} shrink-0`} />
+            <span className="text-xs text-slate-300 truncate">{r.label}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Agente IA 24/7", accent: "violet", icon: Bot,
+    title: "Agente IA 24/7",
+    desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
+    bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
+    visual: (
+      <div className="space-y-2.5">
+        {[
+          { msg: "¿Cuánto cuesta el plan Pro?", out: false },
+          { msg: "El plan Pro está a $59/mes. Incluye 3 usuarios y automatizaciones ilimitadas 🚀", out: true, ai: true },
+          { msg: "Quiero hablar con alguien para comprarlo", out: false },
+          { msg: "¡Perfecto! Te conecto con un asesor ahora mismo 😊", out: true, ai: true },
+        ].map((m, i) => (
+          <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
+              <p className="text-xs text-slate-200">{m.msg}</p>
+              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• IA</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+];
+
 export default function HomePage() {
   const { session } = useAuth();
   const navigate = useNavigate();
@@ -716,321 +989,19 @@ export default function HomePage() {
         {/* ── MARQUEE ───────────────────────────────────────────────────────── */}
         <Marquee />
 
-        {/* ── FEATURES — BENTO GRID ─────────────────────────────────────────── */}
-        <section id="features" className="bg-gradient-to-b from-white to-slate-50 py-28">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-            <FadeUp className="text-center mb-16 max-w-2xl mx-auto">
+        {/* ── FEATURES (one section per feature, animated on scroll) ────────── */}
+        <section id="features" className="bg-white">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-4 text-center">
+            <FadeUp className="max-w-2xl mx-auto">
               <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Por qué Klosify</p>
               <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
-              <p className="text-slate-500 text-lg mt-5 leading-relaxed">Deja de pagar y conectar 5 herramientas distintas. Klosify reúne WhatsApp, Meta Ads, IA y tu pipeline en un solo lugar.</p>
+              <p className="text-slate-500 text-lg mt-5 leading-relaxed">Deja de pagar y conectar 5 herramientas distintas. Cada pieza de tu operación, en un solo lugar.</p>
             </FadeUp>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
-              <FadeUp className="md:col-span-2" delay={0}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 overflow-hidden relative group cursor-default transition-all duration-300 hover:border hover:border-green-500/20 hover:shadow-xl hover:shadow-green-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_100%_0%,rgba(34,197,94,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <WhatsAppIcon size={28} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">WhatsApp Business Nativo</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Envía, recibe y automatiza desde el CRM. Sin apps externas, sin pagar a terceros.</p>
-                  </div>
-                  <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
-                    <div className="space-y-2.5">
-                      {[
-                        { msg: "Hola, me interesa el plan Pro", time: "10:32", out: false },
-                        { msg: "¡Hola! Aquí tienes el detalle → klosify.link/pro", time: "10:32", out: true },
-                        { msg: "Perfecto, ¿puedo hablar con alguien?", time: "10:33", out: false },
-                      ].map((m, i) => (
-                        <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
-                          <div className={`rounded-xl px-3 py-2 max-w-[75%] ${m.out ? "bg-green-600/30 border border-green-500/20" : "bg-slate-700/50 border border-slate-600/30"}`}>
-                            <p className="text-xs text-slate-300">{m.msg}</p>
-                            <p className="text-[10px] text-slate-600 mt-0.5 text-right">{m.time}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full"><FacebookIcon size={13} /> Plantillas Meta</span>
-                    <span className="text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">Respuestas automáticas</span>
-                    <span className="inline-flex items-center gap-1.5 text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /><InstagramIcon size={13} /> DMs</span>
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp delay={80}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_0%,rgba(59,130,246,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-white rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <FacebookIcon size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Dashboard Marketing & Ventas</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Sincroniza Meta Ads y ve en un solo lugar tus métricas de marketing, pipeline y ROAS real.</p>
-                  </div>
-                  <div className="space-y-2 mt-auto">
-                    {[
-                      { label: "Inversión Ads", val: "$1.2k", color: "text-blue-400" },
-                      { label: "Ingresos pipeline", val: "$4.1k", color: "text-green-400" },
-                      { label: "ROAS", val: "3.4×", color: "text-orange-400" },
-                    ].map((r) => (
-                      <div key={r.label} className="flex items-center justify-between">
-                        <span className="text-xs text-slate-500">{r.label}</span>
-                        <span className={`text-sm font-bold font-mono ${r.color}`}>{r.val}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp delay={120}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-orange-500/20 hover:shadow-xl hover:shadow-orange-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_100%,rgba(249,115,22,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-orange-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <Brain className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">IA Boost — Lead Scoring</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Prioriza los leads con mayor probabilidad de cierre.</p>
-                  </div>
-                  <div className="space-y-2 mt-auto">
-                    {[{ name: "Juan M.", score: 9.1, color: "bg-green-500" }, { name: "Ana S.", score: 8.8, color: "bg-green-500" }, { name: "Pedro R.", score: 6.2, color: "bg-yellow-500" }].map((l) => (
-                      <div key={l.name} className="flex items-center gap-3">
-                        <div className="flex-1 bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                          <div className={`h-full ${l.color} rounded-full transition-all duration-700 group-hover:opacity-100`} style={{ width: `${l.score * 10}%` }} />
-                        </div>
-                        <span className="text-xs font-bold font-mono text-slate-300 w-8 text-right">{l.score}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp className="md:col-span-2" delay={60}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-teal-500/20 hover:shadow-xl hover:shadow-teal-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_0%_100%,rgba(20,184,166,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-teal-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <TrendingUp className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Pipeline Visual</h3>
-                    <p className="text-slate-400 text-sm">Kanban de oportunidades con pronóstico de ingresos en tiempo real.</p>
-                  </div>
-                  <div className="grid grid-cols-4 gap-2 mt-auto">
-                    {[
-                      { stage: "Nuevo",     count: 5, amount: "$8.2k",  pct: 30,  color: "bg-slate-600"  },
-                      { stage: "Calificado",count: 3, amount: "$12.4k", pct: 55,  color: "bg-blue-600"   },
-                      { stage: "Propuesta", count: 2, amount: "$9.1k",  pct: 75,  color: "bg-purple-600" },
-                      { stage: "Cerrado",   count: 1, amount: "$8.5k",  pct: 100, color: "bg-orange-500" },
-                    ].map((s) => (
-                      <div key={s.stage} className="bg-slate-800/50 rounded-xl p-3 border border-slate-700/40">
-                        <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
-                        <p className="text-[11px] text-slate-500 mb-1">{s.stage}</p>
-                        <p className="text-sm font-bold text-white font-mono">{s.amount}</p>
-                        <p className="text-xs text-slate-600 font-mono">{s.count} leads</p>
-                        <div className="mt-2 h-1 bg-slate-700 rounded-full overflow-hidden">
-                          <div className={`h-full ${s.color} rounded-full transition-all duration-1000`} style={{ width: `${s.pct}%` }} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp delay={100}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-cyan-500/20 hover:shadow-xl hover:shadow-cyan-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_100%_100%,rgba(6,182,212,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-cyan-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <PhoneCall className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Analizador de Llamadas</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.</p>
-                  </div>
-                  <div className="space-y-2 mt-auto">
-                    {[
-                      { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20" },
-                      { label: "Intención de compra", tag: "Alta — 8.7/10", color: "text-green-400 bg-green-500/10 border-green-500/20" },
-                    ].map((r) => (
-                      <div key={r.label} className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-slate-500 shrink-0">{r.label}</span>
-                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${r.color}`}>{r.tag}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp delay={140}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-pink-500/20 hover:shadow-xl hover:shadow-pink-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_0%_100%,rgba(236,72,153,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <GitBranch className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Automatizaciones</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Flujos que trabajan 24/7 para WhatsApp, asignación y seguimientos.</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 mt-auto">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /> WhatsApp + email</span>
-                    <span className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">Condiciones y filtros</span>
-                    <span className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">Disparadores automáticos</span>
-                  </div>
-                </div>
-              </FadeUp>
-
-              {/* Landings con IA */}
-              <FadeUp delay={160}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(99,102,241,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <Layout className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Landing pages con IA</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Describe tu oferta y la IA crea una landing lista para captar leads — publicada en tu dominio en minutos.</p>
-                  </div>
-                  {/* Mini landing skeleton */}
-                  <div className="mt-auto rounded-xl border border-slate-700/50 bg-slate-800/40 p-3 space-y-2">
-                    <div className="h-2 w-1/2 rounded-full bg-indigo-400/60" />
-                    <div className="h-1.5 w-3/4 rounded-full bg-slate-600" />
-                    <div className="h-1.5 w-2/3 rounded-full bg-slate-600" />
-                    <div className="h-6 w-24 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {["Generación con IA", "Publica en tu dominio", "Captura leads al CRM"].map((t) => (
-                      <span key={t} className="text-xs text-indigo-300/80 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full">{t}</span>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              {/* Agente de Voz */}
-              <FadeUp delay={170}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-sky-500/20 hover:shadow-xl hover:shadow-sky-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(14,165,233,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-sky-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <PhoneCall className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Agente de Voz</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">La IA llama, califica y agenda por ti. Transcribe y analiza cada llamada.</p>
-                  </div>
-                  <div className="mt-auto space-y-2">
-                    {[
-                      { label: "Llamadas este mes", val: "128" },
-                      { label: "Citas agendadas", val: "34" },
-                      { label: "Intención de compra", val: "8.7/10" },
-                    ].map((r) => (
-                      <div key={r.label} className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-slate-500">{r.label}</span>
-                        <span className="text-sm font-bold font-mono text-sky-300">{r.val}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              {/* Email marketing */}
-              <FadeUp delay={180}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-amber-500/20 hover:shadow-xl hover:shadow-amber-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(245,158,11,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <Mail className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Email marketing</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Campañas masivas desde tu propio dominio, con métricas de apertura y clics.</p>
-                  </div>
-                  <div className="mt-auto grid grid-cols-3 gap-2">
-                    {[
-                      { label: "Enviados", val: "5.000" },
-                      { label: "Apertura", val: "42%" },
-                      { label: "Clics", val: "9%" },
-                    ].map((r) => (
-                      <div key={r.label} className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-2.5 text-center">
-                        <p className="text-sm font-bold font-mono text-amber-300">{r.val}</p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">{r.label}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              {/* Calendario & Tareas */}
-              <FadeUp delay={190}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(59,130,246,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-blue-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <Calendar className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-1.5">Calendario & Tareas</h3>
-                    <p className="text-slate-400 text-sm leading-relaxed">Agenda citas y da seguimiento sin que ningún lead se enfríe.</p>
-                  </div>
-                  <div className="mt-auto space-y-2">
-                    {[
-                      { time: "09:00", label: "Llamada · María G.", color: "bg-blue-500" },
-                      { time: "11:30", label: "Visita · Juan M.", color: "bg-emerald-500" },
-                      { time: "16:00", label: "Seguimiento · Luis F.", color: "bg-amber-500" },
-                    ].map((r) => (
-                      <div key={r.time} className="flex items-center gap-3 rounded-xl bg-slate-800/40 border border-slate-700/40 px-3 py-2">
-                        <span className="text-xs font-mono text-slate-400 w-10 shrink-0">{r.time}</span>
-                        <span className={`h-2 w-2 rounded-full ${r.color} shrink-0`} />
-                        <span className="text-xs text-slate-300 truncate">{r.label}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </FadeUp>
-
-              <FadeUp className="md:col-span-3" delay={200}>
-                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-5 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-violet-500/20 hover:shadow-xl hover:shadow-violet-500/5">
-                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_50%_0%,rgba(139,92,246,0.08),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-violet-600 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
-                    <Bot className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 mb-1.5">
-                      <h3 className="text-lg font-bold text-white">Agente IA 24/7</h3>
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-violet-500/20 text-violet-300 border border-violet-500/30 px-2 py-0.5 rounded-full">Nuevo</span>
-                    </div>
-                    <p className="text-slate-400 text-sm leading-relaxed">Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.</p>
-                  </div>
-                  <div className="bg-slate-800/60 rounded-xl p-4 border border-slate-700/50">
-                    <div className="space-y-2.5">
-                      {[
-                        { msg: "Hola, ¿cuánto cuesta el plan Pro?", time: "23:14", out: false },
-                        { msg: "¡Hola! El plan Pro está a $59/mes. Incluye 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀 ¿Te lo detallo?", time: "23:14", out: true, ai: true },
-                        { msg: "Sí, quiero hablar con alguien para comprarlo", time: "23:15", out: false },
-                        { msg: "¡Perfecto! Voy a comunicarte con uno de nuestros asesores ahora mismo 😊", time: "23:15", out: true, ai: true },
-                      ].map((m, i) => (
-                        <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
-                          <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-700/50 border border-slate-600/30"}`}>
-                            <p className="text-xs text-slate-300 leading-relaxed">{m.msg}</p>
-                            <div className="flex items-center justify-end gap-1 mt-0.5">
-                              {(m as { ai?: boolean }).ai && <span className="text-[9px] text-violet-400">• IA</span>}
-                              <p className="text-[10px] text-slate-600">{m.time}</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /><InstagramIcon size={13} /> WhatsApp + Instagram</span>
-                    <span className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">Entiende audios</span>
-                    <span className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">Escala automático</span>
-                  </div>
-                </div>
-              </FadeUp>
-
-            </div>
           </div>
         </section>
+        {FEATURES.map((f, i) => (
+          <FeatureBlock key={f.title} feature={f} index={i} />
+        ))}
 
         {/* ── STACK CTA BAND ────────────────────────────────────────────────── */}
         <section className="bg-gradient-to-b from-slate-50 to-white py-16">
