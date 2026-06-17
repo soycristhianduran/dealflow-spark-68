@@ -899,13 +899,13 @@ function FlowBuilderDemo({ progress }: { progress: MotionValue<number> }) {
         <span className="text-sm font-semibold text-white">Constructor de flujos</span>
         <span className="inline-flex items-center gap-1 text-[10px] text-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> Activo</span>
       </div>
-      <FlowNode progress={progress} start={0.05} iconBg="bg-green-500/20 text-green-300" icon={<WhatsAppIcon size={16} />} title="Nuevo lead" sub="Entra por WhatsApp" tag="Disparador" />
+      <FlowNode progress={progress} start={0.05} iconBg="bg-white" icon={<FacebookIcon size={16} />} title="Nuevo lead" sub="Entra por Meta Ads" tag="Disparador" />
       <FlowLink progress={progress} start={0.16} end={0.24} />
-      <FlowNode progress={progress} start={0.24} iconBg="bg-pink-500/20 text-pink-300" icon={<MessageCircle className="h-4 w-4" />} title="Mensaje de bienvenida" sub="Plantilla automática" tag="Acción" />
+      <FlowNode progress={progress} start={0.24} iconBg="bg-white" icon={<WhatsAppIcon size={16} />} title="Enviar WhatsApp" sub="Mensaje de bienvenida" tag="Acción" />
       <FlowLink progress={progress} start={0.36} end={0.44} />
-      <FlowNode progress={progress} start={0.44} iconBg="bg-amber-500/20 text-amber-300" icon={<GitBranch className="h-4 w-4" />} title="¿Sin respuesta en 24h?" sub="Condición / filtro" tag="Condición" />
+      <FlowNode progress={progress} start={0.44} iconBg="bg-amber-500/20 text-amber-300" icon={<Mail className="h-4 w-4" />} title="Enviar email" sub="Plantilla automática" tag="Acción" />
       <FlowLink progress={progress} start={0.56} end={0.64} />
-      <FlowNode progress={progress} start={0.64} iconBg="bg-blue-500/20 text-blue-300" icon={<Users className="h-4 w-4" />} title="Seguimiento + asignar" sub="Vendedor disponible" tag="Acción" />
+      <FlowNode progress={progress} start={0.64} iconBg="bg-sky-500/20 text-sky-300" icon={<PhoneCall className="h-4 w-4" />} title="Ejecutar llamada" sub="Agente de voz IA" tag="Acción" />
     </div>
   );
 }
