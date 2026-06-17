@@ -772,6 +772,49 @@ function ChatAutoScroll({ progress, messages }: {
   );
 }
 
+// Live voice call: an animated, realistic sound waveform + live transcript.
+function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
+  const bars = Array.from({ length: 44 });
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-sky-500/15 text-sky-300"><PhoneCall className="h-5 w-5" /></div>
+          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-slate-900 animate-pulse" />
+        </div>
+        <div className="leading-tight">
+          <p className="text-sm font-semibold text-white">Llamada con IA</p>
+          <p className="text-[11px] text-sky-300/80">En curso · 00:42</p>
+        </div>
+        <div className="ml-auto flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 px-2.5 py-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
+          <span className="text-[10px] font-medium text-green-300">En vivo</span>
+        </div>
+      </div>
+      {/* Sound waveform */}
+      <div className="flex items-center justify-center gap-[2px] h-24 rounded-2xl bg-slate-800/40 border border-slate-700/40 px-3 overflow-hidden">
+        {bars.map((_, i) => {
+          const base = 8 + Math.round(30 * Math.abs(Math.sin(i * 0.55 + 0.4)));
+          const dur = (0.66 + (i % 6) * 0.11).toFixed(2);
+          const delay = ((i % 9) * 0.06).toFixed(2);
+          return (
+            <span
+              key={i}
+              className="w-[2.5px] rounded-full bg-gradient-to-t from-sky-500 via-cyan-400 to-cyan-200"
+              style={{ height: base, transformOrigin: "center", animation: `voiceBar ${dur}s ease-in-out ${delay}s infinite` }}
+            />
+          );
+        })}
+      </div>
+      {/* Live transcript */}
+      <Reveal progress={progress} start={0.3} className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
+        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Transcripción en vivo</p>
+        <p className="text-xs text-slate-300 leading-relaxed">"Perfecto, te agendo la visita para el martes a las 3:00 pm 🗓️"</p>
+      </Reveal>
+    </div>
+  );
+}
+
 // Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
 // Messenger (official logos), each sliding in from the right as you scroll.
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
@@ -840,13 +883,7 @@ const FEATURES: Feature[] = [
     title: "Agente de Voz",
     desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
     bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
-    visual: (p) => (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Llamadas este mes</span><CountUp progress={p} to={128} className="text-sm font-bold font-mono text-sky-300" /></div>
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Citas agendadas</span><CountUp progress={p} to={34} className="text-sm font-bold font-mono text-sky-300" /></div>
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Intención de compra</span><CountUp progress={p} to={8.7} decimals={1} suffix="/10" className="text-sm font-bold font-mono text-sky-300" /></div>
-      </div>
-    ),
+    visual: (p) => <VoiceCallDemo progress={p} />,
   },
   {
     eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
@@ -1116,6 +1153,8 @@ export default function HomePage() {
 
         /* WhatsApp chat message pop-in */
         @keyframes waPop { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        /* Live voice waveform bar */
+        @keyframes voiceBar { 0%,100% { transform: scaleY(0.28); } 50% { transform: scaleY(1); } }
         /* Marquee infinite scroll */
         @keyframes marquee-left  { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         @keyframes marquee-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
