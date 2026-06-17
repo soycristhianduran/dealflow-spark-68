@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, useScroll, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
+import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
@@ -466,7 +466,26 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 function HorizontalFeatures() {
   const N = FEATURES.length;
   const ref = useRef<HTMLElement>(null);
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  // Pin progress (0..1) computed manually from scroll — avoids useScroll's
+  // ScrollTimeline path (which threw "Offsets must be in [0,1]" in some browsers).
+  const scrollYProgress = useMotionValue(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const update = () => {
+      raf = 0;
+      const rect = el.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      const p = span > 0 ? Math.min(1, Math.max(0, -rect.top / span)) : 0;
+      scrollYProgress.set(p);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
+    update();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
+  }, [scrollYProgress]);
   const x = useTransform(scrollYProgress, [0, 1], ["0vw", `-${(N - 1) * 100}vw`]);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
