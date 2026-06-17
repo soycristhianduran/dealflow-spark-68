@@ -1211,7 +1211,7 @@ export default function HomePage() {
               <div aria-hidden className="pointer-events-none absolute left-1/2 -top-28 h-64 w-[40rem] -translate-x-1/2 rounded-full bg-orange-500/12 blur-3xl" />
 
               <h3 className="relative text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.1]">
-                Todo tu stack de ventas, <span className="text-orange-400">en un solo lugar</span>
+                Todo tu marketing y ventas, <span className="text-orange-400">en un solo lugar</span>
               </h3>
               <p className="relative text-slate-400 text-lg mt-4 max-w-xl mx-auto">
                 Sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.
