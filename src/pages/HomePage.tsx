@@ -100,7 +100,9 @@ function FadeUp({
     if (!el) return;
     const obs = new IntersectionObserver(
       ([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } },
-      { threshold: 0.1 }
+      // Trigger when the element is ~18% up from the bottom of the viewport, so
+      // the reveal animation plays *while you're looking at it*, not before.
+      { threshold: 0, rootMargin: "0px 0px -18% 0px" }
     );
     obs.observe(el);
     return () => obs.disconnect();
@@ -435,7 +437,7 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
             </ul>
           </FadeUp>
           {/* Visual */}
-          <FadeUp from={reverse ? "left" : "right"} className={reverse ? "lg:order-1" : "lg:order-2"}>
+          <FadeUp from={reverse ? "left" : "right"} delay={140} className={reverse ? "lg:order-1" : "lg:order-2"}>
             <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
               {feature.visual}
             </div>
