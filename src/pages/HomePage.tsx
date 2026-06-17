@@ -734,11 +734,47 @@ function Reveal({ progress, start, end, y = 12, className, children }: {
 
 const FEATURES: Feature[] = [
   {
-    eyebrow: "WhatsApp nativo", accent: "green", icon: MessageCircle,
-    title: "WhatsApp Business Nativo",
-    desc: "Envía, recibe y automatiza desde el CRM. Sin apps externas, sin pagar a terceros.",
-    bullets: ["Plantillas aprobadas por Meta", "Respuestas automáticas 24/7", "WhatsApp + Instagram DMs en un solo inbox"],
+    eyebrow: "Meta nativo", accent: "green", icon: MessageCircle,
+    title: "Conexión Nativa con Meta",
+    desc: "Conecta WhatsApp, Instagram y Messenger directo al CRM. Recibe, responde y automatiza sin apps externas.",
+    bullets: ["WhatsApp, Instagram y Messenger en un solo inbox", "Plantillas aprobadas por Meta", "Respuestas automáticas 24/7"],
     visual: (p) => <WhatsAppChatDemo progress={p} />,
+  },
+  {
+    eyebrow: "Agente de Chat", accent: "violet", icon: Bot,
+    title: "Agente de Chat 24/7",
+    desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
+    bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
+    visual: (p) => (
+      <div className="space-y-2.5">
+        {[
+          { msg: "¿Cuánto cuesta el plan Pro?", out: false },
+          { msg: "El plan Pro está a $59/mes. Incluye 3 usuarios y automatizaciones ilimitadas 🚀", out: true, ai: true },
+          { msg: "Quiero hablar con alguien para comprarlo", out: false },
+          { msg: "¡Perfecto! Te conecto con un asesor ahora mismo 😊", out: true, ai: true },
+        ].map((m, i) => (
+          <Reveal key={i} progress={p} start={0.12 + i * 0.16} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
+              <p className="text-xs text-slate-200">{m.msg}</p>
+              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• IA</p>}
+            </div>
+          </Reveal>
+        ))}
+      </div>
+    ),
+  },
+  {
+    eyebrow: "Agente de voz", accent: "sky", icon: PhoneCall,
+    title: "Agente de Voz",
+    desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
+    bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
+    visual: (p) => (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Llamadas este mes</span><CountUp progress={p} to={128} className="text-sm font-bold font-mono text-sky-300" /></div>
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Citas agendadas</span><CountUp progress={p} to={34} className="text-sm font-bold font-mono text-sky-300" /></div>
+        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Intención de compra</span><CountUp progress={p} to={8.7} decimals={1} suffix="/10" className="text-sm font-bold font-mono text-sky-300" /></div>
+      </div>
+    ),
   },
   {
     eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
@@ -770,29 +806,6 @@ const FEATURES: Feature[] = [
             <Bar progress={p} pct={l.score * 10} className={l.color} />
             <CountUp progress={p} to={l.score} decimals={1} className="text-sm font-bold font-mono text-white w-8 text-right" />
           </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    eyebrow: "Pipeline", accent: "teal", icon: TrendingUp,
-    title: "Pipeline Visual",
-    desc: "Un Kanban de oportunidades con pronóstico de ingresos en tiempo real. Arrastra y suelta entre etapas.",
-    bullets: ["Pronóstico de ingresos en vivo", "Arrastrar y soltar entre etapas", "Vista clara de todo tu embudo"],
-    visual: (p) => (
-      <div className="grid grid-cols-2 gap-2">
-        {[
-          { stage: "Nuevo", amount: 8.2, count: 5, color: "bg-slate-500" },
-          { stage: "Calificado", amount: 12.4, count: 3, color: "bg-blue-500" },
-          { stage: "Propuesta", amount: 9.1, count: 2, color: "bg-purple-500" },
-          { stage: "Cerrado", amount: 8.5, count: 1, color: "bg-orange-500" },
-        ].map((s, i) => (
-          <Reveal key={s.stage} progress={p} start={0.15 + i * 0.12} className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-3">
-            <div className={`w-2 h-2 rounded-full ${s.color} mb-2`} />
-            <p className="text-[11px] text-slate-500">{s.stage}</p>
-            <CountUp progress={p} to={s.amount} prefix="$" suffix="k" decimals={1} className="text-sm font-bold text-white font-mono" />
-            <p className="text-[10px] text-slate-600 font-mono">{s.count} leads</p>
-          </Reveal>
         ))}
       </div>
     ),
@@ -853,19 +866,6 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    eyebrow: "Agente de voz", accent: "sky", icon: PhoneCall,
-    title: "Agente de Voz",
-    desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
-    bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
-    visual: (p) => (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Llamadas este mes</span><CountUp progress={p} to={128} className="text-sm font-bold font-mono text-sky-300" /></div>
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Citas agendadas</span><CountUp progress={p} to={34} className="text-sm font-bold font-mono text-sky-300" /></div>
-        <div className="flex items-center justify-between rounded-xl bg-slate-800/50 border border-slate-700/40 px-3 py-2.5"><span className="text-xs text-slate-400">Intención de compra</span><CountUp progress={p} to={8.7} decimals={1} suffix="/10" className="text-sm font-bold font-mono text-sky-300" /></div>
-      </div>
-    ),
-  },
-  {
     eyebrow: "Email marketing", accent: "amber", icon: Mail,
     title: "Email marketing",
     desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
@@ -879,7 +879,7 @@ const FEATURES: Feature[] = [
     ),
   },
   {
-    eyebrow: "Calendario", accent: "blue", icon: Calendar,
+    eyebrow: "Calendario", accent: "teal", icon: Calendar,
     title: "Calendario & Tareas",
     desc: "Agenda citas y da seguimiento sin que ningún lead se enfríe.",
     bullets: ["Agenda de citas", "Recordatorios y tareas", "Seguimiento a tiempo"],
@@ -890,29 +890,6 @@ const FEATURES: Feature[] = [
             <span className="text-xs font-mono text-slate-400 w-10 shrink-0">{r.time}</span>
             <span className={`h-2 w-2 rounded-full ${r.color} shrink-0`} />
             <span className="text-xs text-slate-300 truncate">{r.label}</span>
-          </Reveal>
-        ))}
-      </div>
-    ),
-  },
-  {
-    eyebrow: "Agente IA 24/7", accent: "violet", icon: Bot,
-    title: "Agente IA 24/7",
-    desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
-    bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
-    visual: (p) => (
-      <div className="space-y-2.5">
-        {[
-          { msg: "¿Cuánto cuesta el plan Pro?", out: false },
-          { msg: "El plan Pro está a $59/mes. Incluye 3 usuarios y automatizaciones ilimitadas 🚀", out: true, ai: true },
-          { msg: "Quiero hablar con alguien para comprarlo", out: false },
-          { msg: "¡Perfecto! Te conecto con un asesor ahora mismo 😊", out: true, ai: true },
-        ].map((m, i) => (
-          <Reveal key={i} progress={p} start={0.12 + i * 0.16} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
-            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200">{m.msg}</p>
-              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• IA</p>}
-            </div>
           </Reveal>
         ))}
       </div>
