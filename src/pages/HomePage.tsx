@@ -1205,10 +1205,10 @@ export default function HomePage() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 px-6 py-12 sm:px-12 sm:py-14 text-center"
+              className="relative text-center"
             >
               {/* subtle orange glow accent */}
-              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-28 h-56 w-[34rem] -translate-x-1/2 rounded-full bg-orange-500/15 blur-3xl" />
+              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-24 h-56 w-[34rem] -translate-x-1/2 rounded-full bg-orange-500/12 blur-3xl" />
 
               {/* tool chips with official logos — animated in on scroll */}
               <div className="relative flex flex-wrap items-center justify-center gap-2.5 mb-7">
