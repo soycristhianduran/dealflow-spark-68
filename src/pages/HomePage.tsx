@@ -881,15 +881,29 @@ export default function HomePage() {
                 </div>
               </FadeUp>
 
-              {/* Honest CTA card — closes the row (replaces the inflated stat) */}
+              {/* Landings con IA */}
               <FadeUp delay={160}>
-                <div className="h-full bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-7 flex flex-col gap-3 hover:from-orange-400 hover:to-orange-500 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl hover:shadow-orange-500/30">
-                  <p className="text-white text-xl font-black leading-tight">Todo tu stack de ventas en una sola plataforma</p>
-                  <p className="text-orange-100 text-sm leading-relaxed">CRM, WhatsApp, Meta Ads, IA y automatizaciones — sin Zapier, sin apps externas.</p>
-                  <Link to="/auth" className="inline-flex items-center gap-1.5 bg-white text-orange-600 font-semibold text-sm px-4 py-2.5 rounded-xl mt-auto w-fit hover:bg-orange-50 transition-colors group">
-                    Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </Link>
-                  <p className="text-orange-100/80 text-xs">7 días gratis · sin tarjeta</p>
+                <div className="bento-card h-full bg-gradient-to-b from-slate-900 to-slate-950 rounded-3xl p-8 border border-white/[0.06] hover:-translate-y-1 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-indigo-500/20 hover:shadow-xl hover:shadow-indigo-500/5">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_70%_at_50%_0%,rgba(99,102,241,0.08),transparent)] pointer-events-none" />
+                  <div className="w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg ring-1 ring-white/10 bento-icon">
+                    <Layout className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white mb-1.5">Landing pages con IA</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">Describe tu oferta y la IA crea una landing lista para captar leads — publicada en tu dominio en minutos.</p>
+                  </div>
+                  {/* Mini landing skeleton */}
+                  <div className="mt-auto rounded-xl border border-slate-700/50 bg-slate-800/40 p-3 space-y-2">
+                    <div className="h-2 w-1/2 rounded-full bg-indigo-400/60" />
+                    <div className="h-1.5 w-3/4 rounded-full bg-slate-600" />
+                    <div className="h-1.5 w-2/3 rounded-full bg-slate-600" />
+                    <div className="h-6 w-24 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 mt-1" />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {["Generación con IA", "Publica en tu dominio", "Captura leads al CRM"].map((t) => (
+                      <span key={t} className="text-xs text-indigo-300/80 bg-indigo-500/10 border border-indigo-500/20 px-2.5 py-1 rounded-full">{t}</span>
+                    ))}
+                  </div>
                 </div>
               </FadeUp>
 
@@ -935,6 +949,29 @@ export default function HomePage() {
               </FadeUp>
 
             </div>
+          </div>
+        </section>
+
+        {/* ── STACK CTA BAND ────────────────────────────────────────────────── */}
+        <section className="bg-gradient-to-b from-slate-50 to-white py-16">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <FadeUp>
+              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 px-8 py-12 sm:px-12 shadow-2xl shadow-orange-500/20">
+                <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
+                <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                  <div className="max-w-xl">
+                    <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">Todo tu stack de ventas en una sola plataforma</h3>
+                    <p className="text-orange-50 mt-3 leading-relaxed">CRM, WhatsApp, Meta Ads, IA y automatizaciones — sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.</p>
+                  </div>
+                  <div className="flex flex-col items-start gap-2 shrink-0">
+                    <Link to="/auth" className="inline-flex items-center gap-1.5 bg-white text-orange-600 font-bold text-sm px-6 py-3.5 rounded-xl hover:bg-orange-50 transition-colors shadow-lg group">
+                      Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </Link>
+                    <p className="text-orange-50/90 text-xs pl-1">7 días gratis · sin tarjeta de crédito</p>
+                  </div>
+                </div>
+              </div>
+            </FadeUp>
           </div>
         </section>
 
