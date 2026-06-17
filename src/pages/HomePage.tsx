@@ -994,26 +994,6 @@ const FEATURES: Feature[] = [
     visual: (p) => <LeadScoringDemo progress={p} />,
   },
   {
-    eyebrow: "IA en llamadas", accent: "cyan", icon: PhoneCall,
-    title: "Analizador de Llamadas",
-    desc: "La IA transcribe y analiza cada llamada: objeciones, intención de compra y próximos pasos.",
-    bullets: ["Transcripción automática", "Detecta objeciones e intención", "Sugiere el siguiente paso"],
-    visual: (p) => (
-      <div className="space-y-3">
-        {[
-          { label: "Objeción detectada", tag: "Precio alto", color: "text-yellow-300 bg-yellow-500/10 border-yellow-500/20" },
-          { label: "Intención de compra", tag: "Alta — 8.7/10", color: "text-green-300 bg-green-500/10 border-green-500/20" },
-          { label: "Próximo paso", tag: "Enviar propuesta", color: "text-cyan-300 bg-cyan-500/10 border-cyan-500/20" },
-        ].map((r, i) => (
-          <Reveal key={r.label} progress={p} start={0.18 + i * 0.16} className="flex items-center justify-between gap-2">
-            <span className="text-xs text-slate-400">{r.label}</span>
-            <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${r.color}`}>{r.tag}</span>
-          </Reveal>
-        ))}
-      </div>
-    ),
-  },
-  {
     eyebrow: "Automatización", accent: "pink", icon: GitBranch,
     title: "Automatizaciones",
     desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
