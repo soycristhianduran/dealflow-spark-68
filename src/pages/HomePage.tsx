@@ -458,32 +458,88 @@ function FeatureBlock({ feature, index }: { feature: Feature; index: number }) {
   );
 }
 
+// Self-animating WhatsApp chat: messages appear one by one, with a typing
+// indicator before the AI agent replies, then loops.
+function WhatsAppChatDemo() {
+  type Step = { typing?: boolean; who?: "them" | "me"; ai?: boolean; text?: string; time?: string };
+  const SCRIPT: Step[] = [
+    { who: "them", text: "Hola, me interesa el plan Pro", time: "10:32" },
+    { typing: true },
+    { who: "me", ai: true, text: "¡Hola! 👋 El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", time: "10:32" },
+    { who: "them", text: "Perfecto, ¿puedo hablar con alguien?", time: "10:33" },
+    { typing: true },
+    { who: "me", ai: true, text: "¡Claro! Te conecto con un asesor ahora mismo 😊", time: "10:33" },
+  ];
+  const [count, setCount] = useState(0);
+  const [typing, setTyping] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const run = () => {
+      setCount(0); setTyping(false);
+      let delay = 500;
+      SCRIPT.forEach((step) => {
+        if (step.typing) {
+          timers.push(setTimeout(() => !cancelled && setTyping(true), delay));
+          delay += 1400;
+          timers.push(setTimeout(() => !cancelled && setTyping(false), delay));
+        } else {
+          const at = delay;
+          timers.push(setTimeout(() => !cancelled && setCount((c) => c + 1), at));
+          delay += 1200;
+        }
+      });
+      timers.push(setTimeout(() => { if (!cancelled) run(); }, delay + 2600));
+    };
+    run();
+    return () => { cancelled = true; timers.forEach(clearTimeout); };
+  }, []);
+
+  const msgs = SCRIPT.filter((s) => !s.typing);
+  const visible = msgs.slice(0, count);
+
+  return (
+    <div className="space-y-3 min-h-[260px]">
+      <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><WhatsAppIcon size={20} /></div>
+        <span className="text-sm font-semibold text-white">Chat · WhatsApp Business</span>
+        <span className="ml-auto flex items-center gap-1 text-[10px] text-green-400"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> en línea</span>
+      </div>
+      {visible.map((m, i) => {
+        const out = m.who === "me";
+        return (
+          <div key={i} className={`flex ${out ? "justify-end" : "justify-start"} animate-[waPop_0.35s_ease-out]`}>
+            <div className={`rounded-xl px-3 py-2 max-w-[82%] ${out ? "bg-green-600/30 border border-green-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
+              <p className="text-xs text-slate-200 leading-relaxed">{m.text}</p>
+              <div className="flex items-center justify-end gap-1 mt-0.5">
+                {m.ai && <span className="text-[9px] text-green-300 font-medium">• Agente IA</span>}
+                <span className="text-[10px] text-slate-500">{m.time}</span>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+      {typing && (
+        <div className="flex justify-end animate-[waPop_0.3s_ease-out]">
+          <div className="rounded-xl px-3 py-2.5 bg-green-600/20 border border-green-500/20 flex items-center gap-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-green-300 animate-bounce [animation-delay:-0.2s]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-green-300 animate-bounce [animation-delay:-0.1s]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-green-300 animate-bounce" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const FEATURES: Feature[] = [
   {
     eyebrow: "WhatsApp nativo", accent: "green", icon: MessageCircle,
     title: "WhatsApp Business Nativo",
     desc: "Envía, recibe y automatiza desde el CRM. Sin apps externas, sin pagar a terceros.",
     bullets: ["Plantillas aprobadas por Meta", "Respuestas automáticas 24/7", "WhatsApp + Instagram DMs en un solo inbox"],
-    visual: (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><WhatsAppIcon size={20} /></div>
-          <span className="text-sm font-semibold text-white">Chat · WhatsApp Business</span>
-        </div>
-        {[
-          { msg: "Hola, me interesa el plan Pro", out: false, time: "10:32" },
-          { msg: "¡Hola! Aquí tienes el detalle → klosify.link/pro", out: true, time: "10:32" },
-          { msg: "Perfecto, ¿puedo hablar con alguien?", out: false, time: "10:33" },
-        ].map((m, i) => (
-          <div key={i} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
-            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-green-600/30 border border-green-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200">{m.msg}</p>
-              <p className="text-[10px] text-slate-500 mt-0.5 text-right">{m.time}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-    ),
+    visual: <WhatsAppChatDemo />,
   },
   {
     eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
@@ -877,6 +933,8 @@ export default function HomePage() {
         .bento-card:hover .bento-icon { transform: scale(1.12) rotate(-3deg); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1); }
         .bento-icon { transition: transform 0.3s ease; }
 
+        /* WhatsApp chat message pop-in */
+        @keyframes waPop { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: translateY(0) scale(1); } }
         /* Marquee infinite scroll */
         @keyframes marquee-left  { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         @keyframes marquee-right { from { transform: translateX(-50%); } to { transform: translateX(0); } }
