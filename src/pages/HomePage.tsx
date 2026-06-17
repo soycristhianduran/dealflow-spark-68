@@ -910,10 +910,10 @@ function FlowBuilderDemo({ progress }: { progress: MotionValue<number> }) {
   );
 }
 
-// Landing builder: the AI assembles a landing block by block as you scroll.
+// Landing builder: the AI assembles a realistic landing block by block as you scroll.
 function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
-  const buildingOpacity = useTransform(progress, [0.62, 0.74], [1, 0]);
-  const doneOpacity = useTransform(progress, [0.68, 0.8], [0, 1]);
+  const buildingOpacity = useTransform(progress, [0.66, 0.78], [1, 0]);
+  const doneOpacity = useTransform(progress, [0.72, 0.84], [0, 1]);
   return (
     <div className="space-y-3">
       {/* prompt */}
@@ -926,21 +926,39 @@ function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
         <motion.p style={{ opacity: buildingOpacity }} className="absolute inset-0 text-[10px] text-slate-500 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" /> Generando con IA…</motion.p>
         <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> Publicada en tu dominio</motion.p>
       </div>
-      {/* building canvas */}
-      <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-4">
-        <div className="flex gap-1 mb-3">
-          <span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+      {/* browser preview */}
+      <div className="rounded-xl border border-slate-700/50 bg-slate-900/70 overflow-hidden">
+        {/* chrome */}
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-800/40">
+          <div className="flex gap-1"><span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" /><span className="h-1.5 w-1.5 rounded-full bg-slate-600" /></div>
+          <div className="flex-1 rounded-md bg-slate-800 px-2 py-0.5 text-[9px] text-slate-500 font-mono truncate">tudominio.com/oferta</div>
         </div>
-        <div className="space-y-2.5">
-          <Reveal progress={progress} start={0.16}><div className="h-3 w-2/3 rounded-full bg-gradient-to-r from-indigo-400 to-violet-400" /></Reveal>
-          <Reveal progress={progress} start={0.26}><div className="h-1.5 w-3/4 rounded-full bg-slate-700" /></Reveal>
-          <Reveal progress={progress} start={0.32}><div className="h-1.5 w-1/2 rounded-full bg-slate-700" /></Reveal>
-          <Reveal progress={progress} start={0.40}><div className="h-14 rounded-lg bg-slate-800 border border-slate-700/50" /></Reveal>
-          <Reveal progress={progress} start={0.50} className="grid grid-cols-2 gap-2">
-            <div className="h-7 rounded-md bg-slate-800 border border-slate-700/50" />
-            <div className="h-7 rounded-md bg-slate-800 border border-slate-700/50" />
+        <div className="p-3.5 space-y-2.5">
+          {/* hero image */}
+          <Reveal progress={progress} start={0.14}>
+            <div className="relative h-16 rounded-lg bg-gradient-to-br from-indigo-500/70 via-violet-500/60 to-fuchsia-500/50 overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.25),transparent_55%)]" />
+            </div>
           </Reveal>
-          <Reveal progress={progress} start={0.60}><div className="h-8 w-32 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500" /></Reveal>
+          {/* headline + subtitle */}
+          <Reveal progress={progress} start={0.26}><div className="h-3 w-3/4 rounded-full bg-gradient-to-r from-white/80 to-white/40" /></Reveal>
+          <Reveal progress={progress} start={0.34}><div className="h-1.5 w-5/6 rounded-full bg-slate-700" /></Reveal>
+          <Reveal progress={progress} start={0.40}><div className="h-1.5 w-2/3 rounded-full bg-slate-700" /></Reveal>
+          {/* form card */}
+          <Reveal progress={progress} start={0.48} className="rounded-lg border border-slate-700/60 bg-slate-800/50 p-2.5 space-y-2">
+            <div className="h-6 rounded-md bg-slate-900/60 border border-slate-700/50 flex items-center px-2"><span className="text-[9px] text-slate-500">Nombre</span></div>
+            <div className="h-6 rounded-md bg-slate-900/60 border border-slate-700/50 flex items-center px-2"><span className="text-[9px] text-slate-500">WhatsApp</span></div>
+            <Reveal progress={progress} start={0.58}>
+              <div className="h-7 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center justify-center text-[10px] font-bold text-white">Quiero más info →</div>
+            </Reveal>
+          </Reveal>
+          {/* lead captured toast */}
+          <Reveal progress={progress} start={0.78}>
+            <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1.5">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300"><Check className="h-3 w-3" /></span>
+              <span className="text-[10px] text-emerald-200">Nuevo lead capturado → guardado en el CRM</span>
+            </div>
+          </Reveal>
         </div>
       </div>
     </div>
