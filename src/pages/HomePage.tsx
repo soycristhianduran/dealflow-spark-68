@@ -1197,26 +1197,58 @@ export default function HomePage() {
         {/* ── FEATURES — horizontal scroll-driven slider (pinned) ───────────── */}
         <HorizontalFeatures />
 
-        {/* ── STACK CTA BAND ────────────────────────────────────────────────── */}
-        <section className="bg-gradient-to-b from-slate-50 to-white py-16">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-            <FadeUp>
-              <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-orange-500 to-orange-600 px-8 py-12 sm:px-12 shadow-2xl shadow-orange-500/20">
-                <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-56 w-56 rounded-full bg-white/10 blur-3xl" />
-                <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                  <div className="max-w-xl">
-                    <h3 className="text-2xl sm:text-3xl font-black text-white leading-tight">Todo tu stack de ventas en una sola plataforma</h3>
-                    <p className="text-orange-50 mt-3 leading-relaxed">CRM, WhatsApp, Meta Ads, IA y automatizaciones — sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.</p>
-                  </div>
-                  <div className="flex flex-col items-start gap-2 shrink-0">
-                    <Link to="/auth" className="inline-flex items-center gap-1.5 bg-white text-orange-600 font-bold text-sm px-6 py-3.5 rounded-xl hover:bg-orange-50 transition-colors shadow-lg group">
-                      Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </Link>
-                    <p className="text-orange-50/90 text-xs pl-1">7 días gratis · sin tarjeta de crédito</p>
-                  </div>
-                </div>
+        {/* ── STACK CTA BAND — clean, dark, compact ─────────────────────────── */}
+        <section className="bg-slate-950 py-14">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.4 }}
+              transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
+              className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 px-6 py-8 sm:px-10 text-center"
+            >
+              {/* subtle orange glow accent */}
+              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-24 h-48 w-[28rem] -translate-x-1/2 rounded-full bg-orange-500/15 blur-3xl" />
+
+              {/* tool chips with official logos — animated in on scroll */}
+              <div className="relative flex flex-wrap items-center justify-center gap-2 mb-5">
+                {[
+                  { name: "CRM", node: <span className="text-[11px] font-bold text-orange-400">CRM</span> },
+                  { name: "WhatsApp", node: <WhatsAppIcon size={14} /> },
+                  { name: "Meta Ads", node: <FacebookIcon size={14} /> },
+                  { name: "Instagram", node: <InstagramIcon size={14} /> },
+                  { name: "IA", node: <Sparkles className="w-3.5 h-3.5 text-violet-300" /> },
+                  { name: "Automatizaciones", node: <Zap className="w-3.5 h-3.5 text-pink-300" /> },
+                ].map((c, i) => (
+                  <motion.span
+                    key={c.name}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.1 + i * 0.07, duration: 0.35, ease: "backOut" }}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300"
+                  >
+                    {c.node}{c.name}
+                  </motion.span>
+                ))}
               </div>
-            </FadeUp>
+
+              <h3 className="relative text-xl sm:text-2xl font-black text-white tracking-tight">
+                Todo tu stack de ventas, <span className="text-orange-400">en un solo lugar</span>
+              </h3>
+              <p className="relative text-slate-400 text-sm mt-2 max-w-md mx-auto">
+                Sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.
+              </p>
+
+              <div className="relative mt-6 flex flex-col items-center gap-2">
+                <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+                  <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/25">
+                    Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </Link>
+                </motion.div>
+                <p className="text-slate-500 text-xs">7 días gratis · sin tarjeta de crédito</p>
+              </div>
+            </motion.div>
           </div>
         </section>
 
