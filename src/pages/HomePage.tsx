@@ -435,26 +435,25 @@ function useIsDesktop() {
   return desktop;
 }
 
-// Mobile layout for a feature: stacked text + visual whose animation is driven
-// by scroll as you move through the feature (scrubbing, like desktop).
+// Mobile layout for a feature: a STICKY (pinned) panel. The feature stays fixed
+// while you scroll through its track and its visual animation plays; then it
+// unpins and the next feature takes over — like desktop's dwell, but vertical.
 function MobileFeature({ feature }: { feature: Feature }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
-  const visualRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
   const progress = useMotionValue(0);
   useEffect(() => {
-    const el = visualRef.current;
+    const el = trackRef.current;
     if (!el) return;
     let raf = 0;
     const update = () => {
       raf = 0;
-      const r = el.getBoundingClientRect();
-      const vh = window.innerHeight;
-      // Driven by the VISUAL's own position: 0 as it enters from the bottom →
-      // 1 once it has scrolled up into the upper part of the screen. So the
-      // animation plays *while you see the visual*, not before.
-      const p = Math.max(0, Math.min(1, (vh - r.top) / (vh * 0.7)));
-      progress.set(p);
+      const rect = el.getBoundingClientRect();
+      const span = rect.height - window.innerHeight;
+      const p = span > 0 ? Math.max(0, Math.min(1, -rect.top / span)) : 0;
+      // Animation completes by ~78% of the track, then holds before unpinning.
+      progress.set(Math.min(1, p / 0.78));
     };
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(update); };
     update();
@@ -463,23 +462,25 @@ function MobileFeature({ feature }: { feature: Feature }) {
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, [progress]);
   return (
-    <div className="px-5 py-12 border-b border-white/5">
-      <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
-        <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-        {feature.eyebrow}
-      </div>
-      <h3 className="text-2xl font-black text-white tracking-tight mb-3">{feature.title}</h3>
-      <p className="text-slate-400 text-base leading-relaxed mb-5">{feature.desc}</p>
-      <ul className="space-y-2.5 mb-6">
-        {feature.bullets.map((b) => (
-          <li key={b} className="flex items-start gap-3">
-            <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-            <span className="text-slate-300 text-sm">{b}</span>
-          </li>
-        ))}
-      </ul>
-      <div ref={visualRef} className="rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-xl">
-        {feature.visual(progress)}
+    <div ref={trackRef} className="relative h-[160vh]">
+      <div className="sticky top-0 min-h-screen flex flex-col justify-center px-5 py-20">
+        <div className={`inline-flex w-fit items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
+          <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
+          {feature.eyebrow}
+        </div>
+        <h3 className="text-3xl font-black text-white tracking-tight mb-3">{feature.title}</h3>
+        <p className="text-slate-400 text-base leading-relaxed mb-5">{feature.desc}</p>
+        <ul className="space-y-2.5 mb-7">
+          {feature.bullets.map((b) => (
+            <li key={b} className="flex items-start gap-3">
+              <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
+              <span className="text-slate-300 text-sm">{b}</span>
+            </li>
+          ))}
+        </ul>
+        <div className="rounded-2xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-5 shadow-xl">
+          {feature.visual(progress)}
+        </div>
       </div>
     </div>
   );
