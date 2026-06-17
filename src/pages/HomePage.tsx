@@ -1620,13 +1620,13 @@ export default function HomePage() {
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex flex-col gap-3">
                         {[
-                          { color: "bg-green-500", Icon: MessageCircle, label: "WhatsApp"  },
-                          { color: "bg-blue-600",  Icon: BarChart3,     label: "Meta Ads"  },
-                          { color: "bg-pink-500",  Icon: MessageCircle, label: "Instagram" },
-                        ].map(({ color, Icon, label }) => (
+                          { node: <WhatsAppIcon size={18} />,  label: "WhatsApp"  },
+                          { node: <FacebookIcon size={18} />,  label: "Meta Ads"  },
+                          { node: <InstagramIcon size={18} />, label: "Instagram" },
+                        ].map(({ node, label }) => (
                           <div key={label} className="flex items-center gap-2">
-                            <div className={`w-8 h-8 ${color} rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm`}>
-                              <Icon className="w-3.5 h-3.5 text-white" />
+                            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm ring-1 ring-black/5">
+                              {node}
                             </div>
                             <span className="text-xs text-slate-400 font-medium">{label}</span>
                           </div>
@@ -1677,8 +1677,8 @@ export default function HomePage() {
                       <div className="flex-1 bg-slate-800 rounded-xl p-3 border border-slate-700/50">
                         <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">Landing page</p>
                         <div className="space-y-1.5">
-                          <div className="bg-slate-700/60 rounded-md h-5 w-full" />
-                          <div className="bg-slate-700/60 rounded-md h-5 w-4/5" />
+                          <div className="bg-slate-900/60 border border-slate-700/50 rounded-md h-5 w-full flex items-center px-2"><span className="text-[8px] text-slate-500">Nombre</span></div>
+                          <div className="bg-slate-900/60 border border-slate-700/50 rounded-md h-5 w-full flex items-center px-2"><span className="text-[8px] text-slate-500">WhatsApp</span></div>
                           <div className="bg-orange-500 rounded-md h-6 w-full flex items-center justify-center">
                             <span className="text-white text-[9px] font-bold tracking-wide">ENVIAR →</span>
                           </div>
@@ -1694,7 +1694,7 @@ export default function HomePage() {
                           <span className="text-xs font-semibold text-white">Juan M.</span>
                           <span className="text-xs font-black text-green-400 font-mono">9.1</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 mb-2">via Meta Ads</p>
+                        <p className="text-[10px] text-slate-500 mb-2 flex items-center gap-1"><FacebookIcon size={11} /> via Meta Ads</p>
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
                           <span className="text-[10px] text-green-400 font-medium">Hot lead</span>
@@ -1746,10 +1746,10 @@ export default function HomePage() {
                     {/* Auto WA message */}
                     <div className="bg-slate-800 rounded-xl p-3 border border-slate-700/50">
                       <div className="flex items-center gap-1.5 mb-2">
-                        <div className="w-4 h-4 bg-green-500 rounded-md flex items-center justify-center flex-shrink-0">
-                          <MessageCircle className="w-2.5 h-2.5 text-white" />
+                        <div className="w-4 h-4 bg-white rounded-md flex items-center justify-center flex-shrink-0">
+                          <WhatsAppIcon size={11} />
                         </div>
-                        <span className="text-[10px] text-slate-500 font-medium">Automatización · enviado</span>
+                        <span className="text-[10px] text-slate-500 font-medium">Automatización · WhatsApp</span>
                         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400" />
                       </div>
                       <p className="text-xs text-slate-300 leading-relaxed italic">"Hola María, ¿pudiste revisar la propuesta?"</p>
