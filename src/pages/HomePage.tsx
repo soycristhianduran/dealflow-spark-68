@@ -1197,26 +1197,26 @@ export default function HomePage() {
         {/* ── FEATURES — horizontal scroll-driven slider (pinned) ───────────── */}
         <HorizontalFeatures />
 
-        {/* ── STACK CTA BAND — clean, dark, compact ─────────────────────────── */}
-        <section className="bg-slate-950 py-14">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* ── STACK CTA BAND — clean, dark ──────────────────────────────────── */}
+        <section className="bg-slate-950 py-20">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <motion.div
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.4 }}
               transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-              className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 px-6 py-8 sm:px-10 text-center"
+              className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-b from-slate-900 to-slate-950 px-6 py-12 sm:px-12 sm:py-14 text-center"
             >
               {/* subtle orange glow accent */}
-              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-24 h-48 w-[28rem] -translate-x-1/2 rounded-full bg-orange-500/15 blur-3xl" />
+              <div aria-hidden className="pointer-events-none absolute left-1/2 -top-28 h-56 w-[34rem] -translate-x-1/2 rounded-full bg-orange-500/15 blur-3xl" />
 
               {/* tool chips with official logos — animated in on scroll */}
-              <div className="relative flex flex-wrap items-center justify-center gap-2 mb-5">
+              <div className="relative flex flex-wrap items-center justify-center gap-2.5 mb-7">
                 {[
-                  { name: "CRM", node: <span className="text-[11px] font-bold text-orange-400">CRM</span> },
-                  { name: "WhatsApp", node: <WhatsAppIcon size={14} /> },
-                  { name: "Meta Ads", node: <FacebookIcon size={14} /> },
-                  { name: "Instagram", node: <InstagramIcon size={14} /> },
+                  { name: "CRM", node: <KlosifyLogo size={14} /> },
+                  { name: "WhatsApp", node: <WhatsAppIcon size={15} /> },
+                  { name: "Meta Ads", node: <FacebookIcon size={15} /> },
+                  { name: "Instagram", node: <InstagramIcon size={15} /> },
                   { name: "IA", node: <Sparkles className="w-3.5 h-3.5 text-violet-300" /> },
                   { name: "Automatizaciones", node: <Zap className="w-3.5 h-3.5 text-pink-300" /> },
                 ].map((c, i) => (
@@ -1226,23 +1226,23 @@ export default function HomePage() {
                     whileInView={{ opacity: 1, scale: 1 }}
                     viewport={{ once: true }}
                     transition={{ delay: 0.1 + i * 0.07, duration: 0.35, ease: "backOut" }}
-                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-xs text-slate-300"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[13px] text-slate-300"
                   >
                     {c.node}{c.name}
                   </motion.span>
                 ))}
               </div>
 
-              <h3 className="relative text-xl sm:text-2xl font-black text-white tracking-tight">
+              <h3 className="relative text-2xl sm:text-4xl font-black text-white tracking-tight">
                 Todo tu stack de ventas, <span className="text-orange-400">en un solo lugar</span>
               </h3>
-              <p className="relative text-slate-400 text-sm mt-2 max-w-md mx-auto">
+              <p className="relative text-slate-400 text-base mt-3 max-w-lg mx-auto">
                 Sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.
               </p>
 
-              <div className="relative mt-6 flex flex-col items-center gap-2">
+              <div className="relative mt-8 flex flex-col items-center gap-2.5">
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
-                  <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-6 py-3 rounded-xl text-sm font-bold shadow-lg shadow-orange-500/25">
+                  <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-8 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
                     Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </motion.div>
