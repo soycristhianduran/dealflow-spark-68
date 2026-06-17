@@ -10,6 +10,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
+import { WhatsAppIcon, InstagramIcon, FacebookIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,7 +22,6 @@ interface Plan {
 }
 interface AddOn { icon: LucideIcon; label: string; price: string; iconColor: string; iconBg: string }
 interface StackTool { domain: string; name: string; price: string; brandColor: string }
-interface IntegrationLogo { domain: string; name: string; brandColor: string }
 
 // ─── Data ─────────────────────────────────────────────────────────────────────
 
@@ -74,13 +74,6 @@ const klosifyIncludes = [
   "Email campaigns", "Automatizaciones WhatsApp + Instagram", "Agente IA + Agente de voz", "WhatsApp Business nativo", "Meta Ads + ROAS",
 ];
 
-const integrationLogos: IntegrationLogo[] = [
-  { domain: "whatsapp.com",  name: "WhatsApp",  brandColor: "bg-green-600" },
-  { domain: "meta.com",      name: "Meta Ads",  brandColor: "bg-blue-600"  },
-  { domain: "instagram.com", name: "Instagram", brandColor: "bg-pink-600"  },
-  { domain: "google.com",    name: "Google",    brandColor: "bg-blue-500"  },
-  { domain: "stripe.com",    name: "Stripe",    brandColor: "bg-violet-600"},
-];
 
 
 const addOns: AddOn[] = [
@@ -674,10 +667,17 @@ export default function HomePage() {
 
                 <div className="hero-anim mt-10 pt-8 border-t border-slate-800/60" style={{ animationDelay: "440ms" }}>
                   <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-4">Se integra con</p>
-                  <div className="flex items-center gap-5 flex-wrap">
-                    {integrationLogos.map((logo, i) => (
-                      <div key={logo.domain} className="grayscale opacity-50 hover:opacity-90 hover:grayscale-0 transition-all duration-300 hover:scale-110" style={{ transitionDelay: `${i * 40}ms` }}>
-                        <LogoWithFallback domain={logo.domain} name={logo.name} brandColor={logo.brandColor} size="w-7 h-7" />
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {[
+                      { name: "WhatsApp",  Icon: WhatsAppIcon },
+                      { name: "Meta Ads",  Icon: FacebookIcon },
+                      { name: "Instagram", Icon: InstagramIcon },
+                      { name: "Google Calendar", Icon: GoogleCalendarIcon },
+                    ].map(({ name, Icon }, i) => (
+                      <div key={name} title={name}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/95 shadow-sm ring-1 ring-white/10 opacity-90 hover:opacity-100 hover:scale-110 transition-all duration-300"
+                        style={{ transitionDelay: `${i * 40}ms` }}>
+                        <Icon size={22} />
                       </div>
                     ))}
                   </div>
@@ -728,8 +728,8 @@ export default function HomePage() {
               <FadeUp className="md:col-span-2" delay={0}>
                 <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-5 overflow-hidden relative group cursor-default transition-all duration-300 hover:border hover:border-green-500/20 hover:shadow-xl hover:shadow-green-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_100%_0%,rgba(34,197,94,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-green-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
-                    <MessageCircle className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                    <WhatsAppIcon size={28} />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white mb-1.5">WhatsApp Business Nativo</h3>
@@ -752,9 +752,9 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["Plantillas Meta", "Respuestas automáticas", "WhatsApp + Instagram DMs"].map((t) => (
-                      <span key={t} className="text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">{t}</span>
-                    ))}
+                    <span className="inline-flex items-center gap-1.5 text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full"><FacebookIcon size={13} /> Plantillas Meta</span>
+                    <span className="text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full">Respuestas automáticas</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs text-green-400/80 bg-green-500/10 border border-green-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /><InstagramIcon size={13} /> DMs</span>
                   </div>
                 </div>
               </FadeUp>
@@ -762,8 +762,8 @@ export default function HomePage() {
               <FadeUp delay={80}>
                 <div className="bento-card h-full bg-slate-950 rounded-2xl p-7 flex flex-col gap-4 relative overflow-hidden group cursor-default transition-all duration-300 hover:border hover:border-blue-500/20 hover:shadow-xl hover:shadow-blue-500/5">
                   <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_0%,rgba(59,130,246,0.07),transparent)] pointer-events-none" />
-                  <div className="w-10 h-10 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg bento-icon">
-                    <PieChart className="w-5 h-5 text-white" />
+                  <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg bento-icon">
+                    <FacebookIcon size={24} />
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-white mb-1.5">Dashboard Marketing & Ventas</h3>
@@ -873,9 +873,9 @@ export default function HomePage() {
                     <p className="text-slate-400 text-sm leading-relaxed">Flujos que trabajan 24/7 para WhatsApp, asignación y seguimientos.</p>
                   </div>
                   <div className="flex flex-wrap gap-2 mt-auto">
-                    {["WhatsApp + email", "Condiciones y filtros", "Disparadores automáticos"].map((t) => (
-                      <span key={t} className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">{t}</span>
-                    ))}
+                    <span className="inline-flex items-center gap-1.5 text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /> WhatsApp + email</span>
+                    <span className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">Condiciones y filtros</span>
+                    <span className="text-xs text-pink-400/80 bg-pink-500/10 border border-pink-500/20 px-2.5 py-1 rounded-full">Disparadores automáticos</span>
                   </div>
                 </div>
               </FadeUp>
@@ -926,9 +926,9 @@ export default function HomePage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    {["WhatsApp + Instagram", "Entiende audios", "Escala automático"].map((t) => (
-                      <span key={t} className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">{t}</span>
-                    ))}
+                    <span className="inline-flex items-center gap-1.5 text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full"><WhatsAppIcon size={13} /><InstagramIcon size={13} /> WhatsApp + Instagram</span>
+                    <span className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">Entiende audios</span>
+                    <span className="text-xs text-violet-400/80 bg-violet-500/10 border border-violet-500/20 px-2.5 py-1 rounded-full">Escala automático</span>
                   </div>
                 </div>
               </FadeUp>
