@@ -819,6 +819,10 @@ function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
 // lead score live as you scroll.
 function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
   const signals = ["✓ Presupuesto", "✓ Intención alta", "✓ Pidió visita"];
+  // AI scanner sweeps over the conversation before drawing conclusions.
+  const scanY = useTransform(progress, [0.06, 0.44], [-18, 128]);
+  const scanOpacity = useTransform(progress, [0.03, 0.08, 0.42, 0.48], [0, 1, 1, 0]);
+  const scanLabel = useTransform(progress, [0.42, 0.48], [1, 0]);
   return (
     <div className="space-y-3">
       <div className="flex items-center gap-3">
@@ -828,15 +832,25 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
           <p className="text-[11px] text-orange-300/80 flex items-center gap-1"><Brain className="h-3 w-3" /> IA analizando conversación…</p>
         </div>
       </div>
-      <Reveal progress={progress} start={0.06} className="flex justify-start">
-        <div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">Tengo el presupuesto listo para esta semana 💰</p></div>
-      </Reveal>
-      <Reveal progress={progress} start={0.2} className="flex justify-start">
-        <div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">¿Cuándo pueden agendar la visita?</p></div>
-      </Reveal>
+      {/* Conversation being scanned by the AI */}
+      <div className="relative h-[120px] overflow-hidden rounded-xl border border-orange-500/20 bg-slate-800/30 p-3">
+        <div className="relative z-10 space-y-2">
+          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">Tengo el presupuesto listo para esta semana 💰</p></div></div>
+          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">¿Cuándo pueden agendar la visita?</p></div></div>
+        </div>
+        {/* scan beam */}
+        <motion.div style={{ y: scanY, opacity: scanOpacity }} className="pointer-events-none absolute inset-x-0 top-0 z-20 h-9">
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-orange-400/25 to-transparent" />
+          <div className="absolute bottom-0 inset-x-1 h-px bg-orange-400 shadow-[0_0_14px_3px_rgba(251,146,60,0.6)]" />
+        </motion.div>
+        <motion.span style={{ opacity: scanLabel }} className="absolute right-2 top-2 z-30 inline-flex items-center gap-1 rounded-full bg-orange-500/15 border border-orange-500/30 px-2 py-0.5 text-[9px] font-medium text-orange-300">
+          <span className="h-1 w-1 rounded-full bg-orange-400 animate-pulse" /> Escaneando
+        </motion.span>
+      </div>
+      {/* Conclusions (after the scan) */}
       <div className="flex flex-wrap gap-1.5">
         {signals.map((s, i) => (
-          <Reveal key={s} progress={progress} start={0.36 + i * 0.08}>
+          <Reveal key={s} progress={progress} start={0.46 + i * 0.06}>
             <span className="inline-flex items-center rounded-full bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-medium text-emerald-300">{s}</span>
           </Reveal>
         ))}
@@ -844,10 +858,10 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
       <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs text-slate-400">Lead Score</span>
-          <CountUp progress={progress} to={9.2} decimals={1} start={0.55} end={0.92} className="text-lg font-black font-mono text-emerald-300" />
+          <CountUp progress={progress} to={9.2} decimals={1} start={0.62} end={0.92} className="text-lg font-black font-mono text-emerald-300" />
         </div>
-        <Bar progress={progress} pct={92} start={0.55} end={0.92} className="bg-gradient-to-r from-orange-500 to-emerald-400" />
-        <Reveal progress={progress} start={0.86}><p className="mt-2 text-[11px] font-medium text-emerald-300">🔥 Lead caliente — prioridad alta</p></Reveal>
+        <Bar progress={progress} pct={92} start={0.62} end={0.92} className="bg-gradient-to-r from-orange-500 to-emerald-400" />
+        <Reveal progress={progress} start={0.88}><p className="mt-2 text-[11px] font-medium text-emerald-300">🔥 Lead caliente — prioridad alta</p></Reveal>
       </div>
     </div>
   );
