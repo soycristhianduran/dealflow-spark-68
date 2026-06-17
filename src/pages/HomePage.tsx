@@ -401,6 +401,10 @@ const HEADLINE: { text: string; gradient?: boolean }[] = [
   { text: "Tu equipo solo cierra." },
 ];
 
+// Fraction of each feature's scroll segment where it stays PINNED (static) while
+// its visual animation plays. The remaining fraction slides to the next feature.
+const DWELL = 0.62;
+
 // ─── Feature section (one per feature, animates on scroll, alternates sides) ───
 const FA: Record<string, { text: string; soft: string; ring: string; iconBg: string }> = {
   green:  { text: "text-green-600",  soft: "bg-green-50",  ring: "ring-green-100",  iconBg: "bg-green-500"  },
@@ -422,15 +426,23 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 }) {
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
-  const center = total > 1 ? index / (total - 1) : 0;
-  const step = total > 1 ? 1 / (total - 1) : 1;
-  // Focus: this slide is full/large when it's centered, dim/small otherwise.
-  const focus = useTransform(scrollYProgress, [center - step, center, center + step], [0.35, 1, 0.35], { clamp: true });
-  const scale = useTransform(focus, [0.35, 1], [0.92, 1]);
-  // Per-slide "play" progress: the visual's animation runs WHILE this feature is
-  // the one on screen — from just before it reaches center (0) to just after it
-  // leaves center (1). So it plays as you scroll *through* this specific feature.
-  const playProgress = useTransform(scrollYProgress, [center - step * 0.55, center + step * 0.45], [0, 1], { clamp: true });
+  // Each feature owns a scroll segment [segStart, segStart+seg]. During the first
+  // DWELL fraction the feature is PINNED (static) and its visual animation plays
+  // 0→1; the rest of the segment slides to the next feature.
+  const seg = 1 / total;
+  const segStart = index * seg;
+  const dwellEnd = segStart + DWELL * seg;
+  const moveDur = (1 - DWELL) * seg;
+  // Visual animation plays only during this feature's dwell.
+  const playProgress = useTransform(scrollYProgress, [segStart, dwellEnd], [0, 1], { clamp: true });
+  // Focus: full while this feature is on screen, dim while entering/leaving.
+  const focus = useTransform(
+    scrollYProgress,
+    [segStart - moveDur, segStart, dwellEnd, segStart + seg],
+    [0.3, 1, 1, 0.3],
+    { clamp: true },
+  );
+  const scale = useTransform(focus, [0.3, 1], [0.92, 1]);
 
   return (
     <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0 will-change-transform">
@@ -488,7 +500,19 @@ function HorizontalFeatures() {
     window.addEventListener("resize", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); window.removeEventListener("resize", onScroll); };
   }, [scrollYProgress]);
-  const x = useTransform(scrollYProgress, [0, 1], ["0vw", `-${(N - 1) * 100}vw`]);
+  // Stepped horizontal position: stays on each feature during its dwell, then
+  // slides to the next. Built as a piecewise map of scroll → slide index.
+  const seg = 1 / N;
+  const inputs: number[] = [];
+  const outputs: number[] = [];
+  for (let i = 0; i < N; i++) {
+    const s = i * seg;
+    inputs.push(s); outputs.push(i);                 // arrive at feature i
+    inputs.push(s + DWELL * seg); outputs.push(i);   // hold (static) through dwell
+  }
+  inputs.push(1); outputs.push(N - 1);
+  const xIndex = useTransform(scrollYProgress, inputs, outputs);
+  const x = useTransform(xIndex, (v) => `-${(v * 100).toFixed(3)}vw`);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
