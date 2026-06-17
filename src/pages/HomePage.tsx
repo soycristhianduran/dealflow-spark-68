@@ -1214,7 +1214,7 @@ export default function HomePage() {
                 Todo tu marketing y ventas, <span className="text-orange-400">en un solo lugar</span>
               </h3>
               <p className="relative text-slate-400 text-lg mt-4 max-w-xl mx-auto">
-                Sin Zapier, sin apps externas, sin pagar 5 herramientas distintas.
+                Sin Zapier, sin apps externas, sin pagar herramientas distintas.
               </p>
 
               <div className="relative mt-9 flex flex-col items-center gap-3">
