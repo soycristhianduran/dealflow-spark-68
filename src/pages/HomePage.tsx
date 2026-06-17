@@ -786,14 +786,18 @@ const FEATURES: Feature[] = [
       <div className="space-y-2.5">
         {[
           { msg: "¿Cuánto cuesta el plan Pro?", out: false },
-          { msg: "El plan Pro está a $59/mes. Incluye 3 usuarios y automatizaciones ilimitadas 🚀", out: true, ai: true },
-          { msg: "Quiero hablar con alguien para comprarlo", out: false },
-          { msg: "¡Perfecto! Te conecto con un asesor ahora mismo 😊", out: true, ai: true },
+          { msg: "El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", out: true, ai: true },
+          { msg: "¿Tienen prueba gratis?", out: false },
+          { msg: "¡Sí! 7 días gratis, sin tarjeta. ¿Te agendo una demo rápida para mostrártelo? 📅", out: true, ai: true },
+          { msg: "Dale, mañana en la tarde", out: false },
+          { msg: "Listo ✅ Te agendé mañana 3:00 pm. Te llega el recordatorio por WhatsApp 📲", out: true, ai: true },
+          { msg: "Perfecto, gracias!", out: false },
+          { msg: "¡A ti! Aquí tienes el link para empezar ya 👉 klosify.link/pro 🙌", out: true, ai: true },
         ].map((m, i) => (
-          <Reveal key={i} progress={p} start={0.12 + i * 0.16} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+          <Reveal key={i} progress={p} start={0.05 + i * 0.11} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
             <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200">{m.msg}</p>
-              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• IA</p>}
+              <p className="text-xs text-slate-200 leading-relaxed">{m.msg}</p>
+              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• Agente IA</p>}
             </div>
           </Reveal>
         ))}
