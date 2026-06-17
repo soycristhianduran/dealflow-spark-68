@@ -732,6 +732,46 @@ function Reveal({ progress, start, end, y = 12, className, children }: {
   return <motion.div style={{ opacity, y: ty }} className={className}>{children}</motion.div>;
 }
 
+// Chat inside a FIXED-HEIGHT window. As the conversation advances with scroll,
+// older messages scroll up out of view (auto-scroll), so it never grows tall.
+function ChatAutoScroll({ progress, messages }: {
+  progress: MotionValue<number>;
+  messages: { msg: string; out?: boolean; ai?: boolean }[];
+}) {
+  const winRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [maxScroll, setMaxScroll] = useState(0);
+  useEffect(() => {
+    const measure = () => {
+      const w = winRef.current?.clientHeight ?? 0;
+      const c = contentRef.current?.scrollHeight ?? 0;
+      setMaxScroll(Math.max(0, c - w + 8));
+    };
+    measure();
+    const t = setTimeout(measure, 60);
+    window.addEventListener("resize", measure);
+    return () => { clearTimeout(t); window.removeEventListener("resize", measure); };
+  }, [messages]);
+  const y = useTransform(progress, (p) => -maxScroll * Math.min(1, Math.max(0, p)));
+  const n = messages.length;
+  return (
+    <div ref={winRef} className="relative h-[300px] overflow-hidden">
+      <motion.div ref={contentRef} style={{ y }} className="space-y-2.5">
+        {messages.map((m, i) => (
+          <Reveal key={i} progress={progress} start={(i / n) * 0.8} end={(i / n) * 0.8 + 0.1} y={8} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
+            <div className={`rounded-xl px-3 py-2 max-w-[82%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
+              <p className="text-xs text-slate-200 leading-relaxed">{m.msg}</p>
+              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• Agente IA</p>}
+            </div>
+          </Reveal>
+        ))}
+      </motion.div>
+      {/* top fade so messages dissolve as they scroll out */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-10 bg-gradient-to-b from-slate-900 to-transparent" />
+    </div>
+  );
+}
+
 // Unified inbox: incoming notification bubbles from WhatsApp, Instagram and
 // Messenger (official logos), each sliding in from the right as you scroll.
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
@@ -783,25 +823,16 @@ const FEATURES: Feature[] = [
     desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
     bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
     visual: (p) => (
-      <div className="space-y-2.5">
-        {[
-          { msg: "¿Cuánto cuesta el plan Pro?", out: false },
-          { msg: "El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", out: true, ai: true },
-          { msg: "¿Tienen prueba gratis?", out: false },
-          { msg: "¡Sí! 7 días gratis, sin tarjeta. ¿Te agendo una demo rápida para mostrártelo? 📅", out: true, ai: true },
-          { msg: "Dale, mañana en la tarde", out: false },
-          { msg: "Listo ✅ Te agendé mañana 3:00 pm. Te llega el recordatorio por WhatsApp 📲", out: true, ai: true },
-          { msg: "Perfecto, gracias!", out: false },
-          { msg: "¡A ti! Aquí tienes el link para empezar ya 👉 klosify.link/pro 🙌", out: true, ai: true },
-        ].map((m, i) => (
-          <Reveal key={i} progress={p} start={0.05 + i * 0.11} y={10} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
-            <div className={`rounded-xl px-3 py-2 max-w-[80%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200 leading-relaxed">{m.msg}</p>
-              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• Agente IA</p>}
-            </div>
-          </Reveal>
-        ))}
-      </div>
+      <ChatAutoScroll progress={p} messages={[
+        { msg: "¿Cuánto cuesta el plan Pro?", out: false },
+        { msg: "El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", out: true, ai: true },
+        { msg: "¿Tienen prueba gratis?", out: false },
+        { msg: "¡Sí! 7 días gratis, sin tarjeta. ¿Te agendo una demo rápida para mostrártelo? 📅", out: true, ai: true },
+        { msg: "Dale, mañana en la tarde", out: false },
+        { msg: "Listo ✅ Te agendé mañana 3:00 pm. Te llega el recordatorio por WhatsApp 📲", out: true, ai: true },
+        { msg: "Perfecto, gracias!", out: false },
+        { msg: "¡A ti! Aquí tienes el link para empezar ya 👉 klosify.link/pro 🙌", out: true, ai: true },
+      ]} />
     ),
   },
   {
