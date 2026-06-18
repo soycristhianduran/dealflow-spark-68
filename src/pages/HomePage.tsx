@@ -1555,7 +1555,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                  className="relative w-40 sm:w-56 lg:w-[30rem] xl:w-[34rem] aspect-square drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)]"
+                  className="relative w-56 sm:w-80 lg:w-[38rem] xl:w-[44rem] aspect-square drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)]"
                 >
                   <Suspense fallback={<img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full select-none" draggable={false} />}>
                     <Mascot3D />
