@@ -3,16 +3,125 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useGLTF, Environment, ContactShadows } from "@react-three/drei";
 import * as THREE from "three";
 
+/**
+ * 3D mascot for the Klosify hero.
+ * The model's baked face was wiped to a clean black visor, so the face here
+ * is a live animated screen: glowing eyes (blink + look toward cursor) + smile,
+ * drawn on a canvas and projected onto a curved patch that hugs the visor.
+ */
+
+// ── Animated screen face (only light, drawn on the clean black visor) ───────
+function FaceScreen() {
+  const { pointer } = useThree();
+  const canvas = useMemo(() => {
+    const c = document.createElement("canvas");
+    c.width = 512;
+    c.height = 256;
+    return c;
+  }, []);
+  const tex = useMemo(() => new THREE.CanvasTexture(canvas), [canvas]);
+
+  const drawEye = (
+    ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  ) => {
+    const r = Math.min(w, h) / 2;
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + r, cy - h / 2);
+    ctx.arcTo(cx + w / 2, cy - h / 2, cx + w / 2, cy + h / 2, r);
+    ctx.arcTo(cx + w / 2, cy + h / 2, cx - w / 2, cy + h / 2, r);
+    ctx.arcTo(cx - w / 2, cy + h / 2, cx - w / 2, cy - h / 2, r);
+    ctx.arcTo(cx - w / 2, cy - h / 2, cx + w / 2, cy - h / 2, r);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  useFrame((state) => {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const t = state.clock.getElapsedTime();
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H); // transparent — only the eyes/smile are drawn
+
+    // blink every 3.2s
+    const cycle = t % 3.2;
+    let open = 1;
+    if (cycle > 3.0) open = Math.max(0.06, Math.abs(Math.cos(((cycle - 3.0) / 0.2) * Math.PI)));
+
+    // look toward cursor (within the visor)
+    const ox = THREE.MathUtils.clamp(pointer.x, -1, 1) * 26;
+    const oy = THREE.MathUtils.clamp(-pointer.y, -1, 1) * 15;
+
+    const cy = H * 0.46 + oy;
+    const lx = W * 0.35 + ox;
+    const rx = W * 0.65 + ox;
+    const eyeW = 84;
+    const eyeH = 116 * open;
+
+    // soft glow halo behind each eye
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    [lx, rx].forEach((ex) => {
+      const g = ctx.createRadialGradient(ex, cy, 2, ex, cy, 95);
+      g.addColorStop(0, "rgba(90,200,255,0.5)");
+      g.addColorStop(1, "rgba(90,200,255,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(ex - 110, cy - 110, 220, 220);
+    });
+    ctx.restore();
+
+    // eyes: bright cyan + white core
+    ctx.save();
+    ctx.shadowColor = "#37c4ff";
+    ctx.shadowBlur = 40;
+    ctx.fillStyle = "#9be3ff";
+    drawEye(ctx, lx, cy, eyeW, eyeH);
+    drawEye(ctx, rx, cy, eyeW, eyeH);
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = "#f4feff";
+    drawEye(ctx, lx, cy, eyeW * 0.44, eyeH * 0.5);
+    drawEye(ctx, rx, cy, eyeW * 0.44, eyeH * 0.5);
+    ctx.restore();
+
+    // smile
+    ctx.save();
+    ctx.shadowColor = "#37c4ff";
+    ctx.shadowBlur = 26;
+    ctx.strokeStyle = "#9be3ff";
+    ctx.lineWidth = 12;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(W * 0.5 + ox * 0.6, H * 0.66 + oy * 0.6, 54, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    tex.needsUpdate = true;
+  });
+
+  // Curved patch hugging the visor; additive so it reads as a lit screen.
+  return (
+    <mesh position={[0, 0.088, 0]}>
+      <sphereGeometry
+        args={[0.0422, 64, 32, Math.PI / 2 - 0.6, 1.2, 1.16, 0.5]}
+      />
+      <meshBasicMaterial
+        map={tex}
+        transparent
+        toneMapped={false}
+        depthWrite={false}
+        side={THREE.FrontSide}
+        blending={THREE.AdditiveBlending}
+      />
+    </mesh>
+  );
+}
 
 function MascotModel() {
   const { scene } = useGLTF("/mascot.glb");
   const group = useRef<THREE.Group>(null);
   const { pointer } = useThree();
-  const emissiveMats = useRef<THREE.MeshStandardMaterial[]>([]);
 
   const model = useMemo(() => {
     const s = scene.clone(true);
-    const mats: THREE.MeshStandardMaterial[] = [];
     s.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (mesh.isMesh && mesh.material) {
@@ -20,17 +129,10 @@ function MascotModel() {
         mat.metalness = 1.0;
         mat.roughness = 0.22;
         mat.envMapIntensity = 1.6;
-        if (mat.emissiveMap || mat.emissiveIntensity > 0) {
-          // crank the base glow so the blink (a quick drop) is clearly visible
-          mat.emissiveIntensity = 4.0;
-          mat.userData.baseEmissive = 4.0;
-          mats.push(mat);
-        }
         mesh.material = mat;
         mesh.castShadow = true;
       }
     });
-    emissiveMats.current = mats;
     return s;
   }, [scene]);
 
@@ -42,22 +144,12 @@ function MascotModel() {
     const targetX = -pointer.y * 0.18;
     group.current.rotation.y += (targetY - group.current.rotation.y) * 0.06;
     group.current.rotation.x += (targetX - group.current.rotation.x) * 0.06;
-
-    // ── bring the face to life: breathing glow + a clear blink ────────────
-    let glow = 0.9 + 0.1 * Math.sin(t * 2.0);
-    const cycle = t % 3.0;        // blink every 3s
-    if (cycle > 2.8) {
-      const p = (cycle - 2.8) / 0.2;            // 0..1 over 0.2s
-      glow *= Math.max(0.1, Math.abs(Math.cos(p * Math.PI))); // bright→off→bright
-    }
-    emissiveMats.current.forEach((m) => {
-      m.emissiveIntensity = (m.userData.baseEmissive || 4.0) * glow;
-    });
   });
 
   return (
     <group ref={group} scale={13} position={[0, -0.9, 0]}>
       <primitive object={model} />
+      <FaceScreen />
     </group>
   );
 }
