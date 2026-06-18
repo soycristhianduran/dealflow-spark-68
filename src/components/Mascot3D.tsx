@@ -13,8 +13,6 @@ import * as THREE from "three";
 
 // ── Animated digital face (canvas texture on a plane) ───────────────────────
 function FaceScreen() {
-  const { pointer } = useThree();
-
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -27,29 +25,6 @@ function FaceScreen() {
     return t;
   }, [canvas]);
 
-  const roundRect = (
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, w: number, h: number, r: number,
-  ) => {
-    const rr = Math.min(r, w / 2, h / 2);
-    ctx.beginPath();
-    ctx.moveTo(x + rr, y);
-    ctx.arcTo(x + w, y, x + w, y + h, rr);
-    ctx.arcTo(x + w, y + h, x, y + h, rr);
-    ctx.arcTo(x, y + h, x, y, rr);
-    ctx.arcTo(x, y, x + w, y, rr);
-    ctx.closePath();
-  };
-
-  // a cute curved eye (rounded vertical shape), squashed by `open` for blinking
-  const drawEye = (
-    ctx: CanvasRenderingContext2D,
-    cx: number, cy: number, w: number, h: number,
-  ) => {
-    roundRect(ctx, cx - w / 2, cy - h / 2, w, h, Math.min(w, h) / 2);
-    ctx.fill();
-  };
-
   useFrame((state) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -60,62 +35,55 @@ function FaceScreen() {
     ctx.clearRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
 
-    // dark glossy screen background (covers the baked face)
-    const grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, "#0b0f17");
-    grad.addColorStop(0.5, "#05070c");
-    grad.addColorStop(1, "#010204");
-    ctx.fillStyle = grad;
-    roundRect(ctx, 0, 0, W, H, 150);
-    ctx.fill();
+    // The texture is ADDITIVE — only the light it draws is added over the
+    // original baked face, turning the visor into a glowing tech screen
+    // while the original eyes + smile still show through underneath.
 
-    // blink: quick close roughly every 4s
-    const cycle = t % 4.2;
-    let open = 1;
-    if (cycle > 4.0) {
-      const p = (cycle - 4.0) / 0.2;
-      open = Math.max(0.06, Math.abs(Math.cos(p * Math.PI)));
+    // horizontal scanlines (the classic "screen" feel)
+    ctx.strokeStyle = "rgba(90,200,255,0.13)";
+    ctx.lineWidth = 1.5;
+    for (let y = 0; y < H; y += 7) {
+      ctx.beginPath();
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+      ctx.stroke();
     }
 
-    // pointer-driven eye offset (look around)
-    const ox = THREE.MathUtils.clamp(pointer.x, -1, 1) * 34;
-    const oy = THREE.MathUtils.clamp(-pointer.y, -1, 1) * 20;
+    // faint vertical grid
+    ctx.strokeStyle = "rgba(90,200,255,0.06)";
+    for (let x = 0; x < W; x += 26) {
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+      ctx.stroke();
+    }
 
-    const eyeW = 92;
-    const eyeH = 128 * open;
-    const cy = H * 0.5 + oy;
+    // moving scan band that sweeps down (alive, like a display refreshing)
+    const bandY = ((t * 70) % (H + 120)) - 60;
+    const band = ctx.createLinearGradient(0, bandY - 50, 0, bandY + 50);
+    band.addColorStop(0, "rgba(120,220,255,0)");
+    band.addColorStop(0.5, "rgba(150,230,255,0.22)");
+    band.addColorStop(1, "rgba(120,220,255,0)");
+    ctx.fillStyle = band;
+    ctx.fillRect(0, bandY - 50, W, 100);
 
-    // soft outer glow
-    ctx.save();
-    ctx.shadowColor = "#3bc5ff";
-    ctx.shadowBlur = 70;
-    ctx.fillStyle = "#9be7ff";
-    drawEye(ctx, W * 0.32 + ox, cy, eyeW, eyeH);
-    drawEye(ctx, W * 0.68 + ox, cy, eyeW, eyeH);
-    ctx.restore();
+    // subtle flicker so it doesn't feel static
+    const flicker = 0.05 + 0.04 * Math.sin(t * 8.0);
+    ctx.fillStyle = `rgba(80,190,255,${flicker})`;
+    ctx.fillRect(0, 0, W, H);
 
-    // bright inner core of the eyes
-    ctx.save();
-    ctx.shadowColor = "#dffaff";
-    ctx.shadowBlur = 18;
-    ctx.fillStyle = "#eafbff";
-    drawEye(ctx, W * 0.32 + ox, cy, eyeW * 0.5, eyeH * 0.55);
-    drawEye(ctx, W * 0.68 + ox, cy, eyeW * 0.5, eyeH * 0.55);
-    ctx.restore();
-
-    // glassy top sheen
-    const sheen = ctx.createLinearGradient(0, 0, 0, H * 0.55);
+    // glassy top sheen (reflection on the screen glass)
+    const sheen = ctx.createLinearGradient(0, 0, 0, H * 0.5);
     sheen.addColorStop(0, "rgba(255,255,255,0.10)");
     sheen.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = sheen;
-    roundRect(ctx, 0, 0, W, H * 0.55, 150);
-    ctx.fill();
+    ctx.fillRect(0, 0, W, H * 0.5);
 
-    // fade edges into the visor (so it doesn't look like a pasted rectangle)
+    // fade the edges so the overlay melts into the visor (no hard border)
     ctx.globalCompositeOperation = "destination-in";
-    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, W * 0.56);
+    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.54);
     mask.addColorStop(0, "rgba(0,0,0,1)");
-    mask.addColorStop(0.72, "rgba(0,0,0,1)");
+    mask.addColorStop(0.7, "rgba(0,0,0,1)");
     mask.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = mask;
     ctx.fillRect(0, 0, W, H);
@@ -124,19 +92,26 @@ function FaceScreen() {
     tex.needsUpdate = true;
   });
 
-  // A curved patch of a sphere that conforms to the visor surface, so the
-  // screen no longer looks like a flat tablet when the head turns.
+  // A curved patch of a sphere that conforms to the visor surface. Additive
+  // blending overlays a glowing tech panel onto the original baked face.
   return (
     <mesh position={[0, 0.088, 0]}>
       <sphereGeometry
         args={[
-          0.0415,                  // radius ≈ head radius
-          64, 32,                  // segments
-          Math.PI / 2 - 0.62, 1.24, // phi: horizontal span centered on the front (+Z)
-          1.16, 0.5,               // theta: vertical span (upper-front of head)
+          0.0418,                   // radius slightly above head surface
+          64, 32,
+          Math.PI / 2 - 0.6, 1.2,   // phi: horizontal span centered on the front (+Z)
+          1.18, 0.46,               // theta: vertical span (visor area)
         ]}
       />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} side={THREE.FrontSide} />
+      <meshBasicMaterial
+        map={tex}
+        transparent
+        toneMapped={false}
+        depthWrite={false}
+        side={THREE.FrontSide}
+        blending={THREE.AdditiveBlending}
+      />
     </mesh>
   );
 }
