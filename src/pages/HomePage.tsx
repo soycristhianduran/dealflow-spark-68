@@ -1226,11 +1226,14 @@ export default function HomePage() {
   // Mascot: lives in the hero, then minimizes to the bottom-right chat corner on scroll.
   const heroScroll = useMotionValue(0);
   const [mascotMin, setMascotMin] = useState(false);
-  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.45], [1, 0]);
-  const mascotHeroScale = useTransform(heroScroll, [0, 0.45], [1, 0.55]);
-  const mascotHeroY = useTransform(heroScroll, [0, 0.45], [0, 70]);
-  const cornerOpacity = useTransform(heroScroll, [0.35, 0.6], [0, 1]);
-  const cornerScale = useTransform(heroScroll, [0.35, 0.6], [0.5, 1]);
+  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.34], [1, 0]);
+  const mascotHeroScale = useTransform(heroScroll, [0, 0.34], [1, 0.7]);
+  const mascotHeroY = useTransform(heroScroll, [0, 0.34], [0, 50]);
+  // Corner widget "flies" in from the hero (up-left), shrinking into the corner.
+  const cornerOpacity = useTransform(heroScroll, [0.3, 0.5], [0, 1]);
+  const cornerScale = useTransform(heroScroll, [0.28, 0.62], [1.6, 1]);
+  const cornerX = useTransform(heroScroll, [0.28, 0.62], [-90, 0]);
+  const cornerY = useTransform(heroScroll, [0.28, 0.62], [-230, 0]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -2019,7 +2022,7 @@ export default function HomePage() {
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
-        style={{ opacity: cornerOpacity, scale: cornerScale }}
+        style={{ opacity: cornerOpacity, scale: cornerScale, x: cornerX, y: cornerY, transformOrigin: "bottom right" }}
         className={`fixed bottom-5 right-5 z-50 flex items-end gap-2 ${mascotMin ? "" : "pointer-events-none"}`}
       >
         {/* speech bubble */}
