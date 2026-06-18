@@ -1558,14 +1558,17 @@ export default function HomePage() {
                     scale: { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] },
                     y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
                   }}
-                  className="relative w-[26rem] xl:w-[32rem]"
+                  className="relative w-[34rem] xl:w-[40rem]"
                 >
                   <video
                     src="/mascot.mp4"
                     poster="/mascot.png"
                     autoPlay loop muted playsInline
                     className="w-full select-none"
-                    style={{ mixBlendMode: "screen" }}
+                    style={{
+                      WebkitMaskImage: "radial-gradient(circle at 50% 50%, #000 52%, transparent 75%)",
+                      maskImage: "radial-gradient(circle at 50% 50%, #000 52%, transparent 75%)",
+                    }}
                   />
                 </motion.div>
               </motion.div>
@@ -2054,7 +2057,7 @@ export default function HomePage() {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="relative h-16 w-16 overflow-hidden rounded-full bg-black ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            <video src="/mascot.mp4" autoPlay loop muted playsInline className="absolute inset-0 h-full w-full object-cover object-top origin-top scale-[1.7] select-none" />
+            <video src="/mascot.mp4" autoPlay loop muted playsInline className="absolute inset-0 h-full w-full object-cover select-none" style={{ objectPosition: "50% 26%", transform: "scale(2.5)" }} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </a>
