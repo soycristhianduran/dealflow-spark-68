@@ -1223,6 +1223,14 @@ export default function HomePage() {
   const [stripePrices, setStripePrices] = useState<Record<string, { monthly: string | null; annual: string | null }>>({});
   const heroGlowRef  = useRef<HTMLDivElement>(null);
   const heroGridRef  = useRef<HTMLDivElement>(null);
+  // Mascot: lives in the hero, then minimizes to the bottom-right chat corner on scroll.
+  const heroScroll = useMotionValue(0);
+  const [mascotMin, setMascotMin] = useState(false);
+  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.45], [1, 0]);
+  const mascotHeroScale = useTransform(heroScroll, [0, 0.45], [1, 0.55]);
+  const mascotHeroY = useTransform(heroScroll, [0, 0.45], [0, 70]);
+  const cornerOpacity = useTransform(heroScroll, [0.35, 0.6], [0, 1]);
+  const cornerScale = useTransform(heroScroll, [0.35, 0.6], [0.5, 1]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1269,6 +1277,8 @@ export default function HomePage() {
     const fn = () => {
       const y = window.scrollY;
       setScrolled(y > 10);
+      heroScroll.set(Math.min(1, Math.max(0, y / 520)));
+      setMascotMin(y > 280);
       // Parallax — direct DOM for zero re-render cost
       if (heroGlowRef.current) heroGlowRef.current.style.transform = `translateY(${y * 0.35}px)`;
       if (heroGridRef.current) heroGridRef.current.style.transform = `translateY(${y * 0.18}px)`;
@@ -1531,18 +1541,26 @@ export default function HomePage() {
                 </motion.div>
               </motion.div>
 
-              {/* Right — product mockup: slides in, then floats idly */}
+              {/* Right — animated mascot (minimizes to the corner on scroll) */}
               <motion.div
-                initial={{ opacity: 0, x: 48, scale: 0.96 }}
-                animate={{ opacity: 1, x: 0, scale: 1 }}
-                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.25 }}
-                className="hidden lg:block">
-                <motion.div
-                  className="scan-line-track"
-                  animate={{ y: [0, -14, 0] }}
-                  transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}>
-                  <PipelineMockup />
-                </motion.div>
+                style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, y: mascotHeroY }}
+                className="hidden lg:flex justify-center items-center relative">
+                {/* glow behind mascot */}
+                <div aria-hidden className="pointer-events-none absolute h-80 w-80 rounded-full bg-orange-500/20 blur-3xl" />
+                <motion.img
+                  src="/mascot.png"
+                  alt="Asistente IA de Klosify"
+                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: [0, -16, 0] }}
+                  transition={{
+                    opacity: { duration: 0.6, delay: 0.2 },
+                    scale: { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] },
+                    y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
+                  }}
+                  className="relative w-[22rem] xl:w-[26rem] drop-shadow-[0_25px_60px_rgba(249,115,22,0.25)] select-none"
+                  style={{ mixBlendMode: "lighten" }}
+                  draggable={false}
+                />
               </motion.div>
             </div>
           </div>
@@ -2000,6 +2018,34 @@ export default function HomePage() {
         </footer>
 
       </div>
+
+      {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
+      <motion.div
+        style={{ opacity: cornerOpacity, scale: cornerScale }}
+        className={`fixed bottom-5 right-5 z-50 flex items-end gap-2 ${mascotMin ? "" : "pointer-events-none"}`}
+      >
+        {/* speech bubble */}
+        <motion.div
+          initial={false}
+          animate={mascotMin ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
+          transition={{ duration: 0.4, delay: mascotMin ? 0.25 : 0 }}
+          className="mb-3 hidden sm:block rounded-2xl rounded-br-sm bg-white px-3.5 py-2 shadow-xl ring-1 ring-black/5"
+        >
+          <p className="text-xs font-medium text-slate-800 whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
+        </motion.div>
+        {/* mascot head button */}
+        <Link to="/auth" aria-label="Empezar con el asistente IA" className="group relative block">
+          <span className="absolute inset-0 rounded-full bg-orange-500/30 blur-xl scale-90 group-hover:scale-110 transition-transform" />
+          <motion.div
+            animate={{ y: [0, -6, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+            className="relative h-16 w-16 overflow-hidden rounded-full bg-slate-950 ring-2 ring-orange-500/50 shadow-2xl"
+          >
+            <img src="/mascot.png" alt="Asistente IA" className="absolute -top-1 left-1/2 w-[150%] max-w-none -translate-x-1/2 select-none" draggable={false} />
+          </motion.div>
+          <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
+        </Link>
+      </motion.div>
     </>
   );
 }
