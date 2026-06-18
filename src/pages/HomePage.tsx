@@ -1560,7 +1560,7 @@ export default function HomePage() {
                   }}
                   className="relative w-[26rem] xl:w-[32rem]"
                 >
-                  <img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
+                  <img src="/mascot.webp" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
                 </motion.div>
               </motion.div>
             </div>
@@ -2048,7 +2048,7 @@ export default function HomePage() {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            <img src="/mascot-head.png" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover scale-[1.08] select-none" draggable={false} />
+            <img src="/mascot.webp" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover object-top origin-top scale-[1.85] select-none" draggable={false} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </a>
