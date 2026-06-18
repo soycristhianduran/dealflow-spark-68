@@ -95,7 +95,7 @@ function FaceScreen() {
     const ox = THREE.MathUtils.clamp(pointer.x, -1, 1) * 20;
     const oy = THREE.MathUtils.clamp(-pointer.y, -1, 1) * 11;
 
-    const cy = H * 0.42 + oy;
+    const cy = H * 0.4 + oy;
     const lx = W * 0.34 + ox;
     const rx = W * 0.66 + ox;
     const eyeW = 86;
@@ -134,7 +134,7 @@ function FaceScreen() {
     ctx.lineWidth = 13;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(W * 0.5 + ox * 0.6, H * 0.62 + oy * 0.6, 60, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.arc(W * 0.5 + ox * 0.6, H * 0.6 + oy * 0.6, 58, 0.18 * Math.PI, 0.82 * Math.PI);
     ctx.stroke();
     ctx.restore();
 
@@ -148,9 +148,9 @@ function FaceScreen() {
 
     // fade edges into the black visor so the whole area reads as the screen
     ctx.globalCompositeOperation = "destination-in";
-    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, W * 0.52);
+    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.34, W / 2, H / 2, W * 0.56);
     mask.addColorStop(0, "rgba(0,0,0,1)");
-    mask.addColorStop(0.78, "rgba(0,0,0,1)");
+    mask.addColorStop(0.86, "rgba(0,0,0,1)");
     mask.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = mask;
     ctx.fillRect(0, 0, W, H);
@@ -166,8 +166,8 @@ function FaceScreen() {
         args={[
           0.0418,
           64, 32,
-          Math.PI / 2 - 0.64, 1.28, // phi: horizontal span over the visor
-          1.14, 0.54,               // theta: vertical span over the visor
+          Math.PI / 2 - 0.66, 1.32, // phi: horizontal span over the visor
+          1.08, 0.72,               // theta: vertical span — extended down to fully cover the baked face
         ]}
       />
       <meshBasicMaterial
