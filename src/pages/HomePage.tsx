@@ -1441,7 +1441,7 @@ export default function HomePage() {
         </nav>
 
         {/* ── HERO ──────────────────────────────────────────────────────────── */}
-        <section onMouseMove={handleHeroMouse} className="hero-spotlight group/hero bg-slate-950 pt-32 pb-20 relative overflow-hidden [--mx:50%] [--my:30%]">
+        <section onMouseMove={handleHeroMouse} className="hero-spotlight group/hero bg-slate-950 pt-24 pb-12 lg:pt-32 lg:pb-20 relative overflow-hidden [--mx:50%] [--my:30%]">
           {/* Animated aurora blobs (framer-motion, looping) */}
           <motion.div
             aria-hidden
@@ -1477,11 +1477,11 @@ export default function HomePage() {
           />
 
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-14 items-center">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:gap-14 items-center">
 
               {/* Left — copy, staggered entrance with framer-motion */}
               <motion.div variants={heroContainer} initial="hidden" animate="show">
-                <motion.div variants={heroItem} className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-7">
+                <motion.div variants={heroItem} className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-xs sm:text-sm font-medium mb-4 lg:mb-7">
                   <Sparkles className="w-3.5 h-3.5" />
                   IA nativa · Agente 24/7 · WhatsApp + Instagram
                 </motion.div>
@@ -1498,12 +1498,12 @@ export default function HomePage() {
                   ))}
                 </motion.h1>
 
-                <motion.p variants={heroItem} className="text-lg text-slate-400 mt-6 leading-relaxed max-w-lg">
+                <motion.p variants={heroItem} className="text-base sm:text-lg text-slate-400 mt-3 lg:mt-6 leading-relaxed max-w-lg">
                   Lead scoring automático, agente IA 24/7 en WhatsApp e Instagram, Meta Ads con
                   ROAS y pipeline visual — todo desde <span className="text-white font-semibold">$29/mes</span>.
                 </motion.p>
 
-                <motion.div variants={heroItem} className="flex flex-col sm:flex-row items-start gap-4 mt-10">
+                <motion.div variants={heroItem} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 sm:gap-4 mt-5 lg:mt-10">
                   <motion.div whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} className="inline-block">
                     <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-7 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 transition-shadow">
                       Crear cuenta gratis
@@ -1515,7 +1515,7 @@ export default function HomePage() {
                   </motion.button>
                 </motion.div>
 
-                <motion.div variants={heroItem} className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-7">
+                <motion.div variants={heroItem} className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 lg:mt-7">
                   {["Sin tarjeta de crédito", "7 días gratis", "Cancela cuando quieras"].map((b) => (
                     <div key={b} className="flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
@@ -1524,7 +1524,7 @@ export default function HomePage() {
                   ))}
                 </motion.div>
 
-                <motion.div variants={heroItem} className="mt-10 pt-8 border-t border-slate-800/60">
+                <motion.div variants={heroItem} className="hidden sm:block mt-6 pt-6 lg:mt-10 lg:pt-8 border-t border-slate-800/60">
                   <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-4">Se integra con</p>
                   <div className="flex items-center gap-3 flex-wrap">
                     {[
