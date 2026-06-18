@@ -25,6 +25,27 @@ function FaceScreen() {
     return t;
   }, [canvas]);
 
+  const roundRect = (
+    ctx: CanvasRenderingContext2D,
+    x: number, y: number, w: number, h: number, r: number,
+  ) => {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  };
+
+  const drawEye = (
+    ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number,
+  ) => {
+    roundRect(ctx, cx - w / 2, cy - h / 2, w, h, Math.min(w, h) / 2);
+    ctx.fill();
+  };
+
   useFrame((state) => {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -35,55 +56,82 @@ function FaceScreen() {
     ctx.clearRect(0, 0, W, H);
     ctx.globalCompositeOperation = "source-over";
 
-    // The texture is ADDITIVE — only the light it draws is added over the
-    // original baked face, turning the visor into a glowing tech screen
-    // while the original eyes + smile still show through underneath.
+    // ── This IS the screen surface (opaque), not a light on top ──────────
+    // Dark OLED-style display background
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, "#0a1019");
+    bg.addColorStop(0.5, "#04070d");
+    bg.addColorStop(1, "#010305");
+    ctx.fillStyle = bg;
+    roundRect(ctx, 0, 0, W, H, 150);
+    ctx.fill();
 
-    // horizontal scanlines (the classic "screen" feel)
-    ctx.strokeStyle = "rgba(90,200,255,0.13)";
-    ctx.lineWidth = 1.5;
-    for (let y = 0; y < H; y += 7) {
+    // scanlines baked INTO the screen
+    ctx.strokeStyle = "rgba(120,210,255,0.05)";
+    ctx.lineWidth = 1;
+    for (let y = 0; y < H; y += 6) {
       ctx.beginPath();
       ctx.moveTo(0, y + 0.5);
       ctx.lineTo(W, y + 0.5);
       ctx.stroke();
     }
 
-    // faint vertical grid
-    ctx.strokeStyle = "rgba(90,200,255,0.06)";
-    for (let x = 0; x < W; x += 26) {
-      ctx.beginPath();
-      ctx.moveTo(x + 0.5, 0);
-      ctx.lineTo(x + 0.5, H);
-      ctx.stroke();
-    }
-
-    // moving scan band that sweeps down (alive, like a display refreshing)
-    const bandY = ((t * 70) % (H + 120)) - 60;
-    const band = ctx.createLinearGradient(0, bandY - 50, 0, bandY + 50);
+    // slow scan sweep (display refreshing)
+    const bandY = ((t * 60) % (H + 140)) - 70;
+    const band = ctx.createLinearGradient(0, bandY - 55, 0, bandY + 55);
     band.addColorStop(0, "rgba(120,220,255,0)");
-    band.addColorStop(0.5, "rgba(150,230,255,0.22)");
+    band.addColorStop(0.5, "rgba(130,225,255,0.07)");
     band.addColorStop(1, "rgba(120,220,255,0)");
     ctx.fillStyle = band;
-    ctx.fillRect(0, bandY - 50, W, 100);
+    ctx.fillRect(0, bandY - 55, W, 110);
 
-    // subtle flicker so it doesn't feel static
-    const flicker = 0.05 + 0.04 * Math.sin(t * 8.0);
-    ctx.fillStyle = `rgba(80,190,255,${flicker})`;
-    ctx.fillRect(0, 0, W, H);
+    // blink
+    const cycle = t % 4.2;
+    let open = 1;
+    if (cycle > 4.0) open = Math.max(0.07, Math.abs(Math.cos(((cycle - 4.0) / 0.2) * Math.PI)));
 
-    // glassy top sheen (reflection on the screen glass)
+    const cy = H * 0.42;
+    const eyeW = 86;
+    const eyeH = 110 * open;
+
+    // eyes — glow + bright core
+    ctx.save();
+    ctx.shadowColor = "#37c4ff";
+    ctx.shadowBlur = 55;
+    ctx.fillStyle = "#83dcff";
+    drawEye(ctx, W * 0.34, cy, eyeW, eyeH);
+    drawEye(ctx, W * 0.66, cy, eyeW, eyeH);
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = "#ecfdff";
+    drawEye(ctx, W * 0.34, cy, eyeW * 0.46, eyeH * 0.5);
+    drawEye(ctx, W * 0.66, cy, eyeW * 0.46, eyeH * 0.5);
+    ctx.restore();
+
+    // smile
+    ctx.save();
+    ctx.shadowColor = "#37c4ff";
+    ctx.shadowBlur = 30;
+    ctx.strokeStyle = "#83dcff";
+    ctx.lineWidth = 13;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(W * 0.5, H * 0.62, 60, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.stroke();
+    ctx.restore();
+
+    // glassy top sheen
     const sheen = ctx.createLinearGradient(0, 0, 0, H * 0.5);
-    sheen.addColorStop(0, "rgba(255,255,255,0.10)");
+    sheen.addColorStop(0, "rgba(255,255,255,0.08)");
     sheen.addColorStop(1, "rgba(255,255,255,0)");
     ctx.fillStyle = sheen;
-    ctx.fillRect(0, 0, W, H * 0.5);
+    roundRect(ctx, 0, 0, W, H * 0.5, 150);
+    ctx.fill();
 
-    // fade the edges so the overlay melts into the visor (no hard border)
+    // fade edges into the black visor so the whole area reads as the screen
     ctx.globalCompositeOperation = "destination-in";
-    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.2, W / 2, H / 2, W * 0.54);
+    const mask = ctx.createRadialGradient(W / 2, H / 2, H * 0.28, W / 2, H / 2, W * 0.52);
     mask.addColorStop(0, "rgba(0,0,0,1)");
-    mask.addColorStop(0.7, "rgba(0,0,0,1)");
+    mask.addColorStop(0.78, "rgba(0,0,0,1)");
     mask.addColorStop(1, "rgba(0,0,0,0)");
     ctx.fillStyle = mask;
     ctx.fillRect(0, 0, W, H);
@@ -92,16 +140,15 @@ function FaceScreen() {
     tex.needsUpdate = true;
   });
 
-  // A curved patch of a sphere that conforms to the visor surface. Additive
-  // blending overlays a glowing tech panel onto the original baked face.
+  // Curved patch that conforms to the visor and BECOMES the screen surface.
   return (
     <mesh position={[0, 0.088, 0]}>
       <sphereGeometry
         args={[
-          0.0418,                   // radius slightly above head surface
+          0.0418,
           64, 32,
-          Math.PI / 2 - 0.6, 1.2,   // phi: horizontal span centered on the front (+Z)
-          1.18, 0.46,               // theta: vertical span (visor area)
+          Math.PI / 2 - 0.64, 1.28, // phi: horizontal span over the visor
+          1.14, 0.54,               // theta: vertical span over the visor
         ]}
       />
       <meshBasicMaterial
@@ -110,7 +157,6 @@ function FaceScreen() {
         toneMapped={false}
         depthWrite={false}
         side={THREE.FrontSide}
-        blending={THREE.AdditiveBlending}
       />
     </mesh>
   );
