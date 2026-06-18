@@ -1558,14 +1558,6 @@ export default function HomePage() {
                   className="relative w-[26rem] xl:w-[32rem]"
                 >
                   <img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
-                  {/* eye blink (eyelid sweeps over the eyes) */}
-                  <motion.div
-                    aria-hidden
-                    className="absolute rounded-[50%]"
-                    style={{ top: "12%", left: "22%", width: "56%", height: "11%", background: "#070809", transformOrigin: "top" }}
-                    animate={{ scaleY: [0, 0, 1, 0, 0] }}
-                    transition={{ duration: 4.2, times: [0, 0.9, 0.945, 0.99, 1], repeat: Infinity, ease: "easeInOut" }}
-                  />
                 </motion.div>
               </motion.div>
             </div>
@@ -2045,9 +2037,9 @@ export default function HomePage() {
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="relative h-16 w-16 overflow-hidden rounded-full bg-slate-950 ring-2 ring-orange-500/50 shadow-2xl"
+            className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl"
           >
-            <img src="/mascot.png" alt="Asistente IA" className="absolute -top-1 left-1/2 w-[150%] max-w-none -translate-x-1/2 select-none" draggable={false} />
+            <img src="/mascot-head.png" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover object-top scale-[1.15] select-none" draggable={false} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </Link>
