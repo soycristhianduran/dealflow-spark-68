@@ -2031,18 +2031,24 @@ export default function HomePage() {
         >
           <p className="text-xs font-medium text-slate-800 whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
         </motion.div>
-        {/* mascot head button */}
-        <Link to="/auth" aria-label="Empezar con el asistente IA" className="group relative block">
+        {/* mascot head button → WhatsApp */}
+        <a
+          href="https://wa.me/15557173863?text=Hola%2C%20quiero%20conocer%20m%C3%A1s%20de%20Klosify"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Escríbenos por WhatsApp"
+          className="group relative block"
+        >
           <span className="absolute inset-0 rounded-full bg-orange-500/30 blur-xl scale-90 group-hover:scale-110 transition-transform" />
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl"
+            className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            <img src="/mascot-head.png" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover object-top scale-[1.15] select-none" draggable={false} />
+            <img src="/mascot-head.png" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover scale-[1.08] select-none" draggable={false} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
-        </Link>
+        </a>
       </motion.div>
     </>
   );
