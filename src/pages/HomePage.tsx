@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
+const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1551,16 +1552,14 @@ export default function HomePage() {
                 {/* glow behind mascot */}
                 <div aria-hidden className="pointer-events-none absolute h-36 w-36 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.85, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: [0, -16, 0] }}
-                  transition={{
-                    opacity: { duration: 0.6, delay: 0.2 },
-                    scale: { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] },
-                    y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
-                  }}
-                  className="relative w-28 sm:w-40 lg:w-[26rem] xl:w-[32rem]"
+                  initial={{ opacity: 0, scale: 0.85 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+                  className="relative w-40 sm:w-56 lg:w-[30rem] xl:w-[34rem] aspect-square drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)]"
                 >
-                  <img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
+                  <Suspense fallback={<img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full select-none" draggable={false} />}>
+                    <Mascot3D />
+                  </Suspense>
                 </motion.div>
               </motion.div>
             </div>
