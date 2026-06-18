@@ -13,6 +13,7 @@ import * as THREE from "three";
 
 // ── Animated digital face (canvas texture on a plane) ───────────────────────
 function FaceScreen() {
+  const { pointer } = useThree();
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 512;
@@ -90,32 +91,50 @@ function FaceScreen() {
     let open = 1;
     if (cycle > 4.0) open = Math.max(0.07, Math.abs(Math.cos(((cycle - 4.0) / 0.2) * Math.PI)));
 
-    const cy = H * 0.42;
+    // eyes follow the cursor subtly (alive)
+    const ox = THREE.MathUtils.clamp(pointer.x, -1, 1) * 20;
+    const oy = THREE.MathUtils.clamp(-pointer.y, -1, 1) * 11;
+
+    const cy = H * 0.42 + oy;
+    const lx = W * 0.34 + ox;
+    const rx = W * 0.66 + ox;
     const eyeW = 86;
     const eyeH = 110 * open;
+
+    // ambient screen glow behind the eyes
+    ctx.save();
+    ctx.globalCompositeOperation = "lighter";
+    [lx, rx].forEach((ex) => {
+      const g = ctx.createRadialGradient(ex, cy, 4, ex, cy, 110);
+      g.addColorStop(0, "rgba(70,190,255,0.30)");
+      g.addColorStop(1, "rgba(70,190,255,0)");
+      ctx.fillStyle = g;
+      ctx.fillRect(ex - 120, cy - 120, 240, 240);
+    });
+    ctx.restore();
 
     // eyes — glow + bright core
     ctx.save();
     ctx.shadowColor = "#37c4ff";
     ctx.shadowBlur = 55;
-    ctx.fillStyle = "#83dcff";
-    drawEye(ctx, W * 0.34, cy, eyeW, eyeH);
-    drawEye(ctx, W * 0.66, cy, eyeW, eyeH);
+    ctx.fillStyle = "#8fe1ff";
+    drawEye(ctx, lx, cy, eyeW, eyeH);
+    drawEye(ctx, rx, cy, eyeW, eyeH);
     ctx.shadowBlur = 12;
-    ctx.fillStyle = "#ecfdff";
-    drawEye(ctx, W * 0.34, cy, eyeW * 0.46, eyeH * 0.5);
-    drawEye(ctx, W * 0.66, cy, eyeW * 0.46, eyeH * 0.5);
+    ctx.fillStyle = "#f2feff";
+    drawEye(ctx, lx, cy, eyeW * 0.46, eyeH * 0.5);
+    drawEye(ctx, rx, cy, eyeW * 0.46, eyeH * 0.5);
     ctx.restore();
 
     // smile
     ctx.save();
     ctx.shadowColor = "#37c4ff";
     ctx.shadowBlur = 30;
-    ctx.strokeStyle = "#83dcff";
+    ctx.strokeStyle = "#8fe1ff";
     ctx.lineWidth = 13;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(W * 0.5, H * 0.62, 60, 0.18 * Math.PI, 0.82 * Math.PI);
+    ctx.arc(W * 0.5 + ox * 0.6, H * 0.62 + oy * 0.6, 60, 0.18 * Math.PI, 0.82 * Math.PI);
     ctx.stroke();
     ctx.restore();
 
