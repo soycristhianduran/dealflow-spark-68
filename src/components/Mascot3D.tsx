@@ -51,7 +51,7 @@ function FaceScreen() {
     const ox = THREE.MathUtils.clamp(pointer.x, -1, 1) * 26;
     const oy = THREE.MathUtils.clamp(-pointer.y, -1, 1) * 15;
 
-    const cy = H * 0.46 + oy;
+    const cy = H * 0.52 + oy;
     const lx = W * 0.35 + ox;
     const rx = W * 0.65 + ox;
     const eyeW = 84;
@@ -90,7 +90,7 @@ function FaceScreen() {
     ctx.lineWidth = 12;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.arc(W * 0.5 + ox * 0.6, H * 0.66 + oy * 0.6, 54, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.arc(W * 0.5 + ox * 0.6, H * 0.74 + oy * 0.6, 54, 0.2 * Math.PI, 0.8 * Math.PI);
     ctx.stroke();
     ctx.restore();
 
@@ -99,9 +99,9 @@ function FaceScreen() {
 
   // Curved patch hugging the visor; additive so it reads as a lit screen.
   return (
-    <mesh position={[0, 0.088, 0]}>
+    <mesh position={[0, 0.082, 0]}>
       <sphereGeometry
-        args={[0.0422, 64, 32, Math.PI / 2 - 0.6, 1.2, 1.16, 0.5]}
+        args={[0.0422, 64, 32, Math.PI / 2 - 0.6, 1.2, 1.22, 0.52]}
       />
       <meshBasicMaterial
         map={tex}

@@ -20,7 +20,8 @@ const { width, height } = info;
 let cleaned = 0;
 for (let i = 0; i < width * height; i++) {
   const r = data[i * 4], g = data[i * 4 + 1], b = data[i * 4 + 2];
-  const isCyan = b > 110 && g > 100 && b >= r * 1.15 && g >= r * 0.9;
+  // catch even faint/anti-aliased cyan so no remnant of the old smile remains
+  const isCyan = b > 55 && b >= r * 1.08 && b >= g * 0.85 && g >= r * 0.8;
   if (isCyan) {
     data[i * 4] = 9; data[i * 4 + 1] = 12; data[i * 4 + 2] = 17;
     cleaned++;
