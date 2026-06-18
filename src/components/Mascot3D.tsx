@@ -18,7 +18,7 @@ function FaceScreen() {
   const canvas = useMemo(() => {
     const c = document.createElement("canvas");
     c.width = 512;
-    c.height = 320;
+    c.height = 256;
     return c;
   }, []);
   const tex = useMemo(() => {
@@ -124,11 +124,19 @@ function FaceScreen() {
     tex.needsUpdate = true;
   });
 
-  // Positioned just in front of the visor (local model units; scaled by parent)
+  // A curved patch of a sphere that conforms to the visor surface, so the
+  // screen no longer looks like a flat tablet when the head turns.
   return (
-    <mesh position={[0, 0.0875, 0.0332]} rotation={[-0.07, 0, 0]}>
-      <planeGeometry args={[0.069, 0.0345]} />
-      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} />
+    <mesh position={[0, 0.088, 0]}>
+      <sphereGeometry
+        args={[
+          0.0415,                  // radius ≈ head radius
+          64, 32,                  // segments
+          Math.PI / 2 - 0.62, 1.24, // phi: horizontal span centered on the front (+Z)
+          1.16, 0.5,               // theta: vertical span (upper-front of head)
+        ]}
+      />
+      <meshBasicMaterial map={tex} transparent toneMapped={false} depthWrite={false} side={THREE.FrontSide} />
     </mesh>
   );
 }
@@ -158,8 +166,8 @@ function MascotModel() {
     if (!group.current) return;
     const t = state.clock.getElapsedTime();
     group.current.position.y = -0.9 + Math.sin(t * 1.2) * 0.06;
-    const targetY = pointer.x * 0.5;
-    const targetX = -pointer.y * 0.28;
+    const targetY = pointer.x * 0.38;
+    const targetX = -pointer.y * 0.22;
     group.current.rotation.y += (targetY - group.current.rotation.y) * 0.06;
     group.current.rotation.x += (targetX - group.current.rotation.x) * 0.06;
   });
