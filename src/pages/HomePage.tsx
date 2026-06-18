@@ -599,13 +599,17 @@ function HorizontalFeatures() {
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
+        {/* Animated background texture (subtle dot grid + drifting auroras) */}
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.05) 1px, transparent 0)", backgroundSize: "26px 26px" }} />
+        <motion.div aria-hidden className="pointer-events-none absolute -top-24 -left-24 h-[26rem] w-[26rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(249,115,22,0.10), transparent 70%)" }} animate={{ x: [0, 90, 0], y: [0, 50, 0] }} transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }} />
+        <motion.div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-[28rem] w-[28rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.08), transparent 70%)" }} animate={{ x: [0, -70, 0], y: [0, -55, 0] }} transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
         {/* Header (stays pinned above the slider) */}
-        <div className="pt-24 pb-4 text-center px-4 shrink-0">
+        <div className="relative z-10 pt-24 pb-4 text-center px-4 shrink-0">
           <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
           <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
         </div>
         {/* Horizontal track */}
-        <div className="flex-1 min-h-0">
+        <div className="relative z-10 flex-1 min-h-0">
           <motion.div className="flex h-full will-change-transform" style={{ width: `${N * 100}vw`, x }}>
             {FEATURES.map((f, i) => (
               <FeatureSlide key={f.title} feature={f} scrollYProgress={scrollYProgress} index={i} total={N} />
@@ -613,7 +617,7 @@ function HorizontalFeatures() {
           </motion.div>
         </div>
         {/* Progress bar */}
-        <div className="shrink-0 h-1 bg-slate-200/50">
+        <div className="relative z-10 shrink-0 h-1 bg-slate-200/50">
           <motion.div className="h-full bg-orange-500 origin-left" style={{ scaleX: barScaleX }} />
         </div>
       </div>
