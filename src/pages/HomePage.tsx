@@ -1547,9 +1547,9 @@ export default function HomePage() {
               {/* Right — animated mascot (minimizes to the corner on scroll) */}
               <motion.div
                 style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, y: mascotHeroY }}
-                className="hidden lg:flex justify-center items-center relative">
+                className="flex justify-center items-center relative order-first lg:order-none -mt-4 lg:mt-0">
                 {/* glow behind mascot */}
-                <div aria-hidden className="pointer-events-none absolute h-96 w-96 rounded-full bg-orange-500/25 blur-3xl" />
+                <div aria-hidden className="pointer-events-none absolute h-56 w-56 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
                 <motion.div
                   initial={{ opacity: 0, scale: 0.85, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: [0, -16, 0] }}
@@ -1558,7 +1558,7 @@ export default function HomePage() {
                     scale: { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] },
                     y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
                   }}
-                  className="relative w-[26rem] xl:w-[32rem]"
+                  className="relative w-44 sm:w-56 lg:w-[26rem] xl:w-[32rem]"
                 >
                   <img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
                 </motion.div>
