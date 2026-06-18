@@ -1546,21 +1546,27 @@ export default function HomePage() {
                 style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, y: mascotHeroY }}
                 className="hidden lg:flex justify-center items-center relative">
                 {/* glow behind mascot */}
-                <div aria-hidden className="pointer-events-none absolute h-80 w-80 rounded-full bg-orange-500/20 blur-3xl" />
-                <motion.img
-                  src="/mascot.png"
-                  alt="Asistente IA de Klosify"
-                  initial={{ opacity: 0, scale: 0.8, y: 20 }}
+                <div aria-hidden className="pointer-events-none absolute h-96 w-96 rounded-full bg-orange-500/25 blur-3xl" />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.85, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: [0, -16, 0] }}
                   transition={{
                     opacity: { duration: 0.6, delay: 0.2 },
                     scale: { duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] },
                     y: { duration: 4.5, repeat: Infinity, ease: "easeInOut" },
                   }}
-                  className="relative w-[22rem] xl:w-[26rem] drop-shadow-[0_25px_60px_rgba(249,115,22,0.25)] select-none"
-                  style={{ mixBlendMode: "lighten" }}
-                  draggable={false}
-                />
+                  className="relative w-[26rem] xl:w-[32rem]"
+                >
+                  <img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)] select-none" draggable={false} />
+                  {/* eye blink (eyelid sweeps over the eyes) */}
+                  <motion.div
+                    aria-hidden
+                    className="absolute rounded-[50%]"
+                    style={{ top: "12%", left: "22%", width: "56%", height: "11%", background: "#070809", transformOrigin: "top" }}
+                    animate={{ scaleY: [0, 0, 1, 0, 0] }}
+                    transition={{ duration: 4.2, times: [0, 0.9, 0.945, 0.99, 1], repeat: Infinity, ease: "easeInOut" }}
+                  />
+                </motion.div>
               </motion.div>
             </div>
           </div>
