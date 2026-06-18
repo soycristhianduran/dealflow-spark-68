@@ -21,12 +21,9 @@ function MascotModel() {
         mat.roughness = 0.22;
         mat.envMapIntensity = 1.6;
         if (mat.emissiveMap || mat.emissiveIntensity > 0) {
-          mat.userData.baseEmissive = mat.emissiveIntensity || 2.2;
-          // let the glowing eyes "look around" by nudging the emissive UVs
-          if (mat.emissiveMap) {
-            mat.emissiveMap.wrapS = THREE.ClampToEdgeWrapping;
-            mat.emissiveMap.wrapT = THREE.ClampToEdgeWrapping;
-          }
+          // crank the base glow so the blink (a quick drop) is clearly visible
+          mat.emissiveIntensity = 4.0;
+          mat.userData.baseEmissive = 4.0;
           mats.push(mat);
         }
         mesh.material = mat;
@@ -41,26 +38,20 @@ function MascotModel() {
     if (!group.current) return;
     const t = state.clock.getElapsedTime();
     group.current.position.y = -0.9 + Math.sin(t * 1.2) * 0.06;
-    const targetY = pointer.x * 0.38;
-    const targetX = -pointer.y * 0.22;
+    const targetY = pointer.x * 0.3;
+    const targetX = -pointer.y * 0.18;
     group.current.rotation.y += (targetY - group.current.rotation.y) * 0.06;
     group.current.rotation.x += (targetX - group.current.rotation.x) * 0.06;
 
-    // ── bring the face to life ────────────────────────────────────────────
-    // breathing glow
-    let intensity = 0.85 + 0.15 * Math.sin(t * 1.8);
-    // blink: a quick dim of the glow every ~3.6s
-    const cycle = t % 3.6;
-    if (cycle > 3.42) {
-      const p = (cycle - 3.42) / 0.18;
-      intensity *= Math.max(0.06, Math.abs(Math.cos(p * Math.PI)));
+    // ── bring the face to life: breathing glow + a clear blink ────────────
+    let glow = 0.9 + 0.1 * Math.sin(t * 2.0);
+    const cycle = t % 3.0;        // blink every 3s
+    if (cycle > 2.8) {
+      const p = (cycle - 2.8) / 0.2;            // 0..1 over 0.2s
+      glow *= Math.max(0.1, Math.abs(Math.cos(p * Math.PI))); // bright→off→bright
     }
-    // subtle "look around": shift the glowing eyes within the dark visor
-    const ux = -THREE.MathUtils.clamp(pointer.x, -1, 1) * 0.012;
-    const uy = THREE.MathUtils.clamp(pointer.y, -1, 1) * 0.008;
     emissiveMats.current.forEach((m) => {
-      m.emissiveIntensity = (m.userData.baseEmissive || 2.2) * intensity;
-      if (m.emissiveMap) m.emissiveMap.offset.set(ux, uy);
+      m.emissiveIntensity = (m.userData.baseEmissive || 4.0) * glow;
     });
   });
 
