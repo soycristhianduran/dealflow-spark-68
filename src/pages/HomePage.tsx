@@ -599,10 +599,11 @@ function HorizontalFeatures() {
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
-        {/* Animated background texture (subtle dot grid + drifting auroras) */}
-        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.05) 1px, transparent 0)", backgroundSize: "26px 26px" }} />
-        <motion.div aria-hidden className="pointer-events-none absolute -top-24 -left-24 h-[26rem] w-[26rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(249,115,22,0.10), transparent 70%)" }} animate={{ x: [0, 90, 0], y: [0, 50, 0] }} transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }} />
-        <motion.div aria-hidden className="pointer-events-none absolute bottom-0 right-0 h-[28rem] w-[28rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.08), transparent 70%)" }} animate={{ x: [0, -70, 0], y: [0, -55, 0] }} transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
+        {/* Animated background texture (dot grid + drifting auroras) */}
+        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.10) 1px, transparent 0)", backgroundSize: "24px 24px" }} />
+        <motion.div aria-hidden className="pointer-events-none absolute top-10 left-1/4 h-[30rem] w-[30rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(249,115,22,0.22), transparent 70%)" }} animate={{ x: [0, 120, 0], y: [0, 60, 0] }} transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }} />
+        <motion.div aria-hidden className="pointer-events-none absolute bottom-0 right-10 h-[32rem] w-[32rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18), transparent 70%)" }} animate={{ x: [0, -90, 0], y: [0, -60, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
+        <motion.div aria-hidden className="pointer-events-none absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(244,63,94,0.14), transparent 70%)" }} animate={{ x: [0, -60, 40, 0], y: [0, 50, -30, 0] }} transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }} />
         {/* Header (stays pinned above the slider) */}
         <div className="relative z-10 pt-24 pb-4 text-center px-4 shrink-0">
           <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
