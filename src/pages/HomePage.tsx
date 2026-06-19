@@ -34,6 +34,8 @@ function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: n
     const DURATION = 780;
     const dirx = end.x - start.x, diry = end.y - start.y;
 
+    const mobile = W < 640;            // slimmer comet on phones
+    const sizeK = mobile ? 0.6 : 1;
     type P = { x: number; y: number; vx: number; vy: number; life: number; decay: number; size: number; hue: number };
     const parts: P[] = [];
     let raf = 0;
@@ -51,7 +53,7 @@ function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: n
           vy: Math.sin(a) * sp - (diry / DURATION) * 6,
           life: 1,
           decay: 0.02 + Math.random() * 0.035,
-          size: 1 + Math.random() * 3.2,
+          size: (1 + Math.random() * 3.2) * sizeK,
           hue: 18 + Math.random() * 30, // orange→amber
         });
       }
@@ -67,11 +69,11 @@ function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: n
 
       // emit particles along the path travelled this frame (dense trail)
       if (p < 1) {
-        const steps = 4;
+        const steps = mobile ? 2 : 4;
         for (let s = 0; s < steps; s++) {
           const ix = prevCx + (cx - prevCx) * (s / steps);
           const iy = prevCy + (cy - prevCy) * (s / steps);
-          emit(ix, iy, 5, 1.3);
+          emit(ix, iy, mobile ? 3 : 5, 1.3);
         }
       }
       prevCx = cx; prevCy = cy;
@@ -79,7 +81,7 @@ function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: n
       // arrival burst
       if (p >= 1 && parts.length && !(frame as any)._burst) {
         (frame as any)._burst = true;
-        emit(end.x, end.y, 90, 5.5);
+        emit(end.x, end.y, mobile ? 45 : 90, mobile ? 4 : 5.5);
       }
 
       ctx.clearRect(0, 0, W, H);
@@ -102,12 +104,13 @@ function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: n
 
       // bright comet head
       if (p < 1) {
-        const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+        const hr = 30 * sizeK;
+        const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hr);
         hg.addColorStop(0, "rgba(255,255,255,0.95)");
         hg.addColorStop(0.35, "rgba(255,190,90,0.85)");
         hg.addColorStop(1, "rgba(249,115,22,0)");
         ctx.fillStyle = hg;
-        ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, hr, 0, Math.PI * 2); ctx.fill();
       }
 
       if (elapsed < DURATION + 900 && (parts.length > 0 || p < 1)) {
@@ -653,6 +656,7 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 // each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
   const N = FEATURES.length;
+  const isDesktop = useIsDesktop();
   const ref = useRef<HTMLElement>(null);
   // Pin progress (0..1) computed manually from scroll — avoids useScroll's
   // ScrollTimeline path (which threw "Offsets must be in [0,1]" in some browsers).
@@ -688,6 +692,21 @@ function HorizontalFeatures() {
   const xIndex = useTransform(scrollYProgress, inputs, outputs);
   const x = useTransform(xIndex, (v) => `-${(v * 100).toFixed(3)}vw`);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
+
+  // ── Mobile/tablet: stacked vertical features (no horizontal pin) ──
+  if (!isDesktop) {
+    return (
+      <section id="features" className="bg-slate-950 overflow-x-hidden">
+        <div className="pt-16 pb-6 text-center px-5">
+          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
+          <h2 className="text-3xl font-black text-white tracking-tight">Todo en una sola plataforma</h2>
+        </div>
+        <div>
+          {FEATURES.map((f) => <MobileFeature key={f.title} feature={f} />)}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
@@ -1408,6 +1427,7 @@ export default function HomePage() {
     <>
       {/* ── Global keyframes ──────────────────────────────────────────────── */}
       <style>{`
+        html, body { overflow-x: hidden; max-width: 100%; }
         @keyframes hero-fade-up {
           from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0);    }
