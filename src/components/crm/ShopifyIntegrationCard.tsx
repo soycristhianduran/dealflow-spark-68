@@ -139,7 +139,8 @@ export function ShopifyIntegrationCard() {
               <div className="rounded-xl bg-muted/50 p-3 text-[11px] text-muted-foreground space-y-1">
                 <p className="font-medium text-foreground">En tu Shopify (una sola vez):</p>
                 <p>1. Configuración → <b>Apps y canales de venta</b> → <b>Desarrollar apps</b> → <b>Crear una app</b>.</p>
-                <p>2. Permisos Admin API: <b>read_orders</b> y <b>read_customers</b>.</p>
+                <p>2. Permisos Admin API: <b>read_orders</b>, <b>read_customers</b>, <b>read_checkouts</b> y <b>read_products</b>.</p>
+                <p className="text-[10px] text-muted-foreground/80 pl-3">· <b>read_checkouts</b> activa la recuperación de carritos abandonados · <b>read_products</b> muestra las imágenes de los productos en los emails.</p>
                 <p>3. <b>Instalar</b> → copia el <b>Admin API access token</b> (<code>shpat_…</code>).</p>
               </div>
             </div>
