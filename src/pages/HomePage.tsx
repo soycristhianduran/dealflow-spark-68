@@ -1617,7 +1617,7 @@ export default function HomePage() {
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </Link>
                   </motion.div>
-                  <motion.button whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} onClick={() => scrollTo("pricing")} className="inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-colors">
+                  <motion.button whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} onClick={() => scrollTo("pricing")} className="hidden sm:inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-colors">
                     Ver planes <ChevronRight className="w-4 h-4" />
                   </motion.button>
                 </motion.div>
