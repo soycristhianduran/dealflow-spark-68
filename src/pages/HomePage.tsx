@@ -1341,16 +1341,11 @@ export default function HomePage() {
   const [mascotMin, setMascotMin] = useState(false);
   const [warp, setWarp] = useState(false);
   const prevMinRef = useRef(false);
-  // Hero mascot vanishes fast (shrinks + zooms out) right as you start scrolling.
-  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.14], [1, 0]);
-  const mascotHeroScale = useTransform(heroScroll, [0, 0.16], [1, 0.2]);
-  const mascotHeroX = useTransform(heroScroll, [0, 0.16], [0, 160]);
-  const mascotHeroY = useTransform(heroScroll, [0, 0.16], [0, 120]);
-  // Corner widget pops in at the corner once the streak arrives.
-  const cornerOpacity = useTransform(heroScroll, [0.46, 0.6], [0, 1]);
-  const cornerScale = useTransform(heroScroll, [0.44, 0.7], [1.7, 1]);
-  const cornerX = useTransform(heroScroll, [0.44, 0.7], [-70, 0]);
-  const cornerY = useTransform(heroScroll, [0.44, 0.7], [-120, 0]);
+  // Hero mascot shrinks toward the corner & vanishes by ~150px (= comet launch).
+  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.2], [1, 0]);
+  const mascotHeroScale = useTransform(heroScroll, [0, 0.2], [1, 0.15]);
+  const mascotHeroX = useTransform(heroScroll, [0, 0.2], [0, 220]);
+  const mascotHeroY = useTransform(heroScroll, [0, 0.2], [0, 160]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1398,8 +1393,9 @@ export default function HomePage() {
       const y = window.scrollY;
       setScrolled(y > 10);
       heroScroll.set(Math.min(1, Math.max(0, y / 760)));
-      const newMin = y > 430;
-      if (newMin && !prevMinRef.current) setWarp(true); // trigger warp on entering
+      // fire the comet right as the hero mascot finishes vanishing (~150px)
+      const newMin = y > 150;
+      if (newMin && !prevMinRef.current) setWarp(true);
       prevMinRef.current = newMin;
       setMascotMin(newMin);
       // Parallax — direct DOM for zero re-render cost
@@ -2143,14 +2139,17 @@ export default function HomePage() {
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
-        style={{ opacity: cornerOpacity, scale: cornerScale, x: cornerX, y: cornerY, transformOrigin: "bottom right" }}
+        initial={false}
+        animate={mascotMin ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.5, y: 24 }}
+        transition={{ duration: 0.45, delay: mascotMin ? 0.78 : 0, ease: [0.16, 1, 0.3, 1] }}
+        style={{ transformOrigin: "bottom right" }}
         className={`fixed bottom-5 right-5 z-50 flex items-end gap-2 ${mascotMin ? "" : "pointer-events-none"}`}
       >
         {/* speech bubble */}
         <motion.div
           initial={false}
           animate={mascotMin ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
-          transition={{ duration: 0.4, delay: mascotMin ? 0.25 : 0 }}
+          transition={{ duration: 0.4, delay: mascotMin ? 1.05 : 0 }}
           className="mb-3 hidden sm:block rounded-2xl rounded-br-sm bg-white px-3.5 py-2 shadow-xl ring-1 ring-black/5"
         >
           <p className="text-xs font-medium text-slate-800 whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
