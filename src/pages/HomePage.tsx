@@ -1557,7 +1557,7 @@ export default function HomePage() {
                   transition={{ duration: 0.7, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   className="relative w-56 sm:w-80 lg:w-[38rem] xl:w-[44rem] aspect-square drop-shadow-[0_25px_60px_rgba(249,115,22,0.3)]"
                 >
-                  <Suspense fallback={<img src="/mascot.png" alt="Asistente IA de Klosify" className="w-full select-none" draggable={false} />}>
+                  <Suspense fallback={<div aria-hidden className="h-full w-full" />}>
                     <Mascot3D />
                   </Suspense>
                 </motion.div>
