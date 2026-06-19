@@ -22,8 +22,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
+import { AUTOMATION_TEMPLATES, TEMPLATE_CATEGORIES, templateToAutomation } from "@/lib/automationTemplates";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -2751,6 +2752,13 @@ export default function AutomationsPage() {
   const [editTarget, setEditTarget] = useState<Automation | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Automation | null>(null);
   const [enrollTarget, setEnrollTarget] = useState<Automation | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  const useTemplate = (t: (typeof AUTOMATION_TEMPLATES)[number]) => {
+    setEditTarget(templateToAutomation(t) as unknown as Automation);
+    setShowTemplates(false);
+    setView("builder");
+  };
 
   const load = async () => {
     setLoading(true);
@@ -2816,9 +2824,14 @@ export default function AutomationsPage() {
               <h1 className="text-xl font-bold">Automatizaciones</h1>
             </div>
             {canEdit && (
-              <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-                <Plus className="h-4 w-4 mr-2" />Nueva automatización
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setShowTemplates(true)}>
+                  📚 <span className="ml-1.5 hidden sm:inline">Plantillas</span>
+                </Button>
+                <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
+                  <Plus className="h-4 w-4 mr-2" />Nueva automatización
+                </Button>
+              </div>
             )}
           </div>
 
@@ -2831,11 +2844,14 @@ export default function AutomationsPage() {
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
                   <Zap className="h-8 w-8 text-indigo-400" />
                 </div>
-                <p className="text-muted-foreground text-sm">No hay automatizaciones.{canEdit ? " Crea la primera." : ""}</p>
+                <p className="text-muted-foreground text-sm">No hay automatizaciones.{canEdit ? " Empieza con una plantilla o créala desde cero." : ""}</p>
                 {canEdit && (
-                  <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-                    <Plus className="h-4 w-4 mr-2" />Nueva automatización
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => setShowTemplates(true)}>📚 Usar una plantilla</Button>
+                    <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
+                      <Plus className="h-4 w-4 mr-2" />Desde cero
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
@@ -2856,6 +2872,52 @@ export default function AutomationsPage() {
           {enrollTarget && (
             <EnrollDialog automationId={enrollTarget.id} open={!!enrollTarget} onClose={() => setEnrollTarget(null)} />
           )}
+
+          {/* Template library */}
+          <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+            <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>📚 Biblioteca de plantillas</DialogTitle>
+                <DialogDescription>Elige un flujo listo para usar. Lo creas con un clic y luego personalizas los textos.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-2">
+                {TEMPLATE_CATEGORIES.map(cat => {
+                  const items = AUTOMATION_TEMPLATES.filter(t => t.category === cat);
+                  if (!items.length) return null;
+                  return (
+                    <div key={cat}>
+                      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{cat}</p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {items.map(t => (
+                          <button
+                            key={t.key}
+                            onClick={() => useTemplate(t)}
+                            className="text-left rounded-xl border bg-card p-4 hover:border-indigo-400 hover:shadow-md transition-all group"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="text-2xl leading-none">{t.emoji}</span>
+                              <div className="min-w-0 flex-1">
+                                <p className="font-semibold text-sm group-hover:text-indigo-600 transition-colors">{t.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1 leading-snug">{t.description}</p>
+                                {t.badges && (
+                                  <div className="flex flex-wrap gap-1 mt-2">
+                                    {t.badges.map(b => (
+                                      <span key={b} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{b}</span>
+                                    ))}
+                                  </div>
+                                )}
+                                {t.note && <p className="text-[10px] text-amber-600 mt-1.5">⚠️ {t.note}</p>}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Delete confirm */}
           <AlertDialog open={!!deleteTarget} onOpenChange={v => !v && setDeleteTarget(null)}>
