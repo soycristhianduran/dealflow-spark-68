@@ -10,21 +10,122 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, AnimatePresence, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
+import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
 
-// Spark particles trailing behind the comet head (offsets up-left from the
-// head, i.e. larger right/bottom = further back along the tail), with scatter.
-const COMET_SPARKS = [
-  { r: 58, b: 36, s: 4 }, { r: 92, b: 58, s: 3 }, { r: 128, b: 74, s: 5 },
-  { r: 118, b: 96, s: 2 }, { r: 162, b: 94, s: 3 }, { r: 198, b: 118, s: 4 },
-  { r: 178, b: 140, s: 2 }, { r: 232, b: 138, s: 3 }, { r: 88, b: 88, s: 2 },
-  { r: 258, b: 156, s: 2 }, { r: 148, b: 120, s: 2 }, { r: 208, b: 170, s: 3 },
-  { r: 70, b: 60, s: 2 }, { r: 280, b: 178, s: 2 }, { r: 300, b: 150, s: 3 },
-];
+/**
+ * Real particle-system comet on a canvas (not CSS divs). The head travels from
+ * the hero (upper-right) into the chat corner (bottom-right), continuously
+ * emitting glowing fire particles that fade → a detailed fiery trail + sparks.
+ */
+function CometCanvas({ onDone }: { onDone: () => void }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const W = window.innerWidth, H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.scale(dpr, dpr);
+
+    const start = { x: W * 0.72, y: H * 0.42 };
+    const end = { x: W - 56, y: H - 56 };
+    const DURATION = 780;
+    const dirx = end.x - start.x, diry = end.y - start.y;
+
+    type P = { x: number; y: number; vx: number; vy: number; life: number; decay: number; size: number; hue: number };
+    const parts: P[] = [];
+    let raf = 0;
+    let startTime = 0;
+    let prevCx = start.x, prevCy = start.y;
+    const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const emit = (x: number, y: number, n: number, speed: number) => {
+      for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const sp = Math.random() * speed;
+        parts.push({
+          x, y,
+          vx: Math.cos(a) * sp - (dirx / DURATION) * 6,
+          vy: Math.sin(a) * sp - (diry / DURATION) * 6,
+          life: 1,
+          decay: 0.02 + Math.random() * 0.035,
+          size: 1 + Math.random() * 3.2,
+          hue: 18 + Math.random() * 30, // orange→amber
+        });
+      }
+    };
+
+    const frame = (ts: number) => {
+      if (!startTime) startTime = ts;
+      const elapsed = ts - startTime;
+      const p = Math.min(1, elapsed / DURATION);
+      const e = ease(p);
+      const cx = start.x + dirx * e;
+      const cy = start.y + diry * e;
+
+      // emit particles along the path travelled this frame (dense trail)
+      if (p < 1) {
+        const steps = 4;
+        for (let s = 0; s < steps; s++) {
+          const ix = prevCx + (cx - prevCx) * (s / steps);
+          const iy = prevCy + (cy - prevCy) * (s / steps);
+          emit(ix, iy, 5, 1.3);
+        }
+      }
+      prevCx = cx; prevCy = cy;
+
+      // arrival burst
+      if (p >= 1 && parts.length && !(frame as any)._burst) {
+        (frame as any)._burst = true;
+        emit(end.x, end.y, 90, 5.5);
+      }
+
+      ctx.clearRect(0, 0, W, H);
+      ctx.globalCompositeOperation = "lighter";
+
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const pt = parts[i];
+        pt.x += pt.vx; pt.y += pt.vy;
+        pt.vx *= 0.95; pt.vy *= 0.95;
+        pt.life -= pt.decay;
+        if (pt.life <= 0) { parts.splice(i, 1); continue; }
+        const rad = pt.size * 4;
+        const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, rad);
+        g.addColorStop(0, `hsla(${pt.hue},100%,78%,${pt.life})`);
+        g.addColorStop(0.4, `hsla(${pt.hue},100%,55%,${pt.life * 0.6})`);
+        g.addColorStop(1, `hsla(${pt.hue},100%,50%,0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, rad, 0, Math.PI * 2); ctx.fill();
+      }
+
+      // bright comet head
+      if (p < 1) {
+        const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 30);
+        hg.addColorStop(0, "rgba(255,255,255,0.95)");
+        hg.addColorStop(0.35, "rgba(255,190,90,0.85)");
+        hg.addColorStop(1, "rgba(249,115,22,0)");
+        ctx.fillStyle = hg;
+        ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2); ctx.fill();
+      }
+
+      if (elapsed < DURATION + 900 && (parts.length > 0 || p < 1)) {
+        raf = requestAnimationFrame(frame);
+      } else {
+        onDone();
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(raf);
+  }, [onDone]);
+
+  return <canvas ref={ref} aria-hidden className="fixed inset-0 z-40 pointer-events-none" style={{ width: "100vw", height: "100vh" }} />;
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -2037,49 +2138,8 @@ export default function HomePage() {
 
       </div>
 
-      {/* Comet: the mascot streaks from the hero down into the chat corner */}
-      <AnimatePresence>
-        {warp && (
-          <motion.div
-            key="comet"
-            aria-hidden
-            className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
-            initial={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onAnimationComplete={() => setWarp(false)}
-          >
-            {/* bright flash on arrival */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.2 }}
-              animate={{ opacity: [0, 0, 1, 0], scale: [0.2, 0.4, 1.5, 1] }}
-              transition={{ duration: 0.9, times: [0, 0.55, 0.78, 1], ease: "easeOut" }}
-              className="absolute bottom-10 right-10 h-56 w-56 rounded-full blur-2xl bg-[radial-gradient(circle,rgba(255,255,255,0.95),rgba(249,115,22,0.55)_38%,transparent_72%)]"
-            />
-
-            {/* the moving comet (head + fiery tail + spark particles) */}
-            <motion.div
-              initial={{ x: -560, y: -370, opacity: 0 }}
-              animate={{ x: 0, y: 0, opacity: [0, 1, 1, 0] }}
-              transition={{ duration: 0.85, times: [0, 0.12, 0.72, 1], ease: [0.35, 0.6, 0.4, 1] }}
-              className="absolute bottom-[72px] right-[72px]"
-            >
-              {/* fiery tail — points up-left (back along the path) */}
-              <div className="absolute bottom-0 right-0 h-4 w-96 origin-right -rotate-[33deg] rounded-full blur-md bg-gradient-to-l from-orange-300 via-orange-500/70 to-transparent" />
-              <div className="absolute bottom-0 right-0 h-2 w-80 origin-right -rotate-[33deg] rounded-full blur-sm bg-gradient-to-l from-white via-amber-300/80 to-transparent" />
-              {/* spark particles scattered along the tail */}
-              {COMET_SPARKS.map((p, i) => (
-                <span
-                  key={i}
-                  className="absolute rounded-full bg-orange-300 blur-[1px]"
-                  style={{ right: p.r, bottom: p.b, width: p.s, height: p.s, opacity: 0.9 - i * 0.04 }}
-                />
-              ))}
-              {/* glowing comet head */}
-              <div className="absolute bottom-0 right-0 h-12 w-12 translate-x-1/4 translate-y-1/4 rounded-full blur-[2px] bg-[radial-gradient(circle,#fff,rgba(249,115,22,0.95)_42%,rgba(249,115,22,0.2)_70%,transparent)]" />
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Comet particle system: mascot streaks from the hero into the chat corner */}
+      {warp && <CometCanvas onDone={() => setWarp(false)} />}
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
