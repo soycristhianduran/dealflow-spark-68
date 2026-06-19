@@ -20,7 +20,7 @@ const Mascot3D = lazy(() => import("@/components/Mascot3D"));
  * the hero (upper-right) into the chat corner (bottom-right), continuously
  * emitting glowing fire particles that fade → a detailed fiery trail + sparks.
  */
-function CometCanvas({ onDone, reverse = false }: { onDone: () => void; reverse?: boolean }) {
+function CometCanvas({ onDone, start, end }: { onDone: () => void; start: { x: number; y: number }; end: { x: number; y: number } }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -31,11 +31,6 @@ function CometCanvas({ onDone, reverse = false }: { onDone: () => void; reverse?
     const W = window.innerWidth, H = window.innerHeight;
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.scale(dpr, dpr);
-
-    const hero = { x: W * 0.72, y: H * 0.42 };
-    const corner = { x: W - 56, y: H - 56 };
-    const start = reverse ? corner : hero;
-    const end = reverse ? hero : corner;
     const DURATION = 780;
     const dirx = end.x - start.x, diry = end.y - start.y;
 
@@ -123,7 +118,7 @@ function CometCanvas({ onDone, reverse = false }: { onDone: () => void; reverse?
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [onDone, reverse]);
+  }, [onDone, start, end]);
 
   return <canvas ref={ref} aria-hidden className="fixed inset-0 z-40 pointer-events-none" style={{ width: "100vw", height: "100vh" }} />;
 }
@@ -624,28 +619,28 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
   const scale = useTransform(focus, [0.3, 1], [0.92, 1]);
 
   return (
-    <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-6 sm:px-12 lg:px-20 shrink-0 will-change-transform">
-      <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-10 lg:gap-16 items-center w-full">
+    <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-5 sm:px-12 lg:px-20 shrink-0 will-change-transform overflow-hidden">
+      <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-6 lg:gap-16 items-center w-full">
         {/* Copy */}
         <div>
-          <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-5`}>
+          <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[10px] sm:text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-3 sm:mb-5`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
             {feature.eyebrow}
           </div>
-          <h3 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-5">{feature.title}</h3>
-          <p className="text-slate-600 text-lg leading-relaxed mb-6">{feature.desc}</p>
-          <ul className="space-y-3">
+          <h3 className="text-2xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2.5 sm:mb-5">{feature.title}</h3>
+          <p className="text-slate-600 text-sm sm:text-lg leading-relaxed mb-3 sm:mb-6">{feature.desc}</p>
+          <ul className="space-y-1.5 sm:space-y-3">
             {feature.bullets.map((b) => (
-              <li key={b} className="flex items-start gap-3">
+              <li key={b} className="flex items-start gap-2.5 sm:gap-3">
                 <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                <span className="text-slate-700 text-lg">{b}</span>
+                <span className="text-slate-700 text-sm sm:text-lg">{b}</span>
               </li>
             ))}
           </ul>
         </div>
         {/* Visual — its inner animation is driven by playProgress (scroll) */}
         <div>
-          <div className="rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-6 shadow-2xl shadow-slate-900/10">
+          <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-3 sm:p-6 shadow-2xl shadow-slate-900/10">
             {feature.visual(playProgress)}
           </div>
         </div>
@@ -658,7 +653,6 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 // each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
   const N = FEATURES.length;
-  const isDesktop = useIsDesktop();
   const ref = useRef<HTMLElement>(null);
   // Pin progress (0..1) computed manually from scroll — avoids useScroll's
   // ScrollTimeline path (which threw "Offsets must be in [0,1]" in some browsers).
@@ -695,21 +689,6 @@ function HorizontalFeatures() {
   const x = useTransform(xIndex, (v) => `-${(v * 100).toFixed(3)}vw`);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
-  // ── Mobile/tablet: stacked vertical features (no horizontal pin) ──
-  if (!isDesktop) {
-    return (
-      <section id="features" className="bg-slate-950">
-        <div className="pt-20 pb-6 text-center px-5">
-          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
-          <h2 className="text-3xl font-black text-white tracking-tight">Todo en una sola plataforma</h2>
-        </div>
-        <div>
-          {FEATURES.map((f) => <MobileFeature key={f.title} feature={f} />)}
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
@@ -719,9 +698,9 @@ function HorizontalFeatures() {
         <motion.div aria-hidden className="pointer-events-none absolute bottom-0 right-10 h-[32rem] w-[32rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18), transparent 70%)" }} animate={{ x: [0, -90, 0], y: [0, -60, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
         <motion.div aria-hidden className="pointer-events-none absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(244,63,94,0.14), transparent 70%)" }} animate={{ x: [0, -60, 40, 0], y: [0, 50, -30, 0] }} transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }} />
         {/* Header (stays pinned above the slider) */}
-        <div className="relative z-10 pt-24 pb-4 text-center px-4 shrink-0">
-          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
-          <h2 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
+        <div className="relative z-10 pt-16 sm:pt-24 pb-3 sm:pb-4 text-center px-4 shrink-0">
+          <p className="text-orange-500 font-semibold text-xs sm:text-sm uppercase tracking-widest mb-1.5 sm:mb-2">Por qué Klosify</p>
+          <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
         </div>
         {/* Horizontal track */}
         <div className="relative z-10 flex-1 min-h-0">
@@ -1343,6 +1322,8 @@ export default function HomePage() {
   const [warp, setWarp] = useState(false);
   const [reverse, setReverse] = useState(false);
   const prevMinRef = useRef(false);
+  const heroMascotRef = useRef<HTMLDivElement>(null);
+  const [cometPath, setCometPath] = useState<{ start: { x: number; y: number }; end: { x: number; y: number } } | null>(null);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1392,8 +1373,15 @@ export default function HomePage() {
       heroScroll.set(Math.min(1, Math.max(0, y / 760)));
       // fire the comet on crossing the threshold (~150px), in the travel direction
       const newMin = y > 150;
-      if (newMin && !prevMinRef.current) { setReverse(false); setWarp(true); }   // hero → corner
-      else if (!newMin && prevMinRef.current) { setReverse(true); setWarp(true); } // corner → hero
+      if (newMin !== prevMinRef.current) {
+        // real on-screen positions (works on mobile & desktop)
+        const r = heroMascotRef.current?.getBoundingClientRect();
+        const heroPt = r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: window.innerWidth * 0.72, y: window.innerHeight * 0.42 };
+        const cornerPt = { x: window.innerWidth - 52, y: window.innerHeight - 52 };
+        if (newMin) { setReverse(false); setCometPath({ start: heroPt, end: cornerPt }); }   // hero → corner
+        else { setReverse(true); setCometPath({ start: cornerPt, end: heroPt }); }            // corner → hero
+        setWarp(true);
+      }
       prevMinRef.current = newMin;
       setMascotMin(newMin);
       // Parallax — direct DOM for zero re-render cost
@@ -1659,7 +1647,9 @@ export default function HomePage() {
               </motion.div>
 
               {/* Right — animated mascot. Exit: shrinks/flies down (into the comet).
-                  Re-entry on scroll up: appears in place at center (no slide). */}
+                  Re-entry on scroll up: appears in place at center (no slide).
+                  The static wrapper (ref) marks the comet's start/end point. */}
+              <div ref={heroMascotRef} className="flex justify-center items-center order-first lg:order-none">
               <motion.div
                 animate={mascotMin ? { opacity: 0, scale: 0.15, x: 200, y: 150 } : { opacity: 1, scale: 1, x: 0, y: 0 }}
                 transition={
@@ -1669,7 +1659,7 @@ export default function HomePage() {
                     // (delayed so it lands as the reverse comet arrives at the hero)
                     : { opacity: { duration: 0.4, delay: reverse ? 0.6 : 0 }, scale: { duration: 0 }, x: { duration: 0 }, y: { duration: 0 } }
                 }
-                className="flex justify-center items-center relative order-first lg:order-none -mt-4 lg:mt-0">
+                className="flex justify-center items-center relative -mt-4 lg:mt-0">
                 {/* glow behind mascot */}
                 <div aria-hidden className="pointer-events-none absolute h-36 w-36 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
                 <motion.div
@@ -1683,6 +1673,7 @@ export default function HomePage() {
                   </Suspense>
                 </motion.div>
               </motion.div>
+              </div>
             </div>
           </div>
         </section>
@@ -2141,7 +2132,7 @@ export default function HomePage() {
       </div>
 
       {/* Comet particle system: mascot streaks from the hero into the chat corner */}
-      {warp && <CometCanvas reverse={reverse} onDone={() => setWarp(false)} />}
+      {warp && cometPath && <CometCanvas start={cometPath.start} end={cometPath.end} onDone={() => setWarp(false)} />}
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
@@ -2156,9 +2147,9 @@ export default function HomePage() {
           initial={false}
           animate={mascotMin ? { opacity: 1, y: 0 } : { opacity: 0, y: 8 }}
           transition={{ duration: 0.4, delay: mascotMin ? 1.05 : 0 }}
-          className="mb-3 hidden sm:block rounded-2xl rounded-br-sm bg-white px-3.5 py-2 shadow-xl ring-1 ring-black/5"
+          className="mb-3 block max-w-[60vw] rounded-2xl rounded-br-sm bg-white px-3.5 py-2 shadow-xl ring-1 ring-black/5"
         >
-          <p className="text-xs font-medium text-slate-800 whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
+          <p className="text-xs font-medium text-slate-800 leading-snug sm:whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
         </motion.div>
         {/* mascot head button → WhatsApp */}
         <a
