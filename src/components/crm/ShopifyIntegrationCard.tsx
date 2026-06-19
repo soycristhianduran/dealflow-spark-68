@@ -30,6 +30,7 @@ export function ShopifyIntegrationCard() {
   const [connecting, setConnecting] = useState(false);
   const [cartAutomationId, setCartAutomationId] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
+  const [hasVerifiedDomain, setHasVerifiedDomain] = useState(true); // assume ok until checked
   const navigate = useNavigate();
 
   async function refresh() {
@@ -44,6 +45,11 @@ export function ShopifyIntegrationCard() {
       const { data: auto } = await supabase.from("automations")
         .select("id").eq("organization_id", organizationId).eq("trigger_type", "abandoned_cart").maybeSingle();
       setCartAutomationId(auto?.id ?? null);
+      // Verified custom sending domain? (emails still send via shared sender if not)
+      const { count } = await supabase.from("email_domains")
+        .select("domain", { count: "exact", head: true })
+        .eq("organization_id", organizationId).eq("status", "verified");
+      setHasVerifiedDomain((count ?? 0) > 0);
     }
   }
 
@@ -182,6 +188,12 @@ export function ShopifyIntegrationCard() {
                   <Button size="sm" className="w-full bg-orange-500 hover:bg-orange-600" disabled={activating || config.scope_checkouts === false} onClick={activateAbandonedCart}>
                     {activating ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Activando...</> : "Activar recuperación de carritos (1 clic)"}
                   </Button>
+                )}
+                {!hasVerifiedDomain && (
+                  <p className="text-[10px] text-muted-foreground">
+                    💡 Los emails saldrán desde nuestro remitente compartido (funciona). Para mejor entregabilidad y marca,{" "}
+                    <button className="underline hover:text-foreground" onClick={() => navigate("/settings?tab=email")}>verifica tu dominio</button> (opcional).
+                  </p>
                 )}
               </div>
 
