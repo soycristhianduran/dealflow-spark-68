@@ -139,7 +139,7 @@ function MascotModel() {
   useFrame((state) => {
     if (!group.current) return;
     const t = state.clock.getElapsedTime();
-    group.current.position.y = -0.9 + Math.sin(t * 1.2) * 0.06;
+    group.current.position.y = -0.68 + Math.sin(t * 1.2) * 0.06;
     const targetY = pointer.x * 0.3;
     const targetX = -pointer.y * 0.18;
     group.current.rotation.y += (targetY - group.current.rotation.y) * 0.06;
@@ -147,7 +147,7 @@ function MascotModel() {
   });
 
   return (
-    <group ref={group} scale={13} position={[0, -0.9, 0]}>
+    <group ref={group} scale={13} position={[0, -0.68, 0]}>
       <primitive object={model} />
       <FaceScreen />
     </group>
