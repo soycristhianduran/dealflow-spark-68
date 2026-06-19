@@ -3,7 +3,8 @@ import { CookieConsent } from "@/components/landing/CookieConsent";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { trackPageView } from "@/lib/metaPixel";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { OrganizationProvider } from "@/context/OrganizationContext";
 import { ThemeProvider } from "@/components/ThemeProvider";
@@ -132,6 +133,13 @@ function RootRoute() {
 // duplicate "WorkspaceRoutes" here was dead code AND held the only lockout check,
 // so the lockout never ran. It has been removed to avoid that trap recurring.
 
+// Fires a deduplicated Meta PageView (pixel + CAPI) on every route change.
+function MetaPageView() {
+  const location = useLocation();
+  useEffect(() => { trackPageView(); }, [location.pathname]);
+  return null;
+}
+
 function AppRoutes() {
   return (
     <Routes>
@@ -183,6 +191,7 @@ const App = () => (
           <Sonner />
           <CookieConsent />
           <BrowserRouter>
+            <MetaPageView />
             <AuthProvider>
               <OrganizationProvider>
                 <AppRoutes />
