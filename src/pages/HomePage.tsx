@@ -1412,7 +1412,7 @@ export default function HomePage() {
     <>
       {/* ── Global keyframes ──────────────────────────────────────────────── */}
       <style>{`
-        html, body { overflow-x: clip; }
+        html, body { overflow-x: clip; background-color: #020617; }
         @keyframes hero-fade-up {
           from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0);    }
