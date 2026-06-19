@@ -11,9 +11,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Save, Plus, Trash2, Loader2, FileText, LayoutTemplate } from "lucide-react";
+import { Save, Plus, Trash2, Loader2, FileText, LayoutTemplate, ShoppingBag, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { STARTER_TEMPLATES, CATEGORIES, CATEGORY_COLORS } from "@/data/starterEmailTemplates";
+import { useOrganizationContext } from "@/context/OrganizationContext";
+import { buildProductRows, type ShopProduct } from "@/lib/emailProductBlock";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
@@ -27,8 +29,61 @@ interface Template {
 }
 
 export default function EmailBuilderPage() {
+  const { organizationId } = useOrganizationContext();
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
+
+  // Shopify product picker
+  const [productsOpen, setProductsOpen] = useState(false);
+  const [products, setProducts] = useState<ShopProduct[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productsError, setProductsError] = useState<string | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<Record<string, ShopProduct>>({});
+
+  const openProducts = async () => {
+    setProductsOpen(true);
+    setSelectedProducts({});
+    setProductsError(null);
+    setLoadingProducts(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("shopify-products", { body: { organization_id: organizationId } });
+      if (error || data?.error) {
+        setProductsError(
+          data?.error === "scope"
+            ? "Falta el permiso read_products en tu app de Shopify. Agrégalo y reconecta la tienda."
+            : (data?.message || data?.error || "No se pudieron cargar los productos. ¿Conectaste Shopify?"),
+        );
+        setProducts([]);
+      } else {
+        setProducts(data.products || []);
+      }
+    } finally { setLoadingProducts(false); }
+  };
+
+  const toggleProduct = (p: ShopProduct) => {
+    setSelectedProducts((prev) => {
+      const key = String(p.id ?? p.title);
+      const next = { ...prev };
+      if (next[key]) delete next[key]; else next[key] = p;
+      return next;
+    });
+  };
+
+  const insertProducts = () => {
+    const picked = Object.values(selectedProducts);
+    if (!picked.length) { setProductsOpen(false); return; }
+    editorRef.current?.editor?.saveDesign((design: any) => {
+      try {
+        const rows = buildProductRows(picked);
+        design.body.rows = [...(design.body.rows || []), ...rows];
+        editorRef.current?.editor?.loadDesign(design);
+        toast.success(`${picked.length} producto(s) insertado(s)`);
+      } catch {
+        toast.error("No se pudieron insertar los productos");
+      }
+    });
+    setProductsOpen(false);
+  };
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -176,6 +231,9 @@ export default function EmailBuilderPage() {
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setGalleryOpen(true)}>
               <LayoutTemplate className="h-4 w-4" /> Plantillas
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={openProducts} disabled={!editorReady}>
+              <ShoppingBag className="h-4 w-4" /> Productos
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNew}>
               <Plus className="h-4 w-4" /> Nueva
@@ -384,6 +442,46 @@ export default function EmailBuilderPage() {
             <Button onClick={handleSaveAs} disabled={saving || !newName.trim()}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
               Guardar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Shopify product picker ── */}
+      <Dialog open={productsOpen} onOpenChange={setProductsOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-orange-500" /> Insertar productos de Shopify</DialogTitle>
+          </DialogHeader>
+          {loadingProducts ? (
+            <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />Cargando productos…</div>
+          ) : productsError ? (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">{productsError}</div>
+          ) : products.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-8 text-center">No se encontraron productos.</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
+              {products.map((p) => {
+                const key = String(p.id ?? p.title);
+                const sel = !!selectedProducts[key];
+                return (
+                  <button key={key} onClick={() => toggleProduct(p)}
+                    className={cn("text-left rounded-xl border p-2 transition-all relative", sel ? "border-orange-500 ring-2 ring-orange-200" : "hover:border-muted-foreground/40")}>
+                    {sel && <span className="absolute top-1.5 right-1.5 h-5 w-5 rounded-full bg-orange-500 text-white flex items-center justify-center"><Check className="h-3 w-3" /></span>}
+                    {p.image
+                      ? <img src={p.image} alt={p.title} className="w-full h-24 object-cover rounded-lg mb-1.5" />
+                      : <div className="w-full h-24 rounded-lg bg-muted flex items-center justify-center text-2xl mb-1.5">🛍️</div>}
+                    <p className="text-xs font-medium line-clamp-2 leading-snug">{p.title}</p>
+                    {p.price != null && <p className="text-xs text-muted-foreground mt-0.5">{Number(p.price).toFixed(2)} {p.currency || ""}</p>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setProductsOpen(false)}>Cancelar</Button>
+            <Button onClick={insertProducts} disabled={!Object.keys(selectedProducts).length} className="bg-orange-500 hover:bg-orange-600">
+              Insertar {Object.keys(selectedProducts).length || ""} producto(s)
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -616,9 +616,47 @@ const N7 = design([
 // Exports
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// ─── Ecommerce templates (product showcase / cart recovery) ───────────────────
+const prod = (image: string, title: string, price: string) =>
+  row([
+    img(image, title),
+    txt(`<p style="text-align:center;margin:0"><strong style="font-size:17px">${title}</strong><br><span style="color:#888;font-size:15px">${price}</span></p>`, "8px 32px 0", "center"),
+    btn("Comprar →", "#FF6B35"),
+  ]);
+
+const E1 = design([
+  hdr("✨ Nuestros favoritos para ti", "Seleccionados especialmente, {{nombre}}", "#FF6B35"),
+  row([txt(`<p style="text-align:center;color:#555;margin:0">Echa un vistazo a lo más buscado de la semana. Toca cualquiera para comprarlo en segundos.</p>`, "18px 44px 4px", "center")]),
+  prod(PX.gift, "Producto destacado", "$25.00"),
+  divRow("#eee"),
+  prod(PX.shopping, "Segundo producto", "$32.00"),
+  divRow("#eee"),
+  prod(PX.sale, "Tercer producto", "$19.00"),
+  footer(),
+]);
+
+const E2 = design([
+  hdr("🛒 ¿Olvidaste algo?", "Tu carrito sigue esperándote, {{nombre}}", "#F97316"),
+  row([txt(`<p style="text-align:center;color:#555;margin:0">Guardamos tus productos. Aún estás a tiempo de completar tu compra — ¡no te quedes sin ellos!</p>`, "18px 44px 8px", "center")]),
+  prod(PX.shopping, "Producto en tu carrito", "$29.00"),
+  row([btn("Completar mi compra →", "#F97316")]),
+  row([txt(`<p style="font-size:12px;color:#aaa;text-align:center;margin:0">⏰ Tu carrito está reservado por tiempo limitado</p>`, "4px 32px 22px", "center")], "#FFF7ED"),
+]);
+
+const E3 = design([
+  row([txt(`<p style="font-size:12px;color:#f59e0b;font-weight:700;letter-spacing:4px;text-align:center;margin:0">NUEVA COLECCIÓN</p>
+<p style="font-size:30px;font-weight:900;color:#fff;text-align:center;margin:8px 0 0">Ya está aquí 🔥</p>`, "34px 32px 30px", "center")], "#111111"),
+  imgRow(PX.launch, "Nueva colección de productos"),
+  row([txt(`<p style="text-align:center;color:#555;margin:0">Hola <strong>{{nombre}}</strong>, presentamos lo nuevo. Sé de los primeros en llevártelo.</p>`, "20px 44px 6px", "center")]),
+  prod(PX.gift, "Pieza estrella", "$45.00"),
+  prod(PX.sale, "Edición limitada", "$38.00"),
+  row([btn("Ver la colección →", "#111111")]),
+  footer(),
+]);
+
 export interface StarterTemplate {
   id: string;
-  category: "Bienvenida" | "Ventas" | "Seguimiento" | "Newsletter";
+  category: "Bienvenida" | "Ventas" | "Seguimiento" | "Newsletter" | "Ecommerce";
   name: string;
   description: string;
   subject: string;
@@ -626,16 +664,21 @@ export interface StarterTemplate {
   design: object;
 }
 
-export const CATEGORIES = ["Todos", "Bienvenida", "Ventas", "Seguimiento", "Newsletter"] as const;
+export const CATEGORIES = ["Todos", "Ecommerce", "Bienvenida", "Ventas", "Seguimiento", "Newsletter"] as const;
 
 export const CATEGORY_COLORS: Record<string, string> = {
   Bienvenida:   "#FF6B35",
   Ventas:       "#DC2626",
   Seguimiento:  "#1E40AF",
   Newsletter:   "#0F172A",
+  Ecommerce:    "#F97316",
 };
 
 export const STARTER_TEMPLATES: StarterTemplate[] = [
+  // Ecommerce
+  { id:"e1", category:"Ecommerce", name:"Vitrina de productos",   description:"3 productos con imagen, precio y botón Comprar — ideal para promos", subject:"✨ Lo más buscado para ti, {{nombre}}", color:"#FF6B35", design:E1 },
+  { id:"e2", category:"Ecommerce", name:"Carrito abandonado",     description:"Recupera ventas: recuerda el producto olvidado con urgencia y CTA",  subject:"🛒 ¿Olvidaste algo, {{nombre}}?",       color:"#F97316", design:E2 },
+  { id:"e3", category:"Ecommerce", name:"Nueva colección",        description:"Lanzamiento con header oscuro, hero y productos destacados",          subject:"🔥 Nueva colección, {{nombre}}",        color:"#111111", design:E3 },
   // Bienvenida
   { id:"w1", category:"Bienvenida", name:"Bienvenida cálida",       description:"Con foto de equipo, lista de beneficios y CTA naranja",    subject:"¡Bienvenido/a, {{nombre}}! 🎉",           color:"#FF6B35", design:W1 },
   { id:"w2", category:"Bienvenida", name:"Bienvenida corporativa",  description:"Foto de apretón de manos, plan de onboarding en 3 pasos",  subject:"Bienvenido/a al equipo, {{nombre}}",       color:"#1E40AF", design:W2 },
