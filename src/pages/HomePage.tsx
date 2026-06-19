@@ -630,20 +630,20 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
             <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
             {feature.eyebrow}
           </div>
-          <h3 className="text-2xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2.5 sm:mb-5">{feature.title}</h3>
-          <p className="text-slate-600 text-sm sm:text-lg leading-relaxed mb-3 sm:mb-6">{feature.desc}</p>
-          <ul className="space-y-1.5 sm:space-y-3">
+          <h3 className="text-xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2 sm:mb-5">{feature.title}</h3>
+          <p className="hidden sm:block text-slate-600 text-sm sm:text-lg leading-relaxed mb-3 sm:mb-6">{feature.desc}</p>
+          <ul className="space-y-1 sm:space-y-3">
             {feature.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 sm:gap-3">
                 <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                <span className="text-slate-700 text-sm sm:text-lg">{b}</span>
+                <span className="text-slate-700 text-[13px] sm:text-lg">{b}</span>
               </li>
             ))}
           </ul>
         </div>
         {/* Visual — its inner animation is driven by playProgress (scroll).
             On mobile the height is capped so the whole slide fits one screen. */}
-        <div className="max-h-[40vh] lg:max-h-none overflow-hidden rounded-2xl sm:rounded-3xl">
+        <div className="max-h-[46vh] lg:max-h-none overflow-hidden rounded-2xl sm:rounded-3xl">
           <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-3 sm:p-6 shadow-2xl shadow-slate-900/10">
             {feature.visual(playProgress)}
           </div>
@@ -702,9 +702,9 @@ function HorizontalFeatures() {
         <motion.div aria-hidden className="pointer-events-none absolute bottom-0 right-10 h-[32rem] w-[32rem] rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18), transparent 70%)" }} animate={{ x: [0, -90, 0], y: [0, -60, 0] }} transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 1 }} />
         <motion.div aria-hidden className="pointer-events-none absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(244,63,94,0.14), transparent 70%)" }} animate={{ x: [0, -60, 40, 0], y: [0, 50, -30, 0] }} transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }} />
         {/* Header (stays pinned above the slider) */}
-        <div className="relative z-10 pt-16 sm:pt-24 pb-3 sm:pb-4 text-center px-4 shrink-0">
-          <p className="text-orange-500 font-semibold text-xs sm:text-sm uppercase tracking-widest mb-1.5 sm:mb-2">Por qué Klosify</p>
-          <h2 className="text-2xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
+        <div className="relative z-10 pt-20 sm:pt-24 pb-2 sm:pb-4 text-center px-4 shrink-0">
+          <p className="text-orange-500 font-semibold text-[11px] sm:text-sm uppercase tracking-widest mb-1 sm:mb-2">Por qué Klosify</p>
+          <h2 className="text-xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
         </div>
         {/* Horizontal track */}
         <div className="relative z-10 flex-1 min-h-0">
