@@ -1228,16 +1228,19 @@ export default function HomePage() {
   // Mascot: lives in the hero, then minimizes to the bottom-right chat corner on scroll.
   const heroScroll = useMotionValue(0);
   const [mascotMin, setMascotMin] = useState(false);
-  // Hero mascot flies toward the corner (down + right) while shrinking out.
-  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.18, 0.34], [1, 1, 0]);
-  const mascotHeroScale = useTransform(heroScroll, [0, 0.34], [1, 0.28]);
-  const mascotHeroX = useTransform(heroScroll, [0, 0.34], [0, 220]);
-  const mascotHeroY = useTransform(heroScroll, [0, 0.34], [0, 180]);
-  // Corner widget "flies" in from the hero (up-left), shrinking into the corner.
-  const cornerOpacity = useTransform(heroScroll, [0.32, 0.46], [0, 1]);
-  const cornerScale = useTransform(heroScroll, [0.28, 0.66], [2.4, 1]);
-  const cornerX = useTransform(heroScroll, [0.28, 0.66], [-200, 0]);
-  const cornerY = useTransform(heroScroll, [0.28, 0.66], [-360, 0]);
+  // Hero mascot vanishes fast (shrinks + zooms out) right as you start scrolling.
+  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.14], [1, 0]);
+  const mascotHeroScale = useTransform(heroScroll, [0, 0.16], [1, 0.2]);
+  const mascotHeroX = useTransform(heroScroll, [0, 0.16], [0, 160]);
+  const mascotHeroY = useTransform(heroScroll, [0, 0.16], [0, 120]);
+  // An orange light streak shoots from the hero down to the chat corner.
+  const streakOpacity = useTransform(heroScroll, [0.12, 0.3, 0.52], [0, 1, 0]);
+  const streakScale = useTransform(heroScroll, [0.12, 0.52], [0.6, 1.15]);
+  // Corner widget pops in at the corner once the streak arrives.
+  const cornerOpacity = useTransform(heroScroll, [0.46, 0.6], [0, 1]);
+  const cornerScale = useTransform(heroScroll, [0.44, 0.7], [1.7, 1]);
+  const cornerX = useTransform(heroScroll, [0.44, 0.7], [-70, 0]);
+  const cornerY = useTransform(heroScroll, [0.44, 0.7], [-120, 0]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1284,8 +1287,8 @@ export default function HomePage() {
     const fn = () => {
       const y = window.scrollY;
       setScrolled(y > 10);
-      heroScroll.set(Math.min(1, Math.max(0, y / 520)));
-      setMascotMin(y > 280);
+      heroScroll.set(Math.min(1, Math.max(0, y / 760)));
+      setMascotMin(y > 430);
       // Parallax — direct DOM for zero re-render cost
       if (heroGlowRef.current) heroGlowRef.current.style.transform = `translateY(${y * 0.35}px)`;
       if (heroGridRef.current) heroGridRef.current.style.transform = `translateY(${y * 0.18}px)`;
@@ -2021,6 +2024,18 @@ export default function HomePage() {
         </footer>
 
       </div>
+
+      {/* Orange light streak that shoots toward the chat corner on scroll */}
+      <motion.div
+        aria-hidden
+        style={{ opacity: streakOpacity, scale: streakScale }}
+        className="fixed bottom-8 right-8 z-40 pointer-events-none h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(249,115,22,0.9),rgba(249,115,22,0.25)_45%,transparent_70%)] blur-2xl"
+      />
+      <motion.div
+        aria-hidden
+        style={{ opacity: streakOpacity }}
+        className="fixed bottom-12 right-12 z-40 pointer-events-none h-2 w-72 origin-right -rotate-[38deg] rounded-full bg-gradient-to-l from-orange-400 via-orange-500/70 to-transparent blur-[3px]"
+      />
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
