@@ -14,6 +14,7 @@ import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionV
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
+const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1227,14 +1228,16 @@ export default function HomePage() {
   // Mascot: lives in the hero, then minimizes to the bottom-right chat corner on scroll.
   const heroScroll = useMotionValue(0);
   const [mascotMin, setMascotMin] = useState(false);
-  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.34], [1, 0]);
-  const mascotHeroScale = useTransform(heroScroll, [0, 0.34], [1, 0.7]);
-  const mascotHeroY = useTransform(heroScroll, [0, 0.34], [0, 50]);
+  // Hero mascot flies toward the corner (down + right) while shrinking out.
+  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.18, 0.34], [1, 1, 0]);
+  const mascotHeroScale = useTransform(heroScroll, [0, 0.34], [1, 0.28]);
+  const mascotHeroX = useTransform(heroScroll, [0, 0.34], [0, 220]);
+  const mascotHeroY = useTransform(heroScroll, [0, 0.34], [0, 180]);
   // Corner widget "flies" in from the hero (up-left), shrinking into the corner.
-  const cornerOpacity = useTransform(heroScroll, [0.3, 0.5], [0, 1]);
-  const cornerScale = useTransform(heroScroll, [0.28, 0.62], [1.6, 1]);
-  const cornerX = useTransform(heroScroll, [0.28, 0.62], [-90, 0]);
-  const cornerY = useTransform(heroScroll, [0.28, 0.62], [-230, 0]);
+  const cornerOpacity = useTransform(heroScroll, [0.32, 0.46], [0, 1]);
+  const cornerScale = useTransform(heroScroll, [0.28, 0.66], [2.4, 1]);
+  const cornerX = useTransform(heroScroll, [0.28, 0.66], [-200, 0]);
+  const cornerY = useTransform(heroScroll, [0.28, 0.66], [-360, 0]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1547,7 +1550,7 @@ export default function HomePage() {
 
               {/* Right — animated mascot (minimizes to the corner on scroll) */}
               <motion.div
-                style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, y: mascotHeroY }}
+                style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, x: mascotHeroX, y: mascotHeroY }}
                 className="flex justify-center items-center relative order-first lg:order-none -mt-4 lg:mt-0">
                 {/* glow behind mascot */}
                 <div aria-hidden className="pointer-events-none absolute h-36 w-36 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
@@ -2047,7 +2050,11 @@ export default function HomePage() {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            <img src="/mascot-head.png" alt="Asistente IA" className="absolute inset-0 h-full w-full object-cover scale-[1.05] select-none" draggable={false} />
+            {mascotMin && (
+              <Suspense fallback={null}>
+                <Mascot3DHead />
+              </Suspense>
+            )}
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </a>

@@ -115,12 +115,9 @@ function FaceScreen() {
   );
 }
 
-function MascotModel() {
+function usePreparedModel() {
   const { scene } = useGLTF("/mascot.glb");
-  const group = useRef<THREE.Group>(null);
-  const { pointer } = useThree();
-
-  const model = useMemo(() => {
+  return useMemo(() => {
     const s = scene.clone(true);
     s.traverse((o) => {
       const mesh = o as THREE.Mesh;
@@ -135,6 +132,12 @@ function MascotModel() {
     });
     return s;
   }, [scene]);
+}
+
+function MascotModel() {
+  const group = useRef<THREE.Group>(null);
+  const { pointer } = useThree();
+  const model = usePreparedModel();
 
   useFrame((state) => {
     if (!group.current) return;
@@ -169,6 +172,43 @@ export default function Mascot3D() {
         <MascotModel />
         <Environment preset="city" />
         <ContactShadows position={[0, -1.15, 0]} opacity={0.35} scale={6} blur={2.6} far={2} />
+      </Suspense>
+    </Canvas>
+  );
+}
+
+// ── Head-only version for the floating chat corner (same 3D model) ──────────
+function HeadModel() {
+  const group = useRef<THREE.Group>(null);
+  const model = usePreparedModel();
+  useFrame((state) => {
+    if (!group.current) return;
+    const t = state.clock.getElapsedTime();
+    group.current.rotation.y = Math.sin(t * 0.6) * 0.22;
+    group.current.position.y = -1.18 + Math.sin(t * 1.4) * 0.015;
+  });
+  return (
+    <group ref={group} scale={13} position={[0, -1.18, 0]}>
+      <primitive object={model} />
+      <FaceScreen />
+    </group>
+  );
+}
+
+export function Mascot3DHead() {
+  return (
+    <Canvas
+      dpr={[1, 2]}
+      camera={{ position: [0, 0.05, 1.15], fov: 34 }}
+      gl={{ antialias: true, alpha: true }}
+      style={{ width: "100%", height: "100%", background: "transparent" }}
+    >
+      <ambientLight intensity={0.75} />
+      <directionalLight position={[3, 4, 5]} intensity={1.5} />
+      <directionalLight position={[-4, 2, -2]} intensity={0.6} color="#ffd9b0" />
+      <Suspense fallback={null}>
+        <HeadModel />
+        <Environment preset="city" />
       </Suspense>
     </Canvas>
   );
