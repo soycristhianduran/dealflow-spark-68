@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Loader2, CheckCircle2, Circle, ArrowRight, Zap, RefreshCw } from "lucide-react";
+import { Loader2, CheckCircle2, Circle, ArrowRight, Zap, RefreshCw, AlertTriangle, ShoppingCart } from "lucide-react";
 import { ShopifyIcon } from "@/components/icons/PlatformBrandIcons";
+import { AUTOMATION_TEMPLATES, templateToAutomation } from "@/lib/automationTemplates";
+import { useNavigate } from "react-router-dom";
 
 const money = (n: number, c?: string | null) =>
   `${c ? c + " " : "$"}${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -26,6 +28,9 @@ export function ShopifyIntegrationCard() {
   const [domain, setDomain] = useState("");
   const [token, setToken] = useState("");
   const [connecting, setConnecting] = useState(false);
+  const [cartAutomationId, setCartAutomationId] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+  const navigate = useNavigate();
 
   async function refresh() {
     if (!organizationId) return;
@@ -35,7 +40,33 @@ export function ShopifyIntegrationCard() {
     if (cfg) {
       const { data: attr } = await supabase.from("campaign_attributions").select("amount, currency").eq("organization_id", organizationId);
       setStats({ orders: attr?.length ?? 0, revenue: (attr ?? []).reduce((s, a) => s + Number(a.amount ?? 0), 0), currency: attr?.[0]?.currency ?? null });
+      // Is the abandoned-cart automation already set up?
+      const { data: auto } = await supabase.from("automations")
+        .select("id").eq("organization_id", organizationId).eq("trigger_type", "abandoned_cart").maybeSingle();
+      setCartAutomationId(auto?.id ?? null);
     }
+  }
+
+  // #1 — one-click: create + activate the ready-made abandoned-cart flow.
+  async function activateAbandonedCart() {
+    if (!organizationId) return;
+    setActivating(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { toast.error("Inicia sesión de nuevo"); return; }
+      const tpl = AUTOMATION_TEMPLATES.find(t => t.key === "abandoned_cart")!;
+      const a = templateToAutomation(tpl);
+      const { data, error } = await supabase.from("automations").insert({
+        name: a.name, description: a.description, is_active: true,
+        trigger_type: a.trigger_type, trigger_config: a.trigger_config,
+        triggers: a.triggers, trigger_types: a.triggers.map(t => t.type),
+        steps: a.steps, user_id: user.id, organization_id: organizationId,
+        created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).select("id").single();
+      if (error) { toast.error("No se pudo activar: " + error.message); return; }
+      setCartAutomationId(data.id);
+      toast.success("¡Recuperación de carritos activada! 🛒 Ya está corriendo.");
+    } finally { setActivating(false); }
   }
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [organizationId]);
 
@@ -118,6 +149,42 @@ export function ShopifyIntegrationCard() {
               <p className="text-[11px] text-muted-foreground">
                 Última sincronización: {config.last_synced_at ? new Date(config.last_synced_at).toLocaleString("es") : "—"} · se actualiza cada 30 min automáticamente.
               </p>
+
+              {/* ── Abandoned cart recovery (one-click + scope health) ── */}
+              <div className="rounded-xl border border-orange-200/60 dark:border-orange-900/40 bg-orange-50/40 dark:bg-orange-950/10 p-3 space-y-2.5">
+                <div className="flex items-center gap-2 text-sm font-semibold">
+                  <ShoppingCart className="h-4 w-4 text-orange-500" /> Recuperación de carritos abandonados
+                </div>
+                <div className="space-y-1 text-[11px]">
+                  <div className="flex items-start gap-1.5">
+                    {config.scope_checkouts === true
+                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>Detección de carritos: <b>activa</b></span></>
+                      : config.scope_checkouts === false
+                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>Falta el permiso <b>read_checkouts</b> — no podrá detectar carritos.</span></>
+                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>Reconecta para verificar permisos.</span></>}
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    {config.scope_products === true
+                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>Imágenes de productos: <b>disponibles</b></span></>
+                      : config.scope_products === false
+                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>Falta <b>read_products</b> — los emails saldrán sin imágenes.</span></>
+                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>Imágenes de productos: sin verificar.</span></>}
+                  </div>
+                </div>
+                {(config.scope_checkouts === false || config.scope_products === false) && (
+                  <p className="text-[10px] text-amber-600">Agrega los permisos en tu app de Shopify y vuelve a conectar para habilitarlos.</p>
+                )}
+                {cartAutomationId ? (
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/automations?open=${cartAutomationId}`)}>
+                    Ya está activa · Editar flujo →
+                  </Button>
+                ) : (
+                  <Button size="sm" className="w-full bg-orange-500 hover:bg-orange-600" disabled={activating || config.scope_checkouts === false} onClick={activateAbandonedCart}>
+                    {activating ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Activando...</> : "Activar recuperación de carritos (1 clic)"}
+                  </Button>
+                )}
+              </div>
+
               <div className="flex gap-2">
                 <Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Actualizar</Button>
                 <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={disconnect}>Desconectar</Button>

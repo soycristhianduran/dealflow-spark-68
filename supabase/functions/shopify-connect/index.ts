@@ -83,10 +83,22 @@ Deno.serve(async (req) => {
     if (!shopRes.ok) return json({ error: "Token o dominio inválido. Verifica el Admin API access token y el dominio .myshopify.com" }, 400);
     const shopName = (await shopRes.json())?.shop?.name ?? shop;
 
+    // Probe the scopes we need so the UI can tell the merchant what will work
+    // (abandoned-cart recovery needs read_checkouts; product images need read_products).
+    const probe = async (path: string) => {
+      try {
+        const r = await fetch(`https://${shop}/admin/api/${API_VERSION}/${path}`, { headers: { "X-Shopify-Access-Token": access_token } });
+        return r.status === 200;
+      } catch { return false; }
+    };
+    const scope_checkouts = await probe("checkouts.json?limit=1");
+    const scope_products = await probe("products.json?limit=1");
+
     const cfg = {
       organization_id, shop_domain: shop, access_token, shop_name: shopName,
       is_active: true, connected_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       last_synced_at: new Date().toISOString(),
+      scope_checkouts, scope_products, scopes_checked_at: new Date().toISOString(),
     };
     const { data: saved } = await db.from("shopify_configs")
       .upsert(cfg, { onConflict: "organization_id,shop_domain" }).select("*").single();
@@ -95,7 +107,7 @@ Deno.serve(async (req) => {
     const since = new Date(Date.now() - 60 * 24 * 3600 * 1000).toISOString();
     const imported = await importOrders(db, saved, since);
 
-    return json({ ok: true, shop_name: shopName, orders_imported: imported });
+    return json({ ok: true, shop_name: shopName, orders_imported: imported, scope_checkouts, scope_products });
   } catch (e) {
     return json({ error: e instanceof Error ? e.message : "error" }, 500);
   }
