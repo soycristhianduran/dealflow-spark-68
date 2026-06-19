@@ -39,17 +39,40 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
     emoji: "🛒",
     category: "Ecommerce",
     name: "Recuperar carrito abandonado",
-    description: "Cuando alguien deja un carrito en Shopify, lo recuerdas por email y, si no vuelve, por WhatsApp con un incentivo.",
+    description: "Lista para activar: 2 emails de recuperación con el link directo al carrito + un WhatsApp opcional. Cuando alguien abandona un carrito en Shopify, lo traes de vuelta automáticamente.",
     badges: ["Email", "WhatsApp", "Shopify"],
-    note: "Requiere Shopify conectado. El paso de WhatsApp necesita una plantilla aprobada.",
+    note: "Solo activa: los emails funcionan al instante. El WhatsApp es opcional — se omite si no tienes una plantilla aprobada.",
     triggers: [{ type: "abandoned_cart", config: {} }],
     steps: [
+      // Touch 1 — gentle reminder 1h after abandoning
       wait(1, "hours"),
       email(
-        "¿Olvidaste algo en tu carrito? 🛒",
-        "<p>Hola {{contact.name}},</p><p>Vimos que dejaste productos en tu carrito. ¡Aún estás a tiempo de completar tu compra!</p><p><a href=\"{{cart.recovery_url}}\">👉 Completar mi compra</a></p><p>Total: {{cart.total}} {{cart.currency}}</p>",
+        "¿Olvidaste algo? 🛒 Tu carrito te espera",
+        `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1e293b">
+  <h2 style="font-size:22px;margin:0 0 12px">Hola {{contact.name}} 👋</h2>
+  <p style="font-size:15px;line-height:1.6;color:#475569">Vimos que dejaste algunos productos en tu carrito. ¡Todavía están disponibles y guardados para ti!</p>
+  <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 8px">Total de tu carrito: <strong>{{cart.total}} {{cart.currency}}</strong> · {{cart.item_count}} artículo(s)</p>
+  <p style="text-align:center;margin:28px 0">
+    <a href="{{cart.recovery_url}}" style="background:#f97316;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;display:inline-block;font-size:15px">Completar mi compra →</a>
+  </p>
+  <p style="font-size:13px;color:#94a3b8">Si ya completaste tu compra, ignora este mensaje 🙂</p>
+</div>`,
       ),
+      // Touch 2 — urgency 24h later (only if still not purchased)
       wait(23, "hours"),
+      email(
+        "⏳ Últimas horas para completar tu compra",
+        `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1e293b">
+  <h2 style="font-size:22px;margin:0 0 12px">{{contact.name}}, tu carrito sigue esperando ⏳</h2>
+  <p style="font-size:15px;line-height:1.6;color:#475569">No queremos que te quedes sin lo que elegiste. Tu carrito está reservado por tiempo limitado.</p>
+  <p style="text-align:center;margin:28px 0">
+    <a href="{{cart.recovery_url}}" style="background:#f97316;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;display:inline-block;font-size:15px">Recuperar mi carrito →</a>
+  </p>
+  <p style="font-size:13px;color:#94a3b8">¿Dudas? Responde a este correo y te ayudamos.</p>
+</div>`,
+      ),
+      // Touch 3 — optional WhatsApp nudge (skipped automatically if not configured)
+      wait(24, "hours"),
       whatsapp(),
     ],
   },
