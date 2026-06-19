@@ -16,18 +16,20 @@ import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalenda
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
 
-// Warp streaks that converge into the bottom-right chat corner. Each starts
-// off-screen (up-left), then zooms into the corner (0,0). `to-transparent` is
-// the far end, bright/white at the corner end.
+// Warp streaks that follow the mascot's path: from up-left (the hero) down
+// into the bottom-right chat corner (0,0). Rotations point each trail along
+// that travel line. `to-transparent` is the far end, bright/white at the corner.
 const WARP_STREAKS = [
-  { x: -740, y: -30, rot: -4, color: "from-white via-orange-300 to-transparent" },
-  { x: -690, y: -180, rot: -16, color: "from-white via-orange-400 to-transparent" },
-  { x: -610, y: -320, rot: -28, color: "from-white via-amber-200 to-transparent" },
-  { x: -520, y: -470, rot: -40, color: "from-white via-orange-300 to-transparent" },
-  { x: -420, y: -570, rot: -52, color: "from-white via-fuchsia-300 to-transparent" },
-  { x: -770, y: 70, rot: 7, color: "from-white via-orange-400 to-transparent" },
-  { x: -660, y: -100, rot: -10, color: "from-white via-violet-300 to-transparent" },
-  { x: -560, y: -250, rot: -22, color: "from-white via-amber-300 to-transparent" },
+  { x: -110, y: -210, rot: -62, color: "from-white via-orange-300 to-transparent" },
+  { x: -180, y: -300, rot: -58, color: "from-white via-orange-400 to-transparent" },
+  { x: -150, y: -380, rot: -68, color: "from-white via-amber-200 to-transparent" },
+  { x: -260, y: -300, rot: -50, color: "from-white via-orange-300 to-transparent" },
+  { x: -90, y: -260, rot: -70, color: "from-white via-fuchsia-300 to-transparent" },
+  { x: -320, y: -380, rot: -49, color: "from-white via-orange-400 to-transparent" },
+  { x: -200, y: -460, rot: -66, color: "from-white via-violet-300 to-transparent" },
+  { x: -130, y: -330, rot: -69, color: "from-white via-amber-300 to-transparent" },
+  { x: -240, y: -210, rot: -54, color: "from-white via-orange-200 to-transparent" },
+  { x: -160, y: -150, rot: -56, color: "from-white via-fuchsia-200 to-transparent" },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -2063,11 +2065,11 @@ export default function HomePage() {
             {WARP_STREAKS.map((s, i) => (
               <motion.div
                 key={i}
-                initial={{ x: s.x, y: s.y, opacity: 0, scaleX: 0.15 }}
-                animate={{ x: 0, y: 0, opacity: [0, 1, 0], scaleX: [0.15, 1, 0.05] }}
-                transition={{ duration: 0.6, delay: i * 0.035, ease: [0.2, 1, 0.34, 1] }}
-                style={{ rotate: `${s.rot}deg` }}
-                className={`absolute bottom-[72px] right-[72px] h-[3px] w-72 origin-right rounded-full blur-[2px] bg-gradient-to-l ${s.color}`}
+                initial={{ x: s.x, y: s.y, opacity: 0, scaleX: 0.2 }}
+                animate={{ x: 0, y: 0, opacity: [0, 1, 1, 0], scaleX: [0.2, 1, 1, 0.1] }}
+                transition={{ duration: 0.85, delay: i * 0.04, times: [0, 0.3, 0.7, 1], ease: [0.2, 1, 0.34, 1] }}
+                style={{ rotate: `${s.rot}deg`, boxShadow: "0 0 14px rgba(249,115,22,0.9)" }}
+                className={`absolute bottom-[72px] right-[72px] h-[5px] w-96 origin-right rounded-full bg-gradient-to-l ${s.color}`}
               />
             ))}
           </motion.div>
