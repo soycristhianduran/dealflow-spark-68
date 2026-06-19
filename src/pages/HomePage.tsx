@@ -16,20 +16,14 @@ import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalenda
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
 
-// Warp streaks that follow the mascot's path: from up-left (the hero) down
-// into the bottom-right chat corner (0,0). Rotations point each trail along
-// that travel line. `to-transparent` is the far end, bright/white at the corner.
-const WARP_STREAKS = [
-  { x: -110, y: -210, rot: -62, color: "from-white via-orange-300 to-transparent" },
-  { x: -180, y: -300, rot: -58, color: "from-white via-orange-400 to-transparent" },
-  { x: -150, y: -380, rot: -68, color: "from-white via-amber-200 to-transparent" },
-  { x: -260, y: -300, rot: -50, color: "from-white via-orange-300 to-transparent" },
-  { x: -90, y: -260, rot: -70, color: "from-white via-fuchsia-300 to-transparent" },
-  { x: -320, y: -380, rot: -49, color: "from-white via-orange-400 to-transparent" },
-  { x: -200, y: -460, rot: -66, color: "from-white via-violet-300 to-transparent" },
-  { x: -130, y: -330, rot: -69, color: "from-white via-amber-300 to-transparent" },
-  { x: -240, y: -210, rot: -54, color: "from-white via-orange-200 to-transparent" },
-  { x: -160, y: -150, rot: -56, color: "from-white via-fuchsia-200 to-transparent" },
+// Spark particles trailing behind the comet head (offsets up-left from the
+// head, i.e. larger right/bottom = further back along the tail), with scatter.
+const COMET_SPARKS = [
+  { r: 58, b: 36, s: 4 }, { r: 92, b: 58, s: 3 }, { r: 128, b: 74, s: 5 },
+  { r: 118, b: 96, s: 2 }, { r: 162, b: 94, s: 3 }, { r: 198, b: 118, s: 4 },
+  { r: 178, b: 140, s: 2 }, { r: 232, b: 138, s: 3 }, { r: 88, b: 88, s: 2 },
+  { r: 258, b: 156, s: 2 }, { r: 148, b: 120, s: 2 }, { r: 208, b: 170, s: 3 },
+  { r: 70, b: 60, s: 2 }, { r: 280, b: 178, s: 2 }, { r: 300, b: 150, s: 3 },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -2043,35 +2037,46 @@ export default function HomePage() {
 
       </div>
 
-      {/* Warp light-speed streaks that shoot the mascot into the chat corner */}
+      {/* Comet: the mascot streaks from the hero down into the chat corner */}
       <AnimatePresence>
         {warp && (
           <motion.div
-            key="warp"
+            key="comet"
             aria-hidden
             className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
             initial={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onAnimationComplete={() => setWarp(false)}
           >
-            {/* bright flash arriving at the corner */}
+            {/* bright flash on arrival */}
             <motion.div
               initial={{ opacity: 0, scale: 0.2 }}
-              animate={{ opacity: [0, 1, 0], scale: [0.2, 1.5, 1] }}
-              transition={{ duration: 0.75, times: [0, 0.45, 1], ease: "easeOut" }}
-              className="absolute bottom-10 right-10 h-56 w-56 rounded-full blur-2xl bg-[radial-gradient(circle,rgba(255,255,255,0.95),rgba(249,115,22,0.55)_38%,rgba(168,85,247,0.35)_60%,transparent_75%)]"
+              animate={{ opacity: [0, 0, 1, 0], scale: [0.2, 0.4, 1.5, 1] }}
+              transition={{ duration: 0.9, times: [0, 0.55, 0.78, 1], ease: "easeOut" }}
+              className="absolute bottom-10 right-10 h-56 w-56 rounded-full blur-2xl bg-[radial-gradient(circle,rgba(255,255,255,0.95),rgba(249,115,22,0.55)_38%,transparent_72%)]"
             />
-            {/* converging light trails */}
-            {WARP_STREAKS.map((s, i) => (
-              <motion.div
-                key={i}
-                initial={{ x: s.x, y: s.y, opacity: 0, scaleX: 0.2 }}
-                animate={{ x: 0, y: 0, opacity: [0, 1, 1, 0], scaleX: [0.2, 1, 1, 0.1] }}
-                transition={{ duration: 0.85, delay: i * 0.04, times: [0, 0.3, 0.7, 1], ease: [0.2, 1, 0.34, 1] }}
-                style={{ rotate: `${s.rot}deg`, boxShadow: "0 0 14px rgba(249,115,22,0.9)" }}
-                className={`absolute bottom-[72px] right-[72px] h-[5px] w-96 origin-right rounded-full bg-gradient-to-l ${s.color}`}
-              />
-            ))}
+
+            {/* the moving comet (head + fiery tail + spark particles) */}
+            <motion.div
+              initial={{ x: -560, y: -370, opacity: 0 }}
+              animate={{ x: 0, y: 0, opacity: [0, 1, 1, 0] }}
+              transition={{ duration: 0.85, times: [0, 0.12, 0.72, 1], ease: [0.35, 0.6, 0.4, 1] }}
+              className="absolute bottom-[72px] right-[72px]"
+            >
+              {/* fiery tail — points up-left (back along the path) */}
+              <div className="absolute bottom-0 right-0 h-4 w-96 origin-right -rotate-[33deg] rounded-full blur-md bg-gradient-to-l from-orange-300 via-orange-500/70 to-transparent" />
+              <div className="absolute bottom-0 right-0 h-2 w-80 origin-right -rotate-[33deg] rounded-full blur-sm bg-gradient-to-l from-white via-amber-300/80 to-transparent" />
+              {/* spark particles scattered along the tail */}
+              {COMET_SPARKS.map((p, i) => (
+                <span
+                  key={i}
+                  className="absolute rounded-full bg-orange-300 blur-[1px]"
+                  style={{ right: p.r, bottom: p.b, width: p.s, height: p.s, opacity: 0.9 - i * 0.04 }}
+                />
+              ))}
+              {/* glowing comet head */}
+              <div className="absolute bottom-0 right-0 h-12 w-12 translate-x-1/4 translate-y-1/4 rounded-full blur-[2px] bg-[radial-gradient(circle,#fff,rgba(249,115,22,0.95)_42%,rgba(249,115,22,0.2)_70%,transparent)]" />
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
