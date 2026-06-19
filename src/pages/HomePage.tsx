@@ -641,8 +641,9 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
             ))}
           </ul>
         </div>
-        {/* Visual — its inner animation is driven by playProgress (scroll) */}
-        <div>
+        {/* Visual — its inner animation is driven by playProgress (scroll).
+            On mobile the height is capped so the whole slide fits one screen. */}
+        <div className="max-h-[40vh] lg:max-h-none overflow-hidden rounded-2xl sm:rounded-3xl">
           <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-3 sm:p-6 shadow-2xl shadow-slate-900/10">
             {feature.visual(playProgress)}
           </div>
@@ -656,7 +657,6 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 // each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
   const N = FEATURES.length;
-  const isDesktop = useIsDesktop();
   const ref = useRef<HTMLElement>(null);
   // Pin progress (0..1) computed manually from scroll — avoids useScroll's
   // ScrollTimeline path (which threw "Offsets must be in [0,1]" in some browsers).
@@ -693,23 +693,8 @@ function HorizontalFeatures() {
   const x = useTransform(xIndex, (v) => `-${(v * 100).toFixed(3)}vw`);
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
-  // ── Mobile/tablet: stacked vertical features (no horizontal pin) ──
-  if (!isDesktop) {
-    return (
-      <section id="features" className="bg-slate-950 overflow-x-hidden">
-        <div className="pt-16 pb-6 text-center px-5">
-          <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-2">Por qué Klosify</p>
-          <h2 className="text-3xl font-black text-white tracking-tight">Todo en una sola plataforma</h2>
-        </div>
-        <div>
-          {FEATURES.map((f) => <MobileFeature key={f.title} feature={f} />)}
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 85}vh` }}>
+    <section ref={ref} id="features" className="relative bg-white overflow-x-hidden" style={{ height: `${N * 90}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
         {/* Animated background texture (dot grid + drifting auroras) */}
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.10) 1px, transparent 0)", backgroundSize: "24px 24px" }} />
