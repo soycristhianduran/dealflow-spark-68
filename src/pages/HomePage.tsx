@@ -622,7 +622,7 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
   const scale = useTransform(focus, [0.3, 1], [0.92, 1]);
 
   return (
-    <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-center px-5 sm:px-12 lg:px-20 shrink-0 will-change-transform overflow-hidden">
+    <motion.div data-hslide style={{ opacity: focus, scale }} className="w-screen h-full flex items-start lg:items-center pt-2 lg:pt-0 px-5 sm:px-12 lg:px-20 shrink-0 will-change-transform overflow-hidden">
       <div className="max-w-5xl mx-auto grid lg:grid-cols-2 gap-6 lg:gap-16 items-center w-full">
         {/* Copy */}
         <div>
@@ -643,7 +643,7 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
         </div>
         {/* Visual — its inner animation is driven by playProgress (scroll).
             On mobile the height is capped so the whole slide fits one screen. */}
-        <div className="max-h-[46vh] lg:max-h-none overflow-hidden rounded-2xl sm:rounded-3xl">
+        <div className="max-h-[50vh] lg:max-h-none overflow-hidden rounded-2xl sm:rounded-3xl">
           <div className="rounded-2xl sm:rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 p-3 sm:p-6 shadow-2xl shadow-slate-900/10">
             {feature.visual(playProgress)}
           </div>
