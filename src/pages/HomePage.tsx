@@ -20,7 +20,7 @@ const Mascot3D = lazy(() => import("@/components/Mascot3D"));
  * the hero (upper-right) into the chat corner (bottom-right), continuously
  * emitting glowing fire particles that fade → a detailed fiery trail + sparks.
  */
-function CometCanvas({ onDone }: { onDone: () => void }) {
+function CometCanvas({ onDone, reverse = false }: { onDone: () => void; reverse?: boolean }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current;
@@ -32,8 +32,10 @@ function CometCanvas({ onDone }: { onDone: () => void }) {
     canvas.width = W * dpr; canvas.height = H * dpr;
     ctx.scale(dpr, dpr);
 
-    const start = { x: W * 0.72, y: H * 0.42 };
-    const end = { x: W - 56, y: H - 56 };
+    const hero = { x: W * 0.72, y: H * 0.42 };
+    const corner = { x: W - 56, y: H - 56 };
+    const start = reverse ? corner : hero;
+    const end = reverse ? hero : corner;
     const DURATION = 780;
     const dirx = end.x - start.x, diry = end.y - start.y;
 
@@ -121,7 +123,7 @@ function CometCanvas({ onDone }: { onDone: () => void }) {
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [onDone]);
+  }, [onDone, reverse]);
 
   return <canvas ref={ref} aria-hidden className="fixed inset-0 z-40 pointer-events-none" style={{ width: "100vw", height: "100vh" }} />;
 }
@@ -1339,6 +1341,7 @@ export default function HomePage() {
   const heroScroll = useMotionValue(0);
   const [mascotMin, setMascotMin] = useState(false);
   const [warp, setWarp] = useState(false);
+  const [reverse, setReverse] = useState(false);
   const prevMinRef = useRef(false);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
@@ -1387,9 +1390,10 @@ export default function HomePage() {
       const y = window.scrollY;
       setScrolled(y > 10);
       heroScroll.set(Math.min(1, Math.max(0, y / 760)));
-      // fire the comet right as the hero mascot finishes vanishing (~150px)
+      // fire the comet on crossing the threshold (~150px), in the travel direction
       const newMin = y > 150;
-      if (newMin && !prevMinRef.current) setWarp(true);
+      if (newMin && !prevMinRef.current) { setReverse(false); setWarp(true); }   // hero → corner
+      else if (!newMin && prevMinRef.current) { setReverse(true); setWarp(true); } // corner → hero
       prevMinRef.current = newMin;
       setMascotMin(newMin);
       // Parallax — direct DOM for zero re-render cost
@@ -1657,17 +1661,14 @@ export default function HomePage() {
               {/* Right — animated mascot. Exit: shrinks/flies down (into the comet).
                   Re-entry on scroll up: appears in place at center (no slide). */}
               <motion.div
-                animate={mascotMin ? "out" : "in"}
-                variants={{
-                  in: {
-                    opacity: 1, scale: 1, x: 0, y: 0,
-                    transition: { x: { duration: 0 }, y: { duration: 0 }, opacity: { duration: 0.45 }, scale: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
-                  },
-                  out: {
-                    opacity: 0, scale: 0.15, x: 200, y: 150,
-                    transition: { duration: 0.4, ease: "easeIn" },
-                  },
-                }}
+                animate={mascotMin ? { opacity: 0, scale: 0.15, x: 200, y: 150 } : { opacity: 1, scale: 1, x: 0, y: 0 }}
+                transition={
+                  mascotMin
+                    ? { duration: 0.4, ease: "easeIn" }
+                    // re-entry: snap to original position & size instantly, fade in
+                    // (delayed so it lands as the reverse comet arrives at the hero)
+                    : { opacity: { duration: 0.4, delay: reverse ? 0.6 : 0 }, scale: { duration: 0 }, x: { duration: 0 }, y: { duration: 0 } }
+                }
                 className="flex justify-center items-center relative order-first lg:order-none -mt-4 lg:mt-0">
                 {/* glow behind mascot */}
                 <div aria-hidden className="pointer-events-none absolute h-36 w-36 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
@@ -2140,7 +2141,7 @@ export default function HomePage() {
       </div>
 
       {/* Comet particle system: mascot streaks from the hero into the chat corner */}
-      {warp && <CometCanvas onDone={() => setWarp(false)} />}
+      {warp && <CometCanvas reverse={reverse} onDone={() => setWarp(false)} />}
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
