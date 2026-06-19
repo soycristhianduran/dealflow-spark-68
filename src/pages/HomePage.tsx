@@ -1340,11 +1340,6 @@ export default function HomePage() {
   const [mascotMin, setMascotMin] = useState(false);
   const [warp, setWarp] = useState(false);
   const prevMinRef = useRef(false);
-  // Hero mascot shrinks toward the corner & vanishes by ~150px (= comet launch).
-  const mascotHeroOpacity = useTransform(heroScroll, [0, 0.2], [1, 0]);
-  const mascotHeroScale = useTransform(heroScroll, [0, 0.2], [1, 0.15]);
-  const mascotHeroX = useTransform(heroScroll, [0, 0.2], [0, 220]);
-  const mascotHeroY = useTransform(heroScroll, [0, 0.2], [0, 160]);
 
   // Fetch Stripe price IDs from DB (public table, no auth needed)
   useEffect(() => {
@@ -1659,9 +1654,20 @@ export default function HomePage() {
                 </motion.div>
               </motion.div>
 
-              {/* Right — animated mascot (minimizes to the corner on scroll) */}
+              {/* Right — animated mascot. Exit: shrinks/flies down (into the comet).
+                  Re-entry on scroll up: appears in place at center (no slide). */}
               <motion.div
-                style={{ opacity: mascotHeroOpacity, scale: mascotHeroScale, x: mascotHeroX, y: mascotHeroY }}
+                animate={mascotMin ? "out" : "in"}
+                variants={{
+                  in: {
+                    opacity: 1, scale: 1, x: 0, y: 0,
+                    transition: { x: { duration: 0 }, y: { duration: 0 }, opacity: { duration: 0.45 }, scale: { duration: 0.5, ease: [0.16, 1, 0.3, 1] } },
+                  },
+                  out: {
+                    opacity: 0, scale: 0.15, x: 200, y: 150,
+                    transition: { duration: 0.4, ease: "easeIn" },
+                  },
+                }}
                 className="flex justify-center items-center relative order-first lg:order-none -mt-4 lg:mt-0">
                 {/* glow behind mascot */}
                 <div aria-hidden className="pointer-events-none absolute h-36 w-36 lg:h-96 lg:w-96 rounded-full bg-orange-500/25 blur-3xl" />
