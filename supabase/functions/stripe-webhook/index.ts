@@ -30,6 +30,48 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// ── Meta Conversions API: server-side Purchase event ────────────────────────
+// Fires when a checkout completes. event_id = the Stripe session id, so Stripe
+// retries never double-count and it deduplicates against any browser event.
+async function metaSha256(v: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(v.trim().toLowerCase()));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function sendMetaPurchase(session: any): Promise<void> {
+  const token = Deno.env.get("META_CAPI_TOKEN");
+  if (!token) return; // pixel not configured — skip silently
+  const pixelId = Deno.env.get("META_PIXEL_ID") || "895291419505730";
+  try {
+    const email = session.customer_details?.email || session.customer_email;
+    const phone = session.customer_details?.phone;
+    const ud: Record<string, unknown> = {};
+    if (email) ud.em = [await metaSha256(String(email))];
+    if (phone) ud.ph = [await metaSha256(String(phone).replace(/[^\d]/g, ""))];
+    const body = {
+      data: [{
+        event_name: "Purchase",
+        event_time: Math.floor(Date.now() / 1000),
+        event_id: session.id,                       // idempotent + dedup key
+        action_source: "website",
+        user_data: ud,
+        custom_data: {
+          currency: (session.currency || "usd").toUpperCase(),
+          value: (session.amount_total ?? 0) / 100,
+        },
+      }],
+    };
+    const testCode = Deno.env.get("META_TEST_EVENT_CODE");
+    if (testCode) (body as any).test_event_code = testCode;
+    await fetch(`https://graph.facebook.com/v21.0/${pixelId}/events?access_token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    console.warn("meta Purchase send failed:", e);
+  }
+}
+
 // Map Stripe subscription status → our internal status enum
 function mapStripeStatus(stripeStatus: string): string {
   // Identity mapping for everything Stripe supports except our extra
@@ -420,6 +462,9 @@ Deno.serve(async (req) => {
           console.warn("checkout.session.completed has no organization_id metadata");
           break;
         }
+
+        // Meta Purchase (server-side, deduplicated by session id)
+        await sendMetaPurchase(session);
 
         // ── One-time credit pack (IA Boost or IA Landings) ────────────────
         if (session.mode === "payment" && session.payment_intent) {
