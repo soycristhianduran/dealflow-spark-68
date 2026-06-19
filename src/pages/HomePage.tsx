@@ -14,7 +14,6 @@ import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionV
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
-const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
 
 /**
  * Real particle-system comet on a canvas (not CSS divs). The head travels from
@@ -2166,13 +2165,9 @@ export default function HomePage() {
           <motion.div
             animate={{ y: [0, -6, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-800 to-slate-950 ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
+            className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-900 to-black ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            {mascotMin && (
-              <Suspense fallback={null}>
-                <Mascot3DHead />
-              </Suspense>
-            )}
+            <img src="/mascot-head.png" alt="Asistente IA de Klosify" className="absolute inset-0 h-full w-full object-cover scale-110 select-none" draggable={false} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </a>
