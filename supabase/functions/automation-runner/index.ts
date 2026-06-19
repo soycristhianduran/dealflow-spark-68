@@ -265,6 +265,9 @@ Deno.serve(async (req) => {
           if (cfg.stage_id && cfg.stage_id !== trigger_data?.stage_id) continue;
           if (!cfg.stage_id && cfg.stage_name && cfg.stage_name !== trigger_data?.stage_name) continue;
         }
+        // abandoned_cart: optionally only fire above a minimum cart value
+        if (trigger_type === "abandoned_cart" && cfg.min_value
+            && Number(trigger_data?.cart?.total || 0) < Number(cfg.min_value)) continue;
 
         // Skip if already active/waiting in this automation
         const { data: existing } = await supabase
@@ -286,6 +289,7 @@ Deno.serve(async (req) => {
             status: "active",
             current_step_index: 0,
             next_run_at: new Date().toISOString(),
+            trigger_data: trigger_data || null,   // available in messages (e.g. {{cart.recovery_url}})
           })
           .select("*, automations(*), contacts(*)")
           .single();
@@ -561,6 +565,8 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       phone: contact.primary_phone || "",
       company: contact.company_name || "",
     },
+    // Trigger context (e.g. abandoned cart) → {{cart.recovery_url}}, {{cart.total}}…
+    ...(enr.trigger_data || {}),
   };
 
   const addLog = (msg: string) => {

@@ -212,6 +212,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   landing_form_submitted:  "Formulario de Landing Page",
   email_opened:            "Email abierto",
   email_clicked:           "Email — link cliqueado",
+  abandoned_cart:          "Carrito abandonado (Shopify)",
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

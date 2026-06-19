@@ -3,6 +3,9 @@ project_id = "oqwcgvemrvimrdrzjzil"
 [functions.meta-capi]
 verify_jwt = false
 
+[functions.shopify-abandoned-sync]
+verify_jwt = false
+
 [functions.stripe-webhook]
 verify_jwt = false
 
