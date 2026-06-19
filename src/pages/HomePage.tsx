@@ -694,7 +694,7 @@ function HorizontalFeatures() {
   const barScaleX = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <section ref={ref} id="features" className="relative bg-white overflow-x-hidden" style={{ height: `${N * 90}vh` }}>
+    <section ref={ref} id="features" className="relative bg-white" style={{ height: `${N * 90}vh` }}>
       <div className="sticky top-0 h-screen overflow-hidden flex flex-col">
         {/* Animated background texture (dot grid + drifting auroras) */}
         <div aria-hidden className="pointer-events-none absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(15,23,42,0.10) 1px, transparent 0)", backgroundSize: "24px 24px" }} />
@@ -1412,7 +1412,7 @@ export default function HomePage() {
     <>
       {/* ── Global keyframes ──────────────────────────────────────────────── */}
       <style>{`
-        html, body { overflow-x: hidden; max-width: 100%; }
+        body { overflow-x: hidden; }
         @keyframes hero-fade-up {
           from { opacity: 0; transform: translateY(24px); }
           to   { opacity: 1; transform: translateY(0);    }
