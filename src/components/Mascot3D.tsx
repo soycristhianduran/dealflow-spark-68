@@ -184,12 +184,12 @@ function HeadModel() {
   useFrame((state) => {
     if (!group.current) return;
     const t = state.clock.getElapsedTime();
-    group.current.rotation.y = Math.sin(t * 0.6) * 0.1;
-    group.current.position.y = -1.12 + Math.sin(t * 1.4) * 0.012;
+    // same positioning as the hero (where the face frames correctly), zoomed in
+    group.current.rotation.y = Math.sin(t * 0.6) * 0.12;
+    group.current.position.y = -0.68 + Math.sin(t * 1.4) * 0.01;
   });
-  // framed so the visor/face fills the circle
   return (
-    <group ref={group} scale={13} position={[0, -1.12, 0]}>
+    <group ref={group} scale={13} position={[0, -0.68, 0]}>
       <primitive object={model} />
       <FaceScreen />
     </group>
@@ -200,11 +200,11 @@ export function Mascot3DHead() {
   return (
     <Canvas
       dpr={[1, 2]}
-      camera={{ position: [0, 0.05, 0.72], fov: 30 }}
+      camera={{ position: [0, 0.42, 1.6], fov: 30 }}
       gl={{ antialias: true, alpha: true }}
       style={{ width: "100%", height: "100%", background: "transparent" }}
     >
-      <ambientLight intensity={0.75} />
+      <ambientLight intensity={0.85} />
       <directionalLight position={[3, 4, 5]} intensity={1.5} />
       <directionalLight position={[-4, 2, -2]} intensity={0.6} color="#ffd9b0" />
       <Suspense fallback={null}>
