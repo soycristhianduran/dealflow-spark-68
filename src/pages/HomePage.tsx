@@ -10,11 +10,25 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
+import { motion, AnimatePresence, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 const Mascot3DHead = lazy(() => import("@/components/Mascot3D").then((m) => ({ default: m.Mascot3DHead })));
+
+// Warp streaks that converge into the bottom-right chat corner. Each starts
+// off-screen (up-left), then zooms into the corner (0,0). `to-transparent` is
+// the far end, bright/white at the corner end.
+const WARP_STREAKS = [
+  { x: -740, y: -30, rot: -4, color: "from-white via-orange-300 to-transparent" },
+  { x: -690, y: -180, rot: -16, color: "from-white via-orange-400 to-transparent" },
+  { x: -610, y: -320, rot: -28, color: "from-white via-amber-200 to-transparent" },
+  { x: -520, y: -470, rot: -40, color: "from-white via-orange-300 to-transparent" },
+  { x: -420, y: -570, rot: -52, color: "from-white via-fuchsia-300 to-transparent" },
+  { x: -770, y: 70, rot: 7, color: "from-white via-orange-400 to-transparent" },
+  { x: -660, y: -100, rot: -10, color: "from-white via-violet-300 to-transparent" },
+  { x: -560, y: -250, rot: -22, color: "from-white via-amber-300 to-transparent" },
+];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -1228,14 +1242,13 @@ export default function HomePage() {
   // Mascot: lives in the hero, then minimizes to the bottom-right chat corner on scroll.
   const heroScroll = useMotionValue(0);
   const [mascotMin, setMascotMin] = useState(false);
+  const [warp, setWarp] = useState(false);
+  const prevMinRef = useRef(false);
   // Hero mascot vanishes fast (shrinks + zooms out) right as you start scrolling.
   const mascotHeroOpacity = useTransform(heroScroll, [0, 0.14], [1, 0]);
   const mascotHeroScale = useTransform(heroScroll, [0, 0.16], [1, 0.2]);
   const mascotHeroX = useTransform(heroScroll, [0, 0.16], [0, 160]);
   const mascotHeroY = useTransform(heroScroll, [0, 0.16], [0, 120]);
-  // An orange light streak shoots from the hero down to the chat corner.
-  const streakOpacity = useTransform(heroScroll, [0.12, 0.3, 0.52], [0, 1, 0]);
-  const streakScale = useTransform(heroScroll, [0.12, 0.52], [0.6, 1.15]);
   // Corner widget pops in at the corner once the streak arrives.
   const cornerOpacity = useTransform(heroScroll, [0.46, 0.6], [0, 1]);
   const cornerScale = useTransform(heroScroll, [0.44, 0.7], [1.7, 1]);
@@ -1288,7 +1301,10 @@ export default function HomePage() {
       const y = window.scrollY;
       setScrolled(y > 10);
       heroScroll.set(Math.min(1, Math.max(0, y / 760)));
-      setMascotMin(y > 430);
+      const newMin = y > 430;
+      if (newMin && !prevMinRef.current) setWarp(true); // trigger warp on entering
+      prevMinRef.current = newMin;
+      setMascotMin(newMin);
       // Parallax — direct DOM for zero re-render cost
       if (heroGlowRef.current) heroGlowRef.current.style.transform = `translateY(${y * 0.35}px)`;
       if (heroGridRef.current) heroGridRef.current.style.transform = `translateY(${y * 0.18}px)`;
@@ -2025,17 +2041,38 @@ export default function HomePage() {
 
       </div>
 
-      {/* Orange light streak that shoots toward the chat corner on scroll */}
-      <motion.div
-        aria-hidden
-        style={{ opacity: streakOpacity, scale: streakScale }}
-        className="fixed bottom-8 right-8 z-40 pointer-events-none h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(249,115,22,0.9),rgba(249,115,22,0.25)_45%,transparent_70%)] blur-2xl"
-      />
-      <motion.div
-        aria-hidden
-        style={{ opacity: streakOpacity }}
-        className="fixed bottom-12 right-12 z-40 pointer-events-none h-2 w-72 origin-right -rotate-[38deg] rounded-full bg-gradient-to-l from-orange-400 via-orange-500/70 to-transparent blur-[3px]"
-      />
+      {/* Warp light-speed streaks that shoot the mascot into the chat corner */}
+      <AnimatePresence>
+        {warp && (
+          <motion.div
+            key="warp"
+            aria-hidden
+            className="fixed inset-0 z-40 pointer-events-none overflow-hidden"
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onAnimationComplete={() => setWarp(false)}
+          >
+            {/* bright flash arriving at the corner */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.2 }}
+              animate={{ opacity: [0, 1, 0], scale: [0.2, 1.5, 1] }}
+              transition={{ duration: 0.75, times: [0, 0.45, 1], ease: "easeOut" }}
+              className="absolute bottom-10 right-10 h-56 w-56 rounded-full blur-2xl bg-[radial-gradient(circle,rgba(255,255,255,0.95),rgba(249,115,22,0.55)_38%,rgba(168,85,247,0.35)_60%,transparent_75%)]"
+            />
+            {/* converging light trails */}
+            {WARP_STREAKS.map((s, i) => (
+              <motion.div
+                key={i}
+                initial={{ x: s.x, y: s.y, opacity: 0, scaleX: 0.15 }}
+                animate={{ x: 0, y: 0, opacity: [0, 1, 0], scaleX: [0.15, 1, 0.05] }}
+                transition={{ duration: 0.6, delay: i * 0.035, ease: [0.2, 1, 0.34, 1] }}
+                style={{ rotate: `${s.rot}deg` }}
+                className={`absolute bottom-[72px] right-[72px] h-[3px] w-72 origin-right rounded-full blur-[2px] bg-gradient-to-l ${s.color}`}
+              />
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Floating mascot (appears as you scroll — bottom-right chat corner) ── */}
       <motion.div
