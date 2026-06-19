@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/components/auth/CountryPhoneInput";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { trackEvent } from "@/lib/metaPixel";
 
 const industries = [
   "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
@@ -154,7 +155,15 @@ export default function AuthPage() {
       },
     });
     if (error) toast.error(error.message);
-    else toast.success("Cuenta creada exitosamente");
+    else {
+      toast.success("Cuenta creada exitosamente");
+      // Meta: CompleteRegistration (pixel + CAPI, deduplicated by event_id)
+      trackEvent(
+        "CompleteRegistration",
+        { content_name: "signup", status: true },
+        { email, phone: fullPhone, firstName: firstName.trim(), lastName: lastName.trim() },
+      );
+    }
     setLoading(false);
   };
 

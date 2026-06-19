@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
+import { trackEvent } from "@/lib/metaPixel";
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 
 /**
@@ -1344,6 +1345,8 @@ export default function HomePage() {
   }, []);
 
   async function startCheckout(planId: string) {
+    // Meta: InitiateCheckout (pixel + CAPI, deduplicated by event_id)
+    trackEvent("InitiateCheckout", { content_name: planId, content_category: isAnnual ? "annual" : "monthly" });
     // Not logged in → go to auth, then bounce to /pricing which handles checkout
     if (!session) {
       navigate(`/auth?plan=${planId}&interval=${isAnnual ? "annual" : "monthly"}`);
