@@ -52,6 +52,7 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
   <h2 style="font-size:22px;margin:0 0 12px">Hola {{contact.name}} 👋</h2>
   <p style="font-size:15px;line-height:1.6;color:#475569">Vimos que dejaste algunos productos en tu carrito. ¡Todavía están disponibles y guardados para ti!</p>
   <p style="font-size:15px;line-height:1.6;color:#475569;margin:0 0 8px">Total de tu carrito: <strong>{{cart.total}} {{cart.currency}}</strong> · {{cart.item_count}} artículo(s)</p>
+  {{cart.products_html}}
   <p style="text-align:center;margin:28px 0">
     <a href="{{cart.recovery_url}}" style="background:#f97316;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;display:inline-block;font-size:15px">Completar mi compra →</a>
   </p>
@@ -65,6 +66,7 @@ export const AUTOMATION_TEMPLATES: AutomationTemplate[] = [
         `<div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#1e293b">
   <h2 style="font-size:22px;margin:0 0 12px">{{contact.name}}, tu carrito sigue esperando ⏳</h2>
   <p style="font-size:15px;line-height:1.6;color:#475569">No queremos que te quedes sin lo que elegiste. Tu carrito está reservado por tiempo limitado.</p>
+  {{cart.products_html}}
   <p style="text-align:center;margin:28px 0">
     <a href="{{cart.recovery_url}}" style="background:#f97316;color:#fff;text-decoration:none;font-weight:700;padding:14px 28px;border-radius:10px;display:inline-block;font-size:15px">Recuperar mi carrito →</a>
   </p>

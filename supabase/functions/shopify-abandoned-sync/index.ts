@@ -14,6 +14,32 @@ const MAX_AGE_HOURS = 72;       // don't notify checkouts older than this
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+// Build an email-ready product grid from the cart line items. Shows the product
+// image when Shopify provides it (otherwise a neutral placeholder), plus title,
+// quantity and price, each linking to the cart recovery URL.
+function buildProductsHtml(items: any[], currency: string | null, recoveryUrl: string | null): string {
+  if (!items?.length) return "";
+  const cur = currency || "";
+  const link = recoveryUrl || "#";
+  const rows = items.slice(0, 6).map((it) => {
+    const img = it.image
+      ? `<img src="${it.image}" width="64" height="64" alt="" style="width:64px;height:64px;border-radius:8px;object-fit:cover;display:block" />`
+      : `<div style="width:64px;height:64px;border-radius:8px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:24px">🛍️</div>`;
+    return `<tr>
+      <td style="padding:8px 12px 8px 0;vertical-align:middle">${img}</td>
+      <td style="padding:8px 0;vertical-align:middle;font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif">
+        <div style="font-size:14px;font-weight:600;color:#1e293b">${it.title ?? "Producto"}</div>
+        <div style="font-size:13px;color:#64748b">Cantidad: ${it.qty ?? 1} · ${Number(it.price ?? 0).toFixed(2)} ${cur}</div>
+      </td>
+      <td style="padding:8px 0;text-align:right;vertical-align:middle">
+        <a href="${link}" style="font-size:13px;color:#f97316;text-decoration:none;font-weight:600;white-space:nowrap">Comprar →</a>
+      </td>
+    </tr>`;
+  }).join("");
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"
+    style="border:1px solid #e2e8f0;border-radius:12px;padding:8px 14px;margin:18px 0">${rows}</table>`;
+}
+
 async function fireAbandonedTrigger(contactId: string, cart: Record<string, unknown>) {
   // Reuse the central automation engine (same shape landing-submit/track-email use).
   await fetch(`${SUPABASE_URL}/functions/v1/automation-runner`, {
@@ -50,7 +76,12 @@ async function processStore(db: any, cfg: any): Promise<number> {
     if (!email && !phone) continue;                     // can't reach them
 
     const items = (c.line_items || []).map((li: any) => ({
-      title: li.title, qty: li.quantity, price: Number(li.price ?? 0),
+      title: li.title,
+      qty: li.quantity,
+      price: Number(li.price ?? 0),
+      // Shopify sometimes includes the image on the checkout line item; if the
+      // app lacks read_products we just won't have it → renders text-only.
+      image: li.image_url || li.image?.src || li.image || null,
     }));
     const cartRow = {
       organization_id: cfg.organization_id,
@@ -125,6 +156,8 @@ async function processStore(db: any, cfg: any): Promise<number> {
         currency: cartRow.currency,
         item_count: cartRow.item_count,
         items: cartRow.items,
+        // Ready-to-inject product grid for the email ({{cart.products_html}})
+        products_html: buildProductsHtml(cartRow.items, cartRow.currency, cartRow.recovery_url),
         shop: cfg.shop_name || cfg.shop_domain,
       });
       fired++;
