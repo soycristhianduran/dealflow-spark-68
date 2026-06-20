@@ -77,14 +77,19 @@ Deno.serve(async (req) => {
       }
       const authHeader = req.headers.get("authorization");
       if (!authHeader) throw new Error("No authorization header");
+      const jwt = authHeader.replace("Bearer ", "");
 
       const body = await req.json().catch(() => ({}));
-      // Run as the user so create_oauth_state's auth.uid() resolves to them.
+      // Verify the user with the explicit JWT (getUser() with no arg returns
+      // null in the edge runtime — there is no persisted session).
+      const { data: { user }, error: authErr } = await service.auth.getUser(jwt);
+      if (authErr || !user) throw new Error("Unauthorized");
+
+      // Separate client that FORWARDS the user's JWT so create_oauth_state's
+      // auth.uid() resolves to them (it runs as the `authenticated` role).
       const userClient = createClient(SUPABASE_URL, ANON_KEY, {
         global: { headers: { Authorization: authHeader } },
       });
-      const { data: { user } } = await userClient.auth.getUser();
-      if (!user) throw new Error("Unauthorized");
 
       // Resolve org (from body or membership) for state + later scoping.
       let organizationId: string | null = body.organization_id ?? null;
