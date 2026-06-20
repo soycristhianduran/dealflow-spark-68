@@ -1090,7 +1090,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     } else {
       const delay_value = wcfg.delay_value ?? 1;
       const delay_unit = wcfg.delay_unit ?? "days";
-      const ms = { minutes: 60_000, hours: 3_600_000, days: 86_400_000 }[delay_unit as string] ?? 86_400_000;
+      const ms = { seconds: 1_000, minutes: 60_000, hours: 3_600_000, days: 86_400_000 }[delay_unit as string] ?? 86_400_000;
       nextRunAt = new Date(Date.now() + delay_value * ms);
       logs = addLog(`Esperando ${delay_value} ${delay_unit} hasta ${nextRunAt.toLocaleString()}`);
     }

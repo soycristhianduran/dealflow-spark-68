@@ -2103,6 +2103,7 @@ function WaitStepEditor({ step, onChange }: {
             <Select value={c.delay_unit ?? "days"} onValueChange={v => set("delay_unit", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="seconds">Segundos</SelectItem>
                 <SelectItem value="minutes">Minutos</SelectItem>
                 <SelectItem value="hours">Horas</SelectItem>
                 <SelectItem value="days">Días</SelectItem>
