@@ -42,6 +42,11 @@ verify_jwt = false
 [functions.instagram-api]
 verify_jwt = false
 
+# Public, no-login page (app.klosify.com/ig/verify/:token) calls this — must
+# NOT require a JWT, otherwise it returns "Missing authorization header".
+[functions.ig-follow-verify]
+verify_jwt = false
+
 [functions.analyze-contact-ai]
 verify_jwt = false
 
