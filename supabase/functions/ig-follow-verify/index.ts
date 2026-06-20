@@ -104,7 +104,7 @@ Deno.serve(async (req) => {
     // Load account
     const { data: account } = await supabase
       .from("instagram_accounts")
-      .select("id, ig_user_id, ig_username, page_access_token")
+      .select("id, ig_user_id, ig_username, page_id, page_access_token")
       .eq("id", pending.ig_account_id)
       .maybeSingle();
 
@@ -126,6 +126,10 @@ Deno.serve(async (req) => {
     const commenterId = pending.commenter_id;
     // ig_user_id is the Instagram Business Account ID (correct column name)
     const igUserId = account.ig_user_id;
+    // Node to SEND from: page token → PAGE id on graph.facebook.com; IG Login
+    // (IGAA) → ig_user_id on graph.instagram.com. Sending from ig_user_id on
+    // graph.facebook.com returns Meta error #3 → "could not send DM".
+    const sendNodeId = igToken.startsWith("IGAA") ? igUserId : (account.page_id || igUserId);
     const igUsername = account.ig_username || null;
 
     console.log("[ig-follow-verify] account.ig_user_id:", igUserId, "commenter:", commenterId);
@@ -162,7 +166,7 @@ Deno.serve(async (req) => {
     const resourceText = pending.dm_text;
     const resourceButtons = auto?.dm_buttons ?? null;
 
-    const sendRes = await fetch(`${host}/${igUserId}/messages`, {
+    const sendRes = await fetch(`${host}/${sendNodeId}/messages`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
