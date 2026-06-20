@@ -14,7 +14,7 @@ CREATE OR REPLACE FUNCTION public.create_oauth_state(p_provider TEXT)
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_user_id UUID;
@@ -38,7 +38,7 @@ CREATE OR REPLACE FUNCTION public.create_oauth_state(p_provider TEXT, p_organiza
 RETURNS TEXT
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_user_id UUID;
