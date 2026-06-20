@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     if (req.method === "POST") {
       if (!IG_APP_ID) {
         return new Response(JSON.stringify({ error: "META_APP_ID_IG no está configurado" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const authHeader = req.headers.get("authorization");
@@ -239,8 +239,10 @@ Deno.serve(async (req) => {
   } catch (e: any) {
     console.error("instagram-oauth error:", e?.message || e);
     if (req.method === "POST") {
-      return new Response(JSON.stringify({ error: e?.message || "error" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      // Return 200 with the error so the client surfaces the real reason in the
+      // toast (functions.invoke hides the body on non-2xx).
+      return new Response(JSON.stringify({ error: "IG-OAUTH: " + (e?.message || String(e)) }), {
+        status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
     return new Response(null, { status: 302, headers: { "Location": `${appUrl}/integrations?ig_error=true` } });
