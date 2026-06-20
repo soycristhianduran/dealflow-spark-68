@@ -805,7 +805,14 @@ async function processInstagramMessenger(
         // ── B) Still not following → re-send the "please follow" message ────
         const auto = pending.automation;
         if (auto?.dm_message_non_follower) {
-          const nonFollowerText = resolveVars(auto.dm_message_non_follower, null, null);
+          // Resolve the sender's @username so {{username}}/{{nombre}} aren't blank.
+          let nfUsername: string | null = null;
+          try {
+            const ur = await fetch(`${igHost}/${senderId}?fields=username&access_token=${encodeURIComponent(igToken)}`);
+            const ud = await ur.json();
+            if (ud?.username) nfUsername = ud.username;
+          } catch (_) { /* best-effort */ }
+          const nonFollowerText = resolveVars(auto.dm_message_non_follower, nfUsername, null);
           const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
@@ -1451,11 +1458,14 @@ async function processInstagramNewFollower(
   const followerId: string | undefined = change.value?.follower_id;
   if (!followerId) return;
 
-  // Find the IG account record
+  // Find the IG account record.
+  // NOTE: the column is `ig_user_id` (NOT `instagram_user_id`, which does not
+  // exist) — the old code queried a nonexistent column, so this lookup always
+  // returned null and new_follower automations silently never fired.
   const { data: account } = await supabase
     .from("instagram_accounts")
-    .select("id, user_id, page_access_token, instagram_user_id")
-    .eq("instagram_user_id", igAccountId)
+    .select("id, user_id, organization_id, page_id, page_access_token, ig_user_id")
+    .eq("ig_user_id", igAccountId)
     .maybeSingle();
   if (!account?.page_access_token) return;
 
@@ -1471,9 +1481,14 @@ async function processInstagramNewFollower(
   if (!autos || autos.length === 0) return;
 
   const igToken = account.page_access_token;
-  const igHost = igToken?.startsWith("IGAA")
+  const isIgLogin = !!igToken && igToken.startsWith("IGAA");
+  const igHost = isIgLogin
     ? "https://graph.instagram.com/v21.0"
     : "https://graph.facebook.com/v21.0";
+  // Messaging node: IG Login → ig_user_id on graph.instagram.com;
+  // Page token → PAGE id on graph.facebook.com (sending from ig_user_id on
+  // graph.facebook.com returns Meta error #3 "capability").
+  const sendNodeId = isIgLogin ? account.ig_user_id : (account.page_id || account.ig_user_id);
 
   // Get follower username for {{username}} / {{nombre}} placeholders
   let followerUsername: string | null = null;
@@ -1486,7 +1501,7 @@ async function processInstagramNewFollower(
   for (const auto of autos) {
     if (!auto.dm_message_text) continue;
     const text = resolveVars(auto.dm_message_text, followerUsername, null);
-    const r = await fetch(`${igHost}/${account.instagram_user_id}/messages`, {
+    const r = await fetch(`${igHost}/${sendNodeId}/messages`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -1501,13 +1516,18 @@ async function processInstagramNewFollower(
       console.log(`New follower DM sent to ${followerId}`);
       // Save outgoing message to conversations
       await supabase.from("instagram_messages").insert({
+        user_id: account.user_id,
+        organization_id: account.organization_id,
         ig_account_id: account.id,
-        sender_id: account.instagram_user_id,
+        ig_message_id: d.message_id ?? null,
+        sender_id: account.ig_user_id,
         recipient_id: followerId,
         message_text: text,
+        message_type: "text",
         direction: "outgoing",
-        timestamp: new Date().toISOString(),
-      }).throwOnError().catch(() => {/* table may differ */});
+        status: "sent",
+        sent_at: new Date().toISOString(),
+      }).catch(() => {/* non-fatal */});
     }
     await supabase.from("instagram_comment_automations")
       .update({ trigger_count: (auto.trigger_count ?? 0) + 1, last_triggered_at: new Date().toISOString() })
