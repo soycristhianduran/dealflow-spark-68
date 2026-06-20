@@ -213,7 +213,8 @@ Deno.serve(async (req) => {
     if (upsertErr) {
       console.error("instagram_accounts upsert failed:", JSON.stringify(upsertErr));
       const slug = await resolveOrgSlug(service, organizationId, userId);
-      return new Response(null, { status: 302, headers: { "Location": buildRedirect(appUrl, slug, "ig_error=save_failed") } });
+      const detail = encodeURIComponent((upsertErr.message || upsertErr.code || JSON.stringify(upsertErr)).slice(0, 200));
+      return new Response(null, { status: 302, headers: { "Location": buildRedirect(appUrl, slug, `ig_error=save_failed:${detail}`) } });
     }
 
     // 5) Subscribe the IG account to messages + comments webhooks
