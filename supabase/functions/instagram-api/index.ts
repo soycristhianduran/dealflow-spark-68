@@ -199,7 +199,11 @@ Deno.serve(async (req) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            subscribed_fields: "messages,messaging_postbacks,messaging_seen",
+            // `messaging_seen` is no longer a valid subscribable field on the
+            // current Graph API version → Meta rejects the WHOLE subscription
+            // with error 100, so the page never receives IG DMs. Keep the
+            // essential, valid fields only.
+            subscribed_fields: "messages,messaging_postbacks,message_reactions,messaging_referral",
           }),
         });
         subscribeRaw = await subRes.json();
@@ -306,7 +310,7 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              subscribed_fields: "messages,messaging_postbacks,messaging_seen",
+              subscribed_fields: "messages,messaging_postbacks,message_reactions,messaging_referral",
             }),
           });
           resubscribeResult = await r.json();
