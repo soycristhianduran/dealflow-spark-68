@@ -1,0 +1,37 @@
+{
+  "note": "OLD Stripe account config (plan price IDs) BEFORE migration. To revert: restore STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET to the old account, run REVERT_to_old_account.sql, and restore stripe-products.OLD.ts.bak.",
+  "plans": [
+    {
+      "id": "starter",
+      "name": "Starter",
+      "monthly_price_usd": "29.00",
+      "annual_price_usd": "290.00",
+      "stripe_price_id_monthly": "price_1TbswcRvVDvs7cXCyYdBxxwb",
+      "stripe_price_id_annual": "price_1TbswdRvVDvs7cXCBJtd8JXR"
+    },
+    {
+      "id": "pro",
+      "name": "Pro",
+      "monthly_price_usd": "59.00",
+      "annual_price_usd": "590.00",
+      "stripe_price_id_monthly": "price_1TiapyRvVDvs7cXCJg58CTqA",
+      "stripe_price_id_annual": "price_1TiapyRvVDvs7cXCmaNHxRjH"
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "monthly_price_usd": "99.00",
+      "annual_price_usd": "990.00",
+      "stripe_price_id_monthly": "price_1TiapyRvVDvs7cXCjGEUFYvH",
+      "stripe_price_id_annual": "price_1TiapyRvVDvs7cXCLqmOyGZv"
+    },
+    {
+      "id": "agency",
+      "name": "Agencia",
+      "monthly_price_usd": "249.00",
+      "annual_price_usd": "2490.00",
+      "stripe_price_id_monthly": "price_1TiapzRvVDvs7cXCptmC3Zt6",
+      "stripe_price_id_annual": "price_1TiapzRvVDvs7cXCaOODasPK"
+    }
+  ]
+}
