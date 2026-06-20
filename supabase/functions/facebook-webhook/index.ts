@@ -448,10 +448,10 @@ async function processLeadgenChange(
 async function findIgAccountByIgUserId(
   supabase: any,
   igUserId: string,
-): Promise<{ id: string; user_id: string; page_access_token: string } | null> {
+): Promise<{ id: string; user_id: string; page_id: string | null; organization_id: string | null; page_access_token: string } | null> {
   const { data } = await supabase
     .from("instagram_accounts")
-    .select("id, user_id, page_access_token")
+    .select("id, user_id, page_id, organization_id, page_access_token")
     .eq("ig_user_id", igUserId)
     .eq("is_active", true)
     .maybeSingle();
@@ -598,6 +598,15 @@ async function processInstagramMessenger(
     return;
   }
 
+  // Node to SEND replies from. Page token → PAGE id on graph.facebook.com;
+  // IG Login token (IGAA) → ig_user_id on graph.instagram.com. Sending from the
+  // ig_user_id on graph.facebook.com returns Meta error #3 ("capability"), which
+  // silently broke every auto-reply below (story replies, follower-gate lead
+  // magnet delivery, AI replies).
+  const sendFromNode = account.page_access_token?.startsWith("IGAA")
+    ? recipientId
+    : (account.page_id || recipientId);
+
   // Read message contents
   const msg = event.message;
   if (!msg) {
@@ -685,7 +694,7 @@ async function processInstagramMessenger(
             : "https://graph.facebook.com/v21.0";
 
           const sendDm = async (text: string, buttons?: any[] | null) => {
-            const r = await fetch(`${igHost}/${recipientId}/messages`, {
+            const r = await fetch(`${igHost}/${sendFromNode}/messages`, {
               method: "POST",
               headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
               body: JSON.stringify({ recipient: { id: senderId }, message: buildIgMessageBody(text, buttons) }),
@@ -765,7 +774,7 @@ async function processInstagramMessenger(
         // ── A) Confirmed follower → deliver lead magnet ──────────────────────
         const auto = pending.automation;
         const resourceButtons = auto?.dm_buttons ?? null;
-        const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
+        const sendRes = await fetch(`${igHost}/${sendFromNode}/messages`, {
           method: "POST",
           headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -813,7 +822,7 @@ async function processInstagramMessenger(
             if (ud?.username) nfUsername = ud.username;
           } catch (_) { /* best-effort */ }
           const nonFollowerText = resolveVars(auto.dm_message_non_follower, nfUsername, null);
-          const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
+          const sendRes = await fetch(`${igHost}/${sendFromNode}/messages`, {
             method: "POST",
             headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -896,7 +905,7 @@ async function processInstagramMessenger(
           const igHost = igToken?.startsWith("IGAA")
             ? "https://graph.instagram.com/v21.0"
             : "https://graph.facebook.com/v21.0";
-          const sendRes = await fetch(`${igHost}/${recipientId}/messages`, {
+          const sendRes = await fetch(`${igHost}/${sendFromNode}/messages`, {
             method: "POST",
             headers: {
               "Authorization": `Bearer ${igToken}`,
@@ -1073,13 +1082,20 @@ function buildIgMessageBody(text: string, buttons?: { title: string; url: string
  */
 async function sendCommentDm(
   igUserId: string,
+  pageId: string | null,
   commentId: string,
   text: string,
   pageAccessToken: string,
   buttons?: { title: string; url: string }[] | null,
 ): Promise<{ success: boolean; recipientId?: string }> {
-  const graphHost = graphHostForToken(pageAccessToken);
-  const res = await fetch(`${graphHost}/${igUserId}/messages`, {
+  // Private Reply node: IG Login token (IGAA) → ig_user_id on graph.instagram.com;
+  // Page token → PAGE id on graph.facebook.com. Posting to ig_user_id on
+  // graph.facebook.com returns Meta error #3 ("capability") → the DM silently
+  // failed to send, which is exactly why comment-triggered DMs weren't arriving.
+  const isIgLogin = !!pageAccessToken && pageAccessToken.startsWith("IGAA");
+  const graphHost = isIgLogin ? "https://graph.instagram.com/v21.0" : "https://graph.facebook.com/v21.0";
+  const sendNodeId = isIgLogin ? igUserId : (pageId || igUserId);
+  const res = await fetch(`${graphHost}/${sendNodeId}/messages`, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${pageAccessToken}`,
@@ -1143,12 +1159,18 @@ async function processInstagramComment(
     return;
   }
 
-  // Persist the comment
-  await supabase
+  // Persist the comment with an IDEMPOTENCY guard. Meta frequently redelivers
+  // the same comment webhook (retries / at-least-once delivery). We insert with
+  // ON CONFLICT DO NOTHING on the unique comment_id: if a row comes back it's
+  // the FIRST time we see this comment → run automations. If nothing comes back
+  // the comment was already processed → skip, so the public reply and DM don't
+  // fire twice.
+  const { data: insertedComment } = await supabase
     .from("instagram_comments")
     .upsert(
       {
         user_id: account.user_id,
+        organization_id: account.organization_id,
         ig_account_id: account.id,
         comment_id: commentId,
         parent_comment_id: parentCommentId,
@@ -1157,8 +1179,15 @@ async function processInstagramComment(
         commenter_username: commenterUsername,
         text,
       },
-      { onConflict: "comment_id" },
-    );
+      { onConflict: "comment_id", ignoreDuplicates: true },
+    )
+    .select("id")
+    .maybeSingle();
+
+  if (!insertedComment) {
+    console.log(`[comment] Duplicate delivery for comment_id=${commentId} — already processed, skipping automations`);
+    return;
+  }
 
   // ----- Run matching automations ------------------------------------------
   const { data: automations } = await supabase
@@ -1241,7 +1270,7 @@ async function processInstagramComment(
           if (isFollower === true) {
             // Confirmed follower — deliver lead magnet immediately.
             const dmText = rv(auto.dm_message_text ?? "");
-            const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
+            const { success } = await sendCommentDm(entryId, account.page_id, commentId, dmText, account.page_access_token, auto.dm_buttons);
             if (success) {
               await supabase.from("instagram_comments")
                 .update({ is_dm_sent: true, matched_automation_id: auto.id })
@@ -1307,7 +1336,7 @@ async function processInstagramComment(
 
             const nonFollowerText = rv(auto.dm_message_non_follower);
             const { success: sent } = await sendCommentDm(
-              entryId, commentId, nonFollowerText, account.page_access_token, finalNonFollowerButtons
+              entryId, account.page_id, commentId, nonFollowerText, account.page_access_token, finalNonFollowerButtons
             );
             if (sent) {
               console.log(`[follower-gate] Non-follower message sent to ${commenterId}`);
@@ -1316,7 +1345,7 @@ async function processInstagramComment(
         } else if (auto.dm_message_text) {
           // ── REGULAR DM (no follower gate) ───────────────────────────────
           const dmText = rv(auto.dm_message_text);
-          const { success } = await sendCommentDm(entryId, commentId, dmText, account.page_access_token, auto.dm_buttons);
+          const { success } = await sendCommentDm(entryId, account.page_id, commentId, dmText, account.page_access_token, auto.dm_buttons);
           if (success) {
             await supabase.from("instagram_comments")
               .update({ is_dm_sent: true, matched_automation_id: auto.id })
@@ -1392,12 +1421,14 @@ async function processInstagramStoryMention(
   if (!autos || autos.length === 0) return;
 
   const igToken = account.page_access_token;
-  const igHost = igToken?.startsWith("IGAA")
+  const isIgLogin = !!igToken && igToken.startsWith("IGAA");
+  const igHost = isIgLogin
     ? "https://graph.instagram.com/v21.0"
     : "https://graph.facebook.com/v21.0";
+  const sendFromNode = isIgLogin ? igUserId : (account.page_id || igUserId);
 
   const sendDm = async (text: string, buttons?: any[] | null): Promise<boolean> => {
-    const r = await fetch(`${igHost}/${igUserId}/messages`, {
+    const r = await fetch(`${igHost}/${sendFromNode}/messages`, {
       method: "POST",
       headers: { "Authorization": `Bearer ${igToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({ recipient: { id: mentionerId }, message: buildIgMessageBody(text, buttons) }),
