@@ -24,6 +24,22 @@ function graphHostForToken(token: string | undefined | null): string {
   return token && token.startsWith("IGAA") ? IG_GRAPH_API : GRAPH_API;
 }
 
+/**
+ * Resolve the correct node + host for SENDING Instagram messages.
+ *
+ *  • Instagram Login token (starts with "IGAA") → graph.instagram.com, and the
+ *    message is sent from the IG user id node (/{ig_user_id}/messages).
+ *  • Facebook Page token → graph.facebook.com, and the message MUST be sent
+ *    from the PAGE node (/{page_id}/messages). Sending from the IG user id on
+ *    graph.facebook.com returns Meta error #3 ("Application does not have the
+ *    capability to make this API call"), which is exactly what blocked replies.
+ */
+function messagingNode(account: { ig_user_id: string; page_id?: string | null; page_access_token?: string | null }): { host: string; id: string } {
+  const isIgLogin = !!account.page_access_token && account.page_access_token.startsWith("IGAA");
+  if (isIgLogin) return { host: IG_GRAPH_API, id: account.ig_user_id };
+  return { host: GRAPH_API, id: account.page_id || account.ig_user_id };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -475,14 +491,19 @@ Deno.serve(async (req) => {
 
       const { data: account } = await supabase
         .from("instagram_accounts")
-        .select("id, ig_user_id, page_access_token")
+        .select("id, ig_user_id, page_id, page_access_token")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle();
       if (!account) throw new Error("Instagram no está conectado");
 
-      // POST /{ig-user-id}/messages
-      const res = await fetch(`${graphHostForToken(account.page_access_token)}/${account.ig_user_id}/messages`, {
+      // Send to the correct messaging node:
+      //  • Instagram Login token (IGAA…) → graph.instagram.com + IG user id node
+      //  • Facebook Page token           → graph.facebook.com + PAGE id node
+      // Posting to the IG user id on graph.facebook.com returns Meta error #3
+      // "Application does not have the capability to make this API call".
+      const msgNode = messagingNode(account);
+      const res = await fetch(`${msgNode.host}/${msgNode.id}/messages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${account.page_access_token}`,
@@ -531,7 +552,7 @@ Deno.serve(async (req) => {
 
       const { data: account } = await supabase
         .from("instagram_accounts")
-        .select("id, ig_user_id, page_access_token")
+        .select("id, ig_user_id, page_id, page_access_token")
         .eq("user_id", user.id)
         .eq("is_active", true)
         .maybeSingle();
@@ -592,7 +613,8 @@ Deno.serve(async (req) => {
 
       // Send the attachment via Meta IG Messaging API.
       // Use graph.instagram.com for IGAA tokens (new dedicated IG app).
-      const res = await fetch(`${graphHostForToken(account.page_access_token)}/${account.ig_user_id}/messages`, {
+      const mediaNode = messagingNode(account);
+      const res = await fetch(`${mediaNode.host}/${mediaNode.id}/messages`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${account.page_access_token}`,
