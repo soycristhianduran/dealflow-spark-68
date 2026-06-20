@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
             // current Graph API version → Meta rejects the WHOLE subscription
             // with error 100, so the page never receives IG DMs. Keep the
             // essential, valid fields only.
-            subscribed_fields: "messages,messaging_postbacks,message_reactions,messaging_referral",
+            subscribed_fields: "messages,messaging_postbacks",
           }),
         });
         subscribeRaw = await subRes.json();
@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
-              subscribed_fields: "messages,messaging_postbacks,message_reactions,messaging_referral",
+              subscribed_fields: "messages,messaging_postbacks",
             }),
           });
           resubscribeResult = await r.json();
