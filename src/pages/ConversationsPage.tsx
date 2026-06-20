@@ -173,7 +173,7 @@ export default function ConversationsPage() {
 
   // ── Load IG conversations ─────────────────────────────────────────────────
   const loadIgConversations = useCallback(async () => {
-    if (!user) return;
+    if (!user) { setLoadingIg(false); return; }
     setLoadingIg(true);
     // No user_id filter — RLS (get_org_member_ids) exposes all org conversations
     const { data } = await supabase
@@ -186,8 +186,9 @@ export default function ConversationsPage() {
 
   useEffect(() => { loadIgConversations(); }, [loadIgConversations]);
 
-  // ── Initial WA fetch ─────────────────────────────────────────────────────
-  useEffect(() => { wa.fetchConversations(); /* eslint-disable-next-line */ }, []);
+  // ── Initial WA fetch — wait for the auth session so RLS sees auth.uid()
+  //    (otherwise the first fetch runs with no session → 0 rows → empty inbox). ─
+  useEffect(() => { if (user) wa.fetchConversations(); /* eslint-disable-next-line */ }, [user, organizationId]);
 
   // ── Realtime ─────────────────────────────────────────────────────────────
   useRealtimeRefresh({
