@@ -429,7 +429,11 @@ Deno.serve(async (req) => {
         .select("id, ig_user_id, ig_username, profile_picture_url, page_name, organization_id")
         .eq("is_active", true);
       accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
-      const { data: account } = await accQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
+      // NOTE: instagram_accounts has NO created_at column — only updated_at.
+      // Ordering by created_at threw "column does not exist", which made the
+      // whole status call error out → the UI always showed "no conectado"
+      // even when the account WAS connected and subscribed. Use updated_at.
+      const { data: account } = await accQuery.order("updated_at", { ascending: true }).limit(1).maybeSingle();
 
       if (!account) {
         return new Response(JSON.stringify({ connected: false }), {
