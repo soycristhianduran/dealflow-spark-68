@@ -105,6 +105,26 @@ export function useInstagramIntegration() {
     return data.accounts || [];
   }, []);
 
+  /**
+   * Start the direct Instagram Business Login flow (no Facebook page needed).
+   * Uses the dedicated Instagram app that holds Advanced Access to messaging /
+   * comments. Redirects the browser to Instagram's authorize dialog.
+   */
+  const startDirectLogin = useCallback(async (organizationId?: string | null) => {
+    setConnecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("instagram-oauth", {
+        body: { action: "get_authorize_url", organization_id: organizationId ?? null },
+      });
+      if (error || data?.error) throw new Error(data?.error || error?.message);
+      if (!data?.url) throw new Error("No se recibió la URL de autorización");
+      window.location.href = data.url;
+    } catch (e: any) {
+      toast.error("Error al iniciar Instagram Login: " + e.message);
+      setConnecting(false);
+    }
+  }, []);
+
   const connectAccount = useCallback(async (account: IgAvailableAccount) => {
     setConnecting(true);
     try {
@@ -235,6 +255,7 @@ export function useInstagramIntegration() {
     status,
     listAvailableAccounts,
     connectAccount,
+    startDirectLogin,
     disconnect,
     sendDm,
     sendDmMedia,

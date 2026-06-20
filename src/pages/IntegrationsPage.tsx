@@ -750,6 +750,21 @@ export default function IntegrationsPage() {
       clearParam("wa_error");
     }
 
+    if (params.get("ig_connected") === "true") {
+      toast.success("¡Instagram conectado exitosamente!");
+      const warn = params.get("ig_warn");
+      if (warn) toast.warning("Conectado, pero la suscripción avisó: " + decodeURIComponent(warn), { duration: 10000 });
+      ig.refresh?.();
+      clearParam("ig_connected");
+      clearParam("ig_warn");
+    }
+
+    const igError = params.get("ig_error");
+    if (igError) {
+      toast.error("Error al conectar Instagram: " + decodeURIComponent(igError));
+      clearParam("ig_error");
+    }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

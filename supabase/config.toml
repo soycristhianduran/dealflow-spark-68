@@ -47,6 +47,12 @@ verify_jwt = false
 [functions.ig-follow-verify]
 verify_jwt = false
 
+# Instagram Business Login: the GET callback is hit by Meta's browser redirect
+# (no JWT); the POST authorize-URL action authenticates via the auth header it
+# forwards to a user-scoped client. Must NOT require a gateway JWT.
+[functions.instagram-oauth]
+verify_jwt = false
+
 [functions.analyze-contact-ai]
 verify_jwt = false
 

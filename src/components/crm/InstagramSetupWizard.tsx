@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useInstagramIntegration, IgAvailableAccount, IgDiagnosis } from "@/hooks/useInstagramIntegration";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 interface Props {
@@ -19,6 +20,7 @@ interface Props {
 export function InstagramSetupWizard({ open, onOpenChange }: Props) {
   const ig = useInstagramIntegration();
   const fb = useFacebookIntegration();
+  const { organizationId } = useOrganizationContext();
   const [availableAccounts, setAvailableAccounts] = useState<IgAvailableAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -174,6 +176,28 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
               Solo aparecen cuentas Business o Creator vinculadas a una página de Facebook que ya conectaste.
             </p>
+          </div>
+
+          {/* ── Recommended: direct Instagram Business Login ─────────────────── */}
+          <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-pink-500/30 bg-gradient-to-br from-pink-500/5 to-orange-500/5 p-6">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pink-600">Recomendado</span>
+            <p className="text-sm text-muted-foreground text-center max-w-xs">
+              Conecta directamente con tu cuenta de Instagram. No necesitas una página de Facebook.
+            </p>
+            <button
+              onClick={() => ig.startDirectLogin(organizationId)}
+              disabled={ig.connecting}
+              className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm px-5 py-2.5 transition-opacity shadow-sm"
+            >
+              {ig.connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Instagram className="h-4 w-4" />}
+              Conectar con Instagram
+            </button>
+          </div>
+
+          <div className="flex items-center gap-3 my-1">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs text-muted-foreground">o vía Facebook</span>
+            <div className="h-px flex-1 bg-border" />
           </div>
 
           {!fb.isConnected && (
