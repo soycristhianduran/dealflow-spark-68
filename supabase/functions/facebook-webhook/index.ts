@@ -155,7 +155,7 @@ async function processLeadgenChange(
 
   const { data: pageData, error: pageErr } = await supabase
     .from("facebook_pages")
-    .select("user_id, page_access_token")
+    .select("user_id, organization_id, page_access_token")
     .eq("page_id", pageId)
     .limit(1)
     .maybeSingle();
@@ -171,14 +171,21 @@ async function processLeadgenChange(
 
   const { user_id: userId, page_access_token: pageToken } = pageData;
 
-  // Resolve the user's organization_id so contacts/deals are visible under the correct org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", userId)
-    .limit(1)
-    .maybeSingle();
-  const organizationId: string | null = membership?.organization_id ?? null;
+  // Route the lead to the org that OWNS this page (stored on the page row).
+  // Previously we resolved the org from the connecting user's membership, which
+  // sent leads to the WRONG org when a page was (mistakenly) duplicated across
+  // orgs or the user belonged to several orgs. The page→org mapping is the
+  // single source of truth (now enforced unique per page).
+  let organizationId: string | null = pageData.organization_id ?? null;
+  if (!organizationId) {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", userId)
+      .limit(1)
+      .maybeSingle();
+    organizationId = membership?.organization_id ?? null;
+  }
 
   const isTestLead = String(leadgenId).startsWith("TEST_");
   let fields: Record<string, string> = {};
