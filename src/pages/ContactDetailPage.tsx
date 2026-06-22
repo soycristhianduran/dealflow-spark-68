@@ -566,15 +566,17 @@ export default function ContactDetailPage() {
                               : <span className="text-muted-foreground">Sin etapa</span>}
                           </div>
                         )}
-                        {contact.pipeline_id && canEditContacts && (
+                        {canEditContacts && (
                           <Popover open={stagePickerOpen} onOpenChange={setStagePickerOpen}>
                             <PopoverTrigger asChild>
                               <button className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted transition-colors" disabled={savingStage}>
                                 {savingStage
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  : currentStage
-                                    ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
-                                    : <span className="text-muted-foreground">Sin etapa</span>
+                                  : !contact.pipeline_id
+                                    ? <span className="text-primary flex items-center gap-1"><Plus className="h-3.5 w-3.5" />Asignar a pipeline</span>
+                                    : currentStage
+                                      ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
+                                      : <span className="text-muted-foreground">Sin etapa</span>
                                 }
                                 <svg className="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
                               </button>
