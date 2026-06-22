@@ -15,7 +15,10 @@ interface Props {
 }
 
 export function WhatsAppSendLoader({ done, total, finished, onClose }: Props) {
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  // Clamp so the counter never shows more than the total (e.g. "51 de 50 · 102%").
+  // Upstream `done` can tick one past `total` on the final status callback.
+  const shownDone = total > 0 ? Math.min(done, total) : done;
+  const pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-md p-4">
@@ -122,7 +125,7 @@ export function WhatsAppSendLoader({ done, total, finished, onClose }: Props) {
             <div className="h-full rounded-full transition-all duration-300"
               style={{ width: `${pct}%`, background: "linear-gradient(90deg,#25D366,#128C7E)", boxShadow: "0 0 10px rgba(37,211,102,.6)" }} />
           </div>
-          <p className="text-xs text-muted-foreground">{done} de {total} · {pct}%</p>
+          <p className="text-xs text-muted-foreground">{shownDone} de {total} · {pct}%</p>
           <p className="text-[11px] text-muted-foreground">
             {finished ? "Puedes cerrar esta ventana." : "Se envía en segundo plano — puedes cerrar y seguir trabajando."}
           </p>
