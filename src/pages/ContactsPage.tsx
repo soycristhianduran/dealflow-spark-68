@@ -1373,7 +1373,7 @@ export default function ContactsPage() {
 
         {/* Bulk action bar — writes only, hidden for read-only members */}
         {someChecked && canEditContacts && (
-          <div className="flex items-center gap-2 rounded-lg border bg-card px-3 py-2 md:px-4 md:py-2.5 shadow-sm overflow-x-auto flex-nowrap min-h-[44px]">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border bg-card px-3 py-2 md:px-4 md:py-2.5 shadow-sm min-h-[44px]">
             <span className="text-sm font-semibold text-foreground mr-1">
               {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
             </span>
