@@ -200,6 +200,12 @@ export default function ContactsPage() {
   // Status dialog
   const [bulkStatus, setBulkStatus] = useState("");
 
+  // Move-to-pipeline (bulk) dialog
+  const [pipelineMoveOpen, setPipelineMoveOpen] = useState(false);
+  const [bulkPipelineId, setBulkPipelineId] = useState("");
+  const [bulkStageId, setBulkStageId] = useState("");
+  const [bulkMoveStages, setBulkMoveStages] = useState<{ id: string; name: string; color: string }[]>([]);
+
   // AI bulk analysis
   const [aiAnalysisOpen, setAiAnalysisOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
@@ -532,6 +538,31 @@ export default function ContactsPage() {
     }
     setStatusOpen(false);
     done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`);
+  };
+
+  // Load stages whenever the chosen pipeline changes (bulk move dialog)
+  useEffect(() => {
+    if (!bulkPipelineId) { setBulkMoveStages([]); setBulkStageId(""); return; }
+    supabase.from("pipeline_stages").select("id, name, color").eq("pipeline_id", bulkPipelineId)
+      .order("order", { ascending: true })
+      .then(({ data }) => {
+        setBulkMoveStages(data || []);
+        setBulkStageId(data?.[0]?.id || ""); // default to the first stage
+      });
+  }, [bulkPipelineId]);
+
+  const handleBulkPipelineMove = async () => {
+    if (!bulkPipelineId || !bulkStageId) { toast.error("Elige pipeline y etapa"); return; }
+    setBulkWorking(true);
+    for (const part of chunkIds([...selected])) {
+      const { error } = await supabase.from("contacts")
+        .update({ pipeline_id: bulkPipelineId, stage_id: bulkStageId })
+        .in("id", part);
+      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+    }
+    setPipelineMoveOpen(false);
+    const pname = pipelines.find(p => p.id === bulkPipelineId)?.name || "pipeline";
+    done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} movido${selected.size !== 1 ? "s" : ""} a ${pname}`);
   };
 
   const handleBulkReassign = async () => {
@@ -1382,6 +1413,10 @@ export default function ContactsPage() {
               <Tag className="h-3.5 w-3.5" /> Cambiar estado
             </Button>
 
+            <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setBulkPipelineId(""); setBulkStageId(""); setPipelineMoveOpen(true); }} disabled={bulkWorking}>
+              <KanbanSquare className="h-3.5 w-3.5" /> Asignar a pipeline
+            </Button>
+
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive" onClick={handleBulkDelete} disabled={bulkWorking}>
               <Trash2 className="h-3.5 w-3.5" /> Eliminar
             </Button>
@@ -1964,6 +1999,45 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setStatusOpen(false)}>Cancelar</Button>
             <Button onClick={handleBulkStatus} disabled={!bulkStatus || bulkWorking}>
               {bulkWorking ? "Actualizando..." : "Aplicar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk move to pipeline + stage ──────────────────────────────── */}
+      <Dialog open={pipelineMoveOpen} onOpenChange={setPipelineMoveOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Asignar {selected.size} lead{selected.size !== 1 ? "s" : ""} a un pipeline</DialogTitle></DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Pipeline</Label>
+              <Select value={bulkPipelineId} onValueChange={setBulkPipelineId}>
+                <SelectTrigger><SelectValue placeholder="Selecciona un pipeline" /></SelectTrigger>
+                <SelectContent>
+                  {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Etapa</Label>
+              <Select value={bulkStageId} onValueChange={setBulkStageId} disabled={!bulkPipelineId}>
+                <SelectTrigger><SelectValue placeholder={bulkPipelineId ? "Selecciona una etapa" : "Elige un pipeline primero"} /></SelectTrigger>
+                <SelectContent>
+                  {bulkMoveStages.map(s => (
+                    <SelectItem key={s.id} value={s.id}>
+                      <span className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: s.color }} />{s.name}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPipelineMoveOpen(false)}>Cancelar</Button>
+            <Button onClick={handleBulkPipelineMove} disabled={!bulkPipelineId || !bulkStageId || bulkWorking}>
+              {bulkWorking ? "Moviendo..." : "Asignar"}
             </Button>
           </DialogFooter>
         </DialogContent>
