@@ -18,6 +18,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
+import { useTranslation } from "react-i18next";
 
 type DealRow = {
   id: string;
@@ -45,13 +46,14 @@ export default function DealsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { t } = useTranslation();
 
   const fetchDeals = async () => {
     const { data, error } = await supabase
       .from("deals")
       .select("id, title, value, currency, status, stage_id, contact_id, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
       .order("created_at", { ascending: false });
-    if (error) { toast.error("Error cargando deals"); return; }
+    if (error) { toast.error(t("dealsPage.loadError")); return; }
     setDeals((data as unknown as DealRow[]) || []);
     setLoading(false);
   };
@@ -104,44 +106,44 @@ export default function DealsPage() {
   const executeBulkDelete = async () => {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").delete().in("id", [...selected]);
-    if (error) { toast.error("Error al eliminar: " + error.message); }
-    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    if (error) { toast.error(t("dealsPage.deleteError", { error: error.message })); }
+    else { toast.success(t("dealsPage.deletedMsg", { count: selected.size, plural: selected.size !== 1 ? "s" : "" })); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
   const handleBulkStatus = async (newStatus: string) => {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").update({ status: newStatus }).in("id", [...selected]);
-    if (error) { toast.error("Error al actualizar: " + error.message); }
-    else { toast.success(`${selected.size} deal${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    if (error) { toast.error(t("dealsPage.updateError", { error: error.message })); }
+    else { toast.success(t("dealsPage.updatedMsg", { count: selected.size, plural: selected.size !== 1 ? "s" : "" })); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
   const handleBulkStage = async (stageId: string) => {
     setBulkWorking(true);
     const { error } = await supabase.from("deals").update({ stage_id: stageId }).in("id", [...selected]);
-    if (error) { toast.error("Error al cambiar etapa: " + error.message); }
-    else { toast.success(`Etapa actualizada en ${selected.size} deal${selected.size !== 1 ? "s" : ""}`); setSelected(new Set()); fetchDeals(); }
+    if (error) { toast.error(t("dealsPage.stageError", { error: error.message })); }
+    else { toast.success(t("dealsPage.stageUpdatedMsg", { count: selected.size, plural: selected.size !== 1 ? "s" : "" })); setSelected(new Set()); fetchDeals(); }
     setBulkWorking(false);
   };
 
   return (
     <AppLayout>
-      <AppHeader title="Deals" subtitle={`${deals.length} oportunidades`} actions={
-        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> Nuevo deal</Button>
+      <AppHeader title="Deals" subtitle={t("dealsPage.subtitle", { count: deals.length })} actions={
+        <Button size="sm" className="gap-1.5" onClick={() => navigate(path("/pipeline"))}><Plus className="h-4 w-4" /> {t("dealsPage.newDeal")}</Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
         <div className="flex items-center gap-3 flex-wrap">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar deals..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+            <Input placeholder={t("dealsPage.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
           </div>
           <div className="flex rounded-lg border overflow-hidden">
             {([
-              { key: "all", label: "Todos" },
-              { key: "open", label: "Abiertos" },
-              { key: "won", label: "Ganados" },
-              { key: "lost", label: "Perdidos" },
+              { key: "all", label: t("dealsPage.filterAll") },
+              { key: "open", label: t("dealsPage.filterOpen") },
+              { key: "won", label: t("dealsPage.filterWon") },
+              { key: "lost", label: t("dealsPage.filterLost") },
             ] as const).map(f => (
               <button key={f.key} onClick={() => setStatusFilter(f.key)}
                 className={cn(
@@ -165,14 +167,14 @@ export default function DealsPage() {
         {someChecked && (
           <div className="flex items-center gap-3 rounded-lg border bg-card px-4 py-2.5 shadow-sm flex-wrap">
             <span className="text-sm font-medium text-foreground">
-              {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              {t("dealsPage.selectedCount", { count: selected.size, plural: selected.size !== 1 ? "s" : "" })}
             </span>
             <div className="flex items-center gap-2 flex-wrap flex-1">
               {/* Change stage */}
               <Select onValueChange={handleBulkStage} disabled={bulkWorking}>
                 <SelectTrigger className="h-8 text-xs w-48 gap-1">
                   <KanbanSquare className="h-3.5 w-3.5 shrink-0" />
-                  <SelectValue placeholder="Cambiar etapa" />
+                  <SelectValue placeholder={t("dealsPage.changeStage")} />
                 </SelectTrigger>
                 <SelectContent>
                   {stages.map(s => (
@@ -189,26 +191,26 @@ export default function DealsPage() {
               <Select onValueChange={handleBulkStatus} disabled={bulkWorking}>
                 <SelectTrigger className="h-8 text-xs w-44 gap-1">
                   <Tag className="h-3.5 w-3.5 shrink-0" />
-                  <SelectValue placeholder="Cambiar estado" />
+                  <SelectValue placeholder={t("dealsPage.changeStatus")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="open">Abierto</SelectItem>
-                  <SelectItem value="won">Ganado</SelectItem>
-                  <SelectItem value="lost">Perdido</SelectItem>
+                  <SelectItem value="open">{t("dealsPage.statusOpen")}</SelectItem>
+                  <SelectItem value="won">{t("dealsPage.statusWon")}</SelectItem>
+                  <SelectItem value="lost">{t("dealsPage.statusLost")}</SelectItem>
                 </SelectContent>
               </Select>
               <Button size="sm" variant="destructive" className="h-8 gap-1.5 text-xs" onClick={handleBulkDelete} disabled={bulkWorking}>
-                <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                <Trash2 className="h-3.5 w-3.5" /> {t("dealsPage.delete")}
               </Button>
             </div>
             <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => setSelected(new Set())}>
-              Cancelar
+              {t("dealsPage.cancel")}
             </Button>
           </div>
         )}
 
         {loading ? (
-          <p className="text-sm text-muted-foreground text-center py-8">Cargando...</p>
+          <p className="text-sm text-muted-foreground text-center py-8">{t("dealsPage.loading")}</p>
         ) : (
           <div className="rounded-lg border bg-card overflow-hidden">
             <table className="w-full text-sm">
@@ -218,15 +220,15 @@ export default function DealsPage() {
                     <Checkbox
                       checked={allChecked}
                       onCheckedChange={toggleAll}
-                      aria-label="Seleccionar todos"
+                      aria-label={t("dealsPage.selectAll")}
                     />
                   </th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Deal</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Contacto</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Etapa</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Estado</th>
-                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">Valor</th>
-                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">Cierre</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t("dealsPage.colDeal")}</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t("dealsPage.colContact")}</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t("dealsPage.colStage")}</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t("dealsPage.colStatus")}</th>
+                  <th className="px-4 py-3 text-right font-medium text-muted-foreground">{t("dealsPage.colValue")}</th>
+                  <th className="px-4 py-3 text-left font-medium text-muted-foreground">{t("dealsPage.colClose")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,7 +240,7 @@ export default function DealsPage() {
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => toggleOne(deal.id)}
-                          aria-label={`Seleccionar ${deal.title}`}
+                          aria-label={t("dealsPage.selectOne", { title: deal.title })}
                         />
                       </td>
                       <td className="px-4 py-3 font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>{deal.title}</td>
@@ -252,7 +254,7 @@ export default function DealsPage() {
                       </td>
                       <td className="px-4 py-3 cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>
                         <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'secondary'}>
-                          {deal.status === 'won' ? 'Ganado' : deal.status === 'lost' ? 'Perdido' : 'Abierto'}
+                          {deal.status === 'won' ? t("dealsPage.statusWon") : deal.status === 'lost' ? t("dealsPage.statusLost") : t("dealsPage.statusOpen")}
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-right font-medium text-foreground cursor-pointer" onClick={() => navigate(path(`/leads/${deal.id}`))}>${Number(deal.value).toLocaleString()}</td>
@@ -264,11 +266,11 @@ export default function DealsPage() {
                   <tr><td colSpan={7} className="px-0 py-0">
                     <EmptyState
                       variant="deals"
-                      title={search ? "Sin resultados" : "Aún no tienes deals"}
+                      title={search ? t("dealsPage.emptyNoResultsTitle") : t("dealsPage.emptyNoDealsTitle")}
                       description={
                         search
-                          ? "Prueba con otro término de búsqueda."
-                          : "Los leads son las oportunidades de venta que se mueven por tu pipeline. Créalos desde el pipeline o desde el detalle de un contacto."
+                          ? t("dealsPage.emptyNoResultsDesc")
+                          : t("dealsPage.emptyNoDealsDesc")
                       }
                     />
                   </td></tr>
@@ -282,13 +284,13 @@ export default function DealsPage() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar {selected.size} deal{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("dealsPage.deleteConfirmTitle", { count: selected.size, plural: selected.size !== 1 ? "s" : "" })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("dealsPage.deleteConfirmDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkWorking}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkWorking}>{t("dealsPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkDelete} disabled={bulkWorking} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("dealsPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

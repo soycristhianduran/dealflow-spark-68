@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { Shield, FileText, ArrowLeft } from "lucide-react";
 
@@ -17,6 +18,7 @@ export function LegalPageLayout({
   sections: Section[];
   children: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
       {/* ── Navbar ── */}
@@ -33,7 +35,7 @@ export function LegalPageLayout({
             className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Volver al inicio
+            {t("legalPageLayout.backToHome")}
           </Link>
         </div>
       </nav>
@@ -47,7 +49,7 @@ export function LegalPageLayout({
               <Shield className="w-4 h-4 text-orange-400" />
             </div>
             <span className="text-xs font-medium text-orange-400 uppercase tracking-widest">
-              Legal
+              {t("legalPageLayout.legal")}
             </span>
           </div>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3 leading-tight">
@@ -55,7 +57,7 @@ export function LegalPageLayout({
           </h1>
           <p className="text-slate-400 max-w-xl leading-relaxed">{subtitle}</p>
           <p className="mt-3 text-xs text-slate-500">
-            Última actualización: {lastUpdated}
+            {t("legalPageLayout.lastUpdated", { date: lastUpdated })}
           </p>
         </div>
       </div>
@@ -67,7 +69,7 @@ export function LegalPageLayout({
           {/* Sidebar nav — desktop */}
           <aside className="hidden lg:block w-56 shrink-0 sticky top-24">
             <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-3">
-              Secciones
+              {t("legalPageLayout.sections")}
             </p>
             <nav className="space-y-0.5">
               {sections.map((s) => (
@@ -84,19 +86,19 @@ export function LegalPageLayout({
             {/* Links to other legal page */}
             <div className="mt-8 pt-6 border-t border-slate-800 space-y-1">
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest mb-2">
-                Otros documentos
+                {t("legalPageLayout.otherDocuments")}
               </p>
               <Link
                 to="/privacy"
                 className="flex items-center gap-2 text-sm text-slate-400 hover:text-white py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors"
               >
-                <Shield className="w-3.5 h-3.5" /> Privacidad
+                <Shield className="w-3.5 h-3.5" /> {t("legalPageLayout.privacy")}
               </Link>
               <Link
                 to="/terms"
                 className="flex items-center gap-2 text-sm text-slate-400 hover:text-white py-1.5 px-2 rounded-lg hover:bg-slate-800/60 transition-colors"
               >
-                <FileText className="w-3.5 h-3.5" /> Términos
+                <FileText className="w-3.5 h-3.5" /> {t("legalPageLayout.terms")}
               </Link>
             </div>
           </aside>
@@ -108,7 +110,7 @@ export function LegalPageLayout({
             {/* Footer contact */}
             <div className="mt-16 pt-8 border-t border-slate-800">
               <p className="text-sm text-slate-400">
-                ¿Preguntas?{" "}
+                {t("legalPageLayout.questions")}{" "}
                 <a
                   href="mailto:hola@klosify.com"
                   className="text-orange-400 hover:text-orange-300 underline underline-offset-2"
@@ -126,12 +128,12 @@ export function LegalPageLayout({
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <KlosifyLogo size={18} />
-            <span className="text-xs text-slate-500">© 2026 Klosify CRM — CRISTHIAN DURAN · NIT 1094270110-2 · Colombia</span>
+            <span className="text-xs text-slate-500">{t("legalPageLayout.copyright")}</span>
           </div>
           <div className="flex items-center gap-4 text-xs text-slate-500">
-            <Link to="/privacy" className="hover:text-slate-300 transition-colors">Privacidad</Link>
-            <Link to="/terms" className="hover:text-slate-300 transition-colors">Términos</Link>
-            <Link to="/data-deletion" className="hover:text-slate-300 transition-colors">Eliminar datos</Link>
+            <Link to="/privacy" className="hover:text-slate-300 transition-colors">{t("legalPageLayout.privacy")}</Link>
+            <Link to="/terms" className="hover:text-slate-300 transition-colors">{t("legalPageLayout.terms")}</Link>
+            <Link to="/data-deletion" className="hover:text-slate-300 transition-colors">{t("legalPageLayout.deleteData")}</Link>
           </div>
         </div>
       </footer>

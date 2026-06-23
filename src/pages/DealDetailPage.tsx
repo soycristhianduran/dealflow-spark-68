@@ -20,6 +20,7 @@ import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import type { Activity } from "@/types/crm";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 type DealFull = {
   id: string;
@@ -51,6 +52,7 @@ export default function DealDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { t } = useTranslation();
   const [deal, setDeal] = useState<DealFull | null>(null);
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -119,8 +121,8 @@ export default function DealDetailPage() {
       product: editForm.product || null,
     }).eq("id", id);
     setSaving(false);
-    if (error) { toast.error("Error al guardar"); return; }
-    toast.success("Deal actualizado");
+    if (error) { toast.error(t("dealDetailPage.saveError")); return; }
+    toast.success(t("dealDetailPage.dealUpdated"));
     setEditOpen(false);
     fetchDeal();
   };
@@ -132,8 +134,8 @@ export default function DealDetailPage() {
   const confirmDelete = async () => {
     if (!id) return;
     const { error } = await supabase.from("deals").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar"); return; }
-    toast.success("Deal eliminado");
+    if (error) { toast.error(t("dealDetailPage.deleteError")); return; }
+    toast.success(t("dealDetailPage.dealDeleted"));
     navigate(path("/leads"));
   };
 
@@ -149,18 +151,18 @@ export default function DealDetailPage() {
       }
       fetchDeal();
       fetchRelated();
-      toast.success(`Deal ${newStatus === "won" ? "ganado" : newStatus === "lost" ? "perdido" : "reabierto"}`);
+      toast.success(t("dealDetailPage.dealStatusChanged", { status: newStatus === "won" ? t("dealDetailPage.statusWon") : newStatus === "lost" ? t("dealDetailPage.statusLost") : t("dealDetailPage.statusReopened") }));
     } catch (err: any) {
-      toast.error("Error: " + err.message);
+      toast.error(t("dealDetailPage.errorWithMessage", { message: err.message }));
     }
   };
 
   if (loading) {
     return (
       <AppLayout>
-        <AppHeader title="Cargando..." />
+        <AppHeader title={t("dealDetailPage.loadingTitle")} />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Cargando deal...</p>
+          <p className="text-muted-foreground">{t("dealDetailPage.loadingDeal")}</p>
         </main>
       </AppLayout>
     );
@@ -169,9 +171,9 @@ export default function DealDetailPage() {
   if (!deal) {
     return (
       <AppLayout>
-        <AppHeader title="Deal no encontrado" />
+        <AppHeader title={t("dealDetailPage.notFoundTitle")} />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">El deal no existe.</p>
+          <p className="text-muted-foreground">{t("dealDetailPage.notFoundMessage")}</p>
         </main>
       </AppLayout>
     );
@@ -186,13 +188,13 @@ export default function DealDetailPage() {
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} className="gap-1.5">
-              <Pencil className="h-4 w-4" /> Editar
+              <Pencil className="h-4 w-4" /> {t("dealDetailPage.edit")}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleDelete} className="gap-1.5 text-destructive hover:text-destructive">
               <Trash2 className="h-4 w-4" />
             </Button>
             <Button variant="ghost" size="sm" onClick={() => navigate(path('/leads'))} className="gap-1.5">
-              <ArrowLeft className="h-4 w-4" /> Volver
+              <ArrowLeft className="h-4 w-4" /> {t("dealDetailPage.back")}
             </Button>
           </div>
         }
@@ -210,7 +212,7 @@ export default function DealDetailPage() {
                     </Badge>
                   )}
                   <Badge variant={deal.status === 'won' ? 'default' : deal.status === 'lost' ? 'destructive' : 'secondary'}>
-                    {deal.status === 'won' ? 'Ganado' : deal.status === 'lost' ? 'Perdido' : 'Abierto'}
+                    {deal.status === 'won' ? t("dealDetailPage.badgeWon") : deal.status === 'lost' ? t("dealDetailPage.badgeLost") : t("dealDetailPage.badgeOpen")}
                   </Badge>
                 </div>
 
@@ -234,18 +236,18 @@ export default function DealDetailPage() {
                   {deal.close_probability != null && (
                     <div className="flex items-center gap-2 text-sm">
                       <Target className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-foreground">{deal.close_probability}% probabilidad</span>
+                      <span className="text-foreground">{t("dealDetailPage.probability", { value: deal.close_probability })}</span>
                     </div>
                   )}
                   {deal.source && (
                     <div className="text-sm">
-                      <span className="text-muted-foreground">Origen: </span>
+                      <span className="text-muted-foreground">{t("dealDetailPage.sourceLabel")} </span>
                       <span className="text-foreground">{deal.source}</span>
                     </div>
                   )}
                   {deal.product && (
                     <div className="text-sm">
-                      <span className="text-muted-foreground">Producto: </span>
+                      <span className="text-muted-foreground">{t("dealDetailPage.productLabel")} </span>
                       <span className="text-foreground">{deal.product}</span>
                     </div>
                   )}
@@ -254,12 +256,12 @@ export default function DealDetailPage() {
                 {/* Status actions */}
                 {deal.status === "open" && (
                   <div className="flex gap-2 pt-2">
-                    <Button size="sm" variant="default" className="flex-1" onClick={() => handleStatusChange("won")}>Marcar ganado</Button>
-                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleStatusChange("lost")}>Marcar perdido</Button>
+                    <Button size="sm" variant="default" className="flex-1" onClick={() => handleStatusChange("won")}>{t("dealDetailPage.markWon")}</Button>
+                    <Button size="sm" variant="destructive" className="flex-1" onClick={() => handleStatusChange("lost")}>{t("dealDetailPage.markLost")}</Button>
                   </div>
                 )}
                 {deal.status !== "open" && (
-                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>Reabrir deal</Button>
+                  <Button size="sm" variant="outline" className="w-full" onClick={() => handleStatusChange("open")}>{t("dealDetailPage.reopenDeal")}</Button>
                 )}
               </CardContent>
             </Card>
@@ -267,7 +269,7 @@ export default function DealDetailPage() {
             {/* Pipeline progress */}
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Progreso pipeline</CardTitle>
+                <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("dealDetailPage.pipelineProgress")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-1.5">
                 {stages.filter(s => s.name !== "Cerrado perdido").map(stage => (
@@ -286,9 +288,9 @@ export default function DealDetailPage() {
           <div className="lg:col-span-2">
             <Tabs defaultValue="timeline">
               <TabsList>
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
-                <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
+                <TabsTrigger value="timeline">{t("dealDetailPage.tabTimeline")}</TabsTrigger>
+                <TabsTrigger value="tasks">{t("dealDetailPage.tabTasks", { count: tasks.length })}</TabsTrigger>
+                <TabsTrigger value="meetings">{t("dealDetailPage.tabMeetings", { count: meetings.length })}</TabsTrigger>
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
@@ -309,7 +311,7 @@ export default function DealDetailPage() {
                     <Badge variant="outline" className="text-xs">{task.status}</Badge>
                   </div>
                 ))}
-                {tasks.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Sin tareas</p>}
+                {tasks.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">{t("dealDetailPage.noTasks")}</p>}
               </TabsContent>
 
               <TabsContent value="meetings" className="mt-4 space-y-3">
@@ -324,7 +326,7 @@ export default function DealDetailPage() {
                     </CardContent>
                   </Card>
                 ))}
-                {meetings.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">Sin citas</p>}
+                {meetings.length === 0 && <p className="text-sm text-muted-foreground text-center py-8">{t("dealDetailPage.noMeetings")}</p>}
               </TabsContent>
             </Tabs>
           </div>
@@ -335,20 +337,20 @@ export default function DealDetailPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar deal</DialogTitle>
+            <DialogTitle>{t("dealDetailPage.editDealTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Título</Label>
+              <Label>{t("dealDetailPage.fieldTitle")}</Label>
               <Input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Valor</Label>
+                <Label>{t("dealDetailPage.fieldValue")}</Label>
                 <Input type="number" value={editForm.value} onChange={e => setEditForm(f => ({ ...f, value: e.target.value }))} />
               </div>
               <div>
-                <Label>Moneda</Label>
+                <Label>{t("dealDetailPage.fieldCurrency")}</Label>
                 <Select value={editForm.currency} onValueChange={v => setEditForm(f => ({ ...f, currency: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -361,19 +363,19 @@ export default function DealDetailPage() {
               </div>
             </div>
             <div>
-              <Label>Contacto</Label>
+              <Label>{t("dealDetailPage.fieldContact")}</Label>
               <Select value={editForm.contact_id} onValueChange={v => setEditForm(f => ({ ...f, contact_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("dealDetailPage.selectPlaceholder")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin contacto</SelectItem>
+                  <SelectItem value="none">{t("dealDetailPage.noContact")}</SelectItem>
                   {contacts.map(c => <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Etapa</Label>
+              <Label>{t("dealDetailPage.fieldStage")}</Label>
               <Select value={editForm.stage_id} onValueChange={v => setEditForm(f => ({ ...f, stage_id: v }))}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("dealDetailPage.selectPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {stages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                 </SelectContent>
@@ -381,28 +383,28 @@ export default function DealDetailPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Fecha cierre</Label>
+                <Label>{t("dealDetailPage.fieldCloseDate")}</Label>
                 <Input type="date" value={editForm.expected_close_date} onChange={e => setEditForm(f => ({ ...f, expected_close_date: e.target.value }))} />
               </div>
               <div>
-                <Label>Probabilidad %</Label>
+                <Label>{t("dealDetailPage.fieldProbability")}</Label>
                 <Input type="number" min="0" max="100" value={editForm.close_probability} onChange={e => setEditForm(f => ({ ...f, close_probability: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Origen</Label>
+                <Label>{t("dealDetailPage.fieldSource")}</Label>
                 <Input value={editForm.source} onChange={e => setEditForm(f => ({ ...f, source: e.target.value }))} />
               </div>
               <div>
-                <Label>Producto</Label>
+                <Label>{t("dealDetailPage.fieldProduct")}</Label>
                 <Input value={editForm.product} onChange={e => setEditForm(f => ({ ...f, product: e.target.value }))} />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !editForm.title}>{saving ? "Guardando..." : "Guardar"}</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t("dealDetailPage.cancel")}</Button>
+            <Button onClick={handleSave} disabled={saving || !editForm.title}>{saving ? t("dealDetailPage.saving") : t("dealDetailPage.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -410,13 +412,13 @@ export default function DealDetailPage() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar este deal?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("dealDetailPage.deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("dealDetailPage.deleteConfirmDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("dealDetailPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("dealDetailPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

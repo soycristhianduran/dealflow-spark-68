@@ -12,6 +12,7 @@
  * affected stay private.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -41,6 +42,7 @@ function formatDateTime(iso: string | null): string {
 }
 
 const DataDeletionStatusPage = () => {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
   const code = params.get("code")?.trim() || "";
 
@@ -80,27 +82,25 @@ const DataDeletionStatusPage = () => {
   return (
     <div className="min-h-screen bg-background py-12 px-6">
       <article className="max-w-2xl mx-auto prose prose-slate dark:prose-invert">
-        <h1>Estado de la solicitud de eliminación de datos</h1>
+        <h1>{t("dataDeletionStatusPage.pageTitle")}</h1>
         <p className="text-sm text-muted-foreground">
-          Klosify CRM · operado por CRISTHIAN DURAN (NIT 1094270110-2)
+          {t("dataDeletionStatusPage.operatedBy")}
         </p>
 
         {state.kind === "loading" && (
-          <p className="text-muted-foreground">Consultando estado...</p>
+          <p className="text-muted-foreground">{t("dataDeletionStatusPage.checkingStatus")}</p>
         )}
 
         {state.kind === "missing" && (
           <>
-            <h2>Código no proporcionado</h2>
+            <h2>{t("dataDeletionStatusPage.missingCodeTitle")}</h2>
             <p>
-              Esta página muestra el estado de una solicitud de eliminación
-              de datos generada cuando un usuario revoca el acceso a Klosify
-              CRM desde su cuenta de Facebook o Instagram. Para consultar el
-              estado, abre el enlace tal cual te lo entregó Meta, asegurándote
-              de incluir el parámetro <code>?code=...</code> en la URL.
+              {t("dataDeletionStatusPage.missingCodeBodyBefore")}{" "}
+              <code>?code=...</code>{" "}
+              {t("dataDeletionStatusPage.missingCodeBodyAfter")}
             </p>
             <p>
-              Si crees que esto es un error, contáctanos en{" "}
+              {t("dataDeletionStatusPage.errorContactPrefix")}{" "}
               <a href="mailto:hola@klosify.com">
                 hola@klosify.com
               </a>
@@ -111,76 +111,69 @@ const DataDeletionStatusPage = () => {
 
         {state.kind === "not_found" && (
           <>
-            <h2>Solicitud no encontrada</h2>
+            <h2>{t("dataDeletionStatusPage.notFoundTitle")}</h2>
             <p>
-              No encontramos ninguna solicitud de eliminación asociada al
-              código <code>{code}</code>. Las solicitudes pueden tardar unos
-              segundos en aparecer después de generarse — vuelve a cargar
-              esta página en un minuto.
+              {t("dataDeletionStatusPage.notFoundBodyBefore")}{" "}
+              <code>{code}</code>.{" "}
+              {t("dataDeletionStatusPage.notFoundBodyAfter")}
             </p>
             <p>
-              Si el problema persiste, contáctanos en{" "}
+              {t("dataDeletionStatusPage.persistContactPrefix")}{" "}
               <a href="mailto:hola@klosify.com">
                 hola@klosify.com
               </a>{" "}
-              citando el código.
+              {t("dataDeletionStatusPage.citingCode")}
             </p>
           </>
         )}
 
         {state.kind === "error" && (
           <>
-            <h2>Error al consultar el estado</h2>
+            <h2>{t("dataDeletionStatusPage.errorTitle")}</h2>
             <p>
-              No pudimos consultar el estado en este momento. Por favor
-              vuelve a intentarlo en unos minutos. Si el problema persiste,
-              contáctanos en{" "}
+              {t("dataDeletionStatusPage.errorBody")}{" "}
               <a href="mailto:hola@klosify.com">
                 hola@klosify.com
               </a>{" "}
-              citando el código <code>{code}</code>.
+              {t("dataDeletionStatusPage.citingCodeBefore")}{" "}
+              <code>{code}</code>.
             </p>
             <p className="text-xs text-muted-foreground">
-              Detalle técnico: {state.message}
+              {t("dataDeletionStatusPage.technicalDetail")} {state.message}
             </p>
           </>
         )}
 
         {state.kind === "ok" && (
           <>
-            <h2>Detalles de la solicitud</h2>
+            <h2>{t("dataDeletionStatusPage.detailsTitle")}</h2>
             <ul>
               <li>
-                <strong>Código de confirmación:</strong> <code>{code}</code>
+                <strong>{t("dataDeletionStatusPage.confirmationCodeLabel")}</strong> <code>{code}</code>
               </li>
               <li>
-                <strong>Fecha de solicitud:</strong>{" "}
+                <strong>{t("dataDeletionStatusPage.requestDateLabel")}</strong>{" "}
                 {formatDateTime(state.row.requested_at)}
               </li>
               <li>
-                <strong>Fecha de finalización:</strong>{" "}
+                <strong>{t("dataDeletionStatusPage.completionDateLabel")}</strong>{" "}
                 {formatDateTime(state.row.completed_at)}
               </li>
               <li>
-                <strong>Estado:</strong>{" "}
+                <strong>{t("dataDeletionStatusPage.statusLabel")}</strong>{" "}
                 {state.row.status === "pending" && (
                   <span className="text-amber-600">
-                    En proceso — tu solicitud está en cola y se completará
-                    automáticamente en los próximos minutos.
+                    {t("dataDeletionStatusPage.statusPending")}
                   </span>
                 )}
                 {state.row.status === "completed" && (
                   <span className="text-emerald-600">
-                    Completada — eliminamos todos los datos personales
-                    asociados a tu cuenta de Meta de nuestra base de datos.
+                    {t("dataDeletionStatusPage.statusCompleted")}
                   </span>
                 )}
                 {state.row.status === "failed" && (
                   <span className="text-red-600">
-                    Error — la eliminación automática falló. Nuestro equipo
-                    fue notificado y procesará tu solicitud manualmente
-                    dentro de las próximas 72 horas. Si quieres seguimiento
-                    inmediato, escríbenos al correo de contacto.
+                    {t("dataDeletionStatusPage.statusFailed")}
                   </span>
                 )}
               </li>
@@ -188,29 +181,23 @@ const DataDeletionStatusPage = () => {
 
             {state.row.status === "completed" && (
               <>
-                <h2>¿Qué eliminamos?</h2>
+                <h2>{t("dataDeletionStatusPage.whatWeDeletedTitle")}</h2>
                 <p>
-                  De acuerdo con tu solicitud y con las políticas de la
-                  plataforma de Meta, eliminamos de nuestra base de datos
-                  toda la información derivada de tu cuenta de Facebook /
-                  Instagram, incluyendo:
+                  {t("dataDeletionStatusPage.whatWeDeletedBody")}
                 </p>
                 <ul>
-                  <li>Tokens de acceso de larga duración</li>
-                  <li>Información de páginas de Facebook conectadas</li>
-                  <li>Formularios de Lead Ads vinculados</li>
+                  <li>{t("dataDeletionStatusPage.deletedItemTokens")}</li>
+                  <li>{t("dataDeletionStatusPage.deletedItemPages")}</li>
+                  <li>{t("dataDeletionStatusPage.deletedItemLeadForms")}</li>
                   <li>
-                    Conversaciones de Instagram Direct, comentarios y
-                    metadatos relacionados
+                    {t("dataDeletionStatusPage.deletedItemConversations")}
                   </li>
-                  <li>Identificadores de cuenta de Instagram Business</li>
+                  <li>{t("dataDeletionStatusPage.deletedItemIgIds")}</li>
                 </ul>
                 <p className="text-sm text-muted-foreground">
-                  Los datos transmitidos a sub-procesadores (Supabase,
-                  Vercel, OpenAI) heredan políticas equivalentes de
-                  eliminación; consulta nuestra{" "}
-                  <a href="/privacy">Política de Privacidad</a> para
-                  detalles.
+                  {t("dataDeletionStatusPage.subprocessorsNoteBefore")}{" "}
+                  <a href="/privacy">{t("dataDeletionStatusPage.privacyPolicyLink")}</a>{" "}
+                  {t("dataDeletionStatusPage.subprocessorsNoteAfter")}
                 </p>
               </>
             )}
@@ -219,9 +206,9 @@ const DataDeletionStatusPage = () => {
 
         <hr />
         <p className="text-xs text-muted-foreground">
-          ¿Preguntas? <a href="/eliminar-datos">Instrucciones de eliminación</a>
+          {t("dataDeletionStatusPage.questionsPrefix")} <a href="/eliminar-datos">{t("dataDeletionStatusPage.deletionInstructionsLink")}</a>
           {" · "}
-          <a href="/privacy">Política de Privacidad</a>
+          <a href="/privacy">{t("dataDeletionStatusPage.privacyPolicyLink")}</a>
           {" · "}
           <a href="mailto:hola@klosify.com">
             hola@klosify.com

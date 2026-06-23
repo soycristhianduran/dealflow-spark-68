@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
 function fmtTime(iso: string) {
@@ -77,6 +78,7 @@ function ConvItem({
   onClick: () => void;
   onMarkUnread: () => void;
 }) {
+  const { t } = useTranslation();
   const initials = conv.contact_name
     ? conv.contact_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : conv.phone_number.slice(-2);
@@ -91,7 +93,7 @@ function ConvItem({
     <button
       onClick={onClick}
       onContextMenu={handleContextMenu}
-      title={conv.unread_count === 0 ? "Clic derecho para marcar como no leído" : ""}
+      title={conv.unread_count === 0 ? t("whatsAppInboxPage.rightClickMarkUnread") : ""}
       className={cn(
         "w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent border-b border-border/50",
         selected && "bg-primary/5 border-l-2 border-l-primary"
@@ -114,7 +116,7 @@ function ConvItem({
         <div className="flex items-center justify-between gap-1 mt-0.5">
           <p className="text-xs text-muted-foreground truncate">
             {conv.last_direction === "outgoing" && (
-              <span className="text-primary/60">Tú: </span>
+              <span className="text-primary/60">{t("whatsAppInboxPage.youPrefix")}</span>
             )}
             {conv.last_message}
           </p>
@@ -226,6 +228,7 @@ function MsgBubble({
   msg: WaMessage;
   onFetchMedia?: (id: string, mediaId: string) => void;
 }) {
+  const { t } = useTranslation();
   const out = msg.direction === "outgoing";
   const isMedia = MEDIA_MSG_TYPES.includes(msg.message_type);
   const text = msg.message_text || (!isMedia && msg.message_type !== "text" ? `[${msg.message_type}]` : "");
@@ -240,7 +243,7 @@ function MsgBubble({
       onClick={() => onFetchMedia && metaMediaId && onFetchMedia(msg.id, metaMediaId)}
       className="flex items-center gap-1.5 text-sm text-primary underline py-1 hover:opacity-80 transition-opacity"
     >
-      {icon} {label} — toca para cargar
+      {icon} {label} {t("whatsAppInboxPage.tapToLoad")}
     </button>
   );
 
@@ -251,35 +254,35 @@ function MsgBubble({
     if (type === "image" || type === "sticker") {
       if (realUrl) return (
         <a href={realUrl} target="_blank" rel="noopener noreferrer">
-          <img src={realUrl} alt="imagen" className="max-w-full rounded-lg max-h-64 object-contain mb-1 cursor-pointer hover:opacity-90 transition-opacity" />
+          <img src={realUrl} alt={t("whatsAppInboxPage.imageAlt")} className="max-w-full rounded-lg max-h-64 object-contain mb-1 cursor-pointer hover:opacity-90 transition-opacity" />
         </a>
       );
       return isMetaRef
-        ? <LoadBtn icon="🖼" label="Imagen" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🖼 Imagen no disponible</div>;
+        ? <LoadBtn icon="🖼" label={t("whatsAppInboxPage.image")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🖼 {t("whatsAppInboxPage.imageUnavailable")}</div>;
     }
     if (type === "video") {
       if (realUrl) return <video src={realUrl} controls className="max-w-full rounded-lg max-h-48 mb-1" />;
       return isMetaRef
-        ? <LoadBtn icon="🎬" label="Video" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎬 Video no disponible</div>;
+        ? <LoadBtn icon="🎬" label={t("whatsAppInboxPage.video")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎬 {t("whatsAppInboxPage.videoUnavailable")}</div>;
     }
     if (type === "audio" || type === "voice") {
       if (realUrl) return <AudioPlayer src={realUrl} outgoing={out} />;
       return isMetaRef
-        ? <LoadBtn icon="🎤" label="Audio" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎤 Audio no disponible</div>;
+        ? <LoadBtn icon="🎤" label={t("whatsAppInboxPage.audio")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎤 {t("whatsAppInboxPage.audioUnavailable")}</div>;
     }
     if (type === "document") {
       if (realUrl) return (
         <a href={realUrl} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm underline py-1">
-          📄 Ver documento
+          📄 {t("whatsAppInboxPage.viewDocument")}
         </a>
       );
       return isMetaRef
-        ? <LoadBtn icon="📄" label="Documento" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">📄 Documento no disponible</div>;
+        ? <LoadBtn icon="📄" label={t("whatsAppInboxPage.document")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">📄 {t("whatsAppInboxPage.documentUnavailable")}</div>;
     }
     return null;
   };
@@ -327,26 +330,27 @@ async function uploadTemplateMedia(file: File, orgId?: string | null): Promise<s
 function MediaUploadZone({
   headerType, mediaId, onChange,
 }: { headerType: string; mediaId: string; onChange: (id: string) => void }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const accept = headerType === "IMAGE" ? "image/jpeg,image/png,image/webp" : headerType === "VIDEO" ? "video/mp4,video/3gpp" : "application/pdf";
-  const label = headerType === "IMAGE" ? "imagen" : headerType === "VIDEO" ? "video" : "documento";
+  const label = headerType === "IMAGE" ? t("whatsAppInboxPage.imageLower") : headerType === "VIDEO" ? t("whatsAppInboxPage.videoLower") : t("whatsAppInboxPage.documentLower");
   const maxMb = headerType === "VIDEO" ? 16 : 5;
 
   const handleFile = async (file: File) => {
-    if (file.size > maxMb * 1024 * 1024) { toast.error(`Máximo ${maxMb}MB`); return; }
+    if (file.size > maxMb * 1024 * 1024) { toast.error(t("whatsAppInboxPage.maxFileSize", { maxMb })); return; }
     const localPreview = URL.createObjectURL(file);
     setPreview(localPreview);
     setUploading(true);
     try {
       const id = await uploadTemplateMedia(file);
       onChange(id);
-      toast.success("Imagen lista ✓");
+      toast.success(t("whatsAppInboxPage.imageReady"));
     } catch (e: any) {
       setPreview("");
       onChange("");
-      toast.error("Error al subir: " + e.message);
+      toast.error(t("whatsAppInboxPage.uploadError") + e.message);
     } finally {
       setUploading(false);
     }
@@ -355,7 +359,7 @@ function MediaUploadZone({
   return (
     <div className="space-y-1.5">
       <Label>
-        {headerType === "IMAGE" ? "Imagen" : headerType === "VIDEO" ? "Video" : "Documento"}{" "}
+        {headerType === "IMAGE" ? t("whatsAppInboxPage.image") : headerType === "VIDEO" ? t("whatsAppInboxPage.video") : t("whatsAppInboxPage.document")}{" "}
         <span className="text-red-500">*</span>
       </Label>
       <div
@@ -373,23 +377,23 @@ function MediaUploadZone({
         {uploading ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Subiendo...</p>
+            <p className="text-xs text-muted-foreground">{t("whatsAppInboxPage.uploading")}</p>
           </div>
         ) : preview && mediaId ? (
           <div className="space-y-1.5">
             {headerType === "IMAGE" ? (
-              <img src={preview} alt="preview" className="max-h-28 mx-auto rounded object-contain" />
+              <img src={preview} alt={t("whatsAppInboxPage.previewAlt")} className="max-h-28 mx-auto rounded object-contain" />
             ) : (
               <video src={preview} className="max-h-28 mx-auto rounded" controls />
             )}
             <p className="text-xs text-green-600 font-medium flex items-center justify-center gap-1">
-              <Check className="h-3 w-3" /> Listo — haz clic para cambiar
+              <Check className="h-3 w-3" /> {t("whatsAppInboxPage.readyClickToChange")}
             </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1.5 py-2">
             <div className="text-2xl">{headerType === "IMAGE" ? "🖼" : headerType === "VIDEO" ? "🎬" : "📄"}</div>
-            <p className="text-sm font-medium">Haz clic o arrastra tu {label} aquí</p>
+            <p className="text-sm font-medium">{t("whatsAppInboxPage.clickOrDragHere", { label })}</p>
             <p className="text-xs text-muted-foreground">
               {headerType === "IMAGE" ? "JPG, PNG, WebP" : headerType === "VIDEO" ? "MP4, 3GPP" : "PDF"} · máx. {maxMb}MB
             </p>
@@ -408,15 +412,16 @@ function TemplatePicker({
   onSend: (name: string, lang: string, vars: string[], mediaId: string) => void;
   sending: boolean;
 }) {
+  const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
-  const approved = templates.filter((t) => t.status === "APPROVED");
+  const approved = templates.filter((tp) => tp.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
   const [mediaId, setMediaId] = useState("");
 
   useEffect(() => { if (open) fetchTemplates(); }, [open, fetchTemplates]);
 
-  const tpl = approved.find((t) => t.name === selected);
+  const tpl = approved.find((tp) => tp.name === selected);
   const needsMedia = tpl && MEDIA_HEADER_TYPES.includes(tpl.header_type || "");
   const varNums = tpl
     ? [...new Set((tpl.body_text.match(/\{\{(\d+)\}\}/g) || []).map((m) => parseInt(m.replace(/[{}]/g, ""))))].sort((a, b) => a - b)
@@ -433,21 +438,21 @@ function TemplatePicker({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Enviar plantilla</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("whatsAppInboxPage.sendTemplate")}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
-            <Label>Plantilla aprobada</Label>
+            <Label>{t("whatsAppInboxPage.approvedTemplate")}</Label>
             <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger><SelectValue placeholder="Selecciona una plantilla..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("whatsAppInboxPage.selectTemplatePlaceholder")} /></SelectTrigger>
               <SelectContent>
-                {approved.map((t) => (
-                  <SelectItem key={t.name} value={t.name}>
-                    {t.name}{t.header_type && MEDIA_HEADER_TYPES.includes(t.header_type) ? ` 🖼` : ""}
+                {approved.map((tp) => (
+                  <SelectItem key={tp.name} value={tp.name}>
+                    {tp.name}{tp.header_type && MEDIA_HEADER_TYPES.includes(tp.header_type) ? ` 🖼` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {approved.length === 0 && <p className="text-xs text-muted-foreground">No hay plantillas aprobadas.</p>}
+            {approved.length === 0 && <p className="text-xs text-muted-foreground">{t("whatsAppInboxPage.noApprovedTemplates")}</p>}
           </div>
 
           {/* Media uploader for image/video templates */}
@@ -457,12 +462,12 @@ function TemplatePicker({
 
           {tpl && varNums.length > 0 && (
             <div className="space-y-2">
-              <Label>Variables</Label>
+              <Label>{t("whatsAppInboxPage.variables")}</Label>
               {varNums.map((n, i) => (
                 <div key={n} className="flex items-center gap-2">
                   <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
                   <Input
-                    placeholder={`Valor para {{${n}}}`}
+                    placeholder={t("whatsAppInboxPage.valueForVar", { n })}
                     value={vars[i] || ""}
                     onChange={(e) => setVars((v) => { const nv = [...v]; nv[i] = e.target.value; return nv; })}
                     className="h-8 text-sm"
@@ -478,7 +483,7 @@ function TemplatePicker({
                 {tpl.header_text && <p className="font-bold text-xs">{tpl.header_text}</p>}
                 {needsMedia && (
                   <div className="bg-gray-100 rounded p-1.5 text-center text-xs text-muted-foreground">
-                    {tpl.header_type === "IMAGE" ? "🖼 Imagen" : tpl.header_type === "VIDEO" ? "🎬 Video" : "📄 Documento"}
+                    {tpl.header_type === "IMAGE" ? t("whatsAppInboxPage.imageWithIcon") : tpl.header_type === "VIDEO" ? t("whatsAppInboxPage.videoWithIcon") : t("whatsAppInboxPage.documentWithIcon")}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap text-sm">{preview}</p>
@@ -493,9 +498,9 @@ function TemplatePicker({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>{t("whatsAppInboxPage.cancel")}</Button>
           <Button disabled={!canSend || sending} onClick={() => tpl && onSend(tpl.name, tpl.language, vars, mediaId)}>
-            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</> : <><Send className="h-4 w-4 mr-1" />Enviar</>}
+            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppInboxPage.sending")}</> : <><Send className="h-4 w-4 mr-1" />{t("whatsAppInboxPage.send")}</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -512,8 +517,9 @@ function NewConvDialog({
   onStart: (phone: string, templateName: string, lang: string, vars: string[], mediaId: string) => void;
   sending: boolean;
 }) {
+  const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
-  const approved = templates.filter((t) => t.status === "APPROVED");
+  const approved = templates.filter((tp) => tp.status === "APPROVED");
   const [phone, setPhone] = useState("");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
@@ -521,7 +527,7 @@ function NewConvDialog({
 
   useEffect(() => { if (open) fetchTemplates(); }, [open, fetchTemplates]);
 
-  const tpl = approved.find((t) => t.name === selected);
+  const tpl = approved.find((tp) => tp.name === selected);
   const needsMedia = tpl && MEDIA_HEADER_TYPES.includes(tpl.header_type || "");
   const varNums = tpl
     ? [...new Set((tpl.body_text.match(/\{\{(\d+)\}\}/g) || []).map((m) => parseInt(m.replace(/[{}]/g, ""))))].sort((a, b) => a - b)
@@ -538,28 +544,28 @@ function NewConvDialog({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Nueva conversación</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("whatsAppInboxPage.newConversation")}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           <p className="text-xs text-muted-foreground">
-            Para iniciar una conversación debes enviar una plantilla aprobada por Meta.
+            {t("whatsAppInboxPage.newConvIntro")}
           </p>
           <div className="space-y-1.5">
-            <Label>Número de WhatsApp <span className="text-red-500">*</span></Label>
+            <Label>{t("whatsAppInboxPage.whatsAppNumber")} <span className="text-red-500">*</span></Label>
             <Input
-              placeholder="ej: 573001234567 (código de país + número)"
+              placeholder={t("whatsAppInboxPage.phonePlaceholder")}
               value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/[^0-9+\s\-()]/g, ""))}
             />
-            <p className="text-xs text-muted-foreground">Solo dígitos con código de país (ej: 573001234567)</p>
+            <p className="text-xs text-muted-foreground">{t("whatsAppInboxPage.phoneHint")}</p>
           </div>
           <div className="space-y-1.5">
-            <Label>Plantilla <span className="text-red-500">*</span></Label>
+            <Label>{t("whatsAppInboxPage.template")} <span className="text-red-500">*</span></Label>
             <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger><SelectValue placeholder="Selecciona una plantilla..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("whatsAppInboxPage.selectTemplatePlaceholder")} /></SelectTrigger>
               <SelectContent>
-                {approved.map((t) => (
-                  <SelectItem key={t.name} value={t.name}>
-                    {t.name}{t.header_type && MEDIA_HEADER_TYPES.includes(t.header_type) ? " 🖼" : ""}
+                {approved.map((tp) => (
+                  <SelectItem key={tp.name} value={tp.name}>
+                    {tp.name}{tp.header_type && MEDIA_HEADER_TYPES.includes(tp.header_type) ? " 🖼" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -573,12 +579,12 @@ function NewConvDialog({
 
           {tpl && varNums.length > 0 && (
             <div className="space-y-2">
-              <Label>Variables</Label>
+              <Label>{t("whatsAppInboxPage.variables")}</Label>
               {varNums.map((n, i) => (
                 <div key={n} className="flex items-center gap-2">
                   <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
                   <Input
-                    placeholder={`Valor para {{${n}}}`}
+                    placeholder={t("whatsAppInboxPage.valueForVar", { n })}
                     value={vars[i] || ""}
                     onChange={(e) => setVars((v) => { const nv = [...v]; nv[i] = e.target.value; return nv; })}
                     className="h-8 text-sm"
@@ -592,7 +598,7 @@ function NewConvDialog({
               <div className="bg-white dark:bg-gray-800 rounded-lg p-3 shadow-sm text-sm">
                 {needsMedia && (
                   <div className="bg-gray-100 rounded p-1.5 text-center text-xs text-muted-foreground mb-1">
-                    {tpl.header_type === "IMAGE" ? "🖼 Imagen" : "🎬 Video"}
+                    {tpl.header_type === "IMAGE" ? t("whatsAppInboxPage.imageWithIcon") : t("whatsAppInboxPage.videoWithIcon")}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap">{preview}</p>
@@ -601,9 +607,9 @@ function NewConvDialog({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>{t("whatsAppInboxPage.cancel")}</Button>
           <Button disabled={!canStart || sending} onClick={() => tpl && onStart(cleanPhone, tpl.name, tpl.language, vars, mediaId)}>
-            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</> : <><Send className="h-4 w-4 mr-1" />Iniciar conversación</>}
+            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppInboxPage.sending")}</> : <><Send className="h-4 w-4 mr-1" />{t("whatsAppInboxPage.startConversation")}</>}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -627,6 +633,7 @@ function getWindowStatus(messages: WaMessage[]): { status: WindowStatus; lastInc
 function WindowBanner({
   status, lastIncoming, onTemplate,
 }: { status: WindowStatus; lastIncoming: Date | null; onTemplate: () => void }) {
+  const { t } = useTranslation();
   if (status === "open") return null;
   const hoursLeft = lastIncoming
     ? Math.max(0, 24 - (Date.now() - lastIncoming.getTime()) / 3_600_000)
@@ -635,7 +642,7 @@ function WindowBanner({
     return (
       <div className="mx-4 mt-2 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
         <Clock className="h-3.5 w-3.5 shrink-0" />
-        <span>Ventana de 24h cerrando — quedan ≈{Math.round(hoursLeft)}h para enviar mensajes libres.</span>
+        <span>{t("whatsAppInboxPage.windowClosing", { hours: Math.round(hoursLeft) })}</span>
       </div>
     );
   }
@@ -643,8 +650,8 @@ function WindowBanner({
     <div className="mx-4 mt-2 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
       <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
       <div className="flex-1">
-        <span className="font-semibold">Ventana de 24h cerrada.</span> El contacto debe escribirte primero, o envía una{" "}
-        <button className="underline font-medium" onClick={onTemplate}>plantilla aprobada</button> para reanudar.
+        <span className="font-semibold">{t("whatsAppInboxPage.windowClosedTitle")}</span> {t("whatsAppInboxPage.windowClosedBefore")}{" "}
+        <button className="underline font-medium" onClick={onTemplate}>{t("whatsAppInboxPage.approvedTemplateLink")}</button> {t("whatsAppInboxPage.windowClosedAfter")}
       </div>
     </div>
   );
@@ -652,6 +659,7 @@ function WindowBanner({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function WhatsAppInboxPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { isConnected, loading: waLoading } = useWhatsAppIntegration();
@@ -756,7 +764,7 @@ export default function WhatsAppInboxPage() {
       setRecSeconds(0);
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
-      toast.error("Micrófono no disponible: " + e.message);
+      toast.error(t("whatsAppInboxPage.micUnavailable") + e.message);
     }
   }, [selectedPhone, windowClosed]);
 
@@ -788,7 +796,7 @@ export default function WhatsAppInboxPage() {
           const fname = `voice-${Date.now()}.${ext}`;
           await sendMedia(selectedPhone, base64, baseMime, fname, selectedConv?.contact_id);
         } catch (e: any) {
-          toast.error("Error al enviar audio: " + e.message);
+          toast.error(t("whatsAppInboxPage.audioSendError") + e.message);
         }
         resolve();
       };
@@ -819,7 +827,7 @@ export default function WhatsAppInboxPage() {
     if (!selectedPhone) return;
     const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
     if (file.size > MAX_MB * 1024 * 1024) {
-      toast.error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`);
+      toast.error(t("whatsAppInboxPage.fileTooLarge", { maxMb: MAX_MB }));
       return;
     }
     setUploadingMedia(true);
@@ -832,7 +840,7 @@ export default function WhatsAppInboxPage() {
       });
       await sendMedia(selectedPhone, base64, file.type, file.name, selectedConv?.contact_id);
     } catch (e: any) {
-      toast.error("Error al enviar archivo: " + e.message);
+      toast.error(t("whatsAppInboxPage.fileSendError") + e.message);
     } finally {
       setUploadingMedia(false);
     }
@@ -876,12 +884,12 @@ export default function WhatsAppInboxPage() {
         <AppHeader title="WhatsApp Inbox" />
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           <MessageCircle className="h-16 w-16 text-muted-foreground" />
-          <h2 className="text-xl font-semibold">WhatsApp no conectado</h2>
+          <h2 className="text-xl font-semibold">{t("whatsAppInboxPage.notConnectedTitle")}</h2>
           <p className="text-muted-foreground text-center max-w-md">
-            Conecta tu cuenta de WhatsApp Business para ver y responder mensajes.
+            {t("whatsAppInboxPage.notConnectedDesc")}
           </p>
           <Button onClick={() => navigate(path("/integrations"))}>
-            Ir a Integraciones <ChevronRight className="h-4 w-4 ml-1" />
+            {t("whatsAppInboxPage.goToIntegrations")} <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
       </AppLayout>
@@ -921,7 +929,7 @@ export default function WhatsAppInboxPage() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Buscar conversaciones..."
+                placeholder={t("whatsAppInboxPage.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9 h-9 text-sm"
@@ -932,7 +940,7 @@ export default function WhatsAppInboxPage() {
               className="w-full h-8 text-xs"
               onClick={() => setShowNewConv(true)}
             >
-              <Plus className="h-3.5 w-3.5 mr-1" /> Nueva conversación
+              <Plus className="h-3.5 w-3.5 mr-1" /> {t("whatsAppInboxPage.newConversation")}
             </Button>
           </div>
 
@@ -946,11 +954,11 @@ export default function WhatsAppInboxPage() {
               <div className="flex flex-col items-center justify-center py-16 gap-3 px-4 text-center">
                 <MessageCircle className="h-10 w-10 text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  {search ? "Sin resultados" : "Sin conversaciones"}
+                  {search ? t("whatsAppInboxPage.noResults") : t("whatsAppInboxPage.noConversations")}
                 </p>
                 {!search && (
                   <p className="text-xs text-muted-foreground">
-                    Inicia una nueva conversación o espera mensajes entrantes.
+                    {t("whatsAppInboxPage.noConversationsHint")}
                   </p>
                 )}
               </div>
@@ -1005,7 +1013,7 @@ export default function WhatsAppInboxPage() {
                 <Link to={path(`/contacts/${selectedConv.contact_id}`)}>
                   <Button variant="ghost" size="sm" className="h-8 text-xs gap-1.5">
                     <User className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Ver contacto</span>
+                    <span className="hidden sm:inline">{t("whatsAppInboxPage.viewContact")}</span>
                     <ExternalLink className="h-3 w-3" />
                   </Button>
                 </Link>
@@ -1028,7 +1036,7 @@ export default function WhatsAppInboxPage() {
               ) : messageItems.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
                   <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
-                  <p className="text-sm text-muted-foreground">Sin mensajes aún</p>
+                  <p className="text-sm text-muted-foreground">{t("whatsAppInboxPage.noMessagesYet")}</p>
                 </div>
               ) : (
                 messageItems.map((item, i) =>
@@ -1068,7 +1076,7 @@ export default function WhatsAppInboxPage() {
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    title="Enviar plantilla aprobada"
+                    title={t("whatsAppInboxPage.sendApprovedTemplate")}
                     onClick={() => setShowTemplatePicker(true)}
                   >
                     <LayoutTemplate className="h-4 w-4" />
@@ -1077,7 +1085,7 @@ export default function WhatsAppInboxPage() {
                     variant="outline"
                     size="icon"
                     className="h-9 w-9 shrink-0"
-                    title="Adjuntar imagen, video, audio o documento"
+                    title={t("whatsAppInboxPage.attachMedia")}
                     disabled={uploadingMedia || sending || windowClosed}
                     onClick={() => mediaInputRef.current?.click()}
                   >
@@ -1095,12 +1103,12 @@ export default function WhatsAppInboxPage() {
                 <div className="flex-1 flex items-center gap-3 h-9 px-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
                   <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
                   <span className="text-sm font-medium text-red-600 dark:text-red-400 flex-1 tabular-nums">
-                    Grabando — {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:{String(recSeconds % 60).padStart(2, "0")}
+                    {t("whatsAppInboxPage.recording")} {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:{String(recSeconds % 60).padStart(2, "0")}
                   </span>
                   <button
                     onClick={cancelRecording}
                     className="text-red-400 hover:text-red-600 transition-colors"
-                    title="Cancelar"
+                    title={t("whatsAppInboxPage.cancel")}
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -1110,8 +1118,8 @@ export default function WhatsAppInboxPage() {
                   ref={textareaRef}
                   placeholder={
                     windowClosed
-                      ? "Ventana cerrada — usa el botón 📋 para enviar una plantilla"
-                      : "Escribe un mensaje..."
+                      ? t("whatsAppInboxPage.windowClosedTextareaPlaceholder")
+                      : t("whatsAppInboxPage.messagePlaceholder")
                   }
                   value={draft}
                   onChange={(e) => !windowClosed && setDraft(e.target.value)}
@@ -1139,7 +1147,7 @@ export default function WhatsAppInboxPage() {
                 <Button
                   size="icon"
                   className="h-9 w-9 shrink-0 bg-green-600 hover:bg-green-700"
-                  title="Enviar audio"
+                  title={t("whatsAppInboxPage.sendAudio")}
                   disabled={sending}
                   onClick={stopAndSendRecording}
                 >
@@ -1150,7 +1158,7 @@ export default function WhatsAppInboxPage() {
                   size="icon"
                   variant="outline"
                   className="h-9 w-9 shrink-0"
-                  title="Grabar audio"
+                  title={t("whatsAppInboxPage.recordAudio")}
                   disabled={windowClosed || sending || uploadingMedia}
                   onClick={startRecording}
                 >
@@ -1167,10 +1175,10 @@ export default function WhatsAppInboxPage() {
             </div>
             <h3 className="font-semibold text-lg">WhatsApp Inbox</h3>
             <p className="text-muted-foreground text-sm max-w-xs">
-              Selecciona una conversación para ver los mensajes, o inicia una nueva.
+              {t("whatsAppInboxPage.emptyStateDesc")}
             </p>
             <Button onClick={() => setShowNewConv(true)} className="mt-2">
-              <Plus className="h-4 w-4 mr-1" /> Nueva conversación
+              <Plus className="h-4 w-4 mr-1" /> {t("whatsAppInboxPage.newConversation")}
             </Button>
           </div>
         )}

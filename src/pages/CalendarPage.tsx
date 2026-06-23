@@ -15,6 +15,8 @@ import {
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -40,13 +42,14 @@ const meetingTypeIcons: Record<string, React.ReactNode> = {
 
 const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
 
-function getMeetingDisplayTitle(m: MeetingRow) {
-  if (m.contact_name) return `${m.title} con ${m.contact_name}`;
+function getMeetingDisplayTitle(m: MeetingRow, t: TFunction) {
+  if (m.contact_name) return t("calendarPage.meetingWithContact", { title: m.title, contact: m.contact_name });
   return m.title;
 }
 
 export default function CalendarPage() {
   const { isVendor, myUserId } = usePermissions();
+  const { t } = useTranslation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
   const [meetings, setMeetings] = useState<MeetingRow[]>([]);
@@ -126,9 +129,9 @@ export default function CalendarPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Calendario" actions={
+      <AppHeader title={t("calendarPage.title")} actions={
         <Button size="sm" className="gap-1.5" onClick={() => openCreate()}>
-          <Plus className="h-4 w-4" /> Nueva cita
+          <Plus className="h-4 w-4" /> {t("calendarPage.newAppointment")}
         </Button>
       } />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
@@ -141,12 +144,12 @@ export default function CalendarPage() {
                   "px-3 py-1.5 text-xs font-medium transition-colors",
                   view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"
                 )}>
-                  {v === "month" ? "Mes" : v === "week" ? "Semana" : "Día"}
+                  {v === "month" ? t("calendarPage.month") : v === "week" ? t("calendarPage.week") : t("calendarPage.day")}
                 </button>
               ))}
             </div>
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(-1)}><ChevronLeft className="h-4 w-4" /></Button>
-            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoy</Button>
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>{t("calendarPage.today")}</Button>
             <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => navigate(1)}><ChevronRight className="h-4 w-4" /></Button>
           </div>
         </div>
@@ -159,8 +162,8 @@ export default function CalendarPage() {
               {view === "month" && (
                 <div className="rounded-lg border bg-card overflow-hidden">
                   <div className="grid grid-cols-7 border-b">
-                    {["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"].map(d => (
-                      <div key={d} className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">{d}</div>
+                    {["mon","tue","wed","thu","fri","sat","sun"].map(d => (
+                      <div key={d} className="px-2 py-2 text-center text-xs font-medium text-muted-foreground">{t(`calendarPage.weekday_${d}`)}</div>
                     ))}
                   </div>
                   <div className="grid grid-cols-7">
@@ -177,10 +180,10 @@ export default function CalendarPage() {
                           {dm.slice(0, 2).map(m => (
                             <div key={m.id} onClick={(e) => openEdit(m, e)}
                               className="mt-0.5 truncate rounded bg-primary/10 px-1 py-0.5 text-xs text-primary hover:bg-primary/20 transition-colors">
-                              {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m)}
+                              {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m, t)}
                             </div>
                           ))}
-                          {dm.length > 2 && <p className="text-xs text-muted-foreground px-1">+{dm.length - 2} más</p>}
+                          {dm.length > 2 && <p className="text-xs text-muted-foreground px-1">{t("calendarPage.moreCount", { count: dm.length - 2 })}</p>}
                         </div>
                       );
                     })}
@@ -213,7 +216,7 @@ export default function CalendarPage() {
                               {hm.map(m => (
                                 <div key={m.id} onClick={(e) => openEdit(m, e)}
                                   className="rounded bg-primary/15 px-1.5 py-0.5 text-xs text-primary truncate mb-0.5 hover:bg-primary/25 transition-colors">
-                                  {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m)}
+                                  {format(parseISO(m.start_at), "HH:mm")} {getMeetingDisplayTitle(m, t)}
                                 </div>
                               ))}
                             </div>
@@ -239,7 +242,7 @@ export default function CalendarPage() {
                               <div key={m.id} onClick={(e) => openEdit(m, e)}
                                 className="rounded-md bg-primary/15 px-2 py-1.5 text-sm text-primary flex items-center gap-2 hover:bg-primary/25 transition-colors">
                                 {meetingTypeIcons[m.meeting_type || "video_call"]}
-                                <span className="font-medium">{getMeetingDisplayTitle(m)}</span>
+                                <span className="font-medium">{getMeetingDisplayTitle(m, t)}</span>
                                 <span className="text-xs text-muted-foreground ml-auto">
                                   {format(parseISO(m.start_at), "HH:mm")} – {format(parseISO(m.end_at), "HH:mm")}
                                 </span>
@@ -259,11 +262,11 @@ export default function CalendarPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground capitalize">{format(currentDate, "EEEE d 'de' MMMM", { locale: es })}</h3>
                 <Button size="sm" variant="outline" className="gap-1" onClick={() => openCreate(currentDate)}>
-                  <Plus className="h-3.5 w-3.5" /> Crear
+                  <Plus className="h-3.5 w-3.5" /> {t("calendarPage.create")}
                 </Button>
               </div>
               {selectedDayMeetings.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-8 text-center">Sin citas este día</p>
+                <p className="text-sm text-muted-foreground py-8 text-center">{t("calendarPage.noAppointmentsThisDay")}</p>
               ) : selectedDayMeetings.map(meeting => (
                 <Card key={meeting.id} className="p-3 border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => openEdit(meeting)}>
@@ -272,7 +275,7 @@ export default function CalendarPage() {
                       {meetingTypeIcons[meeting.meeting_type || "video_call"]}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting)}</p>
+                      <p className="text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting, t)}</p>
                       <p className="text-xs text-muted-foreground">
                         {format(parseISO(meeting.start_at), "HH:mm")} - {format(parseISO(meeting.end_at), "HH:mm")}
                       </p>

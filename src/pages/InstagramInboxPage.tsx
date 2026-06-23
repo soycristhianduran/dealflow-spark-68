@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 interface IgConversation {
   id: string;
@@ -46,6 +47,7 @@ export default function InstagramInboxPage() {
   const { path } = useWorkspace();
   const navigate = useNavigate();
   const ig = useInstagramIntegration();
+  const { t } = useTranslation();
 
   const [conversations, setConversations] = useState<IgConversation[]>([]);
   const [selectedConv, setSelectedConv] = useState<IgConversation | null>(null);
@@ -67,7 +69,7 @@ export default function InstagramInboxPage() {
     convQ = organizationId ? convQ.eq("organization_id", organizationId) : convQ.eq("user_id", user.id);
     const { data, error } = await convQ.order("last_message_at", { ascending: false });
     if (error) {
-      toast.error("Error al cargar conversaciones: " + error.message);
+      toast.error(t("instagramInboxPage.loadConversationsError", { message: error.message }));
     } else {
       setConversations((data || []) as IgConversation[]);
     }
@@ -84,7 +86,7 @@ export default function InstagramInboxPage() {
       .select("id, ig_message_id, direction, message_type, message_text, attachment_url, sender_id, status, sent_at")
       .eq("conversation_id", conv.id)
       .order("sent_at", { ascending: true });
-    if (error) toast.error("Error al cargar mensajes: " + error.message);
+    if (error) toast.error(t("instagramInboxPage.loadMessagesError", { message: error.message }));
     setMessages((data || []) as IgMessage[]);
     setLoadingMsgs(false);
 
@@ -109,7 +111,7 @@ export default function InstagramInboxPage() {
       );
       if (selectedConv?.id === convId) setSelectedConv(null);
     } catch (e: any) {
-      toast.error("Error al marcar como no leído: " + e.message);
+      toast.error(t("instagramInboxPage.markUnreadError", { message: e.message }));
     }
   }, [selectedConv]);
 
@@ -165,7 +167,7 @@ export default function InstagramInboxPage() {
       await loadMessages(selectedConv);
       await loadConversations();
     } catch (e: any) {
-      toast.error("Error al enviar: " + e.message);
+      toast.error(t("instagramInboxPage.sendError", { message: e.message }));
       setDraft(text); // restore so user doesn't lose it
     } finally {
       setSending(false);
@@ -194,12 +196,12 @@ export default function InstagramInboxPage() {
                 <Instagram className="h-8 w-8 text-pink-600" />
               </div>
             </div>
-            <h2 className="text-lg font-bold">Conecta Instagram</h2>
+            <h2 className="text-lg font-bold">{t("instagramInboxPage.connectInstagram")}</h2>
             <p className="text-sm text-muted-foreground">
-              Aún no has conectado tu cuenta de Instagram. Ve a Integraciones para vincular tu cuenta y empezar a recibir DMs.
+              {t("instagramInboxPage.notConnectedDescription")}
             </p>
             <Button onClick={() => navigate(path("/integrations"))} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
-              <Instagram className="h-4 w-4" /> Ir a Integraciones
+              <Instagram className="h-4 w-4" /> {t("instagramInboxPage.goToIntegrations")}
             </Button>
           </div>
         </div>
@@ -226,7 +228,7 @@ export default function InstagramInboxPage() {
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Buscar..."
+                placeholder={t("instagramInboxPage.searchPlaceholder")}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9 text-sm"
@@ -243,7 +245,7 @@ export default function InstagramInboxPage() {
               <div className="p-8 text-center space-y-2">
                 <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground" />
                 <p className="text-sm text-muted-foreground">
-                  {search ? "Sin resultados" : "No hay conversaciones todavía"}
+                  {search ? t("instagramInboxPage.noResults") : t("instagramInboxPage.noConversationsYet")}
                 </p>
               </div>
             ) : (
@@ -259,7 +261,7 @@ export default function InstagramInboxPage() {
                       e.preventDefault();
                       if (conv.unread_count === 0) markAsUnread(conv.id);
                     }}
-                    title={conv.unread_count === 0 ? "Clic derecho para marcar como no leído" : ""}
+                    title={conv.unread_count === 0 ? t("instagramInboxPage.rightClickMarkUnread") : ""}
                   >
                     {conv.participant_profile_pic ? (
                       <img src={conv.participant_profile_pic} alt="" className="h-10 w-10 rounded-full shrink-0" />
@@ -282,7 +284,7 @@ export default function InstagramInboxPage() {
                         )}
                       </div>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {conv.last_message_preview || "(sin mensajes)"}
+                        {conv.last_message_preview || t("instagramInboxPage.noMessagesPreview")}
                       </p>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         {formatDistanceToNow(new Date(conv.last_message_at), { addSuffix: true, locale: es })}
@@ -301,7 +303,7 @@ export default function InstagramInboxPage() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2">
                 <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">Selecciona una conversación</p>
+                <p className="text-sm text-muted-foreground">{t("instagramInboxPage.selectConversation")}</p>
               </div>
             </div>
           ) : (
@@ -330,7 +332,7 @@ export default function InstagramInboxPage() {
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                   </div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center py-8 text-sm text-muted-foreground">No hay mensajes en esta conversación</div>
+                  <div className="text-center py-8 text-sm text-muted-foreground">{t("instagramInboxPage.noMessagesInConversation")}</div>
                 ) : (
                   <div className="space-y-3">
                     {messages.map((msg) => {
@@ -347,7 +349,7 @@ export default function InstagramInboxPage() {
                                 <img src={msg.attachment_url} alt="" className="rounded mb-1 max-h-60" />
                               ) : (
                                 <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block text-xs underline mb-1">
-                                  Ver adjunto
+                                  {t("instagramInboxPage.viewAttachment")}
                                 </a>
                               )
                             )}
@@ -370,7 +372,7 @@ export default function InstagramInboxPage() {
               {/* Composer */}
               <div className="border-t p-3 flex gap-2">
                 <Input
-                  placeholder="Escribe un mensaje..."
+                  placeholder={t("instagramInboxPage.messagePlaceholder")}
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
@@ -378,7 +380,7 @@ export default function InstagramInboxPage() {
                 />
                 <Button onClick={handleSend} disabled={!draft.trim() || sending} className="gap-1 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
                   {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Enviar
+                  {t("instagramInboxPage.send")}
                 </Button>
               </div>
             </>

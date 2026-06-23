@@ -2,6 +2,7 @@
 //  CallingAgentPage — AI Calling Agent (Agentes, Campañas, Llamadas)
 // ══════════════════════════════════════════════════════════════════════
 import React, { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -221,15 +222,16 @@ function contactName(log: CallLog): string {
 // ── Badge components ──────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   const map: Record<string, { label: string; className: string }> = {
-    completed:   { label: "Completada",   className: "bg-green-100 text-green-700 border-green-200" },
-    in_progress: { label: "En curso",     className: "bg-blue-100 text-blue-700 border-blue-200" },
-    no_answer:   { label: "Sin respuesta",className: "bg-slate-100 text-slate-600 border-slate-200" },
-    failed:      { label: "Fallida",      className: "bg-red-100 text-red-700 border-red-200" },
-    initiated:   { label: "Iniciada",     className: "bg-indigo-100 text-indigo-700 border-indigo-200" },
-    draft:       { label: "Borrador",     className: "bg-slate-100 text-slate-600 border-slate-200" },
-    active:      { label: "Activa",       className: "bg-green-100 text-green-700 border-green-200" },
-    paused:      { label: "Pausada",      className: "bg-amber-100 text-amber-700 border-amber-200" },
+    completed:   { label: t("callingAgentPage.statusCompleted"),   className: "bg-green-100 text-green-700 border-green-200" },
+    in_progress: { label: t("callingAgentPage.statusInProgress"),     className: "bg-blue-100 text-blue-700 border-blue-200" },
+    no_answer:   { label: t("callingAgentPage.statusNoAnswer"),className: "bg-slate-100 text-slate-600 border-slate-200" },
+    failed:      { label: t("callingAgentPage.statusFailed"),      className: "bg-red-100 text-red-700 border-red-200" },
+    initiated:   { label: t("callingAgentPage.statusInitiated"),     className: "bg-indigo-100 text-indigo-700 border-indigo-200" },
+    draft:       { label: t("callingAgentPage.statusDraft"),     className: "bg-slate-100 text-slate-600 border-slate-200" },
+    active:      { label: t("callingAgentPage.statusActive"),       className: "bg-green-100 text-green-700 border-green-200" },
+    paused:      { label: t("callingAgentPage.statusPaused"),      className: "bg-amber-100 text-amber-700 border-amber-200" },
   };
   const cfg = map[status] ?? { label: status, className: "bg-slate-100 text-slate-600 border-slate-200" };
   return (
@@ -309,6 +311,7 @@ function AgentFormDialog({
 }) {
   const { organizationId } = useOrganizationContext();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [form, setForm] = useState<AgentFormData>(emptyAgentForm());
   const [saving, setSaving] = useState(false);
 
@@ -370,7 +373,7 @@ function AgentFormDialog({
 
   const handleSave = async () => {
     if (!form.name.trim()) {
-      toast({ title: "El nombre es requerido", variant: "destructive" });
+      toast({ title: t("callingAgentPage.nameRequired"), variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -394,18 +397,18 @@ function AgentFormDialog({
           .update(payload)
           .eq("id", agent.id);
         if (error) throw error;
-        toast({ title: "Agente actualizado" });
+        toast({ title: t("callingAgentPage.agentUpdated") });
       } else {
         const { error } = await supabase
           .from("calling_agents")
           .insert({ ...payload, is_active: true });
         if (error) throw error;
-        toast({ title: "Agente creado" });
+        toast({ title: t("callingAgentPage.agentCreated") });
       }
       onSaved();
       onClose();
     } catch (err: any) {
-      toast({ title: "Error al guardar", description: err.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.saveError"), description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -417,37 +420,37 @@ function AgentFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-indigo-500" />
-            {agent ? "Editar agente" : "Nuevo agente de IA"}
+            {agent ? t("callingAgentPage.editAgent") : t("callingAgentPage.newAgentTitle")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-5 py-1">
           {/* Name */}
           <div>
-            <Label>Nombre <span className="text-red-500">*</span></Label>
+            <Label>{t("callingAgentPage.nameLabel")} <span className="text-red-500">*</span></Label>
             <Input
               className="mt-1"
               value={form.name}
               onChange={e => set("name", e.target.value)}
-              placeholder="Ej. Agente de calificación"
+              placeholder={t("callingAgentPage.namePlaceholder")}
             />
           </div>
 
           {/* Description */}
           <div>
-            <Label>Descripción</Label>
+            <Label>{t("callingAgentPage.descriptionLabel")}</Label>
             <Input
               className="mt-1"
               value={form.description}
               onChange={e => set("description", e.target.value)}
-              placeholder="Breve descripción del propósito del agente"
+              placeholder={t("callingAgentPage.descriptionPlaceholder")}
             />
           </div>
 
           {/* Voice Provider + Language */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label>Proveedor de voz</Label>
+              <Label>{t("callingAgentPage.voiceProviderLabel")}</Label>
               <Select value={form.voice_provider} onValueChange={v => {
                 set("voice_provider", v);
                 // Reset voice to sensible default when switching provider
@@ -463,7 +466,7 @@ function AgentFormDialog({
               </Select>
             </div>
             <div>
-              <Label>Idioma</Label>
+              <Label>{t("callingAgentPage.languageLabel")}</Label>
               <Select value={form.language} onValueChange={v => set("language", v)}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -477,7 +480,7 @@ function AgentFormDialog({
 
           {/* Voice selection — depends on provider */}
           <div>
-            <Label>Voz</Label>
+            <Label>{t("callingAgentPage.voiceLabel")}</Label>
             {form.voice_provider === "openai" ? (
               <Select value={form.voice} onValueChange={v => set("voice", v)}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -493,7 +496,7 @@ function AgentFormDialog({
                   value={ELEVENLABS_VOICE_PRESETS.some(p => p.value === form.voice && p.value !== "custom") ? form.voice : "custom"}
                   onValueChange={v => { if (v !== "custom") set("voice", v); else set("voice", ""); }}
                 >
-                  <SelectTrigger><SelectValue placeholder="Selecciona una voz..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("callingAgentPage.selectVoicePlaceholder")} /></SelectTrigger>
                   <SelectContent>
                     {ELEVENLABS_VOICE_PRESETS.map(v => (
                       <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
@@ -505,15 +508,15 @@ function AgentFormDialog({
                   <Input
                     value={form.voice}
                     onChange={e => set("voice", e.target.value.trim())}
-                    placeholder="Pega aquí el Voice ID de ElevenLabs"
+                    placeholder={t("callingAgentPage.voiceIdPlaceholder")}
                     className="font-mono text-xs"
                   />
                 )}
                 <p className="text-xs text-muted-foreground">
-                  Encuentra más voces en{" "}
+                  {t("callingAgentPage.findMoreVoices")}{" "}
                   <a href="https://elevenlabs.io/voice-library" target="_blank" rel="noopener noreferrer" className="text-primary underline">
                     ElevenLabs Voice Library
-                  </a>. Requiere conectar tu API key en Vapi → Settings → Integrations → ElevenLabs.
+                  </a>. {t("callingAgentPage.elevenLabsApiKeyNote")}
                 </p>
               </div>
             )}
@@ -521,9 +524,9 @@ function AgentFormDialog({
 
           {/* First message */}
           <div>
-            <Label>Primer mensaje</Label>
+            <Label>{t("callingAgentPage.firstMessageLabel")}</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-              Qué dice el agente cuando el contacto contesta la llamada.
+              {t("callingAgentPage.firstMessageHelp")}
             </p>
             <Textarea
               rows={3}
@@ -535,21 +538,21 @@ function AgentFormDialog({
 
           {/* System prompt */}
           <div>
-            <Label>Prompt del sistema</Label>
+            <Label>{t("callingAgentPage.systemPromptLabel")}</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-1">
-              Personalidad, instrucciones y contexto del agente.
+              {t("callingAgentPage.systemPromptHelp")}
             </p>
             <Textarea
               rows={6}
               value={form.system_prompt}
               onChange={e => set("system_prompt", e.target.value)}
-              placeholder="Eres un agente de ventas amable y profesional de la empresa X. Tu objetivo es..."
+              placeholder={t("callingAgentPage.systemPromptPlaceholder")}
             />
           </div>
 
           {/* Objectives */}
           <div>
-            <Label>Objetivos</Label>
+            <Label>{t("callingAgentPage.objectivesLabel")}</Label>
             <div className="mt-2 flex flex-wrap gap-3">
               {OBJECTIVE_OPTIONS.map(obj => (
                 <label
@@ -568,9 +571,9 @@ function AgentFormDialog({
 
           {/* Key questions */}
           <div>
-            <Label>Preguntas clave</Label>
+            <Label>{t("callingAgentPage.keyQuestionsLabel")}</Label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-2">
-              Preguntas que el agente hace al contacto. La respuesta se guarda automáticamente en el campo personalizado indicado.
+              {t("callingAgentPage.keyQuestionsHelp")}
             </p>
             <div className="space-y-3">
               {form.questions.map((q, index) => (
@@ -583,7 +586,7 @@ function AgentFormDialog({
                     <Input
                       value={q.text}
                       onChange={e => updateQuestion(q.id, "text", e.target.value)}
-                      placeholder="Escribe la pregunta que hará el agente..."
+                      placeholder={t("callingAgentPage.questionTextPlaceholder")}
                       className="flex-1 bg-white"
                     />
                     <Button
@@ -598,12 +601,12 @@ function AgentFormDialog({
                   </div>
                   {/* Field key row */}
                   <div className="flex items-center gap-2 pl-7">
-                    <span className="text-xs text-muted-foreground whitespace-nowrap">Guardar respuesta en:</span>
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{t("callingAgentPage.saveAnswerIn")}</span>
                     <div className="relative flex-1">
                       <Input
                         value={q.field_key}
                         onChange={e => updateQuestion(q.id, "field_key", e.target.value)}
-                        placeholder="campo_personalizado (opcional)"
+                        placeholder={t("callingAgentPage.fieldKeyPlaceholder")}
                         className="h-7 text-xs font-mono bg-white pr-2"
                       />
                     </div>
@@ -618,16 +621,16 @@ function AgentFormDialog({
                 className="mt-1"
               >
                 <Plus className="h-3.5 w-3.5 mr-1.5" />
-                Añadir pregunta
+                {t("callingAgentPage.addQuestion")}
               </Button>
             </div>
           </div>
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>{t("callingAgentPage.cancel")}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "Guardando…" : agent ? "Guardar cambios" : "Crear agente"}
+            {saving ? t("callingAgentPage.saving") : agent ? t("callingAgentPage.saveChanges") : t("callingAgentPage.createAgent")}
           </Button>
         </div>
       </DialogContent>
@@ -650,6 +653,7 @@ function CampaignFormDialog({
 }) {
   const { organizationId } = useOrganizationContext();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [agentId, setAgentId] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -708,15 +712,15 @@ function CampaignFormDialog({
 
   const handleCreate = async () => {
     if (!name.trim()) {
-      toast({ title: "El nombre es requerido", variant: "destructive" });
+      toast({ title: t("callingAgentPage.nameRequired"), variant: "destructive" });
       return;
     }
     if (!agentId) {
-      toast({ title: "Selecciona un agente", variant: "destructive" });
+      toast({ title: t("callingAgentPage.selectAgent"), variant: "destructive" });
       return;
     }
     if (selectedIds.size === 0) {
-      toast({ title: "Selecciona al menos un contacto", variant: "destructive" });
+      toast({ title: t("callingAgentPage.selectContact"), variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -734,11 +738,11 @@ function CampaignFormDialog({
         calls_failed: 0,
       });
       if (error) throw error;
-      toast({ title: "Campaña creada" });
+      toast({ title: t("callingAgentPage.campaignCreated") });
       onSaved();
       onClose();
     } catch (err: any) {
-      toast({ title: "Error al crear campaña", description: err.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.campaignCreateError"), description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
@@ -750,28 +754,28 @@ function CampaignFormDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <PhoneCall className="h-5 w-5 text-indigo-500" />
-            Nueva campaña de llamadas
+            {t("callingAgentPage.newCampaignTitle")}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-5 py-1">
           {/* Name */}
           <div>
-            <Label>Nombre de la campaña</Label>
+            <Label>{t("callingAgentPage.campaignNameLabel")}</Label>
             <Input
               className="mt-1"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Ej. Seguimiento Q2 2025"
+              placeholder={t("callingAgentPage.campaignNamePlaceholder")}
             />
           </div>
 
           {/* Agent */}
           <div>
-            <Label>Agente de IA</Label>
+            <Label>{t("callingAgentPage.aiAgentLabel")}</Label>
             <Select value={agentId} onValueChange={setAgentId}>
               <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Seleccionar agente…" />
+                <SelectValue placeholder={t("callingAgentPage.selectAgentPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {agents.map(a => (
@@ -784,10 +788,10 @@ function CampaignFormDialog({
           {/* Contact selector */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>Contactos</Label>
+              <Label>{t("callingAgentPage.contactsLabel")}</Label>
               {selectedIds.size > 0 && (
                 <span className="text-xs text-indigo-600 font-medium">
-                  {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+                  {t("callingAgentPage.selectedCount", { count: selectedIds.size })}
                 </span>
               )}
             </div>
@@ -798,15 +802,15 @@ function CampaignFormDialog({
                 className="pl-8"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Buscar por nombre o email…"
+                placeholder={t("callingAgentPage.searchByNameEmail")}
               />
             </div>
 
             <div className="rounded-lg border max-h-60 overflow-y-auto">
               {loadingContacts ? (
-                <p className="text-center text-sm text-muted-foreground py-6">Cargando contactos…</p>
+                <p className="text-center text-sm text-muted-foreground py-6">{t("callingAgentPage.loadingContacts")}</p>
               ) : filtered.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-6">Sin resultados</p>
+                <p className="text-center text-sm text-muted-foreground py-6">{t("callingAgentPage.noResults")}</p>
               ) : (
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50 border-b sticky top-0">
@@ -817,9 +821,9 @@ function CampaignFormDialog({
                           onCheckedChange={toggleAll}
                         />
                       </th>
-                      <th className="p-2 text-left font-medium text-muted-foreground">Nombre</th>
-                      <th className="p-2 text-left font-medium text-muted-foreground">Email</th>
-                      <th className="p-2 text-left font-medium text-muted-foreground">Teléfono</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">{t("callingAgentPage.colName")}</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">{t("callingAgentPage.colEmail")}</th>
+                      <th className="p-2 text-left font-medium text-muted-foreground">{t("callingAgentPage.colPhone")}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -851,9 +855,9 @@ function CampaignFormDialog({
         </div>
 
         <div className="flex justify-end gap-2 pt-4 border-t">
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>{t("callingAgentPage.cancel")}</Button>
           <Button onClick={handleCreate} disabled={saving || selectedIds.size === 0}>
-            {saving ? "Creando…" : `Crear campaña${selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}`}
+            {saving ? t("callingAgentPage.creating") : selectedIds.size > 0 ? t("callingAgentPage.createCampaignCount", { count: selectedIds.size }) : t("callingAgentPage.createCampaign")}
           </Button>
         </div>
       </DialogContent>
@@ -871,6 +875,7 @@ function CallDetailSheet({
   onClose: () => void;
 }) {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [reanalyzing, setReanalyzing] = useState(false);
 
   if (!log) return null;
@@ -884,9 +889,9 @@ function CallDetailSheet({
         body: { call_log_id: log.id },
       });
       if (error) throw error;
-      toast({ title: "Análisis solicitado", description: "El CRM se actualizará en breve." });
+      toast({ title: t("callingAgentPage.analysisRequested"), description: t("callingAgentPage.crmUpdateSoon") });
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.error"), description: err.message, variant: "destructive" });
     } finally {
       setReanalyzing(false);
     }
@@ -898,7 +903,7 @@ function CallDetailSheet({
         <SheetHeader className="px-6 py-4 border-b shrink-0">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Phone className="h-4 w-4 text-indigo-500" />
-            Detalle de llamada
+            {t("callingAgentPage.callDetail")}
           </SheetTitle>
         </SheetHeader>
 
@@ -909,7 +914,7 @@ function CallDetailSheet({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-semibold text-slate-900 text-base">{contactName(log)}</p>
-                  <p className="text-sm text-muted-foreground mt-0.5">{log.phone_number ?? "Sin teléfono"}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">{log.phone_number ?? t("callingAgentPage.noPhone")}</p>
                   <p className="text-xs text-muted-foreground mt-1">{formatDate(log.started_at ?? log.created_at)}</p>
                 </div>
                 <div className="flex flex-col items-end gap-1.5">
@@ -940,7 +945,7 @@ function CallDetailSheet({
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Bot className="h-4 w-4 text-indigo-500" />
-                  Resumen IA
+                  {t("callingAgentPage.aiSummary")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
@@ -957,14 +962,14 @@ function CallDetailSheet({
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <MessageSquare className="h-4 w-4 text-indigo-500" />
-                  Respuestas de preguntas clave
+                  {t("callingAgentPage.keyQuestionAnswers")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4 space-y-2">
                 {Object.entries(analysis.question_answers as Record<string, string>).map(([question, answer]) => (
                   <div key={question} className="rounded-lg bg-indigo-50/60 border border-indigo-100 p-2.5">
                     <p className="text-xs font-medium text-indigo-700 mb-0.5">{question}</p>
-                    <p className="text-sm text-slate-800">{answer || <span className="text-slate-400 italic">Sin respuesta</span>}</p>
+                    <p className="text-sm text-slate-800">{answer || <span className="text-slate-400 italic">{t("callingAgentPage.noAnswer")}</span>}</p>
                   </div>
                 ))}
               </CardContent>
@@ -977,20 +982,20 @@ function CallDetailSheet({
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <BarChart3 className="h-4 w-4 text-slate-500" />
-                  Análisis completo
+                  {t("callingAgentPage.fullAnalysis")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4 space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   {log.sentiment && (
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Sentimiento</p>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.sentiment")}</p>
                       <p className="text-sm text-slate-700">{log.sentiment}</p>
                     </div>
                   )}
                   {log.next_step && (
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Próximo paso</p>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.nextStep")}</p>
                       <p className="text-sm text-slate-700">{log.next_step}</p>
                     </div>
                   )}
@@ -998,7 +1003,7 @@ function CallDetailSheet({
 
                 {analysis.pain_points?.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Puntos de dolor</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.painPoints")}</p>
                     <ul className="list-disc list-inside text-sm text-slate-700 space-y-0.5">
                       {(analysis.pain_points as string[]).map((p, i) => <li key={i}>{p}</li>)}
                     </ul>
@@ -1007,7 +1012,7 @@ function CallDetailSheet({
 
                 {analysis.objections?.length > 0 && (
                   <div>
-                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Objeciones</p>
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.objections")}</p>
                     <ul className="list-disc list-inside text-sm text-slate-700 space-y-0.5">
                       {(analysis.objections as string[]).map((o, i) => <li key={i}>{o}</li>)}
                     </ul>
@@ -1017,14 +1022,14 @@ function CallDetailSheet({
                 <div className="grid grid-cols-2 gap-3">
                   {analysis.budget_mentioned != null && (
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Presupuesto mencionado</p>
-                      <p className="text-sm text-slate-700">{analysis.budget_mentioned ? "Sí" : "No"}</p>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.budgetMentioned")}</p>
+                      <p className="text-sm text-slate-700">{analysis.budget_mentioned ? t("callingAgentPage.yes") : t("callingAgentPage.no")}</p>
                     </div>
                   )}
                   {analysis.timeline_mentioned != null && (
                     <div>
-                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">Timeline mencionado</p>
-                      <p className="text-sm text-slate-700">{analysis.timeline_mentioned ? "Sí" : "No"}</p>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{t("callingAgentPage.timelineMentioned")}</p>
+                      <p className="text-sm text-slate-700">{analysis.timeline_mentioned ? t("callingAgentPage.yes") : t("callingAgentPage.no")}</p>
                     </div>
                   )}
                 </div>
@@ -1038,7 +1043,7 @@ function CallDetailSheet({
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Mic className="h-4 w-4 text-slate-500" />
-                  Grabación
+                  {t("callingAgentPage.recording")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
@@ -1053,7 +1058,7 @@ function CallDetailSheet({
               <CardHeader className="pb-2 pt-4">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Settings className="h-4 w-4 text-slate-500" />
-                  Transcripción
+                  {t("callingAgentPage.transcript")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="pb-4">
@@ -1076,7 +1081,7 @@ function CallDetailSheet({
             disabled={reanalyzing}
           >
             <Activity className="h-4 w-4 mr-2" />
-            {reanalyzing ? "Analizando…" : "Actualizar en CRM"}
+            {reanalyzing ? t("callingAgentPage.analyzing") : t("callingAgentPage.updateInCrm")}
           </Button>
         </div>
       </SheetContent>
@@ -1089,6 +1094,7 @@ function CallDetailSheet({
 function AgentesTab() {
   const { organizationId } = useOrganizationContext();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [agents, setAgents] = useState<CallingAgent[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -1114,7 +1120,7 @@ function AgentesTab() {
       .update({ is_active: !agent.is_active })
       .eq("id", agent.id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.error"), description: error.message, variant: "destructive" });
     } else {
       setAgents(prev =>
         prev.map(a => a.id === agent.id ? { ...a, is_active: !a.is_active } : a),
@@ -1125,10 +1131,10 @@ function AgentesTab() {
   const deleteAgent = async (id: string) => {
     const { error } = await supabase.from("calling_agents").delete().eq("id", id);
     if (error) {
-      toast({ title: "Error al eliminar", description: error.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.deleteError"), description: error.message, variant: "destructive" });
     } else {
       setAgents(prev => prev.filter(a => a.id !== id));
-      toast({ title: "Agente eliminado" });
+      toast({ title: t("callingAgentPage.agentDeleted") });
     }
   };
 
@@ -1136,16 +1142,16 @@ function AgentesTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Agentes de IA</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("callingAgentPage.aiAgentsHeading")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Configura los agentes de voz que realizarán las llamadas.
+            {t("callingAgentPage.aiAgentsSubtitle")}
           </p>
         </div>
         <Button
           onClick={() => { setEditingAgent(null); setShowForm(true); }}
         >
           <Plus className="h-4 w-4 mr-2" />
-          Nuevo agente
+          {t("callingAgentPage.newAgent")}
         </Button>
       </div>
 
@@ -1158,15 +1164,15 @@ function AgentesTab() {
       ) : agents.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-16 gap-3">
           <Bot className="h-10 w-10 text-slate-300" />
-          <p className="text-sm font-medium text-slate-500">No hay agentes creados</p>
-          <p className="text-xs text-muted-foreground">Crea tu primer agente para comenzar a llamar a tus contactos.</p>
+          <p className="text-sm font-medium text-slate-500">{t("callingAgentPage.noAgents")}</p>
+          <p className="text-xs text-muted-foreground">{t("callingAgentPage.noAgentsHint")}</p>
           <Button
             variant="outline"
             size="sm"
             onClick={() => { setEditingAgent(null); setShowForm(true); }}
           >
             <Plus className="h-4 w-4 mr-1.5" />
-            Crear primer agente
+            {t("callingAgentPage.createFirstAgent")}
           </Button>
         </div>
       ) : (
@@ -1213,7 +1219,7 @@ function AgentesTab() {
                 <div className="flex items-center justify-between gap-2 mt-1">
                   <span className={`inline-flex items-center gap-1 text-xs font-medium ${agent.is_active ? "text-green-600" : "text-slate-400"}`}>
                     <span className={`h-1.5 w-1.5 rounded-full ${agent.is_active ? "bg-green-500" : "bg-slate-300"}`} />
-                    {agent.is_active ? "Activo" : "Inactivo"}
+                    {agent.is_active ? t("callingAgentPage.active") : t("callingAgentPage.inactive")}
                   </span>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <Button
@@ -1255,6 +1261,7 @@ function AgentesTab() {
 function CampañasTab() {
   const { organizationId } = useOrganizationContext();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [campaigns, setCampaigns] = useState<CallingCampaign[]>([]);
   const [agents, setAgents] = useState<CallingAgent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1295,26 +1302,26 @@ function CampañasTab() {
 
       if (initiated > 0) {
         toast({
-          title: `${initiated} llamada${initiated !== 1 ? "s" : ""} iniciada${initiated !== 1 ? "s" : ""}`,
-          description: skipped > 0 ? `${skipped} contacto(s) sin teléfono omitidos.` : undefined,
+          title: t("callingAgentPage.callsInitiated", { count: initiated }),
+          description: skipped > 0 ? t("callingAgentPage.contactsSkippedNoPhone", { count: skipped }) : undefined,
         });
       } else if (errors.length > 0) {
         // Show the first error — usually reveals phone format, Vapi key, etc.
         toast({
-          title: "No se pudo iniciar la llamada",
+          title: t("callingAgentPage.couldNotStartCall"),
           description: errors[0],
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Sin llamadas",
-          description: skipped > 0 ? `${skipped} contacto(s) no tienen número de teléfono.` : "No hay contactos para llamar.",
+          title: t("callingAgentPage.noCalls"),
+          description: skipped > 0 ? t("callingAgentPage.contactsNoPhone", { count: skipped }) : t("callingAgentPage.noContactsToCall"),
           variant: "destructive",
         });
       }
       load();
     } catch (err: any) {
-      toast({ title: "Error al lanzar", description: err.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.launchError"), description: err.message, variant: "destructive" });
     }
   };
 
@@ -1324,9 +1331,9 @@ function CampañasTab() {
       .update({ status: "paused" })
       .eq("id", campaign.id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: t("callingAgentPage.error"), description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Campaña pausada" });
+      toast({ title: t("callingAgentPage.campaignPaused") });
       load();
     }
   };
@@ -1335,14 +1342,14 @@ function CampañasTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Campañas</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("callingAgentPage.campaignsHeading")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Lanza campañas masivas de llamadas con tus agentes de IA.
+            {t("callingAgentPage.campaignsSubtitle")}
           </p>
         </div>
         <Button onClick={() => setShowForm(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          Nueva campaña
+          {t("callingAgentPage.newCampaign")}
         </Button>
       </div>
 
@@ -1353,11 +1360,11 @@ function CampañasTab() {
       ) : campaigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-16 gap-3">
           <PhoneCall className="h-10 w-10 text-slate-300" />
-          <p className="text-sm font-medium text-slate-500">No hay campañas</p>
-          <p className="text-xs text-muted-foreground">Crea una campaña y selecciona los contactos a llamar.</p>
+          <p className="text-sm font-medium text-slate-500">{t("callingAgentPage.noCampaigns")}</p>
+          <p className="text-xs text-muted-foreground">{t("callingAgentPage.noCampaignsHint")}</p>
           <Button variant="outline" size="sm" onClick={() => setShowForm(true)}>
             <Plus className="h-4 w-4 mr-1.5" />
-            Nueva campaña
+            {t("callingAgentPage.newCampaign")}
           </Button>
         </div>
       ) : (
@@ -1365,14 +1372,14 @@ function CampañasTab() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead>Campaña</TableHead>
-                <TableHead>Agente</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead className="text-center">Total</TableHead>
-                <TableHead className="text-center">Contestadas</TableHead>
-                <TableHead className="text-center">Completadas</TableHead>
-                <TableHead>Creada</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t("callingAgentPage.colCampaign")}</TableHead>
+                <TableHead>{t("callingAgentPage.colAgent")}</TableHead>
+                <TableHead>{t("callingAgentPage.colStatus")}</TableHead>
+                <TableHead className="text-center">{t("callingAgentPage.colTotal")}</TableHead>
+                <TableHead className="text-center">{t("callingAgentPage.colAnswered")}</TableHead>
+                <TableHead className="text-center">{t("callingAgentPage.colCompleted")}</TableHead>
+                <TableHead>{t("callingAgentPage.colCreated")}</TableHead>
+                <TableHead className="text-right">{t("callingAgentPage.colActions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1401,7 +1408,7 @@ function CampañasTab() {
                           onClick={() => launchCampaign(campaign)}
                         >
                           <Play className="h-3.5 w-3.5 mr-1.5" />
-                          Lanzar
+                          {t("callingAgentPage.launch")}
                         </Button>
                       )}
                       {campaign.status === "active" && campaign.calls_initiated === 0 && (
@@ -1413,7 +1420,7 @@ function CampañasTab() {
                           onClick={() => launchCampaign(campaign)}
                         >
                           <Play className="h-3.5 w-3.5 mr-1.5" />
-                          Relanzar
+                          {t("callingAgentPage.relaunch")}
                         </Button>
                       )}
                       {campaign.status === "active" && (
@@ -1424,7 +1431,7 @@ function CampañasTab() {
                           onClick={() => pauseCampaign(campaign)}
                         >
                           <Pause className="h-3.5 w-3.5 mr-1.5" />
-                          Pausar
+                          {t("callingAgentPage.pause")}
                         </Button>
                       )}
                     </div>
@@ -1450,6 +1457,7 @@ function CampañasTab() {
 
 function LlamadasTab() {
   const { organizationId } = useOrganizationContext();
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedLog, setSelectedLog] = useState<CallLog | null>(null);
@@ -1500,9 +1508,9 @@ function LlamadasTab() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">Registro de llamadas</h2>
+          <h2 className="text-lg font-semibold text-slate-900">{t("callingAgentPage.callLogHeading")}</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Historial de todas las llamadas con análisis de IA.
+            {t("callingAgentPage.callLogSubtitle")}
           </p>
         </div>
         <div className="relative">
@@ -1511,7 +1519,7 @@ function LlamadasTab() {
             className="pl-8 w-60"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o teléfono…"
+            placeholder={t("callingAgentPage.searchByNamePhone")}
           />
         </div>
       </div>
@@ -1524,12 +1532,12 @@ function LlamadasTab() {
         <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 py-16 gap-3">
           <Phone className="h-10 w-10 text-slate-300" />
           <p className="text-sm font-medium text-slate-500">
-            {search ? "No hay llamadas que coincidan" : "Sin llamadas registradas"}
+            {search ? t("callingAgentPage.noMatchingCalls") : t("callingAgentPage.noCallsLogged")}
           </p>
           <p className="text-xs text-muted-foreground">
             {search
-              ? "Intenta con otro término de búsqueda."
-              : "Las llamadas aparecerán aquí una vez que lances una campaña."
+              ? t("callingAgentPage.tryAnotherSearch")
+              : t("callingAgentPage.callsWillAppear")
             }
           </p>
         </div>
@@ -1538,11 +1546,11 @@ function LlamadasTab() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead>Contacto</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Duración</TableHead>
-                <TableHead>Resumen</TableHead>
-                <TableHead>Fecha</TableHead>
+                <TableHead>{t("callingAgentPage.colContact")}</TableHead>
+                <TableHead>{t("callingAgentPage.colStatus")}</TableHead>
+                <TableHead>{t("callingAgentPage.colDuration")}</TableHead>
+                <TableHead>{t("callingAgentPage.colSummary")}</TableHead>
+                <TableHead>{t("callingAgentPage.colDate")}</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -1609,6 +1617,7 @@ function LlamadasTab() {
 function VapiConfigBanner() {
   const { organizationId } = useOrganizationContext();
   const { path } = useWorkspace();
+  const { t } = useTranslation();
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
@@ -1628,22 +1637,23 @@ function VapiConfigBanner() {
     <div className="mx-6 mt-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
       <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-amber-900">Vapi no está configurado</p>
+        <p className="text-sm font-medium text-amber-900">{t("callingAgentPage.vapiNotConfigured")}</p>
         <p className="text-xs text-amber-700 mt-0.5">
-          Necesitas conectar tu cuenta de Vapi.ai para hacer llamadas.{" "}
+          {t("callingAgentPage.vapiNotConfiguredHint")}{" "}
         </p>
       </div>
       <a
         href={path("/integrations")}
         className="shrink-0 rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
       >
-        Configurar
+        {t("callingAgentPage.configure")}
       </a>
     </div>
   );
 }
 
 export default function CallingAgentPage() {
+  const { t } = useTranslation();
   return (
     <AppLayout>
       <div className="flex flex-col h-full">
@@ -1654,9 +1664,9 @@ export default function CallingAgentPage() {
               <Bot className="h-5 w-5 text-indigo-600" />
             </div>
             <div>
-              <h1 className="text-xl font-semibold text-slate-900">Agente de Llamadas IA</h1>
+              <h1 className="text-xl font-semibold text-slate-900">{t("callingAgentPage.pageTitle")}</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
-                Automatiza llamadas de ventas con agentes de voz inteligentes.
+                {t("callingAgentPage.pageSubtitle")}
               </p>
             </div>
           </div>
@@ -1675,21 +1685,21 @@ export default function CallingAgentPage() {
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium text-muted-foreground hover:text-slate-700 transition-colors"
                 >
                   <Bot className="h-4 w-4 mr-2" />
-                  Agentes IA
+                  {t("callingAgentPage.tabAgents")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="campanas"
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium text-muted-foreground hover:text-slate-700 transition-colors"
                 >
                   <PhoneCall className="h-4 w-4 mr-2" />
-                  Campañas
+                  {t("callingAgentPage.tabCampaigns")}
                 </TabsTrigger>
                 <TabsTrigger
                   value="llamadas"
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-700 data-[state=active]:bg-transparent px-4 py-3 text-sm font-medium text-muted-foreground hover:text-slate-700 transition-colors"
                 >
                   <Phone className="h-4 w-4 mr-2" />
-                  Llamadas
+                  {t("callingAgentPage.tabCalls")}
                 </TabsTrigger>
               </TabsList>
             </div>

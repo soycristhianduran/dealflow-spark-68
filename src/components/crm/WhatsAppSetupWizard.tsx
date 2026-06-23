@@ -12,6 +12,7 @@ import {
   Star, Plus, Pencil, Check, X
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 
 interface WhatsAppSetupWizardProps {
@@ -44,6 +45,7 @@ const STEPS = [
 ];
 
 export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppSetupWizardProps) {
+  const { t } = useTranslation();
   const wa = useWhatsAppIntegration();
   const [step, setStep] = useState<WizardStep>(startStep ?? 1);
   const [useManual, setUseManual] = useState(false);
@@ -76,9 +78,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
     setResubscribing(true);
     try {
       await wa.resubscribeWebhook?.();
-      toast.success("Webhook reactivado — los mensajes entrantes deberían llegar ahora");
+      toast.success(t("whatsAppSetupWizard.webhookReactivated"));
     } catch (e: any) {
-      toast.error("Error al reactivar: " + e.message);
+      toast.error(t("whatsAppSetupWizard.reactivateError") + e.message);
     } finally {
       setResubscribing(false);
     }
@@ -86,17 +88,17 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
 
   const handleRegisterPhone = async () => {
     if (!/^\d{6}$/.test(registerPin)) {
-      toast.error("El PIN debe ser de 6 dígitos numéricos");
+      toast.error(t("whatsAppSetupWizard.pinValidationError"));
       return;
     }
     setRegistering(true);
     try {
       await wa.registerPhone?.(registerPin);
-      toast.success("Número activado en WhatsApp Cloud API.");
+      toast.success(t("whatsAppSetupWizard.numberActivated"));
       setRegisterDialogOpen(false);
       setRegisterPin("");
     } catch (e: any) {
-      toast.error("Error al activar: " + e.message);
+      toast.error(t("whatsAppSetupWizard.activateError") + e.message);
     } finally {
       setRegistering(false);
     }
@@ -191,7 +193,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
         handleSelectWaba(accounts[0]);
       }
     } catch (e: any) {
-      toast.error("Error al cargar portafolios: " + e.message);
+      toast.error(t("whatsAppSetupWizard.loadPortfoliosError") + e.message);
     } finally {
       setLoading(false);
     }
@@ -206,7 +208,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       const phones = await wa.getPhoneNumbers(waba.id);
       setPhoneNumbers(phones);
     } catch (e: any) {
-      toast.error("Error al cargar números: " + e.message);
+      toast.error(t("whatsAppSetupWizard.loadNumbersError") + e.message);
     } finally {
       setLoading(false);
     }
@@ -223,7 +225,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       });
       setStep(6);
     } catch (e: any) {
-      toast.error("Error al guardar: " + e.message);
+      toast.error(t("whatsAppSetupWizard.saveError") + e.message);
     } finally {
       setSaving(false);
     }
@@ -231,7 +233,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
 
   const handleManualSave = async () => {
     if (!manualPhoneId.trim() || !manualWabaId.trim()) {
-      toast.error("WABA ID y Phone Number ID son obligatorios");
+      toast.error(t("whatsAppSetupWizard.idsRequired"));
       return;
     }
     setSaving(true);
@@ -244,7 +246,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       });
       setStep(6);
     } catch (e: any) {
-      toast.error("Error: " + e.message);
+      toast.error(t("whatsAppSetupWizard.genericError") + e.message);
     } finally {
       setSaving(false);
     }
@@ -262,9 +264,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
 
   const qualityBadge = (q: string) => {
     const upper = q?.toUpperCase();
-    if (upper === "GREEN" || upper === "HIGH") return { label: "Alta", cls: "text-green-600 bg-green-50 border-green-200 dark:bg-green-950/30" };
-    if (upper === "YELLOW" || upper === "MEDIUM") return { label: "Media", cls: "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30" };
-    if (upper === "RED" || upper === "LOW") return { label: "Baja", cls: "text-red-600 bg-red-50 border-red-200 dark:bg-red-950/30" };
+    if (upper === "GREEN" || upper === "HIGH") return { label: t("whatsAppSetupWizard.qualityHigh"), cls: "text-green-600 bg-green-50 border-green-200 dark:bg-green-950/30" };
+    if (upper === "YELLOW" || upper === "MEDIUM") return { label: t("whatsAppSetupWizard.qualityMedium"), cls: "text-yellow-600 bg-yellow-50 border-yellow-200 dark:bg-yellow-950/30" };
+    if (upper === "RED" || upper === "LOW") return { label: t("whatsAppSetupWizard.qualityLow"), cls: "text-red-600 bg-red-50 border-red-200 dark:bg-red-950/30" };
     return { label: q || "—", cls: "text-muted-foreground" };
   };
 
@@ -281,11 +283,11 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 <MessageCircle className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold">WhatsApp Conectado</h2>
+                <h2 className="text-lg font-bold">{t("whatsAppSetupWizard.whatsAppConnected")}</h2>
                 <p className="text-sm text-white/80">
                   {wa.configs.length === 1
-                    ? "Tu canal está activo y recibiendo mensajes"
-                    : `${wa.configs.length} números conectados`}
+                    ? t("whatsAppSetupWizard.channelActive")
+                    : t("whatsAppSetupWizard.numbersConnected", { count: wa.configs.length })}
                 </p>
               </div>
             </div>
@@ -297,13 +299,13 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700 p-3 flex items-start gap-2">
                 <span className="text-amber-500 mt-0.5 shrink-0">⚠️</span>
                 <div className="text-xs text-amber-800 dark:text-amber-300">
-                  <p className="font-semibold mb-0.5">Número pendiente de activación</p>
-                  <p>Un número conectado aún no está registrado en WhatsApp Cloud API. Sin este paso no podrás enviar mensajes ni plantillas.</p>
+                  <p className="font-semibold mb-0.5">{t("whatsAppSetupWizard.numberPendingActivation")}</p>
+                  <p>{t("whatsAppSetupWizard.numberPendingActivationDesc")}</p>
                   <button
                     className="mt-1.5 underline font-medium hover:opacity-80"
                     onClick={() => setRegisterDialogOpen(true)}
                   >
-                    Activar ahora →
+                    {t("whatsAppSetupWizard.activateNow")}
                   </button>
                 </div>
               </div>
@@ -315,11 +317,11 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   {/* Star / Primary */}
                   <button
                     className={`shrink-0 transition-colors ${cfg.is_primary ? "text-amber-500" : "text-muted-foreground/30 hover:text-amber-400"}`}
-                    title={cfg.is_primary ? "Número principal" : "Establecer como principal"}
+                    title={cfg.is_primary ? t("whatsAppSetupWizard.primaryNumber") : t("whatsAppSetupWizard.setAsPrimary")}
                     onClick={async () => {
                       if (!cfg.is_primary) {
                         try { await wa.setPrimary(cfg.id); }
-                        catch (e) { toast.error("Error: " + (e instanceof Error ? e.message : String(e))); }
+                        catch (e) { toast.error(t("whatsAppSetupWizard.genericError") + (e instanceof Error ? e.message : String(e))); }
                       }
                     }}
                   >
@@ -373,14 +375,14 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   {/* Status badge */}
                   <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50 dark:bg-green-950/30 shrink-0">
                     <Wifi className="h-3 w-3" />
-                    Activo
+                    {t("whatsAppSetupWizard.active")}
                   </Badge>
 
                   {/* Edit label */}
                   {editingLabelId !== cfg.id && (
                     <button
                       className="shrink-0 text-muted-foreground/50 hover:text-foreground transition-colors"
-                      title="Editar nombre"
+                      title={t("whatsAppSetupWizard.editName")}
                       onClick={() => {
                         setEditingLabelId(cfg.id);
                         setEditingLabelValue(cfg.label || cfg.display_phone || "");
@@ -393,7 +395,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   {/* Disconnect this number */}
                   <button
                     className="shrink-0 text-muted-foreground/50 hover:text-destructive transition-colors"
-                    title="Desconectar este número"
+                    title={t("whatsAppSetupWizard.disconnectThisNumber")}
                     onClick={async () => {
                       await wa.disconnect(cfg.id);
                     }}
@@ -412,26 +414,26 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               disabled={wa.connecting}
             >
               <Plus className="h-4 w-4" />
-              Conectar otro número
+              {t("whatsAppSetupWizard.connectAnotherNumber")}
             </Button>
 
             {/* Advanced actions — collapsed by default */}
             <details className="group">
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none flex items-center gap-1.5">
                 <Settings className="h-3.5 w-3.5" />
-                Opciones avanzadas
+                {t("whatsAppSetupWizard.advancedOptions")}
               </summary>
               <div className="mt-3 rounded-xl border p-4 space-y-3">
                 {/* Webhook URL */}
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">URL Webhook</p>
+                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("whatsAppSetupWizard.webhookUrl")}</p>
                   <div className="flex items-center gap-2 bg-muted rounded-lg p-2">
                     <code className="text-[10px] flex-1 break-all font-mono text-muted-foreground">{webhookUrl}</code>
                     <Button
                       size="sm"
                       variant="ghost"
                       className="shrink-0 h-6 w-6"
-                      onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success("URL copiada"); }}
+                      onClick={() => { navigator.clipboard.writeText(webhookUrl); toast.success(t("whatsAppSetupWizard.urlCopied")); }}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
@@ -446,8 +448,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   onClick={handleResubscribeWebhook}
                 >
                   {resubscribing
-                    ? <><Loader2 className="h-3 w-3 animate-spin" /> Reactivando...</>
-                    : <><RefreshCw className="h-3 w-3" /> Reactivar webhook (mensajes entrantes)</>}
+                    ? <><Loader2 className="h-3 w-3 animate-spin" /> {t("whatsAppSetupWizard.reactivating")}</>
+                    : <><RefreshCw className="h-3 w-3" /> {t("whatsAppSetupWizard.reactivateWebhook")}</>}
                 </Button>
                 {/* Register phone number (PIN) */}
                 <Button
@@ -456,7 +458,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   className="w-full gap-1.5 text-xs"
                   onClick={() => setRegisterDialogOpen(true)}
                 >
-                  <Shield className="h-3 w-3" /> Activar número (registrar PIN)
+                  <Shield className="h-3 w-3" /> {t("whatsAppSetupWizard.activateNumberPin")}
                 </Button>
                 {/* Disconnect all */}
                 <Button
@@ -468,7 +470,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     onOpenChange(false);
                   }}
                 >
-                  <WifiOff className="h-3 w-3" /> Desconectar todos los números
+                  <WifiOff className="h-3 w-3" /> {t("whatsAppSetupWizard.disconnectAllNumbers")}
                 </Button>
               </div>
             </details>
@@ -480,36 +482,36 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       <Dialog open={registerDialogOpen} onOpenChange={(v) => { setRegisterDialogOpen(v); if (!v) setRegisterPin(""); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Activar número en WhatsApp Cloud API</DialogTitle>
+            <DialogTitle>{t("whatsAppSetupWizard.activateNumberTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="rounded-md border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3">
               <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                <span className="font-semibold">¿Cuándo usar esto?</span> Cuando agregas un número nuevo en WhatsApp Manager y al intentar configurar la verificación en dos pasos te sale "La cuenta no existe en la API de la nube".
+                <span className="font-semibold">{t("whatsAppSetupWizard.whenToUseThis")}</span> {t("whatsAppSetupWizard.whenToUseThisDesc")}
                 <br /><br />
-                Este paso registra el número en el Cloud API y configura el PIN de verificación en dos pasos. <span className="font-semibold">Guarda este PIN</span> — lo necesitarás si re-registras el número en el futuro.
+                {t("whatsAppSetupWizard.registerPinDesc1")} <span className="font-semibold">{t("whatsAppSetupWizard.saveThisPin")}</span> {t("whatsAppSetupWizard.registerPinDesc2")}
               </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="wizard-register-pin" className="text-sm font-medium">PIN de verificación en dos pasos</Label>
+              <Label htmlFor="wizard-register-pin" className="text-sm font-medium">{t("whatsAppSetupWizard.twoStepPinLabel")}</Label>
               <Input
                 id="wizard-register-pin"
                 type="text"
                 inputMode="numeric"
                 maxLength={6}
-                placeholder="6 dígitos"
+                placeholder={t("whatsAppSetupWizard.sixDigitsPlaceholder")}
                 value={registerPin}
                 onChange={(e) => setRegisterPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 className="font-mono tracking-widest text-center text-lg"
               />
-              <p className="text-xs text-muted-foreground">Elige 6 dígitos que recuerdes. Este PIN protege tu número.</p>
+              <p className="text-xs text-muted-foreground">{t("whatsAppSetupWizard.pinHelp")}</p>
             </div>
             <Button
               className="w-full"
               onClick={handleRegisterPhone}
               disabled={registering || registerPin.length !== 6}
             >
-              {registering ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Activando...</> : "Activar número"}
+              {registering ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("whatsAppSetupWizard.activating")}</> : t("whatsAppSetupWizard.activateNumber")}
             </Button>
           </div>
         </DialogContent>
@@ -529,14 +531,14 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 <CheckCircle2 className="h-10 w-10" />
               </div>
             </div>
-            <h2 className="text-xl font-bold">¡Conexión exitosa!</h2>
+            <h2 className="text-xl font-bold">{t("whatsAppSetupWizard.connectionSuccess")}</h2>
             <p className="text-sm text-white/80 mt-2 max-w-sm mx-auto">
-              Tu WhatsApp Business está conectado. Ya puedes enviar y recibir mensajes desde el CRM.
+              {t("whatsAppSetupWizard.connectionSuccessDesc")}
             </p>
           </div>
           <div className="p-6">
             <Button className="w-full gap-2" onClick={() => onOpenChange(false)}>
-              Comenzar a usar WhatsApp <ArrowRight className="h-4 w-4" />
+              {t("whatsAppSetupWizard.startUsingWhatsApp")} <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </DialogContent>
@@ -556,9 +558,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   <ArrowLeft className="h-4 w-4" />
                 </button>
               )}
-              <h2 className="text-white font-semibold text-sm">Conectar WhatsApp</h2>
+              <h2 className="text-white font-semibold text-sm">{t("whatsAppSetupWizard.connectWhatsApp")}</h2>
             </div>
-            <span className="text-white/70 text-xs">Paso {STEPS.findIndex(s => s.num >= step) + 1} de {STEPS.length}</span>
+            <span className="text-white/70 text-xs">{t("whatsAppSetupWizard.stepCounter", { current: STEPS.findIndex(s => s.num >= step) + 1, total: STEPS.length })}</span>
           </div>
 
           {/* Step indicators */}
@@ -584,9 +586,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     <MessageCircle className="h-8 w-8 text-green-600" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-foreground">Conecta tu WhatsApp Business</h3>
+                <h3 className="text-lg font-bold text-foreground">{t("whatsAppSetupWizard.connectYourWhatsApp")}</h3>
                 <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-                  Vincula tu cuenta para enviar y recibir mensajes directamente desde el CRM.
+                  {t("whatsAppSetupWizard.connectYourWhatsAppDesc")}
                 </p>
               </div>
 
@@ -594,7 +596,7 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-amber-950/30 p-3.5">
                 <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
-                  <span className="font-semibold">¿Ya usas otra plataforma?</span> Si tu número está conectado a otra herramienta de mensajería, <span className="font-semibold">desconéctalo primero</span> desde esa plataforma. De lo contrario, los mensajes entrantes seguirán llegando allá y no al CRM.
+                  <span className="font-semibold">{t("whatsAppSetupWizard.alreadyUsingPlatform")}</span> {t("whatsAppSetupWizard.alreadyUsingPlatformDesc1")} <span className="font-semibold">{t("whatsAppSetupWizard.disconnectFirst")}</span> {t("whatsAppSetupWizard.alreadyUsingPlatformDesc2")}
                 </p>
               </div>
 
@@ -612,11 +614,11 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-foreground">Conectar con Facebook</p>
-                      <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">Recomendado</Badge>
+                      <p className="text-sm font-semibold text-foreground">{t("whatsAppSetupWizard.connectWithFacebook")}</p>
+                      <Badge className="text-[10px] bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300 border-0">{t("whatsAppSetupWizard.recommended")}</Badge>
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Inicia sesión con Facebook y selecciona tu cuenta de WhatsApp Business.
+                      {t("whatsAppSetupWizard.connectWithFacebookDesc")}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
@@ -634,9 +636,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     <KeyRound className="h-6 w-6 text-primary" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">Configuración manual</p>
+                    <p className="text-sm font-semibold text-foreground">{t("whatsAppSetupWizard.manualSetup")}</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Ingresa tus credenciales de Meta Business manualmente.
+                      {t("whatsAppSetupWizard.manualSetupDesc")}
                     </p>
                   </div>
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
@@ -649,14 +651,14 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
           {step === 2 && (
             <div className="space-y-4">
               <div className="text-center space-y-1">
-                <h3 className="text-base font-bold text-foreground">Selecciona tu portafolio de negocio</h3>
-                <p className="text-sm text-muted-foreground">Elige la cuenta de negocio que contiene tu WhatsApp Business.</p>
+                <h3 className="text-base font-bold text-foreground">{t("whatsAppSetupWizard.selectPortfolio")}</h3>
+                <p className="text-sm text-muted-foreground">{t("whatsAppSetupWizard.selectPortfolioDesc")}</p>
               </div>
 
               {loading ? (
                 <div className="flex flex-col items-center gap-3 py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-                  <p className="text-sm text-muted-foreground">Cargando tus portafolios de negocio...</p>
+                  <p className="text-sm text-muted-foreground">{t("whatsAppSetupWizard.loadingPortfolios")}</p>
                 </div>
               ) : wabaAccounts.length === 0 ? (
                 <div className="space-y-4 py-2">
@@ -666,17 +668,17 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                         <Building2 className="h-6 w-6 text-muted-foreground" />
                       </div>
                     </div>
-                    <p className="text-sm text-muted-foreground">No se encontraron cuentas automáticamente.</p>
+                    <p className="text-sm text-muted-foreground">{t("whatsAppSetupWizard.noAccountsFound")}</p>
                     <Button variant="outline" size="sm" onClick={loadWabaAccounts} className="gap-2">
-                      <RefreshCw className="h-3.5 w-3.5" /> Reintentar
+                      <RefreshCw className="h-3.5 w-3.5" /> {t("whatsAppSetupWizard.retry")}
                     </Button>
                   </div>
                   {/* Manual WABA ID entry as fallback */}
                   <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
-                    <p className="text-xs font-medium text-foreground">¿Conoces tu WABA ID? Ingrésalo aquí:</p>
+                    <p className="text-xs font-medium text-foreground">{t("whatsAppSetupWizard.knowWabaId")}</p>
                     <div className="flex gap-2">
                       <Input
-                        placeholder="Ej: 119298044591184"
+                        placeholder={t("whatsAppSetupWizard.wabaIdExample")}
                         value={manualWabaId}
                         onChange={(e) => setManualWabaId(e.target.value)}
                         className="font-mono text-sm"
@@ -684,13 +686,13 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                       <Button
                         size="sm"
                         disabled={!manualWabaId.trim() || loading}
-                        onClick={() => handleSelectWaba({ id: manualWabaId.trim(), name: "Mi WABA" })}
+                        onClick={() => handleSelectWaba({ id: manualWabaId.trim(), name: t("whatsAppSetupWizard.myWaba") })}
                       >
-                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
+                        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("whatsAppSetupWizard.search")}
                       </Button>
                     </div>
                     <p className="text-[10px] text-muted-foreground">
-                      Encuéntralo en Meta Business Suite → Configuración → Cuentas de WhatsApp Business.
+                      {t("whatsAppSetupWizard.findWabaIdHelp")}
                     </p>
                   </div>
                 </div>
@@ -724,9 +726,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
           {step === 3 && (
             <div className="space-y-4">
               <div className="text-center space-y-1">
-                <h3 className="text-base font-bold text-foreground">Cuenta de WhatsApp Business</h3>
+                <h3 className="text-base font-bold text-foreground">{t("whatsAppSetupWizard.whatsAppBusinessAccount")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  {selectedWaba ? `Portafolio: ${selectedWaba.name}` : "Selecciona o crea una cuenta WABA"}
+                  {selectedWaba ? t("whatsAppSetupWizard.portfolioLabel", { name: selectedWaba.name }) : t("whatsAppSetupWizard.selectOrCreateWaba")}
                 </p>
               </div>
 
@@ -739,15 +741,15 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                     <MessageCircle className="h-5 w-5 text-green-600" />
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-foreground">Usar cuenta existente</p>
-                    <p className="text-xs text-muted-foreground">Selecciona un número ya registrado en tu WABA.</p>
+                    <p className="text-sm font-semibold text-foreground">{t("whatsAppSetupWizard.useExistingAccount")}</p>
+                    <p className="text-xs text-muted-foreground">{t("whatsAppSetupWizard.useExistingAccountDesc")}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
 
                 <div className="rounded-xl border border-dashed p-4 text-center space-y-2 opacity-50">
                   <p className="text-xs text-muted-foreground">
-                    La opción de crear una nueva cuenta WABA estará disponible próximamente.
+                    {t("whatsAppSetupWizard.createWabaComingSoon")}
                   </p>
                 </div>
               </div>
@@ -758,16 +760,16 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
           {step === 4 && !useManual && (
             <div className="space-y-4">
               <div className="text-center space-y-1">
-                <h3 className="text-base font-bold text-foreground">Selecciona tu número</h3>
+                <h3 className="text-base font-bold text-foreground">{t("whatsAppSetupWizard.selectYourNumber")}</h3>
                 <p className="text-sm text-muted-foreground">
-                  Elige el número de WhatsApp que quieres conectar al CRM.
+                  {t("whatsAppSetupWizard.selectYourNumberDesc")}
                 </p>
               </div>
 
               {loading ? (
                 <div className="flex flex-col items-center gap-3 py-8">
                   <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-                  <p className="text-sm text-muted-foreground">Cargando números disponibles...</p>
+                  <p className="text-sm text-muted-foreground">{t("whatsAppSetupWizard.loadingNumbers")}</p>
                 </div>
               ) : phoneNumbers.length === 0 ? (
                 <div className="text-center py-8 space-y-3">
@@ -776,8 +778,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                       <Phone className="h-6 w-6 text-muted-foreground" />
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground">No se encontraron números en esta cuenta.</p>
-                  <p className="text-xs text-muted-foreground">Registra un número en Meta Business Suite primero.</p>
+                  <p className="text-sm text-muted-foreground">{t("whatsAppSetupWizard.noNumbersFound")}</p>
+                  <p className="text-xs text-muted-foreground">{t("whatsAppSetupWizard.registerNumberFirst")}</p>
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -816,14 +818,14 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               {!loading && selectedWaba && (
                 <details className="mt-2">
                   <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none">
-                    ¿No ves tu número? Ingrésalo manualmente
+                    {t("whatsAppSetupWizard.dontSeeNumber")}
                   </summary>
                   <div className="mt-3 space-y-2 rounded-xl border bg-muted/30 p-3">
                     <p className="text-[11px] text-muted-foreground">
-                      Ingresa el <span className="font-medium text-foreground">Phone Number ID</span> desde Meta Business Suite → Configuración → Cuentas de WhatsApp Business → tu cuenta → Números de teléfono.
+                      {t("whatsAppSetupWizard.enterPhoneIdHelp1")} <span className="font-medium text-foreground">Phone Number ID</span> {t("whatsAppSetupWizard.enterPhoneIdHelp2")}
                     </p>
                     <Input
-                      placeholder="Phone Number ID (ej: 1058797880659406)"
+                      placeholder={t("whatsAppSetupWizard.phoneIdExample")}
                       value={manualPhoneId}
                       onChange={(e) => setManualPhoneId(e.target.value)}
                       className="font-mono text-sm"
@@ -843,9 +845,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                       }
                     >
                       {saving ? (
-                        <><Loader2 className="h-4 w-4 animate-spin" /> Conectando...</>
+                        <><Loader2 className="h-4 w-4 animate-spin" /> {t("whatsAppSetupWizard.connecting")}</>
                       ) : (
-                        <>Conectar este número <ArrowRight className="h-4 w-4" /></>
+                        <>{t("whatsAppSetupWizard.connectThisNumber")} <ArrowRight className="h-4 w-4" /></>
                       )}
                     </Button>
                   </div>
@@ -860,12 +862,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   <Shield className="h-4 w-4 text-primary" />
-                  Ingresa tus IDs de WhatsApp Business
+                  {t("whatsAppSetupWizard.enterYourIds")}
                 </h4>
                 <p className="text-xs text-muted-foreground">
-                  Encuéntralos en{" "}
+                  {t("whatsAppSetupWizard.findThemAt")}{" "}
                   <a href="https://business.facebook.com/settings/whatsapp-business-accounts" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
-                    Meta Business Suite → Configuración → Cuentas WhatsApp <ExternalLink className="h-3 w-3 inline" />
+                    {t("whatsAppSetupWizard.metaBusinessSuitePath")} <ExternalLink className="h-3 w-3 inline" />
                   </a>
                 </p>
               </div>
@@ -873,17 +875,17 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="wa-waba-id" className="text-xs font-medium">WABA ID <span className="text-muted-foreground">(WhatsApp Business Account ID)</span></Label>
-                  <Input id="wa-waba-id" placeholder="Ej: 119298044591184" value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} className="font-mono" />
+                  <Input id="wa-waba-id" placeholder={t("whatsAppSetupWizard.wabaIdExample")} value={manualWabaId} onChange={(e) => setManualWabaId(e.target.value)} className="font-mono" />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="wa-phone-id" className="text-xs font-medium">Phone Number ID</Label>
-                  <Input id="wa-phone-id" placeholder="Ej: 123456789012345" value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} className="font-mono" />
+                  <Input id="wa-phone-id" placeholder={t("whatsAppSetupWizard.phoneIdExampleShort")} value={manualPhoneId} onChange={(e) => setManualPhoneId(e.target.value)} className="font-mono" />
                 </div>
                 {/* Token is optional — reuses the one already saved from OAuth */}
                 <details className="text-xs text-muted-foreground">
-                  <summary className="cursor-pointer hover:text-foreground">Token de acceso (opcional — se usa el guardado)</summary>
+                  <summary className="cursor-pointer hover:text-foreground">{t("whatsAppSetupWizard.accessTokenOptional")}</summary>
                   <div className="mt-2">
-                    <Input id="wa-token" type="password" placeholder="Solo si no has conectado con Facebook antes" value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
+                    <Input id="wa-token" type="password" placeholder={t("whatsAppSetupWizard.tokenPlaceholder")} value={manualToken} onChange={(e) => setManualToken(e.target.value)} />
                   </div>
                 </details>
               </div>
@@ -894,9 +896,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                 disabled={saving || !manualPhoneId || !manualWabaId}
               >
                 {saving ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Validando...</>
+                  <><Loader2 className="h-4 w-4 animate-spin" /> {t("whatsAppSetupWizard.validating")}</>
                 ) : (
-                  <>Conectar WhatsApp <ArrowRight className="h-4 w-4" /></>
+                  <>{t("whatsAppSetupWizard.connectWhatsApp")} <ArrowRight className="h-4 w-4" /></>
                 )}
               </Button>
             </div>

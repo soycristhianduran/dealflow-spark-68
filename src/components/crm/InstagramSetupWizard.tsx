@@ -11,6 +11,7 @@ import { useInstagramIntegration, IgAvailableAccount, IgDiagnosis } from "@/hook
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   open: boolean;
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export function InstagramSetupWizard({ open, onOpenChange }: Props) {
+  const { t } = useTranslation();
   const ig = useInstagramIntegration();
   const fb = useFacebookIntegration();
   const { organizationId } = useOrganizationContext();
@@ -66,8 +68,8 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                 <Instagram className="h-6 w-6" />
               </div>
               <div>
-                <h2 className="text-lg font-bold">Instagram Conectado</h2>
-                <p className="text-sm text-white/80">DMs y comentarios sincronizados</p>
+                <h2 className="text-lg font-bold">{t("instagramSetupWizard.connectedTitle")}</h2>
+                <p className="text-sm text-white/80">{t("instagramSetupWizard.connectedSubtitle")}</p>
               </div>
             </div>
           </div>
@@ -84,11 +86,11 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold">@{acct.ig_username}</p>
                 {acct.page_name && (
-                  <p className="text-xs text-muted-foreground">Página: {acct.page_name}</p>
+                  <p className="text-xs text-muted-foreground">{t("instagramSetupWizard.pageLabel", { name: acct.page_name })}</p>
                 )}
               </div>
               <Badge variant="outline" className="text-xs gap-1 text-green-600 border-green-300 bg-green-50">
-                <Wifi className="h-3 w-3" /> Activo
+                <Wifi className="h-3 w-3" /> {t("instagramSetupWizard.active")}
               </Badge>
             </div>
 
@@ -96,12 +98,12 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               <div className="rounded-xl border p-3 text-center">
                 <MessageSquare className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xl font-semibold">{ig.status.conversations_count ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Conversaciones</p>
+                <p className="text-xs text-muted-foreground">{t("instagramSetupWizard.conversations")}</p>
               </div>
               <div className="rounded-xl border p-3 text-center">
                 <MessageCircle className="h-4 w-4 mx-auto text-muted-foreground mb-1" />
                 <p className="text-xl font-semibold">{ig.status.comments_count ?? 0}</p>
-                <p className="text-xs text-muted-foreground">Comentarios</p>
+                <p className="text-xs text-muted-foreground">{t("instagramSetupWizard.comments")}</p>
               </div>
             </div>
 
@@ -117,7 +119,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                   onOpenChange(false);
                 }}
               >
-                <WifiOff className="h-4 w-4" /> Desconectar
+                <WifiOff className="h-4 w-4" /> {t("instagramSetupWizard.disconnect")}
               </Button>
               <Button
                 variant="outline"
@@ -132,7 +134,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                   ]);
                 }}
               >
-                <RefreshCw className="h-4 w-4" /> Actualizar
+                <RefreshCw className="h-4 w-4" /> {t("instagramSetupWizard.refresh")}
               </Button>
               <Button
                 variant="outline"
@@ -145,7 +147,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                 ) : (
                   <Stethoscope className="h-4 w-4" />
                 )}
-                Diagnosticar
+                {t("instagramSetupWizard.diagnose")}
               </Button>
             </div>
           </div>
@@ -161,7 +163,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
         <div className="bg-gradient-to-r from-pink-500 via-rose-500 to-orange-500 px-6 py-4">
           <div className="flex items-center gap-2">
             <Instagram className="h-5 w-5 text-white" />
-            <h2 className="text-white font-semibold text-sm">Conectar Instagram</h2>
+            <h2 className="text-white font-semibold text-sm">{t("instagramSetupWizard.connectInstagram")}</h2>
           </div>
         </div>
 
@@ -172,17 +174,17 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                 <Instagram className="h-8 w-8 text-pink-600" />
               </div>
             </div>
-            <h3 className="text-lg font-bold">Selecciona tu cuenta de Instagram</h3>
+            <h3 className="text-lg font-bold">{t("instagramSetupWizard.selectAccount")}</h3>
             <p className="text-sm text-muted-foreground max-w-sm mx-auto">
-              Solo aparecen cuentas Business o Creator vinculadas a una página de Facebook que ya conectaste.
+              {t("instagramSetupWizard.selectAccountHint")}
             </p>
           </div>
 
           {/* ── Recommended: direct Instagram Business Login ─────────────────── */}
           <div className="flex flex-col items-center gap-3 rounded-xl border-2 border-pink-500/30 bg-gradient-to-br from-pink-500/5 to-orange-500/5 p-6">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-pink-600">Recomendado</span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-pink-600">{t("instagramSetupWizard.recommended")}</span>
             <p className="text-sm text-muted-foreground text-center max-w-xs">
-              Conecta directamente con tu cuenta de Instagram. No necesitas una página de Facebook.
+              {t("instagramSetupWizard.directLoginHint")}
             </p>
             <button
               onClick={() => ig.startDirectLogin(organizationId)}
@@ -190,20 +192,20 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               className="flex items-center gap-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-orange-500 hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold text-sm px-5 py-2.5 transition-opacity shadow-sm"
             >
               {ig.connecting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Instagram className="h-4 w-4" />}
-              Conectar con Instagram
+              {t("instagramSetupWizard.connectWithInstagram")}
             </button>
           </div>
 
           <div className="flex items-center gap-3 my-1">
             <div className="h-px flex-1 bg-border" />
-            <span className="text-xs text-muted-foreground">o vía Facebook</span>
+            <span className="text-xs text-muted-foreground">{t("instagramSetupWizard.orViaFacebook")}</span>
             <div className="h-px flex-1 bg-border" />
           </div>
 
           {!fb.isConnected && (
             <div className="flex flex-col items-center gap-4 rounded-xl border border-border bg-muted/40 p-6">
               <p className="text-sm text-muted-foreground text-center max-w-xs">
-                Para conectar Instagram necesitas iniciar sesión con tu cuenta de Meta primero.
+                {t("instagramSetupWizard.metaLoginHint")}
               </p>
               <button
                 onClick={() => fb.connect()}
@@ -217,7 +219,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                     <path d="M24 12.073C24 5.404 18.627 0 12 0S0 5.404 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.313 0 2.686.236 2.686.236v2.97h-1.514c-1.491 0-1.956.93-1.956 1.884v2.25h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
                   </svg>
                 )}
-                Iniciar sesión con Meta
+                {t("instagramSetupWizard.loginWithMeta")}
               </button>
             </div>
           )}
@@ -225,7 +227,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
           {loading ? (
             <div className="flex flex-col items-center gap-3 py-8">
               <Loader2 className="h-8 w-8 animate-spin text-pink-600" />
-              <p className="text-sm text-muted-foreground">Buscando cuentas de Instagram...</p>
+              <p className="text-sm text-muted-foreground">{t("instagramSetupWizard.searchingAccounts")}</p>
             </div>
           ) : availableAccounts.length === 0 ? (
             <div className="text-center py-8 space-y-3">
@@ -235,9 +237,9 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                 </div>
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">No se encontraron cuentas de Instagram.</p>
+                <p className="text-sm text-muted-foreground">{t("instagramSetupWizard.noAccountsFound")}</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                  Asegúrate de tener una cuenta IG Business o Creator vinculada a una de tus páginas de Facebook.
+                  {t("instagramSetupWizard.noAccountsHint")}
                 </p>
               </div>
               {fb.isConnected && (
@@ -247,7 +249,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                     .then((a) => setAvailableAccounts(a))
                     .finally(() => setLoading(false));
                 }} className="gap-2">
-                  <RefreshCw className="h-3.5 w-3.5" /> Reintentar
+                  <RefreshCw className="h-3.5 w-3.5" /> {t("instagramSetupWizard.retry")}
                 </Button>
               )}
             </div>
@@ -273,7 +275,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
                       <p className="text-sm font-semibold">@{account.ig_username}</p>
                       <p className="text-xs text-muted-foreground truncate">
                         {account.page_name}
-                        {account.followers_count !== undefined && ` · ${account.followers_count.toLocaleString()} seguidores`}
+                        {account.followers_count !== undefined && ` · ${t("instagramSetupWizard.followersCount", { count: account.followers_count.toLocaleString() })}`}
                       </p>
                     </div>
                     {isLoading ? (
@@ -298,6 +300,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
  * a deep link into Meta Developer Console.
  */
 function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
+  const { t } = useTranslation();
   const { checks, resubscribe_result } = diagnosis;
 
   const items: Array<{
@@ -310,56 +313,52 @@ function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
   }> = [
     {
       key: "page_subscribed_to_messages",
-      label: "Página suscrita a 'messages' (webhook de DMs)",
-      fixHint:
-        "Requiere el permiso instagram_manage_messages aprobado en tu App de Meta. Si ya lo tienes, intenta desconectar y conectar de nuevo.",
+      label: t("instagramSetupWizard.checkMessagesLabel"),
+      fixHint: t("instagramSetupWizard.checkMessagesHint"),
       fixLink: "https://developers.facebook.com/apps/",
-      fixLinkLabel: "Abrir Meta Developer Console",
+      fixLinkLabel: t("instagramSetupWizard.openMetaDevConsole"),
       critical: true,
     },
     {
       key: "token_has_instagram_manage_messages",
-      label: "Token con permiso instagram_manage_messages",
-      fixHint:
-        "Solicita 'instagram_manage_messages' en App Review → Permissions and Features. Sin esto, Meta no envía DMs al webhook.",
+      label: t("instagramSetupWizard.checkManageMessagesLabel"),
+      fixHint: t("instagramSetupWizard.checkManageMessagesHint"),
       fixLink: "https://developers.facebook.com/apps/",
-      fixLinkLabel: "Abrir App Review",
+      fixLinkLabel: t("instagramSetupWizard.openAppReview"),
       critical: true,
     },
     {
       key: "token_has_instagram_basic",
-      label: "Token con permiso instagram_basic",
-      fixHint: "Vuelve a conectar la cuenta y asegúrate de aceptar todos los permisos solicitados.",
+      label: t("instagramSetupWizard.checkBasicLabel"),
+      fixHint: t("instagramSetupWizard.checkBasicHint"),
       critical: true,
     },
     {
       key: "token_has_instagram_manage_insights",
-      label: "Token con permiso instagram_manage_insights",
-      fixHint:
-        "Necesario para verificar si un usuario sigue la cuenta (follower-gate). Solicítalo en Meta App Review → Permissions and Features. Una vez aprobado, reconecta la cuenta de Instagram.",
+      label: t("instagramSetupWizard.checkManageInsightsLabel"),
+      fixHint: t("instagramSetupWizard.checkManageInsightsHint"),
       fixLink: "https://developers.facebook.com/apps/",
-      fixLinkLabel: "Solicitar en App Review",
+      fixLinkLabel: t("instagramSetupWizard.requestInAppReview"),
       critical: false,
     },
     {
       key: "page_subscribed_to_messaging_postbacks",
-      label: "Página suscrita a 'messaging_postbacks' (botones rápidos)",
-      fixHint: "Se suscribe automáticamente al conectar. Si falla, suele ser por el mismo permiso de messages.",
+      label: t("instagramSetupWizard.checkPostbacksLabel"),
+      fixHint: t("instagramSetupWizard.checkPostbacksHint"),
       critical: false,
     },
     {
       key: "page_subscribed_to_comments",
-      label: "Página suscrita a 'comments'",
-      fixHint:
-        "Marca el campo 'comments' bajo el objeto Instagram en Webhooks de la App.",
+      label: t("instagramSetupWizard.checkCommentsLabel"),
+      fixHint: t("instagramSetupWizard.checkCommentsHint"),
       fixLink: "https://developers.facebook.com/apps/",
-      fixLinkLabel: "Abrir Webhooks",
+      fixLinkLabel: t("instagramSetupWizard.openWebhooks"),
       critical: false,
     },
     {
       key: "token_has_pages_manage_metadata",
-      label: "Token con permiso pages_manage_metadata",
-      fixHint: "Necesario para suscribir la página a eventos. Solicítalo en App Review.",
+      label: t("instagramSetupWizard.checkManageMetadataLabel"),
+      fixHint: t("instagramSetupWizard.checkManageMetadataHint"),
       critical: false,
     },
   ];
@@ -372,21 +371,21 @@ function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
         {allCriticalPass ? (
           <>
             <CheckCircle2 className="h-5 w-5 text-green-600" />
-            <p className="text-sm font-semibold">Todo OK · los DMs deben llegar</p>
+            <p className="text-sm font-semibold">{t("instagramSetupWizard.allOk")}</p>
           </>
         ) : (
           <>
             <AlertTriangle className="h-5 w-5 text-amber-600" />
-            <p className="text-sm font-semibold">Problemas detectados — los DMs no llegarán hasta arreglarlos</p>
+            <p className="text-sm font-semibold">{t("instagramSetupWizard.problemsDetected")}</p>
           </>
         )}
       </div>
 
       {resubscribe_result && (
         <div className="text-xs rounded-md border border-amber-300 bg-amber-50 p-2">
-          <p className="font-medium text-amber-900 mb-1">Reintento de suscripción ejecutado:</p>
+          <p className="font-medium text-amber-900 mb-1">{t("instagramSetupWizard.resubscribeExecuted")}</p>
           {resubscribe_result?.success === true ? (
-            <p className="text-amber-800">✓ Meta aceptó la nueva suscripción. Envía un DM de prueba ahora.</p>
+            <p className="text-amber-800">{t("instagramSetupWizard.resubscribeSuccess")}</p>
           ) : (
             <p className="text-amber-800 break-words">
               ✗ {resubscribe_result?.error?.message || JSON.stringify(resubscribe_result)}
@@ -432,16 +431,16 @@ function DiagnosisPanel({ diagnosis }: { diagnosis: IgDiagnosis }) {
 
       {diagnosis.subscribed_fields.length > 0 && (
         <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">Detalles técnicos</summary>
+          <summary className="cursor-pointer">{t("instagramSetupWizard.technicalDetails")}</summary>
           <p className="mt-1">
-            <span className="font-medium">Campos suscritos:</span> {diagnosis.subscribed_fields.join(", ")}
+            <span className="font-medium">{t("instagramSetupWizard.subscribedFields")}</span> {diagnosis.subscribed_fields.join(", ")}
           </p>
           <p className="mt-1">
-            <span className="font-medium">Permisos del token:</span>{" "}
+            <span className="font-medium">{t("instagramSetupWizard.tokenPermissions")}</span>{" "}
             {diagnosis.token_permissions
               .filter((p) => p.status === "granted")
               .map((p) => p.permission)
-              .join(", ") || "ninguno"}
+              .join(", ") || t("instagramSetupWizard.none")}
           </p>
         </details>
       )}

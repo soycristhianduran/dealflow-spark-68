@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
+import { useTranslation } from "react-i18next";
 
 interface EditingMeeting {
   id: string;
@@ -55,6 +56,7 @@ export function CreateMeetingDialog({
   defaultContactId,
   editingMeeting,
 }: CreateMeetingDialogProps) {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
@@ -119,7 +121,7 @@ export function CreateMeetingDialog({
 
   const handleSave = async () => {
     if (!title.trim() || !date) {
-      toast.error("Título y fecha son requeridos");
+      toast.error(t("createMeetingDialog.titleAndDateRequired"));
       return;
     }
     setSaving(true);
@@ -170,7 +172,7 @@ export function CreateMeetingDialog({
           const upd: Record<string, unknown> = { google_event_id: gcalResult.google_event_id };
           if (gcalResult.meet_link && isVirtual && !location.trim()) upd.location_or_link = gcalResult.meet_link;
           await supabase.from("meetings").update(upd).eq("id", meetingId);
-          toast.success("También se agregó a Google Calendar", { icon: "📅" });
+          toast.success(t("createMeetingDialog.alsoAddedToGoogleCalendar"), { icon: "📅" });
         }
       } else if (isEditing && gcal.isConnected && editingMeeting?.google_event_id) {
         // Update the existing Google Calendar event silently (don't regenerate Meet)
@@ -180,9 +182,13 @@ export function CreateMeetingDialog({
 
     setSaving(false);
     if (error) {
-      toast.error(`Error al ${isEditing ? "actualizar" : "crear"} cita: ${error.message}`);
+      toast.error(
+        (isEditing
+          ? t("createMeetingDialog.updateMeetingError")
+          : t("createMeetingDialog.createMeetingError")) + `: ${error.message}`
+      );
     } else {
-      toast.success(isEditing ? "Cita actualizada" : "Cita creada");
+      toast.success(isEditing ? t("createMeetingDialog.meetingUpdated") : t("createMeetingDialog.meetingCreated"));
       onOpenChange(false);
       onCreated?.();
     }
@@ -190,7 +196,7 @@ export function CreateMeetingDialog({
 
   const handleDelete = async () => {
     if (!editingMeeting?.id) return;
-    if (!confirm("¿Eliminar esta cita? Esta acción no se puede deshacer.")) return;
+    if (!confirm(t("createMeetingDialog.deleteConfirm"))) return;
     setDeleting(true);
     // Remove from Google Calendar first (best-effort), then from the CRM.
     if (editingMeeting.google_event_id && gcal.isConnected) {
@@ -199,9 +205,9 @@ export function CreateMeetingDialog({
     const { error } = await supabase.from("meetings").delete().eq("id", editingMeeting.id);
     setDeleting(false);
     if (error) {
-      toast.error("No se pudo eliminar la cita: " + error.message);
+      toast.error(t("createMeetingDialog.deleteMeetingError") + ": " + error.message);
     } else {
-      toast.success("Cita eliminada");
+      toast.success(t("createMeetingDialog.meetingDeleted"));
       onOpenChange(false);
       onCreated?.();
     }
@@ -211,17 +217,17 @@ export function CreateMeetingDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>{isEditing ? "Editar cita" : "Nueva cita"}</DialogTitle>
+          <DialogTitle>{isEditing ? t("createMeetingDialog.editMeeting") : t("createMeetingDialog.newMeeting")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2 max-h-[65vh] overflow-y-auto scrollbar-thin pr-1">
           <div className="space-y-2">
-            <Label>Título *</Label>
-            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="Ej: Reunión con cliente" />
+            <Label>{t("createMeetingDialog.titleLabel")}</Label>
+            <Input value={title} onChange={e => setTitle(e.target.value)} placeholder={t("createMeetingDialog.titlePlaceholder")} />
           </div>
 
           {/* Date picker */}
           <div className="space-y-2">
-            <Label>Fecha *</Label>
+            <Label>{t("createMeetingDialog.dateLabel")}</Label>
             <Popover open={dateOpen} onOpenChange={setDateOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -229,7 +235,7 @@ export function CreateMeetingDialog({
                   className={cn("w-full justify-start text-left font-normal", !date && "text-muted-foreground")}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP", { locale: es }) : "Seleccionar fecha"}
+                  {date ? format(date, "PPP", { locale: es }) : t("createMeetingDialog.selectDate")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -247,7 +253,7 @@ export function CreateMeetingDialog({
           {/* Time selectors */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Hora inicio</Label>
+              <Label>{t("createMeetingDialog.startTimeLabel")}</Label>
               <Select value={startTime} onValueChange={setStartTime}>
                 <SelectTrigger>
                   <div className="flex items-center gap-2">
@@ -263,7 +269,7 @@ export function CreateMeetingDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Hora fin</Label>
+              <Label>{t("createMeetingDialog.endTimeLabel")}</Label>
               <Select value={endTime} onValueChange={setEndTime}>
                 <SelectTrigger>
                   <div className="flex items-center gap-2">
@@ -282,26 +288,26 @@ export function CreateMeetingDialog({
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Tipo</Label>
+              <Label>{t("createMeetingDialog.typeLabel")}</Label>
               <Select value={meetingType} onValueChange={setMeetingType}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="video_call">Videollamada</SelectItem>
-                  <SelectItem value="in_person">Presencial</SelectItem>
-                  <SelectItem value="phone_call">Llamada</SelectItem>
+                  <SelectItem value="video_call">{t("createMeetingDialog.typeVideoCall")}</SelectItem>
+                  <SelectItem value="in_person">{t("createMeetingDialog.typeInPerson")}</SelectItem>
+                  <SelectItem value="phone_call">{t("createMeetingDialog.typePhoneCall")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             {isEditing && (
               <div className="space-y-2">
-                <Label>Estado</Label>
+                <Label>{t("createMeetingDialog.statusLabel")}</Label>
                 <Select value={status} onValueChange={setStatus}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="scheduled">Programada</SelectItem>
-                    <SelectItem value="completed">Completada</SelectItem>
-                    <SelectItem value="cancelled">Cancelada</SelectItem>
-                    <SelectItem value="no_show">No asistió</SelectItem>
+                    <SelectItem value="scheduled">{t("createMeetingDialog.statusScheduled")}</SelectItem>
+                    <SelectItem value="completed">{t("createMeetingDialog.statusCompleted")}</SelectItem>
+                    <SelectItem value="cancelled">{t("createMeetingDialog.statusCancelled")}</SelectItem>
+                    <SelectItem value="no_show">{t("createMeetingDialog.statusNoShow")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -310,7 +316,7 @@ export function CreateMeetingDialog({
 
           {/* Searchable contact selector */}
           <div className="space-y-2">
-            <Label>Contacto</Label>
+            <Label>{t("createMeetingDialog.contactLabel")}</Label>
             <div className="relative">
               {selectedContact && !contactDropdownOpen ? (
                 <div className="flex items-center h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
@@ -330,7 +336,7 @@ export function CreateMeetingDialog({
                     value={contactSearch}
                     onChange={e => { setContactSearch(e.target.value); setContactDropdownOpen(true); }}
                     onFocus={() => setContactDropdownOpen(true)}
-                    placeholder="Buscar contacto..."
+                    placeholder={t("createMeetingDialog.searchContactPlaceholder")}
                     className="pl-9"
                   />
                 </div>
@@ -342,10 +348,10 @@ export function CreateMeetingDialog({
                     className="w-full text-left px-3 py-2 text-sm text-muted-foreground hover:bg-muted transition-colors"
                     onClick={() => { setContactId(""); setContactSearch(""); setContactDropdownOpen(false); }}
                   >
-                    Sin contacto
+                    {t("createMeetingDialog.noContact")}
                   </button>
                   {filteredContacts.length === 0 ? (
-                    <p className="px-3 py-2 text-sm text-muted-foreground">No se encontraron contactos</p>
+                    <p className="px-3 py-2 text-sm text-muted-foreground">{t("createMeetingDialog.noContactsFound")}</p>
                   ) : filteredContacts.map(c => (
                     <button
                       key={c.id}
@@ -365,12 +371,12 @@ export function CreateMeetingDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Ubicación / Enlace</Label>
+            <Label>{t("createMeetingDialog.locationLabel")}</Label>
             <Input value={location} onChange={e => setLocation(e.target.value)} placeholder="https://meet.google.com/..." />
           </div>
           <div className="space-y-2">
-            <Label>Notas</Label>
-            <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notas adicionales..." rows={2} />
+            <Label>{t("createMeetingDialog.notesLabel")}</Label>
+            <Textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder={t("createMeetingDialog.notesPlaceholder")} rows={2} />
           </div>
 
           {/* Google Calendar sync indicator / toggle */}
@@ -378,8 +384,8 @@ export function CreateMeetingDialog({
             <div className="flex items-center gap-3 rounded-lg border border-primary/30 bg-primary/5 p-3">
               <CalendarDays className="h-5 w-5 shrink-0 text-primary" />
               <div className="flex-1">
-                <p className="text-sm font-medium">Sincronizado con Google Calendar</p>
-                <p className="text-xs text-muted-foreground">Los cambios se actualizarán automáticamente</p>
+                <p className="text-sm font-medium">{t("createMeetingDialog.syncedWithGoogleCalendar")}</p>
+                <p className="text-xs text-muted-foreground">{t("createMeetingDialog.changesUpdatedAutomatically")}</p>
               </div>
             </div>
           )}
@@ -393,8 +399,8 @@ export function CreateMeetingDialog({
             >
               <CalendarDays className={cn("h-5 w-5 shrink-0", syncToGcal ? "text-primary" : "text-muted-foreground")} />
               <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Agregar a Google Calendar</p>
-                <p className="text-xs text-muted-foreground">Se creará automáticamente en tu calendario</p>
+                <p className="text-sm font-medium text-foreground">{t("createMeetingDialog.addToGoogleCalendar")}</p>
+                <p className="text-xs text-muted-foreground">{t("createMeetingDialog.willBeCreatedAutomatically")}</p>
               </div>
               <div className={cn(
                 "h-5 w-9 rounded-full transition-colors relative",
@@ -412,14 +418,14 @@ export function CreateMeetingDialog({
           {isEditing ? (
             <Button variant="ghost" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={handleDelete} disabled={deleting || saving}>
               {deleting ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
-              Eliminar
+              {t("createMeetingDialog.delete")}
             </Button>
           ) : <span />}
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>{t("createMeetingDialog.cancel")}</Button>
             <Button onClick={handleSave} disabled={saving || deleting}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {isEditing ? "Guardar cambios" : "Crear cita"}
+              {isEditing ? t("createMeetingDialog.saveChanges") : t("createMeetingDialog.createMeeting")}
             </Button>
           </div>
         </DialogFooter>

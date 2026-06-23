@@ -7,6 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import {
@@ -125,6 +126,11 @@ function PeriodSelector({
   customRange: { from: string; to: string };
   onCustomChange: (r: { from: string; to: string }) => void;
 }) {
+  const { t } = useTranslation();
+  const periodLabelKey: Record<Period, string> = {
+    week: "period7Days", month: "period30Days", quarter: "periodQuarter",
+    year: "periodThisYear", custom: "periodCustom",
+  };
   const [calOpen, setCalOpen] = useState(false);
   const btn = (active: boolean) =>
     `px-2.5 py-2 min-h-[36px] text-xs font-medium rounded-md transition-all ${
@@ -133,12 +139,12 @@ function PeriodSelector({
   const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const pretty = (s: string) => s ? new Date(s + "T00:00:00").toLocaleDateString("es", { day: "2-digit", month: "short" }) : "";
   const customLabel = value === "custom" && customRange.from && customRange.to
-    ? `${pretty(customRange.from)} → ${pretty(customRange.to)}` : "Personalizado";
+    ? `${pretty(customRange.from)} → ${pretty(customRange.to)}` : t("dashboardPage.periodCustom");
   return (
     <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
       {PERIOD_OPTIONS.map((opt) => (
         <button key={opt.value} onClick={() => onChange(opt.value)} className={btn(value === opt.value)}>
-          {opt.label}
+          {t(`dashboardPage.${periodLabelKey[opt.value]}`)}
         </button>
       ))}
       <Popover open={calOpen} onOpenChange={(o) => { setCalOpen(o); if (o) onChange("custom"); }}>
@@ -283,28 +289,29 @@ function SetupBanner({
   hasDeals: boolean;
   onDismiss: () => void;
 }) {
+  const { t } = useTranslation();
   const steps: SetupStep[] = [
     {
       icon: <MessageCircle className="h-5 w-5" />,
-      title: "Conecta tu canal",
-      desc: "WhatsApp, Instagram o Facebook Ads para capturar leads automáticamente.",
-      cta: "Configurar ahora",
+      title: t("dashboardPage.setupConnectChannelTitle"),
+      desc: t("dashboardPage.setupConnectChannelDesc"),
+      cta: t("dashboardPage.setupConfigureNow"),
       to: "integrations",
       done: waConnected,
     },
     {
       icon: <Users className="h-5 w-5" />,
-      title: "Agrega tu primer lead",
-      desc: "Importa contactos o añade uno manualmente para empezar a trabajar.",
-      cta: "Ir a contactos",
+      title: t("dashboardPage.setupFirstLeadTitle"),
+      desc: t("dashboardPage.setupFirstLeadDesc"),
+      cta: t("dashboardPage.setupGoToContacts"),
       to: "contacts",
       done: hasContacts,
     },
     {
       icon: <GitBranch className="h-5 w-5" />,
-      title: "Abre un deal en el pipeline",
-      desc: "Mueve un lead al pipeline y comienza a llevar el seguimiento comercial.",
-      cta: "Ver pipeline",
+      title: t("dashboardPage.setupOpenDealTitle"),
+      desc: t("dashboardPage.setupOpenDealDesc"),
+      cta: t("dashboardPage.setupViewPipeline"),
       to: "pipeline",
       done: hasDeals,
     },
@@ -320,15 +327,15 @@ function SetupBanner({
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border/60">
         <div>
-          <h2 className="text-sm font-semibold text-foreground">Primeros pasos</h2>
+          <h2 className="text-sm font-semibold text-foreground">{t("dashboardPage.setupGettingStarted")}</h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {doneCount} de {steps.length} completados — tu CRM está casi listo
+            {t("dashboardPage.setupProgress", { done: doneCount, total: steps.length })}
           </p>
         </div>
         <button
           onClick={onDismiss}
           className="text-muted-foreground hover:text-foreground transition-colors p-1 rounded-md hover:bg-muted"
-          title="Ocultar"
+          title={t("dashboardPage.hide")}
         >
           <X className="h-4 w-4" />
         </button>
@@ -353,7 +360,7 @@ function SetupBanner({
               </div>
               {step.done && (
                 <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full shrink-0">
-                  Listo
+                  {t("dashboardPage.done")}
                 </span>
               )}
             </div>
@@ -363,7 +370,7 @@ function SetupBanner({
             </div>
             {!step.done && (
               <Button asChild variant="outline" size="sm" className="w-fit text-xs mt-auto">
-                <Link to={step.to}>{step.cta} →</Link>
+                <Link to={step.to}>{step.cta} →</Link>{/* cta translated */}
               </Button>
             )}
           </div>
@@ -376,6 +383,7 @@ function SetupBanner({
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 /* ─── Welcome card (first-time greeting) ────────────────────────────────── */
 function WelcomeCard({ userId, firstName }: { userId: string; firstName: string }) {
+  const { t } = useTranslation();
   const key = `klosify_welcomed_${userId}`;
   const [visible, setVisible] = useState(false);
 
@@ -395,10 +403,10 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
   if (!visible) return null;
 
   const benefits = [
-    { icon: Users,       text: "Contactos, empresas y negocios en un solo lugar" },
-    { icon: MessageCircle, text: "Automatiza mensajes por WhatsApp e Instagram" },
-    { icon: GitBranch,   text: "Pipeline visual para cerrar más ventas" },
-    { icon: Mail,        text: "Campañas de email y landing pages integradas" },
+    { icon: Users,       text: t("dashboardPage.welcomeBenefitContacts") },
+    { icon: MessageCircle, text: t("dashboardPage.welcomeBenefitMessages") },
+    { icon: GitBranch,   text: t("dashboardPage.welcomeBenefitPipeline") },
+    { icon: Mail,        text: t("dashboardPage.welcomeBenefitCampaigns") },
   ];
 
   return (
@@ -419,7 +427,7 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
             <div>
               <p className="text-xs font-medium text-muted-foreground leading-none mb-0.5">Klosify CRM</p>
               <p className="text-sm font-bold text-foreground leading-tight">
-                ¡Bienvenido{firstName ? `, ${firstName}` : ""}! 👋
+                {firstName ? t("dashboardPage.welcomeGreetingName", { name: firstName }) : t("dashboardPage.welcomeGreeting")} 👋
               </p>
             </div>
           </div>
@@ -433,7 +441,7 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
 
         {/* Tagline */}
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Tu espacio de trabajo está listo. Esto es lo que puedes hacer:
+          {t("dashboardPage.welcomeTagline")}
         </p>
 
         {/* Benefits */}
@@ -451,7 +459,7 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
         {/* CTA */}
         <Button size="sm" className="w-full font-semibold" onClick={dismiss}>
           <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-          ¡Empezar a usar Klosify!
+          {t("dashboardPage.welcomeCta")}
         </Button>
       </div>
     </div>
@@ -459,6 +467,7 @@ function WelcomeCard({ userId, firstName }: { userId: string; firstName: string 
 }
 
 export default function DashboardPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { profile } = useProfile();
   // Prefer the edited profile name over the (possibly stale) auth metadata.
@@ -477,7 +486,7 @@ export default function DashboardPage() {
   }, []);
   // Hour of day in the org's configured timezone (drives buenos días/tardes/noches).
   const tzHour = Number(clock.toLocaleString("en-US", { timeZone: timezone, hour: "2-digit", hour12: false }));
-  const greeting = tzHour < 12 ? "Buenos días" : tzHour < 19 ? "Buenas tardes" : "Buenas noches";
+  const greeting = tzHour < 12 ? t("dashboardPage.goodMorning") : tzHour < 19 ? t("dashboardPage.goodAfternoon") : t("dashboardPage.goodEvening");
   const tzDate = clock.toLocaleDateString("es", { timeZone: timezone, weekday: "long", day: "numeric", month: "long" });
   const tzTime = clock.toLocaleTimeString("es", { timeZone: timezone, hour: "2-digit", minute: "2-digit" });
   const [loading, setLoading] = useState(true);
@@ -491,12 +500,16 @@ export default function DashboardPage() {
       return {
         start: new Date(customRange.from + "T00:00:00").toISOString(),
         end: new Date(customRange.to + "T23:59:59.999").toISOString(),
-        label: "Personalizado",
+        label: t("dashboardPage.periodCustom"),
       };
     }
     const opt = PERIOD_OPTIONS.find((x) => x.value === period);
     const d = opt?.days ?? 30;
-    return { start: new Date(n.getTime() - d * 86_400_000).toISOString(), end: n.toISOString(), label: opt?.label ?? "30 días" };
+    const periodLabelKey: Record<Period, string> = {
+      week: "period7Days", month: "period30Days", quarter: "periodQuarter",
+      year: "periodThisYear", custom: "periodCustom",
+    };
+    return { start: new Date(n.getTime() - d * 86_400_000).toISOString(), end: n.toISOString(), label: opt ? t(`dashboardPage.${periodLabelKey[opt.value]}`) : t("dashboardPage.period30Days") };
   })();
 
   // Setup banner state
@@ -840,17 +853,17 @@ export default function DashboardPage() {
                 {greeting}
                 {greetingName ? <>, <span className="bg-gradient-to-r from-amber-100 to-white bg-clip-text text-transparent">{greetingName}</span></> : ""} 👋
               </h1>
-              <p className="text-sm text-white/65 mt-1">Esto es lo que está pasando en tu negocio hoy.</p>
+              <p className="text-sm text-white/65 mt-1">{t("dashboardPage.heroSubtitle")}</p>
             </div>
             <div className="flex items-center gap-5 shrink-0">
               <div className="text-right">
                 <p className="text-2xl font-bold tabular-nums leading-none">{fmt(totalContacts)}</p>
-                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">Total leads</p>
+                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">{t("dashboardPage.totalLeads")}</p>
               </div>
               <div className="h-10 w-px bg-white/15" />
               <div className="text-right">
                 <p className="text-2xl font-bold tabular-nums leading-none">{fmt(pipelineN)}</p>
-                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">En pipeline</p>
+                <p className="text-[11px] text-white/55 mt-1.5 uppercase tracking-wide">{t("dashboardPage.inPipeline")}</p>
               </div>
             </div>
           </div>
@@ -859,12 +872,12 @@ export default function DashboardPage() {
         {/* ── Header bar ─────────────────────────────────────────── */}
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" style={{ order: -1 }}>
           <div>
-            <h2 className="text-lg font-bold text-foreground tracking-tight">Resumen de rendimiento</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Tu negocio de un vistazo</p>
+            <h2 className="text-lg font-bold text-foreground tracking-tight">{t("dashboardPage.performanceSummary")}</h2>
+            <p className="text-xs text-muted-foreground mt-0.5">{t("dashboardPage.businessAtAGlance")}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5 rounded-lg" onClick={() => setCustomizeOpen(true)}>
-              <Sliders className="h-3.5 w-3.5" /> Personalizar
+              <Sliders className="h-3.5 w-3.5" /> {t("dashboardPage.customize")}
             </Button>
             <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomChange={setCustomRange} />
           </div>
@@ -874,46 +887,46 @@ export default function DashboardPage() {
         <div style={{ order: orderOf("kpis") }} hidden={isHidden("kpis")}>
         <div className="grid gap-3 md:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
           <KpiCard
-            label="Revenue ganado"
+            label={t("dashboardPage.kpiRevenueWon")}
             value={wonValue > 0 ? `${fmt(wonValue)} ${wonCurrency}` : "—"}
-            subValue={`${wonCount} ${wonCount === 1 ? "deal cerrado" : "deals cerrados"}`}
+            subValue={wonCount === 1 ? t("dashboardPage.dealsClosedOne", { count: wonCount }) : t("dashboardPage.dealsClosedOther", { count: wonCount })}
             trend={trendPct(wonValue, prevWonVal)}
             icon={<DollarSign className="h-4 w-4" />}
             accent="emerald"
           />
           <KpiCard
-            label="Pipeline activo"
+            label={t("dashboardPage.kpiActivePipeline")}
             value={pipelineVal > 0 ? `${fmt(pipelineVal)} ${pipelineCur}` : "—"}
-            subValue={`${pipelineN} ${pipelineN === 1 ? "deal en curso" : "deals en curso"}`}
+            subValue={pipelineN === 1 ? t("dashboardPage.dealsInProgressOne", { count: pipelineN }) : t("dashboardPage.dealsInProgressOther", { count: pipelineN })}
             icon={<BarChart3 className="h-4 w-4" />}
             accent="blue"
             highlight
           />
           <KpiCard
-            label="Win Rate"
+            label={t("dashboardPage.kpiWinRate")}
             value={winRate !== null ? `${winRate}%` : "—"}
             subValue={
               winRate !== null
-                ? `${wonCount} ganados · ${lostCount} perdidos`
-                : "Sin datos en el período"
+                ? t("dashboardPage.winRateBreakdown", { won: wonCount, lost: lostCount })
+                : t("dashboardPage.noDataInPeriod")
             }
             gauge={winRate}
             icon={<Trophy className="h-4 w-4" />}
             accent="orange"
           />
           <KpiCard
-            label="Deals perdidos"
+            label={t("dashboardPage.kpiLostDeals")}
             value={lostCount}
-            subValue="En el período"
+            subValue={t("dashboardPage.inThePeriod")}
             trend={trendPct(lostCount, prevLostN)}
             invertTrend
             icon={<XCircle className="h-4 w-4" />}
             accent="red"
           />
           <KpiCard
-            label="Deal promedio"
+            label={t("dashboardPage.kpiAverageDeal")}
             value={avgDeal > 0 ? `${fmt(avgDeal)} ${wonCurrency}` : "—"}
-            subValue="Por deal ganado"
+            subValue={t("dashboardPage.perWonDeal")}
             icon={<Target className="h-4 w-4" />}
             accent="blue"
           />
@@ -942,11 +955,11 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <XCircle className="h-4 w-4 text-destructive" />
-                  Razones de pérdida
+                  {t("dashboardPage.lossReasons")}
                 </CardTitle>
                 {lostReasons.length > 0 && (
                   <span className="text-xs text-muted-foreground">
-                    {lostReasons.reduce((s, r) => s + r.count, 0)} total
+                    {t("dashboardPage.totalCount", { count: lostReasons.reduce((s, r) => s + r.count, 0) })}
                   </span>
                 )}
               </div>
@@ -955,8 +968,8 @@ export default function DashboardPage() {
               {lostReasons.length === 0 ? (
                 <EmptyState
                   icon={<XCircle className="h-10 w-10" />}
-                  text="Sin razones registradas"
-                  sub='Aparecen al mover deals a "Cerrado perdido"'
+                  text={t("dashboardPage.noLossReasons")}
+                  sub={t("dashboardPage.noLossReasonsSub")}
                 />
               ) : (
                 <div className="space-y-3">
@@ -993,15 +1006,15 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CalendarDays className="h-4 w-4 text-primary" />
-                Próximas citas
+                {t("dashboardPage.upcomingMeetings")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {upcomingMeetings.length === 0 ? (
                 <EmptyState
                   icon={<CalendarDays className="h-8 w-8" />}
-                  text="Sin citas próximas"
-                  sub="Agenda una desde un lead"
+                  text={t("dashboardPage.noUpcomingMeetings")}
+                  sub={t("dashboardPage.noUpcomingMeetingsSub")}
                 />
               ) : (
                 upcomingMeetings.map((m) => (
@@ -1022,7 +1035,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {m.meeting_type || "cita"}
+                      {m.meeting_type || t("dashboardPage.meeting")}
                     </Badge>
                   </div>
                 ))
@@ -1035,39 +1048,39 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <CheckSquare className="h-4 w-4 text-primary" />
-                Tareas pendientes
+                {t("dashboardPage.pendingTasks")}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {pendingTasks.length === 0 ? (
                 <EmptyState
                   icon={<CheckSquare className="h-8 w-8" />}
-                  text="¡Todo al día!"
-                  sub="Sin tareas pendientes"
+                  text={t("dashboardPage.allCaughtUp")}
+                  sub={t("dashboardPage.noPendingTasks")}
                 />
               ) : (
-                pendingTasks.map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 rounded-lg border p-3">
+                pendingTasks.map((task) => (
+                  <div key={task.id} className="flex items-center gap-3 rounded-lg border p-3">
                     <div
                       className={`h-2 w-2 rounded-full shrink-0 ${
-                        t.priority === "urgent"
+                        task.priority === "urgent"
                           ? "bg-destructive"
-                          : t.priority === "high"
+                          : task.priority === "high"
                           ? "bg-orange-400"
-                          : t.priority === "medium"
+                          : task.priority === "medium"
                           ? "bg-primary"
                           : "bg-muted-foreground/40"
                       }`}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{t.title}</p>
+                      <p className="text-sm font-medium truncate">{task.title}</p>
                       <p className="text-xs text-muted-foreground">
-                        {t.due_date || "Sin fecha"}
-                        {t.due_time ? ` · ${t.due_time}` : ""}
+                        {task.due_date || t("dashboardPage.noDate")}
+                        {task.due_time ? ` · ${task.due_time}` : ""}
                       </p>
                     </div>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {t.task_type}
+                      {task.task_type}
                     </Badge>
                   </div>
                 ))
@@ -1080,15 +1093,15 @@ export default function DashboardPage() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                Actividad reciente
+                {t("dashboardPage.recentActivity")}
               </CardTitle>
             </CardHeader>
             <CardContent className="divide-y">
               {recentActivity.length === 0 ? (
                 <EmptyState
                   icon={<Activity className="h-8 w-8" />}
-                  text="Sin actividad reciente"
-                  sub="Cuando llegue un lead aparece aquí"
+                  text={t("dashboardPage.noRecentActivity")}
+                  sub={t("dashboardPage.noRecentActivitySub")}
                 />
               ) : (
                 recentActivity.map((a) => (
@@ -1116,10 +1129,10 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-amber-500" />
-                  Objeciones principales
+                  {t("dashboardPage.topObjections")}
                 </CardTitle>
                 <span className="text-xs text-muted-foreground">
-                  {topObjections.reduce((s, o) => s + o.count, 0)} detectadas
+                  {t("dashboardPage.objectionsDetected", { count: topObjections.reduce((s, o) => s + o.count, 0) })}
                 </span>
               </div>
             </CardHeader>
@@ -1154,9 +1167,9 @@ export default function DashboardPage() {
       <Dialog open={customizeOpen} onOpenChange={setCustomizeOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><Sliders className="h-4 w-4" /> Personalizar dashboard</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><Sliders className="h-4 w-4" /> {t("dashboardPage.customizeDashboard")}</DialogTitle>
           </DialogHeader>
-          <p className="text-xs text-muted-foreground">Muestra/oculta y reordena las secciones. Se guarda solo para ti.</p>
+          <p className="text-xs text-muted-foreground">{t("dashboardPage.customizeDescription")}</p>
           <div className="space-y-2 mt-2">
             {dashOrder.map((id, idx) => {
               const block = DASH_BLOCKS.find(b => b.id === id);
@@ -1168,7 +1181,7 @@ export default function DashboardPage() {
                     <button disabled={idx === 0} onClick={() => moveBlock(id, -1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronUp className="h-4 w-4" /></button>
                     <button disabled={idx === dashOrder.length - 1} onClick={() => moveBlock(id, 1)} className="text-muted-foreground hover:text-foreground disabled:opacity-30"><ChevronDown className="h-4 w-4" /></button>
                   </div>
-                  <span className={`flex-1 text-sm ${hidden ? "text-muted-foreground line-through" : ""}`}>{block.label}</span>
+                  <span className={`flex-1 text-sm ${hidden ? "text-muted-foreground line-through" : ""}`}>{t(`dashboardPage.block_${block.id}`)}</span>
                   {hidden ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-primary" />}
                   <Switch checked={!hidden} onCheckedChange={() => toggleHidden(id)} />
                 </div>
@@ -1179,7 +1192,7 @@ export default function DashboardPage() {
             className="mt-2 text-xs text-muted-foreground hover:text-foreground underline self-start"
             onClick={() => { setDashOrder([...DASH_DEFAULT_ORDER]); setDashHidden([]); savePrefs([...DASH_DEFAULT_ORDER], []); }}
           >
-            Restablecer al orden original
+            {t("dashboardPage.resetToDefault")}
           </button>
         </DialogContent>
       </Dialog>

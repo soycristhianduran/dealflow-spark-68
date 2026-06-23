@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, lazy, Suspense } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -144,36 +145,36 @@ const plans: Plan[] = [
   {
     id: "starter",
     name: "Starter", monthly: 29, annual: 24,
-    desc: "Para emprendedores que están comenzando",
-    features: ["1 usuario", "500 contactos", "Pipeline, contactos y empresas", "Calendario y tareas", "3 landings con IA", "3 flujos de automatización", "WhatsApp ilimitado", "Meta Ads + ROAS", "1.000 emails/mes", "Agente de Chat IA — 500 créditos/mes", "Asistente IA — 100 usos/mes"],
-    notIncluded: ["IA Boost (análisis + objeciones)", "Automatizaciones de Instagram", "API access"],
-    cta: "Empezar gratis", popular: false,
+    desc: "planStarterDesc",
+    features: ["planStarterFeat1", "planStarterFeat2", "planStarterFeat3", "planStarterFeat4", "planStarterFeat5", "planStarterFeat6", "planStarterFeat7", "planStarterFeat8", "planStarterFeat9", "planStarterFeat10", "planStarterFeat11"],
+    notIncluded: ["planStarterNot1", "planStarterNot2", "planStarterNot3"],
+    cta: "planStarterCta", popular: false,
   },
   {
     id: "pro",
     name: "Pro", monthly: 59, annual: 49,
-    desc: "Para equipos de ventas en crecimiento",
-    features: ["3 usuarios incluidos", "+$9/seat adicional", "5.000 contactos", "15 landings con IA", "Flujos ilimitados", "WhatsApp ilimitado", "Meta Ads + ROAS", "5.000 emails/mes", "IA Boost — 1.000 análisis/mes", "Detección de objeciones IA", "Agente de Chat IA — 3.000 créditos/mes", "Asistente IA — 1.000 usos/mes", "Agente de voz (llamadas)", "Automatizaciones de Instagram", "Email marketing"],
-    notIncluded: ["API access"],
-    cta: "Comenzar ahora →", popular: true,
+    desc: "planProDesc",
+    features: ["planProFeat1", "planProFeat2", "planProFeat3", "planProFeat4", "planProFeat5", "planProFeat6", "planProFeat7", "planProFeat8", "planProFeat9", "planProFeat10", "planProFeat11", "planProFeat12", "planProFeat13", "planProFeat14", "planProFeat15"],
+    notIncluded: ["planProNot1"],
+    cta: "planProCta", popular: true,
   },
   {
     id: "business",
     name: "Business", monthly: 99, annual: 82,
-    desc: "Para equipos grandes y de alto volumen",
-    features: ["10 usuarios incluidos", "+$9/seat adicional", "Contactos ilimitados", "50 landings con IA", "25.000 emails/mes", "IA Boost — 5.000 análisis/mes", "Agente de Chat IA — 15.000 créditos/mes", "Asistente IA — 10.000 usos/mes", "Agente de voz (llamadas)", "Email marketing", "API access", "Soporte prioritario + onboarding 1-a-1", "Todo lo del Pro"],
+    desc: "planBusinessDesc",
+    features: ["planBusinessFeat1", "planBusinessFeat2", "planBusinessFeat3", "planBusinessFeat4", "planBusinessFeat5", "planBusinessFeat6", "planBusinessFeat7", "planBusinessFeat8", "planBusinessFeat9", "planBusinessFeat10", "planBusinessFeat11", "planBusinessFeat12", "planBusinessFeat13"],
     notIncluded: [],
-    cta: "Suscribirse ahora →", popular: false,
+    cta: "planBusinessCta", popular: false,
   },
 ];
 
 const faqItems: FaqItem[] = [
-  { q: "¿Necesito conocimientos técnicos?", a: "No. Klosify está diseñado para que cualquier persona lo configure en menos de 30 minutos, sin ayuda técnica." },
-  { q: "¿Puedo conectar mi número de WhatsApp actual?", a: "Sí. Conectas tu número de WhatsApp Business API directamente. Si no tienes uno, te guiamos en la activación." },
-  { q: "¿Qué pasa cuando se acaban mis créditos de IA?", a: "Puedes comprar paquetes adicionales desde $9 en cualquier momento, sin necesidad de cambiar de plan." },
-  { q: "¿Hay contrato de permanencia?", a: "No. Cancela cuando quieras. Si cancelas, conservas el acceso hasta el final del período pagado." },
-  { q: "¿Los precios son en dólares?", a: "Sí, en USD. Aceptamos tarjetas de crédito/débito internacionales a través de Stripe, de forma segura." },
-  { q: "¿Puedo importar mis contactos actuales?", a: "Sí. Importa contactos desde Excel o CSV en segundos, sin límite de filas." },
+  { q: "faqQ1", a: "faqA1" },
+  { q: "faqQ2", a: "faqA2" },
+  { q: "faqQ3", a: "faqA3" },
+  { q: "faqQ4", a: "faqA4" },
+  { q: "faqQ5", a: "faqA5" },
+  { q: "faqQ6", a: "faqA6" },
 ];
 
 const toolStack: StackTool[] = [
@@ -185,16 +186,16 @@ const toolStack: StackTool[] = [
 ];
 
 const klosifyIncludes = [
-  "CRM completo (pipeline, contactos, empresas)", "Calendario y tareas", "Landings con IA", "Integraciones nativas (sin Zapier)",
-  "Email campaigns", "Automatizaciones WhatsApp + Instagram", "Agente IA + Agente de voz", "WhatsApp Business nativo", "Meta Ads + ROAS",
+  "klosifyInc1", "klosifyInc2", "klosifyInc3", "klosifyInc4",
+  "klosifyInc5", "klosifyInc6", "klosifyInc7", "klosifyInc8", "klosifyInc9",
 ];
 
 
 
 const addOns: AddOn[] = [
-  { icon: Target,   label: "+1.000 IA Boost (análisis + objeciones)", price: "$19",   iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
-  { icon: Rocket,   label: "+5.000 IA Boost (análisis + objeciones)", price: "$49",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
-  { icon: UserPlus, label: "Seat adicional",  price: "$9/mes",iconColor: "text-teal-600",   iconBg: "bg-teal-100"   },
+  { icon: Target,   label: "addonBoost1k", price: "$19",   iconColor: "text-blue-600",   iconBg: "bg-blue-100"   },
+  { icon: Rocket,   label: "addonBoost5k", price: "$49",   iconColor: "text-orange-600", iconBg: "bg-orange-100" },
+  { icon: UserPlus, label: "addonSeat",  price: "$9/mes",iconColor: "text-teal-600",   iconBg: "bg-teal-100"   },
 ];
 
 // ─── Animation helpers ────────────────────────────────────────────────────────
@@ -362,30 +363,31 @@ function PipelineMockup() {
 // ─── Marquee data ─────────────────────────────────────────────────────────────
 
 const marqueeRow1 = [
-  { icon: MessageCircle, label: "WhatsApp Business",     color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/20"  },
-  { icon: BarChart3,     label: "Meta Ads + ROAS",       color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/20"   },
-  { icon: Brain,         label: "IA Lead Scoring",       color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
-  { icon: Layout,        label: "Landings con IA",       color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
-  { icon: TrendingUp,    label: "Pipeline Visual",       color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/20"   },
-  { icon: GitBranch,     label: "Automatizaciones",      color: "text-pink-400",   bg: "bg-pink-500/10",   border: "border-pink-500/20"   },
-  { icon: MessageCircle, label: "Instagram DMs",         color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/20"   },
-  { icon: Users,         label: "Multi-usuario",         color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/20"   },
+  { icon: MessageCircle, label: "marqueeWhatsappBusiness", color: "text-green-400",  bg: "bg-green-500/10",  border: "border-green-500/20"  },
+  { icon: BarChart3,     label: "marqueeMetaAdsRoas",      color: "text-blue-400",   bg: "bg-blue-500/10",   border: "border-blue-500/20"   },
+  { icon: Brain,         label: "marqueeLeadScoring",      color: "text-orange-400", bg: "bg-orange-500/10", border: "border-orange-500/20" },
+  { icon: Layout,        label: "marqueeAiLandings",       color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+  { icon: TrendingUp,    label: "marqueeVisualPipeline",   color: "text-teal-400",   bg: "bg-teal-500/10",   border: "border-teal-500/20"   },
+  { icon: GitBranch,     label: "marqueeAutomations",      color: "text-pink-400",   bg: "bg-pink-500/10",   border: "border-pink-500/20"   },
+  { icon: MessageCircle, label: "marqueeInstagramDms",     color: "text-rose-400",   bg: "bg-rose-500/10",   border: "border-rose-500/20"   },
+  { icon: Users,         label: "marqueeMultiUser",        color: "text-cyan-400",   bg: "bg-cyan-500/10",   border: "border-cyan-500/20"   },
 ];
 
 const marqueeRow2 = [
-  "Sin contratos de permanencia",
-  "Soporte en español",
-  "Datos cifrados 256-bit",
-  "Setup en menos de 30 min",
-  "Sin tarjeta de crédito",
-  "API de WhatsApp oficial",
-  "IA incluida en todos los planes",
-  "Cancela cuando quieras",
-  "Actualizaciones automáticas",
-  "99.9% uptime garantizado",
+  "marquee2NoContracts",
+  "marquee2SpanishSupport",
+  "marquee2Encrypted",
+  "marquee2FastSetup",
+  "marquee2NoCard",
+  "marquee2OfficialApi",
+  "marquee2AiAllPlans",
+  "marquee2CancelAnytime",
+  "marquee2AutoUpdates",
+  "marquee2Uptime",
 ];
 
 function Marquee() {
+  const { t } = useTranslation();
   const doubled1 = [...marqueeRow1, ...marqueeRow1];
   const doubled2 = [...marqueeRow2, ...marqueeRow2];
   return (
@@ -398,7 +400,7 @@ function Marquee() {
         {doubled1.map(({ icon: Icon, label, color, bg, border }, i) => (
           <div key={i} className={`flex items-center gap-2 ${bg} border ${border} rounded-full px-4 py-2 whitespace-nowrap`}>
             <Icon className={`w-3.5 h-3.5 ${color} flex-shrink-0`} />
-            <span className="text-sm text-slate-300 font-medium">{label}</span>
+            <span className="text-sm text-slate-300 font-medium">{t(`homePage.${label}`)}</span>
           </div>
         ))}
       </div>
@@ -407,7 +409,7 @@ function Marquee() {
         {doubled2.map((label, i) => (
           <div key={i} className="flex items-center gap-2 bg-slate-800/40 border border-slate-700/40 rounded-full px-4 py-2 whitespace-nowrap">
             <div className="w-1 h-1 rounded-full bg-orange-500/60 flex-shrink-0" />
-            <span className="text-sm text-slate-500 font-medium">{label}</span>
+            <span className="text-sm text-slate-500 font-medium">{t(`homePage.${label}`)}</span>
           </div>
         ))}
       </div>
@@ -416,6 +418,7 @@ function Marquee() {
 }
 
 function FaqAccordion({ items }: { items: FaqItem[] }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState<number | null>(null);
   return (
     <div className="space-y-3">
@@ -423,14 +426,14 @@ function FaqAccordion({ items }: { items: FaqItem[] }) {
         <FadeUp key={i} delay={i * 60}>
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <button onClick={() => setOpen(open === i ? null : i)} className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-slate-50 transition-colors">
-              <span className="font-semibold text-slate-900 text-base">{item.q}</span>
+              <span className="font-semibold text-slate-900 text-base">{t(`homePage.${item.q}`)}</span>
               <span className="ml-4 flex-shrink-0 text-orange-500">
                 {open === i ? <Minus className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
               </span>
             </button>
             {open === i && (
               <div className="px-6 pb-5">
-                <p className="text-slate-600 leading-relaxed">{item.a}</p>
+                <p className="text-slate-600 leading-relaxed">{t(`homePage.${item.a}`)}</p>
               </div>
             )}
           </div>
@@ -443,45 +446,46 @@ function FaqAccordion({ items }: { items: FaqItem[] }) {
 function PlanCard({ plan, isAnnual, onCta, loading }: {
   plan: Plan; isAnnual: boolean; onCta: () => void; loading: boolean;
 }) {
+  const { t } = useTranslation();
   const price = isAnnual ? plan.annual : plan.monthly;
   return (
     <div className={`relative flex flex-col h-full rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-2 border-orange-500 shadow-2xl shadow-orange-500/10 bg-white hover:shadow-orange-500/20" : "border border-slate-200 bg-white shadow-sm hover:shadow-lg"}`}>
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
           <span className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">
-            <Star className="w-3 h-3 fill-current" /> Más Popular
+            <Star className="w-3 h-3 fill-current" /> {t("homePage.mostPopular")}
           </span>
         </div>
       )}
       <div className="mb-6">
         <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
-        <p className="text-sm text-slate-500">{plan.desc}</p>
+        <p className="text-sm text-slate-500">{t(`homePage.${plan.desc}`)}</p>
       </div>
       <div className="mb-6">
         <div className="flex items-end gap-1">
           <span className="text-4xl font-black text-slate-900 font-mono">${price}</span>
-          <span className="text-slate-500 mb-1">/mes</span>
+          <span className="text-slate-500 mb-1">{t("homePage.perMonth")}</span>
         </div>
-        {isAnnual && <p className="text-xs text-green-600 font-medium mt-1">Facturado anualmente · Ahorras ${(plan.monthly - plan.annual) * 12}/año</p>}
+        {isAnnual && <p className="text-xs text-green-600 font-medium mt-1">{t("homePage.billedAnnually", { amount: (plan.monthly - plan.annual) * 12 })}</p>}
       </div>
       <button
         onClick={onCta}
         disabled={loading}
         className={`flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl font-semibold text-sm transition-all mb-8 disabled:opacity-70 disabled:cursor-not-allowed ${plan.popular ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:from-orange-400 hover:to-orange-500" : "border-2 border-slate-200 text-slate-700 hover:border-orange-500 hover:text-orange-500"}`}
       >
-        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> Procesando...</> : plan.cta}
+        {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("homePage.processing")}</> : t(`homePage.${plan.cta}`)}
       </button>
       <div className="space-y-3 flex-1">
         {plan.features.map((f, i) => (
           <div key={i} className="flex items-start gap-3">
             <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-            <span className="text-sm text-slate-700">{f}</span>
+            <span className="text-sm text-slate-700">{t(`homePage.${f}`)}</span>
           </div>
         ))}
         {plan.notIncluded.map((f, i) => (
           <div key={i} className="flex items-start gap-3 opacity-40">
             <X className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-            <span className="text-sm text-slate-500 line-through">{f}</span>
+            <span className="text-sm text-slate-500 line-through">{t(`homePage.${f}`)}</span>
           </div>
         ))}
       </div>
@@ -509,9 +513,9 @@ const wordItem = {
   show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { duration: 0.55, ease: [0.16, 1, 0.3, 1] as const } },
 };
 const HEADLINE: { text: string; gradient?: boolean }[] = [
-  { text: "El CRM con IA", gradient: true },
-  { text: "que hace el trabajo fuerte." },
-  { text: "Tu equipo solo cierra." },
+  { text: "headline1", gradient: true },
+  { text: "headline2" },
+  { text: "headline3" },
 ];
 
 // Fraction of each feature's scroll segment where it stays PINNED (static) while
@@ -552,6 +556,7 @@ function useIsDesktop() {
 // while you scroll through its track and its visual animation plays; then it
 // unpins and the next feature takes over — like desktop's dwell, but vertical.
 function MobileFeature({ feature }: { feature: Feature }) {
+  const { t } = useTranslation();
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   const trackRef = useRef<HTMLDivElement>(null);
@@ -579,15 +584,15 @@ function MobileFeature({ feature }: { feature: Feature }) {
       <div className="sticky top-0 min-h-screen flex flex-col justify-center px-5 py-20">
         <div className={`inline-flex w-fit items-center gap-2 ${a.soft} ${a.text} text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-4`}>
           <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-          {feature.eyebrow}
+          {t(`homePage.${feature.eyebrow}`)}
         </div>
-        <h3 className="text-3xl font-black text-white tracking-tight mb-3">{feature.title}</h3>
-        <p className="text-slate-400 text-base leading-relaxed mb-5">{feature.desc}</p>
+        <h3 className="text-3xl font-black text-white tracking-tight mb-3">{t(`homePage.${feature.title}`)}</h3>
+        <p className="text-slate-400 text-base leading-relaxed mb-5">{t(`homePage.${feature.desc}`)}</p>
         <ul className="space-y-2.5 mb-7">
           {feature.bullets.map((b) => (
             <li key={b} className="flex items-start gap-3">
               <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-              <span className="text-slate-300 text-sm">{b}</span>
+              <span className="text-slate-300 text-sm">{t(`homePage.${b}`)}</span>
             </li>
           ))}
         </ul>
@@ -602,6 +607,7 @@ function MobileFeature({ feature }: { feature: Feature }) {
 function FeatureSlide({ feature, scrollYProgress, index, total }: {
   feature: Feature; scrollYProgress: MotionValue<number>; index: number; total: number;
 }) {
+  const { t } = useTranslation();
   const a = FA[feature.accent] || FA.orange;
   const Icon = feature.icon as React.ComponentType<{ className?: string }>;
   // Each feature owns a scroll segment [segStart, segStart+seg]. During the first
@@ -629,15 +635,15 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
         <div>
           <div className={`inline-flex items-center gap-2 ${a.soft} ${a.text} text-[10px] sm:text-[11px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-full ring-1 ${a.ring} mb-3 sm:mb-5`}>
             <span className={`flex h-5 w-5 items-center justify-center rounded-md ${a.iconBg} text-white`}><Icon className="w-3 h-3" /></span>
-            {feature.eyebrow}
+            {t(`homePage.${feature.eyebrow}`)}
           </div>
-          <h3 className="text-xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2 sm:mb-5">{feature.title}</h3>
-          <p className="hidden sm:block text-slate-600 text-sm sm:text-lg leading-relaxed mb-3 sm:mb-6">{feature.desc}</p>
+          <h3 className="text-xl sm:text-5xl font-black text-slate-900 tracking-tight mb-2 sm:mb-5">{t(`homePage.${feature.title}`)}</h3>
+          <p className="hidden sm:block text-slate-600 text-sm sm:text-lg leading-relaxed mb-3 sm:mb-6">{t(`homePage.${feature.desc}`)}</p>
           <ul className="space-y-1 sm:space-y-3">
             {feature.bullets.map((b) => (
               <li key={b} className="flex items-start gap-2.5 sm:gap-3">
                 <span className={`mt-0.5 flex h-5 w-5 items-center justify-center rounded-full ${a.soft} ${a.text} flex-shrink-0`}><Check className="w-3 h-3" /></span>
-                <span className="text-slate-700 text-[13px] sm:text-lg">{b}</span>
+                <span className="text-slate-700 text-[13px] sm:text-lg">{t(`homePage.${b}`)}</span>
               </li>
             ))}
           </ul>
@@ -657,6 +663,7 @@ function FeatureSlide({ feature, scrollYProgress, index, total }: {
 // Pinned section whose features scroll HORIZONTALLY as you scroll vertically,
 // each slide's visual animation playing in sync with the scroll.
 function HorizontalFeatures() {
+  const { t } = useTranslation();
   const N = FEATURES.length;
   const ref = useRef<HTMLElement>(null);
   // Pin progress (0..1) computed manually from scroll — avoids useScroll's
@@ -704,8 +711,8 @@ function HorizontalFeatures() {
         <motion.div aria-hidden className="pointer-events-none absolute top-1/3 right-1/3 h-72 w-72 rounded-full blur-3xl" style={{ background: "radial-gradient(circle, rgba(244,63,94,0.14), transparent 70%)" }} animate={{ x: [0, -60, 40, 0], y: [0, 50, -30, 0] }} transition={{ duration: 24, repeat: Infinity, ease: "easeInOut" }} />
         {/* Header (stays pinned above the slider) */}
         <div className="relative z-10 pt-20 sm:pt-24 pb-2 sm:pb-4 text-center px-4 shrink-0">
-          <p className="text-orange-500 font-semibold text-[11px] sm:text-sm uppercase tracking-widest mb-1 sm:mb-2">Por qué Klosify</p>
-          <h2 className="text-xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight">Todo en una sola plataforma</h2>
+          <p className="text-orange-500 font-semibold text-[11px] sm:text-sm uppercase tracking-widest mb-1 sm:mb-2">{t("homePage.whyKlosify")}</p>
+          <h2 className="text-xl sm:text-3xl md:text-5xl font-black text-slate-900 tracking-tight">{t("homePage.allInOnePlatform")}</h2>
         </div>
         {/* Horizontal track */}
         <div className="relative z-10 flex-1 min-h-0">
@@ -726,16 +733,17 @@ function HorizontalFeatures() {
 
 type ChatMsg = { who: "them" | "me"; ai?: boolean; text: string; time: string };
 const CHAT_SCRIPT: ChatMsg[] = [
-  { who: "them", text: "Hola, me interesa el plan Pro", time: "10:32" },
-  { who: "me", ai: true, text: "¡Hola! 👋 El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", time: "10:32" },
-  { who: "them", text: "Perfecto, ¿puedo hablar con alguien?", time: "10:33" },
-  { who: "me", ai: true, text: "¡Claro! Te conecto con un asesor ahora mismo 😊", time: "10:33" },
+  { who: "them", text: "waChatMsg1", time: "10:32" },
+  { who: "me", ai: true, text: "waChatMsg2", time: "10:32" },
+  { who: "them", text: "waChatMsg3", time: "10:33" },
+  { who: "me", ai: true, text: "waChatMsg4", time: "10:33" },
 ];
 
 // WhatsApp chat. If `progress` (0..1) is given, the conversation is driven by
 // scroll (messages + AI typing appear as you scroll the slide). Otherwise it
 // plays on a timed loop.
 function WhatsAppChatDemo({ progress }: { progress?: MotionValue<number> }) {
+  const { t } = useTranslation();
   const msgs = CHAT_SCRIPT;
   const [count, setCount] = useState(0);
   const [typing, setTyping] = useState(false);
@@ -780,17 +788,17 @@ function WhatsAppChatDemo({ progress }: { progress?: MotionValue<number> }) {
     <div className="space-y-3 min-h-[260px]">
       <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><WhatsAppIcon size={20} /></div>
-        <span className="text-sm font-semibold text-white">Chat · WhatsApp Business</span>
-        <span className="ml-auto flex items-center gap-1 text-[10px] text-green-400"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> en línea</span>
+        <span className="text-sm font-semibold text-white">{t("homePage.chatWhatsappBusiness")}</span>
+        <span className="ml-auto flex items-center gap-1 text-[10px] text-green-400"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> {t("homePage.online")}</span>
       </div>
       {visible.map((m, i) => {
         const out = m.who === "me";
         return (
           <div key={i} className={`flex ${out ? "justify-end" : "justify-start"} animate-[waPop_0.35s_ease-out]`}>
             <div className={`rounded-xl px-3 py-2 max-w-[82%] ${out ? "bg-green-600/30 border border-green-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200 leading-relaxed">{m.text}</p>
+              <p className="text-xs text-slate-200 leading-relaxed">{t(`homePage.${m.text}`)}</p>
               <div className="flex items-center justify-end gap-1 mt-0.5">
-                {m.ai && <span className="text-[9px] text-green-300 font-medium">• Agente IA</span>}
+                {m.ai && <span className="text-[9px] text-green-300 font-medium">{t("homePage.aiAgentTag")}</span>}
                 <span className="text-[10px] text-slate-500">{m.time}</span>
               </div>
             </div>
@@ -841,6 +849,7 @@ function ChatAutoScroll({ progress, messages }: {
   progress: MotionValue<number>;
   messages: { msg: string; out?: boolean; ai?: boolean }[];
 }) {
+  const { t } = useTranslation();
   const winRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxScroll, setMaxScroll] = useState(0);
@@ -863,8 +872,8 @@ function ChatAutoScroll({ progress, messages }: {
         {messages.map((m, i) => (
           <Reveal key={i} progress={progress} start={(i / n) * 0.8} end={(i / n) * 0.8 + 0.1} y={8} className={`flex ${m.out ? "justify-end" : "justify-start"}`}>
             <div className={`rounded-xl px-3 py-2 max-w-[82%] ${m.out ? "bg-violet-600/30 border border-violet-500/20" : "bg-slate-800/70 border border-slate-700/40"}`}>
-              <p className="text-xs text-slate-200 leading-relaxed">{m.msg}</p>
-              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">• Agente IA</p>}
+              <p className="text-xs text-slate-200 leading-relaxed">{t(`homePage.${m.msg}`)}</p>
+              {m.ai && <p className="text-[9px] text-violet-300 text-right mt-0.5">{t("homePage.aiAgentTag")}</p>}
             </div>
           </Reveal>
         ))}
@@ -877,6 +886,7 @@ function ChatAutoScroll({ progress, messages }: {
 
 // Live voice call: an animated, realistic sound waveform + live transcript.
 function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   const bars = Array.from({ length: 44 });
   return (
     <div className="space-y-4">
@@ -886,12 +896,12 @@ function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
           <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-green-400 ring-2 ring-slate-900 animate-pulse" />
         </div>
         <div className="leading-tight">
-          <p className="text-sm font-semibold text-white">Llamada con IA</p>
-          <p className="text-[11px] text-sky-300/80">En curso · 00:42</p>
+          <p className="text-sm font-semibold text-white">{t("homePage.aiCall")}</p>
+          <p className="text-[11px] text-sky-300/80">{t("homePage.inProgress")}</p>
         </div>
         <div className="ml-auto flex items-center gap-1.5 rounded-full bg-green-500/10 border border-green-500/20 px-2.5 py-1">
           <span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" />
-          <span className="text-[10px] font-medium text-green-300">En vivo</span>
+          <span className="text-[10px] font-medium text-green-300">{t("homePage.live")}</span>
         </div>
       </div>
       {/* Sound waveform */}
@@ -911,8 +921,8 @@ function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
       </div>
       {/* Live transcript */}
       <Reveal progress={progress} start={0.3} className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
-        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Transcripción en vivo</p>
-        <p className="text-xs text-slate-300 leading-relaxed">"Perfecto, te agendo la visita para el martes a las 3:00 pm 🗓️"</p>
+        <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">{t("homePage.liveTranscript")}</p>
+        <p className="text-xs text-slate-300 leading-relaxed">{t("homePage.voiceTranscriptText")}</p>
       </Reveal>
     </div>
   );
@@ -921,7 +931,8 @@ function VoiceCallDemo({ progress }: { progress: MotionValue<number> }) {
 // IA Boost: the AI reads the conversation, detects buying signals and raises the
 // lead score live as you scroll.
 function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
-  const signals = ["✓ Presupuesto", "✓ Intención alta", "✓ Pidió visita"];
+  const { t } = useTranslation();
+  const signals = [t("homePage.signalBudget"), t("homePage.signalHighIntent"), t("homePage.signalRequestedVisit")];
   // AI scanner sweeps over the conversation before drawing conclusions.
   const scanY = useTransform(progress, [0.06, 0.44], [-18, 128]);
   const scanOpacity = useTransform(progress, [0.03, 0.08, 0.42, 0.48], [0, 1, 1, 0]);
@@ -932,14 +943,14 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/20 text-orange-300 text-xs font-bold">JM</div>
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white leading-tight">Juan M.</p>
-          <p className="text-[11px] text-orange-300/80 flex items-center gap-1"><Brain className="h-3 w-3" /> IA analizando conversación…</p>
+          <p className="text-[11px] text-orange-300/80 flex items-center gap-1"><Brain className="h-3 w-3" /> {t("homePage.aiAnalyzing")}</p>
         </div>
       </div>
       {/* Conversation being scanned by the AI */}
       <div className="relative h-[120px] overflow-hidden rounded-xl border border-orange-500/20 bg-slate-800/30 p-3">
         <div className="relative z-10 space-y-2">
-          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">Tengo el presupuesto listo para esta semana 💰</p></div></div>
-          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">¿Cuándo pueden agendar la visita?</p></div></div>
+          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">{t("homePage.scoringMsg1")}</p></div></div>
+          <div className="flex justify-start"><div className="rounded-xl px-3 py-2 bg-slate-800/70 border border-slate-700/40 max-w-[88%]"><p className="text-xs text-slate-200">{t("homePage.scoringMsg2")}</p></div></div>
         </div>
         {/* scan beam */}
         <motion.div style={{ y: scanY, opacity: scanOpacity }} className="pointer-events-none absolute inset-x-0 top-0 z-20 h-9">
@@ -947,7 +958,7 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
           <div className="absolute bottom-0 inset-x-1 h-px bg-orange-400 shadow-[0_0_14px_3px_rgba(251,146,60,0.6)]" />
         </motion.div>
         <motion.span style={{ opacity: scanLabel }} className="absolute right-2 top-2 z-30 inline-flex items-center gap-1 rounded-full bg-orange-500/15 border border-orange-500/30 px-2 py-0.5 text-[9px] font-medium text-orange-300">
-          <span className="h-1 w-1 rounded-full bg-orange-400 animate-pulse" /> Escaneando
+          <span className="h-1 w-1 rounded-full bg-orange-400 animate-pulse" /> {t("homePage.scanning")}
         </motion.span>
       </div>
       {/* Conclusions (after the scan) */}
@@ -960,11 +971,11 @@ function LeadScoringDemo({ progress }: { progress: MotionValue<number> }) {
       </div>
       <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-slate-400">Lead Score</span>
+          <span className="text-xs text-slate-400">{t("homePage.leadScore")}</span>
           <CountUp progress={progress} to={9.2} decimals={1} start={0.62} end={0.92} className="text-lg font-black font-mono text-emerald-300" />
         </div>
         <Bar progress={progress} pct={92} start={0.62} end={0.92} className="bg-gradient-to-r from-orange-500 to-emerald-400" />
-        <Reveal progress={progress} start={0.88}><p className="mt-2 text-[11px] font-medium text-emerald-300">🔥 Lead caliente — prioridad alta</p></Reveal>
+        <Reveal progress={progress} start={0.88}><p className="mt-2 text-[11px] font-medium text-emerald-300">{t("homePage.hotLeadHighPriority")}</p></Reveal>
       </div>
     </div>
   );
@@ -996,25 +1007,27 @@ function FlowNode({ progress, start, icon, iconBg, title, sub, tag }: {
   );
 }
 function FlowBuilderDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-0">
       <div className="flex items-center justify-between pb-3">
-        <span className="text-sm font-semibold text-white">Constructor de flujos</span>
-        <span className="inline-flex items-center gap-1 text-[10px] text-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> Activo</span>
+        <span className="text-sm font-semibold text-white">{t("homePage.flowBuilderTitle")}</span>
+        <span className="inline-flex items-center gap-1 text-[10px] text-green-300"><span className="h-1.5 w-1.5 rounded-full bg-green-400 animate-pulse" /> {t("homePage.flowActive")}</span>
       </div>
-      <FlowNode progress={progress} start={0.05} iconBg="bg-white" icon={<FacebookIcon size={16} />} title="Nuevo lead" sub="Entra por Meta Ads" tag="Disparador" />
+      <FlowNode progress={progress} start={0.05} iconBg="bg-white" icon={<FacebookIcon size={16} />} title={t("homePage.flowNode1Title")} sub={t("homePage.flowNode1Sub")} tag={t("homePage.flowTrigger")} />
       <FlowLink progress={progress} start={0.16} end={0.24} />
-      <FlowNode progress={progress} start={0.24} iconBg="bg-white" icon={<WhatsAppIcon size={16} />} title="Enviar WhatsApp" sub="Mensaje de bienvenida" tag="Acción" />
+      <FlowNode progress={progress} start={0.24} iconBg="bg-white" icon={<WhatsAppIcon size={16} />} title={t("homePage.flowNode2Title")} sub={t("homePage.flowNode2Sub")} tag={t("homePage.flowAction")} />
       <FlowLink progress={progress} start={0.36} end={0.44} />
-      <FlowNode progress={progress} start={0.44} iconBg="bg-amber-500/20 text-amber-300" icon={<Mail className="h-4 w-4" />} title="Enviar email" sub="Plantilla automática" tag="Acción" />
+      <FlowNode progress={progress} start={0.44} iconBg="bg-amber-500/20 text-amber-300" icon={<Mail className="h-4 w-4" />} title={t("homePage.flowNode3Title")} sub={t("homePage.flowNode3Sub")} tag={t("homePage.flowAction")} />
       <FlowLink progress={progress} start={0.56} end={0.64} />
-      <FlowNode progress={progress} start={0.64} iconBg="bg-sky-500/20 text-sky-300" icon={<PhoneCall className="h-4 w-4" />} title="Ejecutar llamada" sub="Agente de voz IA" tag="Acción" />
+      <FlowNode progress={progress} start={0.64} iconBg="bg-sky-500/20 text-sky-300" icon={<PhoneCall className="h-4 w-4" />} title={t("homePage.flowNode4Title")} sub={t("homePage.flowNode4Sub")} tag={t("homePage.flowAction")} />
     </div>
   );
 }
 
 // Landing builder: the AI assembles a realistic landing block by block as you scroll.
 function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   const buildingOpacity = useTransform(progress, [0.66, 0.78], [1, 0]);
   const doneOpacity = useTransform(progress, [0.72, 0.84], [0, 1]);
   return (
@@ -1022,12 +1035,12 @@ function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
       {/* prompt */}
       <div className="flex items-center gap-2 rounded-lg bg-indigo-500/10 border border-indigo-500/25 px-3 py-2">
         <Sparkles className="h-3.5 w-3.5 text-indigo-300 shrink-0" />
-        <p className="text-[11px] text-indigo-100 truncate">“Landing para captar leads de inmobiliaria”</p>
+        <p className="text-[11px] text-indigo-100 truncate">{t("homePage.landingPrompt")}</p>
       </div>
       {/* status */}
       <div className="relative h-4">
-        <motion.p style={{ opacity: buildingOpacity }} className="absolute inset-0 text-[10px] text-slate-500 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" /> Generando con IA…</motion.p>
-        <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> Publicada en tu dominio</motion.p>
+        <motion.p style={{ opacity: buildingOpacity }} className="absolute inset-0 text-[10px] text-slate-500 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-indigo-400 animate-pulse" /> {t("homePage.generatingWithAi")}</motion.p>
+        <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> {t("homePage.publishedOnDomain")}</motion.p>
       </div>
       {/* browser preview */}
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/70 overflow-hidden">
@@ -1049,17 +1062,17 @@ function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
           <Reveal progress={progress} start={0.40}><div className="h-1.5 w-2/3 rounded-full bg-slate-700" /></Reveal>
           {/* form card */}
           <Reveal progress={progress} start={0.48} className="rounded-lg border border-slate-700/60 bg-slate-800/50 p-2.5 space-y-2">
-            <div className="h-6 rounded-md bg-slate-900/60 border border-slate-700/50 flex items-center px-2"><span className="text-[9px] text-slate-500">Nombre</span></div>
+            <div className="h-6 rounded-md bg-slate-900/60 border border-slate-700/50 flex items-center px-2"><span className="text-[9px] text-slate-500">{t("homePage.fieldName")}</span></div>
             <div className="h-6 rounded-md bg-slate-900/60 border border-slate-700/50 flex items-center px-2"><span className="text-[9px] text-slate-500">WhatsApp</span></div>
             <Reveal progress={progress} start={0.58}>
-              <div className="h-7 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center justify-center text-[10px] font-bold text-white">Quiero más info →</div>
+              <div className="h-7 rounded-md bg-gradient-to-r from-indigo-500 to-violet-500 flex items-center justify-center text-[10px] font-bold text-white">{t("homePage.wantMoreInfo")}</div>
             </Reveal>
           </Reveal>
           {/* lead captured toast */}
           <Reveal progress={progress} start={0.78}>
             <div className="flex items-center gap-2 rounded-lg bg-emerald-500/10 border border-emerald-500/25 px-2.5 py-1.5">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300"><Check className="h-3 w-3" /></span>
-              <span className="text-[10px] text-emerald-200">Nuevo lead capturado → guardado en el CRM</span>
+              <span className="text-[10px] text-emerald-200">{t("homePage.leadCaptured")}</span>
             </div>
           </Reveal>
         </div>
@@ -1070,6 +1083,7 @@ function LandingBuilderDemo({ progress }: { progress: MotionValue<number> }) {
 
 // Email campaign: compose → send to 2.000 contacts → metrics, driven by scroll.
 function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   const sendingOpacity = useTransform(progress, [0.62, 0.7], [1, 0]);
   const sentOpacity = useTransform(progress, [0.66, 0.74], [0, 1]);
   return (
@@ -1078,16 +1092,16 @@ function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 overflow-hidden">
         <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-800 bg-slate-800/40">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/20 text-amber-300"><Mail className="h-3.5 w-3.5" /></div>
-          <span className="text-xs font-semibold text-white">Nueva campaña</span>
-          <span className="ml-auto text-[9px] text-slate-500">Borrador</span>
+          <span className="text-xs font-semibold text-white">{t("homePage.newCampaign")}</span>
+          <span className="ml-auto text-[9px] text-slate-500">{t("homePage.draft")}</span>
         </div>
         <div className="p-3 space-y-2">
-          <Reveal progress={progress} start={0.08}><p className="text-[11px] text-slate-300"><span className="text-slate-500">Asunto: </span>🏡 Nuevas propiedades esta semana</p></Reveal>
+          <Reveal progress={progress} start={0.08}><p className="text-[11px] text-slate-300"><span className="text-slate-500">{t("homePage.emailSubjectLabel")}</span>{t("homePage.emailSubjectText")}</p></Reveal>
           <Reveal progress={progress} start={0.16}><div className="h-1.5 w-5/6 rounded-full bg-slate-700" /></Reveal>
           <Reveal progress={progress} start={0.20}><div className="h-1.5 w-2/3 rounded-full bg-slate-700" /></Reveal>
           <Reveal progress={progress} start={0.26} className="flex items-center gap-2 pt-0.5">
             <Users className="h-3.5 w-3.5 text-amber-300" />
-            <span className="text-[11px] text-slate-300">Para: <b className="text-white">2.000 contactos</b></span>
+            <span className="text-[11px] text-slate-300">{t("homePage.emailToLabel")} <b className="text-white">{t("homePage.contactsCount", { count: "2.000" })}</b></span>
           </Reveal>
         </div>
       </div>
@@ -1095,8 +1109,8 @@ function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
       <div className="rounded-xl bg-slate-800/40 border border-slate-700/40 p-3">
         <div className="flex items-center justify-between mb-2 h-4">
           <div className="relative flex-1">
-            <motion.span style={{ opacity: sendingOpacity }} className="absolute inset-0 text-[11px] text-amber-300 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" /> Enviando campaña…</motion.span>
-            <motion.span style={{ opacity: sentOpacity }} className="absolute inset-0 text-[11px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> Enviado a 2.000 contactos</motion.span>
+            <motion.span style={{ opacity: sendingOpacity }} className="absolute inset-0 text-[11px] text-amber-300 flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" /> {t("homePage.sendingCampaign")}</motion.span>
+            <motion.span style={{ opacity: sentOpacity }} className="absolute inset-0 text-[11px] text-emerald-300 flex items-center gap-1"><Check className="h-3 w-3" /> {t("homePage.sentToContacts", { count: "2.000" })}</motion.span>
           </div>
           <span className="font-mono text-xs text-white"><CountUp progress={progress} to={2000} start={0.4} end={0.66} className="font-bold" /><span className="text-slate-500"> / 2.000</span></span>
         </div>
@@ -1104,9 +1118,9 @@ function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
       </div>
       {/* metrics */}
       <Reveal progress={progress} start={0.74} className="grid grid-cols-3 gap-2">
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={2000} start={0.74} end={0.9} className="text-sm font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">Enviados</p></div>
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={42} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-emerald-300" /><p className="text-[10px] text-slate-500 mt-0.5">Apertura</p></div>
-        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={9} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-cyan-300" /><p className="text-[10px] text-slate-500 mt-0.5">Clics</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={2000} start={0.74} end={0.9} className="text-sm font-bold font-mono text-amber-300" /><p className="text-[10px] text-slate-500 mt-0.5">{t("homePage.metricSent")}</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={42} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-emerald-300" /><p className="text-[10px] text-slate-500 mt-0.5">{t("homePage.metricOpenRate")}</p></div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5 text-center"><CountUp progress={progress} to={9} suffix="%" start={0.74} end={0.9} className="text-sm font-bold font-mono text-cyan-300" /><p className="text-[10px] text-slate-500 mt-0.5">{t("homePage.metricClicks")}</p></div>
       </Reveal>
     </div>
   );
@@ -1114,6 +1128,7 @@ function EmailCampaignDemo({ progress }: { progress: MotionValue<number> }) {
 
 // Calendar booking: a lead books via WhatsApp → an event + task are created.
 function CalendarBookingDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   const creatingOpacity = useTransform(progress, [0.46, 0.54], [1, 0]);
   const doneOpacity = useTransform(progress, [0.5, 0.58], [0, 1]);
   return (
@@ -1122,32 +1137,32 @@ function CalendarBookingDemo({ progress }: { progress: MotionValue<number> }) {
       <div className="rounded-xl border border-slate-700/50 bg-slate-900/60 p-3 space-y-2">
         <div className="flex items-center gap-2 pb-1.5 border-b border-slate-800">
           <div className="flex h-6 w-6 items-center justify-center rounded-md bg-white"><WhatsAppIcon size={14} /></div>
-          <span className="text-xs font-semibold text-white">WhatsApp · María G.</span>
+          <span className="text-xs font-semibold text-white">{t("homePage.calWhatsappLabel")}</span>
         </div>
-        <Reveal progress={progress} start={0.08} className="flex justify-start"><div className="rounded-xl px-3 py-1.5 bg-slate-800/70 border border-slate-700/40 max-w-[85%]"><p className="text-xs text-slate-200">Quiero agendar una visita 🏡</p></div></Reveal>
-        <Reveal progress={progress} start={0.2} className="flex justify-end"><div className="rounded-xl px-3 py-1.5 bg-green-600/30 border border-green-500/20 max-w-[85%]"><p className="text-xs text-slate-100">¡Listo! ¿Mañana 3:00 pm te sirve? 📅</p><p className="text-[9px] text-green-300 text-right mt-0.5">• Agente IA</p></div></Reveal>
-        <Reveal progress={progress} start={0.34} className="flex justify-start"><div className="rounded-xl px-3 py-1.5 bg-slate-800/70 border border-slate-700/40"><p className="text-xs text-slate-200">Perfecto 👍</p></div></Reveal>
+        <Reveal progress={progress} start={0.08} className="flex justify-start"><div className="rounded-xl px-3 py-1.5 bg-slate-800/70 border border-slate-700/40 max-w-[85%]"><p className="text-xs text-slate-200">{t("homePage.calMsg1")}</p></div></Reveal>
+        <Reveal progress={progress} start={0.2} className="flex justify-end"><div className="rounded-xl px-3 py-1.5 bg-green-600/30 border border-green-500/20 max-w-[85%]"><p className="text-xs text-slate-100">{t("homePage.calMsg2")}</p><p className="text-[9px] text-green-300 text-right mt-0.5">{t("homePage.aiAgentTag")}</p></div></Reveal>
+        <Reveal progress={progress} start={0.34} className="flex justify-start"><div className="rounded-xl px-3 py-1.5 bg-slate-800/70 border border-slate-700/40"><p className="text-xs text-slate-200">{t("homePage.calMsg3")}</p></div></Reveal>
       </div>
       {/* status */}
       <div className="relative h-4 text-center">
-        <motion.p style={{ opacity: creatingOpacity }} className="absolute inset-0 text-[10px] text-teal-300 flex items-center justify-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse" /> Creando cita y tarea…</motion.p>
-        <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center justify-center gap-1"><Check className="h-3 w-3" /> Cita y tarea creadas</motion.p>
+        <motion.p style={{ opacity: creatingOpacity }} className="absolute inset-0 text-[10px] text-teal-300 flex items-center justify-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-teal-400 animate-pulse" /> {t("homePage.creatingEventTask")}</motion.p>
+        <motion.p style={{ opacity: doneOpacity }} className="absolute inset-0 text-[10px] text-emerald-300 flex items-center justify-center gap-1"><Check className="h-3 w-3" /> {t("homePage.eventTaskCreated")}</motion.p>
       </div>
       {/* calendar */}
       <div className="rounded-xl border border-slate-700/40 bg-slate-800/40 p-3 space-y-2">
-        <div className="flex items-center gap-2 mb-0.5"><Calendar className="h-3.5 w-3.5 text-teal-300" /><span className="text-xs font-semibold text-white">Mañana</span></div>
+        <div className="flex items-center gap-2 mb-0.5"><Calendar className="h-3.5 w-3.5 text-teal-300" /><span className="text-xs font-semibold text-white">{t("homePage.tomorrow")}</span></div>
         <Reveal progress={progress} start={0.52}>
           <div className="flex items-center gap-3 rounded-lg bg-teal-500/10 border border-teal-500/30 px-3 py-2">
             <span className="text-xs font-mono text-teal-200 shrink-0">15:00</span>
             <span className="h-2 w-2 rounded-full bg-teal-400 shrink-0" />
-            <span className="text-xs text-white truncate">Visita · María G.</span>
-            <span className="ml-auto text-[9px] rounded-full bg-teal-500/20 text-teal-200 px-1.5 py-0.5 shrink-0">Nuevo</span>
+            <span className="text-xs text-white truncate">{t("homePage.calEventTitle")}</span>
+            <span className="ml-auto text-[9px] rounded-full bg-teal-500/20 text-teal-200 px-1.5 py-0.5 shrink-0">{t("homePage.new")}</span>
           </div>
         </Reveal>
         <Reveal progress={progress} start={0.64}>
           <div className="flex items-center gap-2.5 rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
             <span className="flex h-4 w-4 items-center justify-center rounded border border-amber-400/50 text-amber-300 shrink-0"><Check className="h-2.5 w-2.5" /></span>
-            <span className="text-[11px] text-slate-300 truncate">Tarea: confirmar visita · recordar 1h antes</span>
+            <span className="text-[11px] text-slate-300 truncate">{t("homePage.calTaskText")}</span>
           </div>
         </Reveal>
       </div>
@@ -1160,6 +1175,7 @@ function CalendarBookingDemo({ progress }: { progress: MotionValue<number> }) {
 function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
   progress: MotionValue<number>; start: number; name: string; channel: string; msg: string; time: string; logo: React.ReactNode;
 }) {
+  const { t } = useTranslation();
   const x = useTransform(progress, [start, start + 0.16], [44, 0], { clamp: true });
   const opacity = useTransform(progress, [start, start + 0.16], [0, 1], { clamp: true });
   return (
@@ -1170,7 +1186,7 @@ function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
           <span className="text-sm font-semibold text-white truncate">{name}</span>
           <span className="text-[10px] text-slate-500 shrink-0">{time}</span>
         </div>
-        <p className="text-[10px] text-slate-500 mb-0.5">vía {channel}</p>
+        <p className="text-[10px] text-slate-500 mb-0.5">{t("homePage.via", { channel })}</p>
         <p className="text-xs text-slate-300 truncate">{msg}</p>
       </div>
       <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-green-400" />
@@ -1179,139 +1195,146 @@ function NotifBubble({ progress, start, name, channel, msg, time, logo }: {
 }
 
 function MetaInboxDemo({ progress }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
   return (
     <div className="space-y-2.5 min-h-[230px]">
       <div className="flex items-center justify-between pb-1">
-        <span className="text-sm font-semibold text-white">Inbox unificado</span>
-        <span className="text-[10px] text-slate-400">Meta · 3 canales</span>
+        <span className="text-sm font-semibold text-white">{t("homePage.unifiedInbox")}</span>
+        <span className="text-[10px] text-slate-400">{t("homePage.metaChannels")}</span>
       </div>
-      <NotifBubble progress={progress} start={0.12} name="María G." channel="WhatsApp" msg="Hola, ¿tienen disponibilidad?" time="10:32" logo={<WhatsAppIcon size={18} />} />
-      <NotifBubble progress={progress} start={0.34} name="@carlos.fit" channel="Instagram" msg="Me interesa el plan 👀" time="10:33" logo={<InstagramIcon size={18} />} />
-      <NotifBubble progress={progress} start={0.56} name="Pedro L." channel="Messenger" msg="¿Me das más info del CRM?" time="10:34" logo={<MessengerIcon size={18} />} />
+      <NotifBubble progress={progress} start={0.12} name="María G." channel="WhatsApp" msg={t("homePage.inboxMsg1")} time="10:32" logo={<WhatsAppIcon size={18} />} />
+      <NotifBubble progress={progress} start={0.34} name="@carlos.fit" channel="Instagram" msg={t("homePage.inboxMsg2")} time="10:33" logo={<InstagramIcon size={18} />} />
+      <NotifBubble progress={progress} start={0.56} name="Pedro L." channel="Messenger" msg={t("homePage.inboxMsg3")} time="10:34" logo={<MessengerIcon size={18} />} />
+    </div>
+  );
+}
+
+function MetaAdsDashboardDemo({ progress: p }: { progress: MotionValue<number> }) {
+  const { t } = useTranslation();
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2 pb-2.5 border-b border-slate-800">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
+        <span className="text-sm font-semibold text-white">{t("homePage.adsPerformanceTitle")}</span>
+      </div>
+      {/* Campaign */}
+      <div className="flex items-center justify-between rounded-lg bg-slate-800/50 border border-slate-700/40 px-3 py-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
+          <span className="text-xs font-medium text-white truncate">{t("homePage.adsCampaignName")}</span>
+        </div>
+        <span className="text-[10px] text-slate-500 shrink-0">{t("homePage.adsActive")}</span>
+      </div>
+      {/* Spend → results */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">
+          <p className="text-[10px] text-amber-200/70 mb-0.5">{t("homePage.adsSpend")}</p>
+          <CountUp progress={p} to={1.2} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-amber-300" />
+        </div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
+          <p className="text-[10px] text-slate-500 mb-0.5">{t("homePage.adsLeads")}</p>
+          <CountUp progress={p} to={84} className="text-sm font-bold font-mono text-white" />
+        </div>
+        <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
+          <p className="text-[10px] text-slate-500 mb-0.5">{t("homePage.adsAppointments")}</p>
+          <CountUp progress={p} to={23} className="text-sm font-bold font-mono text-cyan-300" />
+        </div>
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+          <p className="text-[10px] text-emerald-200/70 mb-0.5">{t("homePage.adsWon")}</p>
+          <CountUp progress={p} to={7} className="text-sm font-bold font-mono text-emerald-300" />
+        </div>
+        <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
+          <p className="text-[10px] text-emerald-200/70 mb-0.5">{t("homePage.adsSales")}</p>
+          <CountUp progress={p} to={4.1} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-emerald-300" />
+        </div>
+        <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30 p-2.5">
+          <p className="text-[10px] text-orange-200/80 mb-0.5">ROAS</p>
+          <CountUp progress={p} to={3.4} suffix="×" decimals={1} className="text-base font-black font-mono text-orange-300" />
+        </div>
+      </div>
     </div>
   );
 }
 
 const FEATURES: Feature[] = [
   {
-    eyebrow: "Meta nativo", accent: "green", icon: MessageCircle,
-    title: "Conexión Nativa con Meta",
-    desc: "Conecta WhatsApp, Instagram y Messenger directo al CRM. Recibe, responde y automatiza sin apps externas.",
-    bullets: ["WhatsApp, Instagram y Messenger en un solo inbox", "Plantillas aprobadas por Meta", "Respuestas automáticas 24/7"],
+    eyebrow: "featMetaEyebrow", accent: "green", icon: MessageCircle,
+    title: "featMetaTitle",
+    desc: "featMetaDesc",
+    bullets: ["featMetaBullet1", "featMetaBullet2", "featMetaBullet3"],
     visual: (p) => <MetaInboxDemo progress={p} />,
   },
   {
-    eyebrow: "Agente de Chat", accent: "violet", icon: Bot,
-    title: "Agente de Chat 24/7",
-    desc: "Responde automáticamente en WhatsApp e Instagram, entiende audios e imágenes, y escala al vendedor cuando el lead quiere comprar.",
-    bullets: ["WhatsApp + Instagram", "Entiende audios e imágenes", "Escala al vendedor automáticamente"],
+    eyebrow: "featChatEyebrow", accent: "violet", icon: Bot,
+    title: "featChatTitle",
+    desc: "featChatDesc",
+    bullets: ["featChatBullet1", "featChatBullet2", "featChatBullet3"],
     visual: (p) => (
       <ChatAutoScroll progress={p} messages={[
-        { msg: "¿Cuánto cuesta el plan Pro?", out: false },
-        { msg: "El plan Pro está a $59/mes: 3 usuarios, 5.000 contactos y automatizaciones ilimitadas 🚀", out: true, ai: true },
-        { msg: "¿Tienen prueba gratis?", out: false },
-        { msg: "¡Sí! 7 días gratis, sin tarjeta. ¿Te agendo una demo rápida para mostrártelo? 📅", out: true, ai: true },
-        { msg: "Dale, mañana en la tarde", out: false },
-        { msg: "Listo ✅ Te agendé mañana 3:00 pm. Te llega el recordatorio por WhatsApp 📲", out: true, ai: true },
-        { msg: "Perfecto, gracias!", out: false },
-        { msg: "¡A ti! Aquí tienes el link para empezar ya 👉 klosify.link/pro 🙌", out: true, ai: true },
+        { msg: "chatMsg1", out: false },
+        { msg: "chatMsg2", out: true, ai: true },
+        { msg: "chatMsg3", out: false },
+        { msg: "chatMsg4", out: true, ai: true },
+        { msg: "chatMsg5", out: false },
+        { msg: "chatMsg6", out: true, ai: true },
+        { msg: "chatMsg7", out: false },
+        { msg: "chatMsg8", out: true, ai: true },
       ]} />
     ),
   },
   {
-    eyebrow: "Agente de voz", accent: "sky", icon: PhoneCall,
-    title: "Agente de Voz",
-    desc: "La IA llama, califica y agenda por ti. Cada llamada queda transcrita y analizada.",
-    bullets: ["Llamadas automáticas con IA", "Agenda citas sin intervención", "Transcripción y análisis"],
+    eyebrow: "featVoiceEyebrow", accent: "sky", icon: PhoneCall,
+    title: "featVoiceTitle",
+    desc: "featVoiceDesc",
+    bullets: ["featVoiceBullet1", "featVoiceBullet2", "featVoiceBullet3"],
     visual: (p) => <VoiceCallDemo progress={p} />,
   },
   {
-    eyebrow: "Meta Ads + ROAS", accent: "blue", icon: PieChart,
-    title: "Dashboard de Marketing & Ventas",
-    desc: "Sincroniza tus cuentas de Meta Ads y ve, en un solo lugar, inversión, leads, ventas y ROAS real.",
-    bullets: ["Sincroniza múltiples cuentas publicitarias", "ROAS real cruzado con tu pipeline", "Inversión, leads y ventas por campaña"],
-    visual: (p) => (
-      <div className="space-y-3">
-        <div className="flex items-center gap-2 pb-2.5 border-b border-slate-800">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white"><FacebookIcon size={18} /></div>
-          <span className="text-sm font-semibold text-white">Rendimiento · Meta Ads</span>
-        </div>
-        {/* Campaign */}
-        <div className="flex items-center justify-between rounded-lg bg-slate-800/50 border border-slate-700/40 px-3 py-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="h-2 w-2 rounded-full bg-green-400 animate-pulse shrink-0" />
-            <span className="text-xs font-medium text-white truncate">Campaña: Lanzamiento Verano</span>
-          </div>
-          <span className="text-[10px] text-slate-500 shrink-0">Activa</span>
-        </div>
-        {/* Spend → results */}
-        <div className="grid grid-cols-3 gap-2">
-          <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-2.5">
-            <p className="text-[10px] text-amber-200/70 mb-0.5">Inversión</p>
-            <CountUp progress={p} to={1.2} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-amber-300" />
-          </div>
-          <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
-            <p className="text-[10px] text-slate-500 mb-0.5">Leads</p>
-            <CountUp progress={p} to={84} className="text-sm font-bold font-mono text-white" />
-          </div>
-          <div className="rounded-xl bg-slate-800/50 border border-slate-700/40 p-2.5">
-            <p className="text-[10px] text-slate-500 mb-0.5">Citas</p>
-            <CountUp progress={p} to={23} className="text-sm font-bold font-mono text-cyan-300" />
-          </div>
-          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
-            <p className="text-[10px] text-emerald-200/70 mb-0.5">Ganados</p>
-            <CountUp progress={p} to={7} className="text-sm font-bold font-mono text-emerald-300" />
-          </div>
-          <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5">
-            <p className="text-[10px] text-emerald-200/70 mb-0.5">Ventas</p>
-            <CountUp progress={p} to={4.1} prefix="$" suffix="k" decimals={1} className="text-sm font-bold font-mono text-emerald-300" />
-          </div>
-          <div className="rounded-xl bg-gradient-to-br from-orange-500/20 to-orange-600/10 border border-orange-500/30 p-2.5">
-            <p className="text-[10px] text-orange-200/80 mb-0.5">ROAS</p>
-            <CountUp progress={p} to={3.4} suffix="×" decimals={1} className="text-base font-black font-mono text-orange-300" />
-          </div>
-        </div>
-      </div>
-    ),
+    eyebrow: "featAdsEyebrow", accent: "blue", icon: PieChart,
+    title: "featAdsTitle",
+    desc: "featAdsDesc",
+    bullets: ["featAdsBullet1", "featAdsBullet2", "featAdsBullet3"],
+    visual: (p) => <MetaAdsDashboardDemo progress={p} />,
   },
   {
-    eyebrow: "Lead scoring IA", accent: "orange", icon: Brain,
-    title: "IA Boost — Lead Scoring",
-    desc: "La IA puntúa cada lead por su probabilidad de cierre para que tu equipo se enfoque en lo que vende.",
-    bullets: ["Score automático con IA", "Prioriza los leads más calientes", "Menos tiempo perdido en leads fríos"],
+    eyebrow: "featScoringEyebrow", accent: "orange", icon: Brain,
+    title: "featScoringTitle",
+    desc: "featScoringDesc",
+    bullets: ["featScoringBullet1", "featScoringBullet2", "featScoringBullet3"],
     visual: (p) => <LeadScoringDemo progress={p} />,
   },
   {
-    eyebrow: "Automatización", accent: "pink", icon: GitBranch,
-    title: "Automatizaciones",
-    desc: "Flujos que trabajan 24/7: mensajes, asignación de leads y seguimientos automáticos.",
-    bullets: ["WhatsApp + email automáticos", "Condiciones y filtros", "Disparadores por evento"],
+    eyebrow: "featAutoEyebrow", accent: "pink", icon: GitBranch,
+    title: "featAutoTitle",
+    desc: "featAutoDesc",
+    bullets: ["featAutoBullet1", "featAutoBullet2", "featAutoBullet3"],
     visual: (p) => <FlowBuilderDemo progress={p} />,
   },
   {
-    eyebrow: "Landings con IA", accent: "indigo", icon: Layout,
-    title: "Landing pages con IA",
-    desc: "Describe tu oferta y la IA crea una landing lista para captar leads, publicada en tu dominio en minutos.",
-    bullets: ["Generación con IA", "Publica en tu propio dominio", "Captura leads directo al CRM"],
+    eyebrow: "featLandingEyebrow", accent: "indigo", icon: Layout,
+    title: "featLandingTitle",
+    desc: "featLandingDesc",
+    bullets: ["featLandingBullet1", "featLandingBullet2", "featLandingBullet3"],
     visual: (p) => <LandingBuilderDemo progress={p} />,
   },
   {
-    eyebrow: "Email marketing", accent: "amber", icon: Mail,
-    title: "Email marketing",
-    desc: "Campañas masivas desde tu propio dominio, con métricas reales de apertura y clics.",
-    bullets: ["Envíos desde tu dominio", "Métricas de apertura y clics", "Plantillas listas para usar"],
+    eyebrow: "featEmailEyebrow", accent: "amber", icon: Mail,
+    title: "featEmailTitle",
+    desc: "featEmailDesc",
+    bullets: ["featEmailBullet1", "featEmailBullet2", "featEmailBullet3"],
     visual: (p) => <EmailCampaignDemo progress={p} />,
   },
   {
-    eyebrow: "Calendario", accent: "teal", icon: Calendar,
-    title: "Calendario & Tareas",
-    desc: "Agenda citas y da seguimiento sin que ningún lead se enfríe.",
-    bullets: ["Agenda de citas", "Recordatorios y tareas", "Seguimiento a tiempo"],
+    eyebrow: "featCalEyebrow", accent: "teal", icon: Calendar,
+    title: "featCalTitle",
+    desc: "featCalDesc",
+    bullets: ["featCalBullet1", "featCalBullet2", "featCalBullet3"],
     visual: (p) => <CalendarBookingDemo progress={p} />,
   },
 ];
 
 export default function HomePage() {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -1355,7 +1378,7 @@ export default function HomePage() {
     const prices = stripePrices[planId];
     const priceId = isAnnual ? prices?.annual : prices?.monthly;
     if (!priceId) {
-      toast.error("Este plan no está disponible en este momento. Intenta más tarde.");
+      toast.error(t("homePage.planUnavailable"));
       return;
     }
     setCheckoutLoading(planId);
@@ -1364,7 +1387,7 @@ export default function HomePage() {
         body: { mode: "subscription", price_id: priceId, success_path: "/billing", cancel_path: "/billing" },
       });
       if (error || !data?.url) {
-        toast.error("No se pudo iniciar el pago. Intenta de nuevo.");
+        toast.error(t("homePage.checkoutFailed"));
         return;
       }
       window.location.href = data.url;
@@ -1513,23 +1536,23 @@ export default function HomePage() {
               </Link>
 
               <div className="hidden md:flex items-center gap-8">
-                {[["features", "Funcionalidades"], ["pricing", "Precios"], ["faq", "Preguntas"]].map(([id, label]) => (
+                {[["features", "navFeatures"], ["pricing", "navPricing"], ["faq", "navFaq"]].map(([id, label]) => (
                   <button key={id} onClick={() => scrollTo(id)} className="text-slate-400 hover:text-white text-sm font-medium transition-colors relative after:absolute after:bottom-0 after:left-0 after:right-0 after:h-px after:bg-orange-500 after:scale-x-0 hover:after:scale-x-100 after:transition-transform after:duration-200">
-                    {label}
+                    {t(`homePage.${label}`)}
                   </button>
                 ))}
               </div>
 
               <div className="hidden md:flex items-center gap-3">
                 <Link to="/auth" className="text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-4 py-2 rounded-lg text-sm font-medium transition-all">
-                  Iniciar sesión
+                  {t("homePage.login")}
                 </Link>
                 <Link to="/auth" className="shimmer-btn text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-lg shadow-orange-500/25">
-                  Empezar gratis →
+                  {t("homePage.startFree")}
                 </Link>
               </div>
 
-              <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-slate-400 hover:text-white p-2 rounded-lg transition-colors" aria-label="Toggle menu">
+              <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-slate-400 hover:text-white p-2 rounded-lg transition-colors" aria-label={t("homePage.toggleMenu")}>
                 <Menu className="w-5 h-5" />
               </button>
             </div>
@@ -1538,12 +1561,12 @@ export default function HomePage() {
           {mobileOpen && (
             <div className="md:hidden border-t border-slate-800 bg-slate-950">
               <div className="px-4 py-4 space-y-2">
-                {[["features", "Funcionalidades"], ["pricing", "Precios"], ["faq", "Preguntas"]].map(([id, label]) => (
-                  <button key={id} onClick={() => scrollTo(id)} className="block w-full text-left text-slate-300 hover:text-white py-2 px-3 rounded-lg hover:bg-slate-800 text-sm font-medium">{label}</button>
+                {[["features", "navFeatures"], ["pricing", "navPricing"], ["faq", "navFaq"]].map(([id, label]) => (
+                  <button key={id} onClick={() => scrollTo(id)} className="block w-full text-left text-slate-300 hover:text-white py-2 px-3 rounded-lg hover:bg-slate-800 text-sm font-medium">{t(`homePage.${label}`)}</button>
                 ))}
                 <div className="pt-2 border-t border-slate-800 space-y-2">
-                  <Link to="/auth" onClick={() => setMobileOpen(false)} className="block text-center border border-slate-700 text-slate-300 py-2.5 px-4 rounded-lg text-sm font-medium">Iniciar sesión</Link>
-                  <Link to="/auth" onClick={() => setMobileOpen(false)} className="block text-center bg-orange-500 text-white py-2.5 px-4 rounded-lg text-sm font-semibold">Empezar gratis →</Link>
+                  <Link to="/auth" onClick={() => setMobileOpen(false)} className="block text-center border border-slate-700 text-slate-300 py-2.5 px-4 rounded-lg text-sm font-medium">{t("homePage.login")}</Link>
+                  <Link to="/auth" onClick={() => setMobileOpen(false)} className="block text-center bg-orange-500 text-white py-2.5 px-4 rounded-lg text-sm font-semibold">{t("homePage.startFree")}</Link>
                 </div>
               </div>
             </div>
@@ -1593,13 +1616,13 @@ export default function HomePage() {
               <motion.div variants={heroContainer} initial="hidden" animate="show">
                 <motion.div variants={heroItem} className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-xs sm:text-sm font-medium mb-4 lg:mb-7">
                   <Sparkles className="w-3.5 h-3.5" />
-                  IA nativa · Agente 24/7 · WhatsApp + Instagram
+                  {t("homePage.heroBadge")}
                 </motion.div>
 
                 <motion.h1 variants={titleContainer} className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-black text-white leading-[1.08] tracking-tight">
                   {HEADLINE.map((line, li) => (
                     <span key={li} className="block">
-                      {line.text.split(" ").map((word, wi) => (
+                      {t(`homePage.${line.text}`).split(" ").map((word, wi) => (
                         <motion.span key={wi} variants={wordItem} className={`inline-block ${line.gradient ? "gradient-text" : ""}`} style={{ marginRight: "0.22em" }}>
                           {word}
                         </motion.span>
@@ -1609,33 +1632,32 @@ export default function HomePage() {
                 </motion.h1>
 
                 <motion.p variants={heroItem} className="text-base sm:text-lg text-slate-400 mt-3 lg:mt-6 leading-relaxed max-w-lg">
-                  Lead scoring automático, agente IA 24/7 en WhatsApp e Instagram, Meta Ads con
-                  ROAS y pipeline visual — todo desde <span className="text-white font-semibold">$29/mes</span>.
+                  {t("homePage.heroSubtitlePrefix")} <span className="text-white font-semibold">{t("homePage.heroSubtitlePrice")}</span>{t("homePage.heroSubtitleSuffix")}
                 </motion.p>
 
                 <motion.div variants={heroItem} className="flex flex-col sm:flex-row items-stretch sm:items-start gap-3 sm:gap-4 mt-5 lg:mt-10">
                   <motion.div whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} className="inline-block">
                     <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-7 py-3.5 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25 hover:shadow-orange-500/40 transition-shadow">
-                      Crear cuenta gratis
+                      {t("homePage.createFreeAccount")}
                       <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </Link>
                   </motion.div>
                   <motion.button whileHover={{ scale: 1.045 }} whileTap={{ scale: 0.96 }} onClick={() => scrollTo("pricing")} className="hidden sm:inline-flex items-center gap-2 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-500 px-7 py-3.5 rounded-xl text-base font-semibold transition-colors">
-                    Ver planes <ChevronRight className="w-4 h-4" />
+                    {t("homePage.viewPlans")} <ChevronRight className="w-4 h-4" />
                   </motion.button>
                 </motion.div>
 
                 <motion.div variants={heroItem} className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4 lg:mt-7">
-                  {["Sin tarjeta de crédito", "7 días gratis", "Cancela cuando quieras"].map((b) => (
+                  {["heroTrustNoCard", "heroTrust7Days", "heroTrustCancel"].map((b) => (
                     <div key={b} className="flex items-center gap-1.5">
                       <Check className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />
-                      <span className="text-sm text-slate-500">{b}</span>
+                      <span className="text-sm text-slate-500">{t(`homePage.${b}`)}</span>
                     </div>
                   ))}
                 </motion.div>
 
                 <motion.div variants={heroItem} className="hidden sm:block mt-6 pt-6 lg:mt-10 lg:pt-8 border-t border-slate-800/60">
-                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-4">Se integra con</p>
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-widest mb-4">{t("homePage.integratesWith")}</p>
                   <div className="flex items-center gap-3 flex-wrap">
                     {[
                       { name: "WhatsApp",  Icon: WhatsAppIcon },
@@ -1691,15 +1713,15 @@ export default function HomePage() {
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
               {[
-                { icon: Users,         val: "800+",   label: "Equipos activos"        },
-                { icon: TrendingUp,    val: "3.4×",   label: "ROAS promedio reportado" },
-                { icon: MessageCircle, val: "98%",    label: "Leads respondidos en <5min" },
-                { icon: Activity,      val: "99.9%",  label: "Uptime garantizado"     },
+                { icon: Users,         val: "800+",   label: "statActiveTeams"   },
+                { icon: TrendingUp,    val: "3.4×",   label: "statAvgRoas"       },
+                { icon: MessageCircle, val: "98%",    label: "statLeadsAnswered" },
+                { icon: Activity,      val: "99.9%",  label: "statUptime"        },
               ].map(({ icon: Icon, val, label }, i) => (
                 <FadeUp key={label} delay={i * 80}>
                   <Icon className="w-4 h-4 text-orange-500/60 mx-auto mb-2" />
                   <p className="text-2xl font-black text-white font-mono">{val}</p>
-                  <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{t(`homePage.${label}`)}</p>
                 </FadeUp>
               ))}
             </div>
@@ -1726,19 +1748,19 @@ export default function HomePage() {
               <div aria-hidden className="pointer-events-none absolute left-1/2 -top-28 h-64 w-[40rem] -translate-x-1/2 rounded-full bg-orange-500/12 blur-3xl" />
 
               <h3 className="relative text-3xl sm:text-5xl font-black text-white tracking-tight leading-[1.1]">
-                Todo tu marketing y ventas, <span className="text-orange-400">en un solo lugar</span>
+                {t("homePage.stackCtaTitlePrefix")} <span className="text-orange-400">{t("homePage.stackCtaTitleHighlight")}</span>
               </h3>
               <p className="relative text-slate-400 text-lg mt-4 max-w-xl mx-auto">
-                Sin Zapier, sin apps externas, sin pagar herramientas distintas.
+                {t("homePage.stackCtaSubtitle")}
               </p>
 
               <div className="relative mt-9 flex flex-col items-center gap-3">
                 <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
                   <Link to="/auth" className="shimmer-btn group inline-flex items-center gap-2 text-white px-9 py-4 rounded-xl text-base font-bold shadow-xl shadow-orange-500/25">
-                    Empezar gratis <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    {t("homePage.startFreeShort")} <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Link>
                 </motion.div>
-                <p className="text-slate-500 text-xs">7 días gratis · sin tarjeta de crédito</p>
+                <p className="text-slate-500 text-xs">{t("homePage.trial7DaysNoCard")}</p>
               </div>
             </motion.div>
           </div>
@@ -1748,9 +1770,9 @@ export default function HomePage() {
         <section className="bg-slate-950 py-24">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <FadeUp className="text-center mb-14">
-              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Cómo funciona</p>
-              <h2 className="text-4xl md:text-5xl font-black text-white mb-4">Configura y vende en 3 pasos</h2>
-              <p className="text-slate-400 text-lg max-w-lg mx-auto">Sin técnicos, sin contratos, sin complicaciones.</p>
+              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">{t("homePage.howItWorks")}</p>
+              <h2 className="text-4xl md:text-5xl font-black text-white mb-4">{t("homePage.setupSellTitle")}</h2>
+              <p className="text-slate-400 text-lg max-w-lg mx-auto">{t("homePage.howItWorksSubtitle")}</p>
             </FadeUp>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-stretch">
@@ -1786,7 +1808,7 @@ export default function HomePage() {
                     </div>
                     <div className="mt-4 flex items-center gap-1.5">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                      <span className="text-xs text-green-400 font-medium">3 canales conectados · activo</span>
+                      <span className="text-xs text-green-400 font-medium">{t("homePage.channelsConnected")}</span>
                     </div>
                   </div>
                   {/* Content */}
@@ -1796,13 +1818,13 @@ export default function HomePage() {
                         <span className="text-orange-500 font-black font-mono text-[10px] leading-none">01</span>
                         <Zap className="w-3 h-3 text-orange-400" />
                       </div>
-                      <h3 className="text-base font-bold text-white">Conecta tus canales</h3>
+                      <h3 className="text-base font-bold text-white">{t("homePage.step1Title")}</h3>
                     </div>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-5">WhatsApp Business, Meta Ads e Instagram en 5 minutos. Sin código, sin llamar a un técnico.</p>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">{t("homePage.step1Desc")}</p>
                     <ul className="space-y-2 mt-auto">
-                      {["Setup guiado paso a paso", "OAuth seguro con cada plataforma", "Confirmación en tiempo real"].map((b) => (
+                      {["step1Bullet1", "step1Bullet2", "step1Bullet3"].map((b) => (
                         <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
-                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{t(`homePage.${b}`)}
                         </li>
                       ))}
                     </ul>
@@ -1818,12 +1840,12 @@ export default function HomePage() {
                     <div className="flex items-start gap-3">
                       {/* Mini landing form */}
                       <div className="flex-1 bg-slate-800 rounded-xl p-3 border border-slate-700/50">
-                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">Landing page</p>
+                        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-wide mb-2">{t("homePage.landingPageLabel")}</p>
                         <div className="space-y-1.5">
-                          <div className="bg-slate-900/60 border border-slate-700/50 rounded-md h-5 w-full flex items-center px-2"><span className="text-[8px] text-slate-500">Nombre</span></div>
+                          <div className="bg-slate-900/60 border border-slate-700/50 rounded-md h-5 w-full flex items-center px-2"><span className="text-[8px] text-slate-500">{t("homePage.fieldName")}</span></div>
                           <div className="bg-slate-900/60 border border-slate-700/50 rounded-md h-5 w-full flex items-center px-2"><span className="text-[8px] text-slate-500">WhatsApp</span></div>
                           <div className="bg-orange-500 rounded-md h-6 w-full flex items-center justify-center">
-                            <span className="text-white text-[9px] font-bold tracking-wide">ENVIAR →</span>
+                            <span className="text-white text-[9px] font-bold tracking-wide">{t("homePage.submit")}</span>
                           </div>
                         </div>
                       </div>
@@ -1837,16 +1859,16 @@ export default function HomePage() {
                           <span className="text-xs font-semibold text-white">Juan M.</span>
                           <span className="text-xs font-black text-green-400 font-mono">9.1</span>
                         </div>
-                        <p className="text-[10px] text-slate-500 mb-2 flex items-center gap-1"><FacebookIcon size={11} /> via Meta Ads</p>
+                        <p className="text-[10px] text-slate-500 mb-2 flex items-center gap-1"><FacebookIcon size={11} /> {t("homePage.viaMetaAds")}</p>
                         <div className="flex items-center gap-1.5">
                           <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                          <span className="text-[10px] text-green-400 font-medium">Hot lead</span>
+                          <span className="text-[10px] text-green-400 font-medium">{t("homePage.hotLead")}</span>
                         </div>
                       </div>
                     </div>
                     <div className="mt-4 flex items-center gap-1.5 bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
                       <Brain className="w-3 h-3 text-blue-400 flex-shrink-0" />
-                      <span className="text-[10px] text-blue-300 font-medium">IA analizó 4 señales de compra</span>
+                      <span className="text-[10px] text-blue-300 font-medium">{t("homePage.aiAnalyzedSignals")}</span>
                     </div>
                   </div>
                   {/* Content */}
@@ -1856,13 +1878,13 @@ export default function HomePage() {
                         <span className="text-orange-500 font-black font-mono text-[10px] leading-none">02</span>
                         <Brain className="w-3 h-3 text-orange-400" />
                       </div>
-                      <h3 className="text-base font-bold text-white">Captura y califica leads</h3>
+                      <h3 className="text-base font-bold text-white">{t("homePage.step2Title")}</h3>
                     </div>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-5">Los formularios van directo al pipeline. La IA analiza cada lead y asigna un score de 1 a 10 al instante.</p>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">{t("homePage.step2Desc")}</p>
                     <ul className="space-y-2 mt-auto">
-                      {["Formularios conectados al pipeline", "Score de IA en tiempo real", "Fuente del lead rastreada"].map((b) => (
+                      {["step2Bullet1", "step2Bullet2", "step2Bullet3"].map((b) => (
                         <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
-                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{t(`homePage.${b}`)}
                         </li>
                       ))}
                     </ul>
@@ -1883,7 +1905,7 @@ export default function HomePage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-[10px] text-slate-400 font-mono">$8,500</span>
-                        <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full font-semibold">🔥 HOT</span>
+                        <span className="text-[10px] bg-orange-500/20 text-orange-400 border border-orange-500/30 px-1.5 py-0.5 rounded-full font-semibold">{t("homePage.hotBadge")}</span>
                       </div>
                     </div>
                     {/* Auto WA message */}
@@ -1892,14 +1914,14 @@ export default function HomePage() {
                         <div className="w-4 h-4 bg-white rounded-md flex items-center justify-center flex-shrink-0">
                           <WhatsAppIcon size={11} />
                         </div>
-                        <span className="text-[10px] text-slate-500 font-medium">Automatización · WhatsApp</span>
+                        <span className="text-[10px] text-slate-500 font-medium">{t("homePage.automationWhatsapp")}</span>
                         <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-400" />
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed italic">"Hola María, ¿pudiste revisar la propuesta?"</p>
+                      <p className="text-xs text-slate-300 leading-relaxed italic">{t("homePage.autoWaMessage")}</p>
                       <div className="flex items-center gap-1 mt-1.5">
                         <Check className="w-2.5 h-2.5 text-green-400" />
                         <Check className="w-2.5 h-2.5 text-green-400 -ml-1" />
-                        <span className="text-[10px] text-slate-600 ml-0.5">10:47 · leído</span>
+                        <span className="text-[10px] text-slate-600 ml-0.5">{t("homePage.readReceipt")}</span>
                       </div>
                     </div>
                   </div>
@@ -1910,13 +1932,13 @@ export default function HomePage() {
                         <span className="text-orange-500 font-black font-mono text-[10px] leading-none">03</span>
                         <TrendingUp className="w-3 h-3 text-orange-400" />
                       </div>
-                      <h3 className="text-base font-bold text-white">Cierra más ventas</h3>
+                      <h3 className="text-base font-bold text-white">{t("homePage.step3Title")}</h3>
                     </div>
-                    <p className="text-slate-400 text-sm leading-relaxed mb-5">Las automatizaciones hacen el seguimiento por ti. Enfócate solo en los hot leads que están listos para cerrar.</p>
+                    <p className="text-slate-400 text-sm leading-relaxed mb-5">{t("homePage.step3Desc")}</p>
                     <ul className="space-y-2 mt-auto">
-                      {["Seguimientos automáticos por WhatsApp", "Alertas de leads sin respuesta", "Lead scoring IA en tiempo real"].map((b) => (
+                      {["step3Bullet1", "step3Bullet2", "step3Bullet3"].map((b) => (
                         <li key={b} className="flex items-center gap-2 text-xs text-slate-500">
-                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{b}
+                          <Check className="w-3 h-3 text-orange-500/50 flex-shrink-0" />{t(`homePage.${b}`)}
                         </li>
                       ))}
                     </ul>
@@ -1930,8 +1952,8 @@ export default function HomePage() {
               <div className="inline-flex items-center gap-5 bg-slate-900 border border-slate-800 rounded-2xl px-8 py-5 hover:border-orange-500/20 transition-colors">
                 <span className="text-4xl font-black text-orange-400 font-mono leading-none">3×</span>
                 <div>
-                  <p className="text-white font-semibold text-sm">más ventas cerradas</p>
-                  <p className="text-slate-500 text-xs mt-0.5">en los primeros 30 días siguiendo este proceso</p>
+                  <p className="text-white font-semibold text-sm">{t("homePage.moreSalesClosed")}</p>
+                  <p className="text-slate-500 text-xs mt-0.5">{t("homePage.first30Days")}</p>
                 </div>
               </div>
             </FadeUp>
@@ -1942,14 +1964,14 @@ export default function HomePage() {
         <section className="bg-white py-24">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
             <FadeUp className="text-center mb-14">
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-4">¿Cuánto pagarías sin Klosify?</h2>
-              <p className="text-lg text-slate-500">Suma las herramientas que reemplazamos</p>
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-4">{t("homePage.savingsTitle")}</h2>
+              <p className="text-lg text-slate-500">{t("homePage.savingsSubtitle")}</p>
             </FadeUp>
 
             <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] items-center gap-6">
               <FadeUp from="left">
                 <div className="bg-white rounded-2xl border border-slate-200 p-7 shadow-sm">
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">Stack tradicional</p>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-5">{t("homePage.traditionalStack")}</p>
                   <div className="space-y-4">
                     {toolStack.map((tool, i) => (
                       <div key={tool.domain} className="flex items-center justify-between gap-3" style={{ animationDelay: `${i * 60}ms` }}>
@@ -1962,7 +1984,7 @@ export default function HomePage() {
                     ))}
                   </div>
                   <div className="mt-5 pt-5 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-sm font-medium text-slate-600">Total mensual</span>
+                    <span className="text-sm font-medium text-slate-600">{t("homePage.monthlyTotal")}</span>
                     <span className="text-2xl font-black text-red-500 font-mono">$177/mes</span>
                   </div>
                 </div>
@@ -1978,23 +2000,23 @@ export default function HomePage() {
 
               <FadeUp from="right">
                 <div className="bg-white rounded-2xl border-2 border-orange-500 p-7 shadow-xl shadow-orange-500/10">
-                  <p className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-5">Klosify Pro</p>
+                  <p className="text-xs font-bold text-orange-500 uppercase tracking-widest mb-5">{t("homePage.klosifyProLabel")}</p>
                   <div className="space-y-3">
                     {klosifyIncludes.map((item) => (
                       <div key={item} className="flex items-center gap-3">
                         <div className="w-5 h-5 rounded-full bg-green-500/10 flex items-center justify-center flex-shrink-0">
                           <Check className="w-3 h-3 text-green-600" />
                         </div>
-                        <span className="text-sm font-medium text-slate-700">{item}</span>
+                        <span className="text-sm font-medium text-slate-700">{t(`homePage.${item}`)}</span>
                       </div>
                     ))}
                   </div>
                   <div className="bg-slate-950 rounded-xl p-5 mt-6 text-center">
                     <p className="text-3xl font-black text-white font-mono mb-2">$59/mes</p>
                     <div className="inline-flex items-center gap-1.5 bg-orange-500/20 text-orange-400 px-3 py-1 rounded-full text-xs font-bold mb-2">
-                      <BadgePercent className="w-3.5 h-3.5" /> Ahorras $118/mes
+                      <BadgePercent className="w-3.5 h-3.5" /> {t("homePage.youSaveMonth")}
                     </div>
-                    <p className="text-slate-500 text-xs">$1.416/año en tu bolsillo</p>
+                    <p className="text-slate-500 text-xs">{t("homePage.youSaveYear")}</p>
                   </div>
                 </div>
               </FadeUp>
@@ -2006,12 +2028,12 @@ export default function HomePage() {
         <section id="pricing" className="bg-slate-50 py-24">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <FadeUp className="text-center mb-14">
-              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">Precios</p>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">Simple, transparente, sin sorpresas</h2>
+              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">{t("homePage.pricingEyebrow")}</p>
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">{t("homePage.pricingTitle")}</h2>
               <div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-1 gap-1 shadow-sm">
-                <button onClick={() => setIsAnnual(false)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!isAnnual ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>Mensual</button>
+                <button onClick={() => setIsAnnual(false)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!isAnnual ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{t("homePage.monthly")}</button>
                 <button onClick={() => setIsAnnual(true)} className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${isAnnual ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                  Anual <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">2 meses gratis</span>
+                  {t("homePage.annual")} <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">{t("homePage.twoMonthsFree")}</span>
                 </button>
               </div>
             </FadeUp>
@@ -2030,7 +2052,7 @@ export default function HomePage() {
             </div>
 
             <FadeUp delay={200} className="mt-10">
-              <p className="text-center text-xs font-semibold text-slate-400 mb-5 uppercase tracking-widest">Complementos disponibles en cualquier plan</p>
+              <p className="text-center text-xs font-semibold text-slate-400 mb-5 uppercase tracking-widest">{t("homePage.addonsAvailable")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
                 {addOns.map((addon) => {
                   const AddonIcon = addon.icon;
@@ -2039,7 +2061,7 @@ export default function HomePage() {
                       <div className={`w-10 h-10 ${addon.iconBg} rounded-xl flex items-center justify-center mx-auto mb-3`}>
                         <AddonIcon className={`w-5 h-5 ${addon.iconColor}`} />
                       </div>
-                      <p className="text-xs font-semibold text-slate-700 mb-1">{addon.label}</p>
+                      <p className="text-xs font-semibold text-slate-700 mb-1">{t(`homePage.${addon.label}`)}</p>
                       <p className="text-sm font-black text-orange-500 font-mono">{addon.price}</p>
                     </div>
                   );
@@ -2053,7 +2075,7 @@ export default function HomePage() {
         <section id="faq" className="bg-white py-24">
           <div className="max-w-2xl mx-auto px-4 sm:px-6">
             <FadeUp className="text-center mb-14">
-              <h2 className="text-4xl font-black text-slate-900">Preguntas frecuentes</h2>
+              <h2 className="text-4xl font-black text-slate-900">{t("homePage.faqTitle")}</h2>
             </FadeUp>
             <FaqAccordion items={faqItems} />
           </div>
@@ -2067,19 +2089,19 @@ export default function HomePage() {
             <FadeUp>
               <div className="inline-flex items-center gap-2 bg-orange-500/10 text-orange-400 border border-orange-500/20 rounded-full px-4 py-1.5 text-sm font-medium mb-8">
                 <Zap className="w-3.5 h-3.5 fill-orange-400" />
-                Sin tarjeta de crédito · 7 días gratis
+                {t("homePage.finalCtaBadge")}
               </div>
-              <h2 className="text-4xl md:text-5xl font-black text-white mb-5">Empieza hoy. Es gratis.</h2>
-              <p className="text-lg text-slate-400 mb-10">7 días de prueba completa. Cancela cuando quieras.</p>
+              <h2 className="text-4xl md:text-5xl font-black text-white mb-5">{t("homePage.finalCtaTitle")}</h2>
+              <p className="text-lg text-slate-400 mb-10">{t("homePage.finalCtaSubtitle")}</p>
               <Link to="/auth" className="shimmer-btn inline-flex items-center gap-2 text-white px-10 py-4 rounded-xl text-base font-bold shadow-2xl shadow-orange-500/30 hover:-translate-y-0.5 transition-transform">
-                Crear mi cuenta gratis
+                {t("homePage.createMyFreeAccount")}
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8">
-                {["Sin setup técnico", "Soporte en español", "Datos cifrados y seguros"].map((b) => (
+                {["finalCtaTrust1", "finalCtaTrust2", "finalCtaTrust3"].map((b) => (
                   <div key={b} className="flex items-center gap-2">
                     <Check className="w-3.5 h-3.5 text-slate-600 flex-shrink-0" />
-                    <span className="text-sm text-slate-500">{b}</span>
+                    <span className="text-sm text-slate-500">{t(`homePage.${b}`)}</span>
                   </div>
                 ))}
               </div>
@@ -2098,24 +2120,24 @@ export default function HomePage() {
                   </div>
                   <span className="text-white font-bold">Klosify <span className="text-orange-500">CRM</span></span>
                 </Link>
-                <p className="text-sm text-slate-600 leading-relaxed">El CRM hecho para LATAM</p>
+                <p className="text-sm text-slate-600 leading-relaxed">{t("homePage.footerTagline")}</p>
               </div>
               <div>
-                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">Producto</h4>
+                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">{t("homePage.footerProduct")}</h4>
                 <ul className="space-y-3">
-                  <li><button onClick={() => scrollTo("features")} className="text-sm hover:text-white transition-colors">Funcionalidades</button></li>
-                  <li><button onClick={() => scrollTo("pricing")} className="text-sm hover:text-white transition-colors">Precios</button></li>
+                  <li><button onClick={() => scrollTo("features")} className="text-sm hover:text-white transition-colors">{t("homePage.navFeatures")}</button></li>
+                  <li><button onClick={() => scrollTo("pricing")} className="text-sm hover:text-white transition-colors">{t("homePage.navPricing")}</button></li>
                 </ul>
               </div>
               <div>
-                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">Legal</h4>
+                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">{t("homePage.footerLegal")}</h4>
                 <ul className="space-y-3">
-                  <li><Link to="/terms" className="text-sm hover:text-white transition-colors">Términos</Link></li>
-                  <li><Link to="/privacy" className="text-sm hover:text-white transition-colors">Privacidad</Link></li>
+                  <li><Link to="/terms" className="text-sm hover:text-white transition-colors">{t("homePage.footerTerms")}</Link></li>
+                  <li><Link to="/privacy" className="text-sm hover:text-white transition-colors">{t("homePage.footerPrivacy")}</Link></li>
                 </ul>
               </div>
               <div>
-                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">Contacto</h4>
+                <h4 className="text-white font-semibold text-xs mb-4 uppercase tracking-widest">{t("homePage.footerContact")}</h4>
                 <ul className="space-y-3">
                   <li><a href="mailto:soporte@klosify.com" className="text-sm hover:text-white transition-colors">soporte@klosify.com</a></li>
                   <li><a href="https://instagram.com/klosifycrm" target="_blank" rel="noopener noreferrer" className="text-sm hover:text-white transition-colors">Instagram</a></li>
@@ -2125,13 +2147,13 @@ export default function HomePage() {
             </div>
             <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4">
               <p className="text-sm text-slate-700 flex items-center gap-1.5">
-                © 2026 Klosify CRM · Hecho con
+                {t("homePage.footerCopyrightPrefix")}
                 <Heart className="w-3 h-3 text-red-500 fill-red-500 inline" />
-                para LATAM
+                {t("homePage.footerCopyrightSuffix")}
               </p>
               <div className="flex items-center gap-2">
                 <Shield className="w-3.5 h-3.5 text-slate-700" />
-                <span className="text-xs text-slate-700">SSL · GDPR · Datos seguros</span>
+                <span className="text-xs text-slate-700">{t("homePage.footerSecurity")}</span>
               </div>
             </div>
           </div>
@@ -2157,14 +2179,14 @@ export default function HomePage() {
           transition={{ duration: 0.4, delay: mascotMin ? 1.05 : 0 }}
           className="mb-3 block max-w-[60vw] rounded-2xl rounded-br-sm bg-white px-3.5 py-2 shadow-xl ring-1 ring-black/5"
         >
-          <p className="text-xs font-medium text-slate-800 leading-snug sm:whitespace-nowrap">Hola 👋 ¿En qué te puedo ayudar?</p>
+          <p className="text-xs font-medium text-slate-800 leading-snug sm:whitespace-nowrap">{t("homePage.mascotGreeting")}</p>
         </motion.div>
         {/* mascot head button → WhatsApp */}
         <a
           href="https://wa.me/15557173863?text=Hola%2C%20quiero%20conocer%20m%C3%A1s%20de%20Klosify"
           target="_blank"
           rel="noopener noreferrer"
-          aria-label="Escríbenos por WhatsApp"
+          aria-label={t("homePage.writeUsWhatsapp")}
           className="group relative block"
         >
           <span className="absolute inset-0 rounded-full bg-orange-500/30 blur-xl scale-90 group-hover:scale-110 transition-transform" />
@@ -2173,7 +2195,7 @@ export default function HomePage() {
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
             className="relative h-16 w-16 overflow-hidden rounded-full bg-gradient-to-b from-slate-900 to-black ring-2 ring-orange-500/50 shadow-2xl group-hover:ring-orange-500/80 transition-all"
           >
-            <img src="/mascot-head.png" alt="Asistente IA de Klosify" className="absolute inset-0 h-full w-full object-cover scale-110 select-none" draggable={false} />
+            <img src="/mascot-head.png" alt={t("homePage.mascotAlt")} className="absolute inset-0 h-full w-full object-cover scale-110 select-none" draggable={false} />
           </motion.div>
           <span className="absolute right-1 top-1 h-3 w-3 rounded-full bg-green-400 ring-2 ring-slate-950 animate-pulse" />
         </a>

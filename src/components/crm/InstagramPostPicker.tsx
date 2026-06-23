@@ -8,6 +8,7 @@ import {
   Check, X, Search, ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   open: boolean;
@@ -22,6 +23,7 @@ interface Props {
  * Supports multi-select: user picks several posts, then taps "Confirmar".
  */
 export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSelect }: Props) {
+  const { t } = useTranslation();
   const ig = useInstagramIntegration();
   const [media, setMedia] = useState<IgMedia[]>([]);
   const [loading, setLoading] = useState(false);
@@ -35,7 +37,7 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
     setLoading(true);
     ig.listMedia(48)
       .then(setMedia)
-      .catch((e) => toast.error("Error al cargar publicaciones: " + e.message))
+      .catch((e) => toast.error(t("instagramPostPicker.loadError", { message: e.message })))
       .finally(() => setLoading(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -78,10 +80,10 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
           onClick={() => onOpenChange(false)}
           className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
-          <ArrowLeft className="h-4 w-4" /> Volver
+          <ArrowLeft className="h-4 w-4" /> {t("instagramPostPicker.back")}
         </button>
         <span className="text-muted-foreground">/</span>
-        <span className="text-sm font-semibold">Seleccionar publicaciones</span>
+        <span className="text-sm font-semibold">{t("instagramPostPicker.selectPosts")}</span>
         <div className="flex-1" />
         {localSelected.length > 0 && (
           <button
@@ -89,7 +91,7 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
             onClick={handleClearAll}
             className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1"
           >
-            <X className="h-3.5 w-3.5" /> Aplicar a todas
+            <X className="h-3.5 w-3.5" /> {t("instagramPostPicker.applyToAll")}
           </button>
         )}
         <Button
@@ -99,18 +101,18 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
         >
           <Check className="h-4 w-4" />
           {localSelected.length > 0
-            ? `Confirmar (${localSelected.length})`
-            : "Aplicar a todas"}
+            ? t("instagramPostPicker.confirmCount", { count: localSelected.length })
+            : t("instagramPostPicker.applyToAll")}
         </Button>
       </div>
 
       {/* Subtitle */}
       <div className="px-4 md:px-8 py-2 border-b bg-muted/30">
         <p className="text-xs text-muted-foreground">
-          Selecciona una o varias publicaciones donde se activará esta automatización.
+          {t("instagramPostPicker.subtitle")}
           {localSelected.length === 0
-            ? " Sin selección = aplica a todas tus publicaciones."
-            : ` ${localSelected.length} post${localSelected.length > 1 ? "s" : ""} seleccionado${localSelected.length > 1 ? "s" : ""}.`}
+            ? " " + t("instagramPostPicker.subtitleNoSelection")
+            : " " + t("instagramPostPicker.subtitleSelectedCount", { count: localSelected.length })}
         </p>
       </div>
 
@@ -119,7 +121,7 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
         <div className="relative max-w-sm">
           <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
           <Input
-            placeholder="Buscar por caption o ID..."
+            placeholder={t("instagramPostPicker.searchPlaceholder")}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-8 h-9 text-sm"
@@ -132,13 +134,13 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
         {loading ? (
           <div className="text-center py-16">
             <Loader2 className="h-8 w-8 animate-spin mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">Cargando tus publicaciones...</p>
+            <p className="text-sm text-muted-foreground">{t("instagramPostPicker.loading")}</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16">
             <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
             <p className="text-sm text-muted-foreground">
-              {search ? "Sin resultados" : "No se encontraron publicaciones"}
+              {search ? t("instagramPostPicker.noResults") : t("instagramPostPicker.noPosts")}
             </p>
           </div>
         ) : (
@@ -209,10 +211,10 @@ export function InstagramPostPicker({ open, onOpenChange, selectedMediaIds, onSe
 
       {/* Footer */}
       <div className="px-4 md:px-8 py-3 border-t bg-muted/30 flex items-center justify-between text-xs text-muted-foreground shrink-0">
-        <span>{filtered.length} publicaciones</span>
+        <span>{t("instagramPostPicker.postsCount", { count: filtered.length })}</span>
         {localSelected.length > 0 && (
           <span className="text-pink-500 font-medium">
-            {localSelected.length} seleccionada{localSelected.length > 1 ? "s" : ""}
+            {t("instagramPostPicker.selectedCount", { count: localSelected.length })}
           </span>
         )}
       </div>

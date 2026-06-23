@@ -30,6 +30,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 /* ─── Types ──────────────────────────────────────────────────────────────── */
 interface Campaign {
@@ -91,13 +92,13 @@ interface MetaAd {
   ad_account_id: string | null;
 }
 
-const CTA_LABELS: Record<string, string> = {
-  LEARN_MORE: "Más información", SHOP_NOW: "Comprar ahora", SIGN_UP: "Regístrate",
-  CONTACT_US: "Contáctanos", GET_QUOTE: "Solicitar cotización", GET_OFFER: "Ver oferta",
-  SUBSCRIBE: "Suscribirse", DOWNLOAD: "Descargar", BOOK_NOW: "Reservar ahora",
-  APPLY_NOW: "Aplicar ahora", WATCH_MORE: "Ver más", SEND_MESSAGE: "Enviar mensaje",
-  BUY_NOW: "Comprar", CALL_NOW: "Llamar ahora", GET_DIRECTIONS: "Cómo llegar",
-  INSTALL_MOBILE_APP: "Instalar app", USE_APP: "Abrir app",
+const CTA_LABEL_KEYS: Record<string, string> = {
+  LEARN_MORE: "ctaLearnMore", SHOP_NOW: "ctaShopNow", SIGN_UP: "ctaSignUp",
+  CONTACT_US: "ctaContactUs", GET_QUOTE: "ctaGetQuote", GET_OFFER: "ctaGetOffer",
+  SUBSCRIBE: "ctaSubscribe", DOWNLOAD: "ctaDownload", BOOK_NOW: "ctaBookNow",
+  APPLY_NOW: "ctaApplyNow", WATCH_MORE: "ctaWatchMore", SEND_MESSAGE: "ctaSendMessage",
+  BUY_NOW: "ctaBuyNow", CALL_NOW: "ctaCallNow", GET_DIRECTIONS: "ctaGetDirections",
+  INSTALL_MOBILE_APP: "ctaInstallApp", USE_APP: "ctaUseApp",
 };
 
 /* ─── Constants ──────────────────────────────────────────────────────────── */
@@ -108,11 +109,11 @@ const STATUS_COLORS: Record<string, string> = {
   ARCHIVED: "bg-muted-foreground",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: "Activa",
-  PAUSED: "Pausada",
-  DELETED: "Eliminada",
-  ARCHIVED: "Archivada",
+const STATUS_LABEL_KEYS: Record<string, string> = {
+  ACTIVE: "statusActive",
+  PAUSED: "statusPaused",
+  DELETED: "statusDeleted",
+  ARCHIVED: "statusArchived",
 };
 
 const PIE_COLORS = [
@@ -136,7 +137,7 @@ const INSIGHT_CONFIG: Record<InsightType, { icon: React.ReactNode; color: string
 };
 
 /* ─── Analysis engine ────────────────────────────────────────────────────── */
-function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
+function analyzeCampaigns(campaigns: Campaign[], t: (key: string, opts?: Record<string, unknown>) => string): ScoredCampaign[] {
   // Compute medians for benchmarking
   const withCpl = campaigns.filter(c => (c.leads || 0) > 0 && c.cpl != null);
   const cplValues = withCpl.map(c => c.cpl!).sort((a, b) => a - b);
@@ -171,9 +172,9 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "no_leads",
         severity: "critical",
-        title: "Sin leads generados",
-        description: `$${spend.toFixed(2)} gastados sin obtener ningún lead.`,
-        action: "Revisar segmentación y creativos urgente",
+        title: t("metaAdsPage.insightNoLeadsTitle"),
+        description: t("metaAdsPage.insightNoLeadsDesc", { spend: spend.toFixed(2) }),
+        action: t("metaAdsPage.insightNoLeadsAction"),
       });
     }
 
@@ -182,9 +183,9 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "high_cpl",
         severity: "critical",
-        title: "CPL muy alto",
-        description: `$${c.cpl.toFixed(2)} por lead vs. $${medianCpl.toFixed(2)} promedio (${Math.round((c.cpl / medianCpl - 1) * 100)}% más caro).`,
-        action: "Pausar o ajustar segmentación y oferta",
+        title: t("metaAdsPage.insightHighCplTitle"),
+        description: t("metaAdsPage.insightHighCplDesc", { cpl: c.cpl.toFixed(2), median: medianCpl.toFixed(2), pct: Math.round((c.cpl / medianCpl - 1) * 100) }),
+        action: t("metaAdsPage.insightHighCplAction"),
       });
     }
 
@@ -193,17 +194,17 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "high_impressions_low_ctr",
         severity: "warning",
-        title: "Muchas impresiones, pocos clics",
-        description: `CTR de ${ctr.toFixed(2)}% con ${impr.toLocaleString("es")} impresiones.`,
-        action: "Renovar creativos, imágenes y copy del anuncio",
+        title: t("metaAdsPage.insightHighImprLowCtrTitle"),
+        description: t("metaAdsPage.insightHighImprLowCtrDesc", { ctr: ctr.toFixed(2), impr: impr.toLocaleString("es") }),
+        action: t("metaAdsPage.insightHighImprLowCtrAction"),
       });
     } else if (impr > 0 && ctr < 0.5 && spend > 5) {
       insights.push({
         type: "low_ctr",
         severity: "warning",
-        title: "CTR muy bajo",
-        description: `Solo ${ctr.toFixed(2)}% de clics sobre las impresiones.`,
-        action: "Revisar relevancia del anuncio para la audiencia",
+        title: t("metaAdsPage.insightLowCtrTitle"),
+        description: t("metaAdsPage.insightLowCtrDesc", { ctr: ctr.toFixed(2) }),
+        action: t("metaAdsPage.insightLowCtrAction"),
       });
     }
 
@@ -212,9 +213,9 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "high_ctr_no_leads",
         severity: "warning",
-        title: "Clics sin conversión",
-        description: `${clicks} clics pero ningún lead. El tráfico no convierte.`,
-        action: "Revisar la landing page o el formulario de captación",
+        title: t("metaAdsPage.insightClicksNoLeadsTitle"),
+        description: t("metaAdsPage.insightClicksNoLeadsDesc", { clicks }),
+        action: t("metaAdsPage.insightClicksNoLeadsAction"),
       });
     }
 
@@ -223,9 +224,9 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "paused_winner",
         severity: "positive",
-        title: "Mejor CPL entre las pausadas",
-        description: `$${c.cpl.toFixed(2)} por lead — era tu campaña más eficiente.`,
-        action: "Considera reactivarla",
+        title: t("metaAdsPage.insightPausedWinnerTitle"),
+        description: t("metaAdsPage.insightPausedWinnerDesc", { cpl: c.cpl.toFixed(2) }),
+        action: t("metaAdsPage.insightPausedWinnerAction"),
       });
     }
 
@@ -234,9 +235,9 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
       insights.push({
         type: "efficient",
         severity: "positive",
-        title: "Campaña rentable",
-        description: `CPL un ${Math.round((1 - c.cpl / medianCpl) * 100)}% por debajo de la media.`,
-        action: "Considera aumentar el presupuesto",
+        title: t("metaAdsPage.insightEfficientTitle"),
+        description: t("metaAdsPage.insightEfficientDesc", { pct: Math.round((1 - c.cpl / medianCpl) * 100) }),
+        action: t("metaAdsPage.insightEfficientAction"),
       });
     }
 
@@ -262,12 +263,13 @@ function analyzeCampaigns(campaigns: Campaign[]): ScoredCampaign[] {
 
 /* ─── Score badge ─────────────────────────────────────────────────────────── */
 function ScoreBadge({ score }: { score: 1 | 2 | 3 | 4 | 5 }) {
+  const { t } = useTranslation();
   const map = {
-    5: { label: "Estrella",   className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300", dot: "bg-emerald-500" },
-    4: { label: "Buena",      className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",           dot: "bg-blue-500"    },
-    3: { label: "Regular",    className: "bg-muted text-muted-foreground",                                              dot: "bg-muted-foreground" },
-    2: { label: "Mejorar",    className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",       dot: "bg-amber-500"   },
-    1: { label: "Bajo rend.", className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",               dot: "bg-destructive" },
+    5: { label: t("metaAdsPage.scoreStar"),     className: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300", dot: "bg-emerald-500" },
+    4: { label: t("metaAdsPage.scoreGood"),     className: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",           dot: "bg-blue-500"    },
+    3: { label: t("metaAdsPage.scoreRegular"),  className: "bg-muted text-muted-foreground",                                              dot: "bg-muted-foreground" },
+    2: { label: t("metaAdsPage.scoreImprove"),  className: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300",       dot: "bg-amber-500"   },
+    1: { label: t("metaAdsPage.scoreLow"),      className: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",               dot: "bg-destructive" },
   };
   const { label, className, dot } = map[score];
   return (
@@ -288,14 +290,16 @@ function StatusToggle({
   onToggle: (id: string, newStatus: "ACTIVE" | "PAUSED") => void;
   loading: boolean;
 }) {
+  const { t } = useTranslation();
   const isActive = campaign.status === "ACTIVE";
   const isEditable = campaign.status === "ACTIVE" || campaign.status === "PAUSED";
+  const statusKey = STATUS_LABEL_KEYS[campaign.status || ""];
 
   if (!isEditable) {
     return (
       <Badge variant="secondary" className="text-xs gap-1">
         <div className={`h-1.5 w-1.5 rounded-full ${STATUS_COLORS[campaign.status || ""] || "bg-muted-foreground"}`} />
-        {STATUS_LABELS[campaign.status || ""] || campaign.status}
+        {statusKey ? t(`metaAdsPage.${statusKey}`) : campaign.status}
       </Badge>
     );
   }
@@ -319,13 +323,14 @@ function StatusToggle({
       ) : (
         <Play className="h-3 w-3" />
       )}
-      {isActive ? "Pausar" : "Activar"}
+      {isActive ? t("metaAdsPage.pause") : t("metaAdsPage.activate")}
     </button>
   );
 }
 
 /* ─── Creative preview modal ──────────────────────────────────────────────── */
 function CreativePreviewModal({ ad, open, onClose }: { ad: MetaAd; open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const isVideo = !!(ad.video_url || ad.video_id);
   // Lazy-load video URL: only fetch from Meta API when the modal opens for a video ad.
   // During bulk sync we no longer fetch video URLs, so ad.video_url will be null.
@@ -393,7 +398,7 @@ function CreativePreviewModal({ ad, open, onClose }: { ad: MetaAd; open: boolean
               <p className="text-xs text-muted-foreground mt-0.5">{ad.ad_name}</p>
             </div>
             <Badge variant={ad.status === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-xs">
-              {STATUS_LABELS[ad.status || ""] || ad.status}
+              {STATUS_LABEL_KEYS[ad.status || ""] ? t(`metaAdsPage.${STATUS_LABEL_KEYS[ad.status || ""]}`) : ad.status}
             </Badge>
           </div>
           {ad.body && (
@@ -401,16 +406,16 @@ function CreativePreviewModal({ ad, open, onClose }: { ad: MetaAd; open: boolean
           )}
           {ad.call_to_action && (
             <span className="inline-block bg-primary text-primary-foreground text-xs font-semibold px-4 py-1.5 rounded-md">
-              {CTA_LABELS[ad.call_to_action] || ad.call_to_action}
+              {CTA_LABEL_KEYS[ad.call_to_action] ? t(`metaAdsPage.${CTA_LABEL_KEYS[ad.call_to_action]}`) : ad.call_to_action}
             </span>
           )}
           {/* Metrics row */}
           <div className="flex flex-wrap gap-4 text-xs text-muted-foreground border-t pt-3">
-            {(ad.spend || 0) > 0 && <span><span className="font-semibold text-foreground">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span> gasto</span>}
-            {(ad.impressions || 0) > 0 && <span><span className="font-semibold text-foreground">{(ad.impressions||0).toLocaleString("es")}</span> impresiones</span>}
-            {(ad.clicks || 0) > 0 && <span><span className="font-semibold text-foreground">{ad.clicks}</span> clics</span>}
-            {(ad.leads || 0) > 0 && <span><span className="font-semibold text-emerald-600">{ad.leads}</span> leads</span>}
-            {ad.cpl && <span>CPL <span className="font-semibold text-foreground">${ad.cpl.toFixed(2)}</span></span>}
+            {(ad.spend || 0) > 0 && <span><span className="font-semibold text-foreground">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span> {t("metaAdsPage.spendLabel")}</span>}
+            {(ad.impressions || 0) > 0 && <span><span className="font-semibold text-foreground">{(ad.impressions||0).toLocaleString("es")}</span> {t("metaAdsPage.impressionsLabel")}</span>}
+            {(ad.clicks || 0) > 0 && <span><span className="font-semibold text-foreground">{ad.clicks}</span> {t("metaAdsPage.clicksLabel")}</span>}
+            {(ad.leads || 0) > 0 && <span><span className="font-semibold text-emerald-600">{ad.leads}</span> {t("metaAdsPage.leadsLabel")}</span>}
+            {ad.cpl && <span>{t("metaAdsPage.cplLabel")} <span className="font-semibold text-foreground">${ad.cpl.toFixed(2)}</span></span>}
           </div>
         </div>
       </DialogContent>
@@ -432,12 +437,13 @@ function AdCreativeCard({
   onToggle: (id: string, type: "ad", newStatus: "ACTIVE" | "PAUSED") => void;
   toggling: boolean;
 }) {
+  const { t } = useTranslation();
   const [bodyExpanded, setBodyExpanded] = useState(false);
   const [previewOpen,  setPreviewOpen]  = useState(false);
 
   const isActive  = ad.status === "ACTIVE";
   const canToggle = ad.status === "ACTIVE" || ad.status === "PAUSED";
-  const ctaLabel  = ad.call_to_action ? (CTA_LABELS[ad.call_to_action] || ad.call_to_action) : null;
+  const ctaLabel  = ad.call_to_action ? (CTA_LABEL_KEYS[ad.call_to_action] ? t(`metaAdsPage.${CTA_LABEL_KEYS[ad.call_to_action]}`) : ad.call_to_action) : null;
   const isVideo   = !!(ad.video_url || ad.video_id);
   const hasThumbnail = !!(ad.image_url);
 
@@ -495,7 +501,7 @@ function AdCreativeCard({
               isActive ? "bg-emerald-500/90 text-white" : "bg-amber-400/90 text-white"
             )}>
               {isVideo && <Video className="h-2.5 w-2.5" />}
-              {STATUS_LABELS[ad.status || ""] || ad.status}
+              {STATUS_LABEL_KEYS[ad.status || ""] ? t(`metaAdsPage.${STATUS_LABEL_KEYS[ad.status || ""]}`) : ad.status}
             </span>
           </div>
         </div>
@@ -529,12 +535,12 @@ function AdCreativeCard({
                   onClick={() => setBodyExpanded(v => !v)}
                   className="text-[10px] text-primary mt-0.5 hover:underline"
                 >
-                  {bodyExpanded ? "Ver menos" : "Ver más"}
+                  {bodyExpanded ? t("metaAdsPage.seeLess") : t("metaAdsPage.seeMore")}
                 </button>
               )}
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground/50 italic">Sin texto de anuncio</p>
+            <p className="text-xs text-muted-foreground/50 italic">{t("metaAdsPage.noAdText")}</p>
           )}
 
           {/* CTA */}
@@ -548,10 +554,10 @@ function AdCreativeCard({
 
           {/* Metrics */}
           <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] border-t pt-2 mt-1">
-            <span className="text-muted-foreground">Gasto <span className="font-semibold text-foreground tabular-nums">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span></span>
-            <span className="text-muted-foreground">Leads <span className={cn("font-semibold tabular-nums", (ad.leads||0) > 0 ? "text-emerald-600" : "text-foreground")}>{ad.leads || 0}</span></span>
-            {ad.cpl ? <span className="text-muted-foreground">CPL <span className="font-semibold text-foreground tabular-nums">${ad.cpl.toFixed(2)}</span></span> : null}
-            {(ad.impressions||0) > 0 && <span className="text-muted-foreground">Impr. <span className="font-semibold text-foreground tabular-nums">{(ad.impressions||0).toLocaleString("es")}</span></span>}
+            <span className="text-muted-foreground">{t("metaAdsPage.spendShort")} <span className="font-semibold text-foreground tabular-nums">${(ad.spend||0).toLocaleString("es",{minimumFractionDigits:2})}</span></span>
+            <span className="text-muted-foreground">{t("metaAdsPage.leadsShort")} <span className={cn("font-semibold tabular-nums", (ad.leads||0) > 0 ? "text-emerald-600" : "text-foreground")}>{ad.leads || 0}</span></span>
+            {ad.cpl ? <span className="text-muted-foreground">{t("metaAdsPage.cplLabel")} <span className="font-semibold text-foreground tabular-nums">${ad.cpl.toFixed(2)}</span></span> : null}
+            {(ad.impressions||0) > 0 && <span className="text-muted-foreground">{t("metaAdsPage.impressionsShort")} <span className="font-semibold text-foreground tabular-nums">{(ad.impressions||0).toLocaleString("es")}</span></span>}
           </div>
 
           {/* Action bar */}
@@ -560,7 +566,7 @@ function AdCreativeCard({
               onClick={() => setPreviewOpen(true)}
               className="flex-1 flex items-center justify-center gap-1 rounded-md py-1.5 text-xs font-medium border text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-all"
             >
-              <Maximize2 className="h-3 w-3" /> Ver creativo
+              <Maximize2 className="h-3 w-3" /> {t("metaAdsPage.viewCreative")}
             </button>
             {canToggle && (
               <button
@@ -575,7 +581,7 @@ function AdCreativeCard({
                 )}
               >
                 {toggling ? <Loader2 className="h-3 w-3 animate-spin" /> : isActive ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
-                {isActive ? "Pausar" : "Activar"}
+                {isActive ? t("metaAdsPage.pause") : t("metaAdsPage.activate")}
               </button>
             )}
           </div>
@@ -589,25 +595,25 @@ function AdCreativeCard({
 
 /* ─── Campaign creation wizard (3 steps) ────────────────────────────────── */
 const OBJECTIVES = [
-  { value: "OUTCOME_LEADS",        label: "🎯 Leads",              desc: "Captura formularios y mensajes",   opt: "LEAD_GENERATION"     },
-  { value: "OUTCOME_SALES",        label: "🛍️ Ventas",             desc: "Conversiones y compras",           opt: "OFFSITE_CONVERSIONS" },
-  { value: "OUTCOME_TRAFFIC",      label: "🚀 Tráfico",            desc: "Visitas a tu sitio web",           opt: "LINK_CLICKS"         },
-  { value: "OUTCOME_AWARENESS",    label: "📣 Reconocimiento",     desc: "Alcance e impresiones",            opt: "REACH"               },
-  { value: "OUTCOME_ENGAGEMENT",   label: "💬 Interacción",        desc: "Likes, comentarios, mensajes",     opt: "POST_ENGAGEMENT"     },
-  { value: "OUTCOME_APP_PROMOTION",label: "📱 Promoción de app",   desc: "Instalaciones y eventos en app",   opt: "APP_INSTALLS"        },
+  { value: "OUTCOME_LEADS",        labelKey: "objLeadsLabel",       emoji: "🎯", descKey: "objLeadsDesc",       opt: "LEAD_GENERATION"     },
+  { value: "OUTCOME_SALES",        labelKey: "objSalesLabel",       emoji: "🛍️", descKey: "objSalesDesc",       opt: "OFFSITE_CONVERSIONS" },
+  { value: "OUTCOME_TRAFFIC",      labelKey: "objTrafficLabel",     emoji: "🚀", descKey: "objTrafficDesc",     opt: "LINK_CLICKS"         },
+  { value: "OUTCOME_AWARENESS",    labelKey: "objAwarenessLabel",   emoji: "📣", descKey: "objAwarenessDesc",   opt: "REACH"               },
+  { value: "OUTCOME_ENGAGEMENT",   labelKey: "objEngagementLabel",  emoji: "💬", descKey: "objEngagementDesc",  opt: "POST_ENGAGEMENT"     },
+  { value: "OUTCOME_APP_PROMOTION",labelKey: "objAppLabel",         emoji: "📱", descKey: "objAppDesc",         opt: "APP_INSTALLS"        },
 ];
 
 const CTA_OPTIONS = [
-  { value: "LEARN_MORE",    label: "Más información" },
-  { value: "SIGN_UP",       label: "Registrarse" },
-  { value: "CONTACT_US",    label: "Contáctanos" },
-  { value: "GET_QUOTE",     label: "Obtener cotización" },
-  { value: "APPLY_NOW",     label: "Aplicar ahora" },
-  { value: "DOWNLOAD",      label: "Descargar" },
-  { value: "SHOP_NOW",      label: "Comprar ahora" },
-  { value: "SUBSCRIBE",     label: "Suscribirse" },
-  { value: "WATCH_MORE",    label: "Ver más" },
-  { value: "GET_OFFER",     label: "Obtener oferta" },
+  { value: "LEARN_MORE",    labelKey: "ctaLearnMore" },
+  { value: "SIGN_UP",       labelKey: "ctaRegister" },
+  { value: "CONTACT_US",    labelKey: "ctaContactUs" },
+  { value: "GET_QUOTE",     labelKey: "ctaGetQuote" },
+  { value: "APPLY_NOW",     labelKey: "ctaApplyNow" },
+  { value: "DOWNLOAD",      labelKey: "ctaDownload" },
+  { value: "SHOP_NOW",      labelKey: "ctaShopNow" },
+  { value: "SUBSCRIBE",     labelKey: "ctaSubscribe" },
+  { value: "WATCH_MORE",    labelKey: "ctaWatchMore" },
+  { value: "GET_OFFER",     labelKey: "ctaGetOffer" },
 ];
 
 async function invokeApi(body: Record<string, any>) {
@@ -621,7 +627,8 @@ async function invokeApi(body: Record<string, any>) {
 }
 
 function StepIndicator({ step }: { step: number }) {
-  const steps = ["Campaña", "Conjunto", "Anuncio"];
+  const { t } = useTranslation();
+  const steps = [t("metaAdsPage.stepCampaign"), t("metaAdsPage.stepAdSet"), t("metaAdsPage.stepAd")];
   return (
     <div className="flex items-center gap-0 mb-5">
       {steps.map((s, i) => (
@@ -657,6 +664,7 @@ function CreateCampaignDialog({
   pages: { page_id: string; page_name: string }[];
   onCreated: (campaignId: string) => void;
 }) {
+  const { t } = useTranslation();
   const [step,       setStep]       = useState(1);
   const [saving,     setSaving]     = useState(false);
 
@@ -709,15 +717,15 @@ function CreateCampaignDialog({
     setSaving(false);
     if (!res?.success) {
       const { toast } = await import("sonner");
-      toast.error(res?.error || errMsg || "Error al crear la campaña");
+      toast.error(res?.error || errMsg || t("metaAdsPage.errorCreateCampaign"));
       return;
     }
     const { toast } = await import("sonner");
-    toast.success("Campaña creada ✓");
+    toast.success(t("metaAdsPage.campaignCreated"));
     setCampaignId(res.campaign_id);
     // Pre-fill ad set name
     const obj = OBJECTIVES.find(o => o.value === objective);
-    setAdsetName(`Conjunto – ${camName.trim()}`);
+    setAdsetName(t("metaAdsPage.adSetNamePrefill", { name: camName.trim() }));
     setStep(2);
   };
 
@@ -727,7 +735,7 @@ function CreateCampaignDialog({
     if (!adsetName.trim() || !campaignId || !adAccountId) return;
     if (!adsetBudget || Number(adsetBudget) <= 0) {
       const { toast } = await import("sonner");
-      toast.error("El presupuesto del conjunto es obligatorio");
+      toast.error(t("metaAdsPage.adSetBudgetRequired"));
       return;
     }
     setSaving(true);
@@ -749,13 +757,13 @@ function CreateCampaignDialog({
     setSaving(false);
     if (!res?.success) {
       const { toast } = await import("sonner");
-      toast.error(res?.error || errMsg || "Error al crear el conjunto de anuncios");
+      toast.error(res?.error || errMsg || t("metaAdsPage.errorCreateAdSet"));
       return;
     }
     const { toast } = await import("sonner");
-    toast.success("Conjunto de anuncios creado ✓");
+    toast.success(t("metaAdsPage.adSetCreated"));
     setAdsetId(res.adset_id);
-    setAdName(`Anuncio – ${camName.trim()}`);
+    setAdName(t("metaAdsPage.adNamePrefill", { name: camName.trim() }));
     if (pages.length > 0) setPageId(pages[0].page_id);
     setStep(3);
   };
@@ -782,11 +790,11 @@ function CreateCampaignDialog({
     setSaving(false);
     if (!res?.success) {
       const { toast } = await import("sonner");
-      toast.error(res?.error || errMsg || "Error al crear el anuncio");
+      toast.error(res?.error || errMsg || t("metaAdsPage.errorCreateAd"));
       return;
     }
     const { toast } = await import("sonner");
-    toast.success("¡Estructura creada completa! Campaña, conjunto y anuncio listos.");
+    toast.success(t("metaAdsPage.structureCreated"));
     onCreated(campaignId!);
     handleClose();
   };
@@ -796,7 +804,7 @@ function CreateCampaignDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Plus className="h-4 w-4 text-primary" /> Nueva estructura de campaña
+            <Plus className="h-4 w-4 text-primary" /> {t("metaAdsPage.newCampaignStructure")}
           </DialogTitle>
         </DialogHeader>
 
@@ -806,20 +814,20 @@ function CreateCampaignDialog({
         {step === 1 && (
           <form onSubmit={handleCreateCampaign} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="cam-name" className="text-xs font-medium">Nombre de la campaña *</Label>
+              <Label htmlFor="cam-name" className="text-xs font-medium">{t("metaAdsPage.campaignNameLabel")}</Label>
               <Input id="cam-name" value={camName} onChange={e => setCamName(e.target.value)}
-                placeholder="Ej: Leads Julio 2026 – Formulario Web" required className="h-9" />
+                placeholder={t("metaAdsPage.campaignNamePlaceholder")} required className="h-9" />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Objetivo *</Label>
+              <Label className="text-xs font-medium">{t("metaAdsPage.objectiveLabel")}</Label>
               <div className="grid grid-cols-2 gap-2">
                 {OBJECTIVES.map(obj => (
                   <button type="button" key={obj.value} onClick={() => setObjective(obj.value)}
                     className={cn("flex flex-col items-start gap-0.5 rounded-lg border p-2.5 text-left transition-all",
                       objective === obj.value ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/40 hover:bg-muted/50")}>
-                    <span className="text-xs font-semibold">{obj.label}</span>
-                    <span className="text-[10px] text-muted-foreground leading-tight">{obj.desc}</span>
+                    <span className="text-xs font-semibold">{obj.emoji} {t(`metaAdsPage.${obj.labelKey}`)}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">{t(`metaAdsPage.${obj.descKey}`)}</span>
                   </button>
                 ))}
               </div>
@@ -827,7 +835,7 @@ function CreateCampaignDialog({
 
             <div className="space-y-1.5">
               <Label htmlFor="cam-budget" className="text-xs font-medium">
-                Presupuesto campaña (opcional) <span className="text-muted-foreground font-normal">— CBO</span>
+                {t("metaAdsPage.campaignBudgetLabel")} <span className="text-muted-foreground font-normal">{t("metaAdsPage.cboSuffix")}</span>
               </Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
@@ -843,18 +851,18 @@ function CreateCampaignDialog({
                   !startPaused ? "translate-x-4" : "translate-x-0.5")} />
               </button>
               <div>
-                <p className="text-xs font-medium">{startPaused ? "Crear pausada" : "Activar al crear"}</p>
+                <p className="text-xs font-medium">{startPaused ? t("metaAdsPage.createPaused") : t("metaAdsPage.activateOnCreate")}</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {startPaused ? "La activarás cuando el anuncio esté listo." : "Se activa inmediatamente en Meta."}
+                  {startPaused ? t("metaAdsPage.createPausedHint") : t("metaAdsPage.activateOnCreateHint")}
                 </p>
               </div>
             </div>
 
             <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handleClose}>Cancelar</Button>
+              <Button type="button" variant="outline" size="sm" onClick={handleClose}>{t("metaAdsPage.cancel")}</Button>
               <Button type="submit" size="sm" disabled={saving || !camName.trim() || !adAccountId}>
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                Siguiente: Conjunto →
+                {t("metaAdsPage.nextAdSet")}
               </Button>
             </DialogFooter>
           </form>
@@ -864,38 +872,38 @@ function CreateCampaignDialog({
         {step === 2 && (
           <form onSubmit={handleCreateAdSet} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Nombre del conjunto *</Label>
+              <Label className="text-xs font-medium">{t("metaAdsPage.adSetNameLabel")}</Label>
               <Input value={adsetName} onChange={e => setAdsetName(e.target.value)}
-                placeholder="Ej: Colombia – 25-45 – Intereses" required className="h-9" />
+                placeholder={t("metaAdsPage.adSetNamePlaceholder")} required className="h-9" />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Presupuesto diario (COP) *</Label>
+              <Label className="text-xs font-medium">{t("metaAdsPage.dailyBudgetLabel")}</Label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">$</span>
                 <Input type="number" min="1000" value={adsetBudget}
                   onChange={e => setAdsetBudget(e.target.value)} placeholder="50000" required className="h-9 pl-6" />
               </div>
-              <p className="text-[10px] text-muted-foreground">Mínimo recomendado: $20,000 COP/día</p>
+              <p className="text-[10px] text-muted-foreground">{t("metaAdsPage.minBudgetHint")}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Edad mínima</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.ageMin")}</Label>
                 <Input type="number" min="18" max="64" value={ageMin}
                   onChange={e => setAgeMin(e.target.value)} className="h-9" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Edad máxima</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.ageMax")}</Label>
                 <Input type="number" min="19" max="65" value={ageMax}
                   onChange={e => setAgeMax(e.target.value)} className="h-9" />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Género</Label>
+              <Label className="text-xs font-medium">{t("metaAdsPage.gender")}</Label>
               <div className="flex gap-2">
-                {[{ v: "all", l: "Todos" }, { v: "men", l: "Hombres" }, { v: "women", l: "Mujeres" }].map(g => (
+                {[{ v: "all", l: t("metaAdsPage.genderAll") }, { v: "men", l: t("metaAdsPage.genderMen") }, { v: "women", l: t("metaAdsPage.genderWomen") }].map(g => (
                   <button type="button" key={g.v} onClick={() => setGender(g.v)}
                     className={cn("flex-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all",
                       gender === g.v ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-primary/40")}>
@@ -906,14 +914,14 @@ function CreateCampaignDialog({
             </div>
 
             <div className="rounded-lg bg-muted/50 px-3 py-2 text-[10px] text-muted-foreground">
-              🌍 Segmentación geográfica: <strong>Colombia</strong> · Más segmentaciones se configuran en Meta Ads Manager.
+              🌍 {t("metaAdsPage.geoTargeting")} <strong>{t("metaAdsPage.colombia")}</strong> · {t("metaAdsPage.geoTargetingHint")}
             </div>
 
             <DialogFooter className="gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>← Volver</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setStep(1)}>{t("metaAdsPage.back")}</Button>
               <Button type="submit" size="sm" disabled={saving || !adsetName.trim() || !adsetBudget}>
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                Siguiente: Anuncio →
+                {t("metaAdsPage.nextAd")}
               </Button>
             </DialogFooter>
           </form>
@@ -924,16 +932,16 @@ function CreateCampaignDialog({
           <form onSubmit={handleCreateAd} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-medium">Nombre del anuncio *</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.adNameLabel")}</Label>
                 <Input value={adName} onChange={e => setAdName(e.target.value)}
-                  placeholder="Ej: Anuncio Principal – Imagen" required className="h-9" />
+                  placeholder={t("metaAdsPage.adNamePlaceholder")} required className="h-9" />
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-medium">Página de Facebook *</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.facebookPageLabel")}</Label>
                 <Select value={pageId} onValueChange={setPageId} required>
                   <SelectTrigger className="h-9 text-xs">
-                    <SelectValue placeholder="Selecciona una página…" />
+                    <SelectValue placeholder={t("metaAdsPage.selectPagePlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
                     {pages.map(p => (
@@ -944,42 +952,42 @@ function CreateCampaignDialog({
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-medium">URL de imagen (opcional)</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.imageUrlLabel")}</Label>
                 <Input value={imageUrl} onChange={e => setImageUrl(e.target.value)}
                   placeholder="https://…/imagen.jpg" className="h-9" type="url" />
-                <p className="text-[10px] text-muted-foreground">URL pública de la imagen (1200×628 recomendado)</p>
+                <p className="text-[10px] text-muted-foreground">{t("metaAdsPage.imageUrlHint")}</p>
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-medium">Titular (headline) <span className="text-muted-foreground">{headline.length}/40</span></Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.headlineLabel")} <span className="text-muted-foreground">{headline.length}/40</span></Label>
                 <Input value={headline} onChange={e => setHeadline(e.target.value.slice(0, 40))}
-                  placeholder="Tu propuesta de valor en pocas palabras" className="h-9" />
+                  placeholder={t("metaAdsPage.headlinePlaceholder")} className="h-9" />
               </div>
 
               <div className="space-y-1.5 col-span-2">
-                <Label className="text-xs font-medium">Texto principal <span className="text-muted-foreground">{adBody.length}/125</span></Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.primaryTextLabel")} <span className="text-muted-foreground">{adBody.length}/125</span></Label>
                 <textarea
                   value={adBody}
                   onChange={e => setAdBody(e.target.value.slice(0, 125))}
-                  placeholder="Descripción que aparece sobre la imagen…"
+                  placeholder={t("metaAdsPage.primaryTextPlaceholder")}
                   rows={3}
                   className="w-full rounded-md border bg-background px-3 py-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none"
                 />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">URL de destino *</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.destinationUrlLabel")}</Label>
                 <Input value={linkUrl} onChange={e => setLinkUrl(e.target.value)} required
                   placeholder="https://tu-sitio.com/landing" className="h-9" type="url" />
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Botón CTA</Label>
+                <Label className="text-xs font-medium">{t("metaAdsPage.ctaButtonLabel")}</Label>
                 <Select value={cta} onValueChange={setCta}>
                   <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CTA_OPTIONS.map(c => (
-                      <SelectItem key={c.value} value={c.value} className="text-xs">{c.label}</SelectItem>
+                      <SelectItem key={c.value} value={c.value} className="text-xs">{t(`metaAdsPage.${c.labelKey}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -987,10 +995,10 @@ function CreateCampaignDialog({
             </div>
 
             <DialogFooter className="gap-2 pt-1">
-              <Button type="button" variant="outline" size="sm" onClick={() => setStep(2)}>← Volver</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => setStep(2)}>{t("metaAdsPage.back")}</Button>
               <Button type="submit" size="sm" disabled={saving || !adName.trim() || !pageId || !linkUrl.trim()}>
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
-                Crear anuncio
+                {t("metaAdsPage.createAd")}
               </Button>
             </DialogFooter>
           </form>
@@ -1002,6 +1010,7 @@ function CreateCampaignDialog({
 
 /* ─── Analysis panel ─────────────────────────────────────────────────────── */
 function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const critical = scored.flatMap(c => c.insights.filter(i => i.severity === "critical").map(i => ({ ...i, campaign: c })));
@@ -1011,9 +1020,9 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
   if (critical.length + warnings.length + positive.length === 0) return null;
 
   const summary = [
-    critical.length > 0 && { icon: <AlertTriangle className="h-3.5 w-3.5" />, text: `${critical.length} problema${critical.length > 1 ? "s" : ""} crítico${critical.length > 1 ? "s" : ""}`, cls: "text-destructive bg-red-50 dark:bg-red-900/20" },
-    warnings.length > 0 && { icon: <TrendingDown className="h-3.5 w-3.5" />, text: `${warnings.length} advertencia${warnings.length > 1 ? "s" : ""}`, cls: "text-amber-600 bg-amber-50 dark:bg-amber-900/20" },
-    positive.length > 0 && { icon: <Zap className="h-3.5 w-3.5" />, text: `${positive.length} oportunidad${positive.length > 1 ? "es" : ""}`, cls: "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
+    critical.length > 0 && { icon: <AlertTriangle className="h-3.5 w-3.5" />, text: t("metaAdsPage.summaryCritical", { count: critical.length }), cls: "text-destructive bg-red-50 dark:bg-red-900/20" },
+    warnings.length > 0 && { icon: <TrendingDown className="h-3.5 w-3.5" />, text: t("metaAdsPage.summaryWarnings", { count: warnings.length }), cls: "text-amber-600 bg-amber-50 dark:bg-amber-900/20" },
+    positive.length > 0 && { icon: <Zap className="h-3.5 w-3.5" />, text: t("metaAdsPage.summaryOpportunities", { count: positive.length }), cls: "text-emerald-700 bg-emerald-50 dark:bg-emerald-900/20" },
   ].filter(Boolean) as { icon: React.ReactNode; text: string; cls: string }[];
 
   return (
@@ -1026,7 +1035,7 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
           <div className="flex items-center gap-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <BarChart3 className="h-4 w-4 text-primary" />
-              Análisis de rendimiento
+              {t("metaAdsPage.performanceAnalysis")}
             </CardTitle>
             <div className="flex items-center gap-2">
               {summary.map((s, i) => (
@@ -1048,7 +1057,7 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
           {critical.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-destructive mb-2 flex items-center gap-1">
-                <AlertTriangle className="h-3.5 w-3.5" /> Problemas críticos
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("metaAdsPage.criticalProblems")}
               </p>
               <div className="space-y-2">
                 {critical.map((ins, i) => (
@@ -1071,7 +1080,7 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
           {warnings.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-amber-600 mb-2 flex items-center gap-1">
-                <TrendingDown className="h-3.5 w-3.5" /> Advertencias
+                <TrendingDown className="h-3.5 w-3.5" /> {t("metaAdsPage.warnings")}
               </p>
               <div className="space-y-2">
                 {warnings.map((ins, i) => (
@@ -1094,7 +1103,7 @@ function AnalysisPanel({ scored }: { scored: ScoredCampaign[] }) {
           {positive.length > 0 && (
             <div>
               <p className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1">
-                <Zap className="h-3.5 w-3.5" /> Oportunidades
+                <Zap className="h-3.5 w-3.5" /> {t("metaAdsPage.opportunities")}
               </p>
               <div className="space-y-2">
                 {positive.map((ins, i) => (
@@ -1126,6 +1135,7 @@ function RoasTab({
   campaigns: Campaign[];
   roasData: Record<string, { leads: number; won: number; revenue: number }>;
 }) {
+  const { t } = useTranslation();
   const fmt = (n: number) =>
     new Intl.NumberFormat("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 }).format(n);
 
@@ -1157,10 +1167,10 @@ function RoasTab({
       {/* Summary KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Inversión Meta",    value: fmt(totalSpend),        sub: "gasto total importado" },
-          { label: "Ingresos atribuidos", value: fmt(totalRev),        sub: "deals ganados de Meta leads" },
-          { label: "ROAS global",        value: globalRoas ? `${globalRoas.toFixed(2)}x` : "—", sub: "ingreso por cada $ invertido", highlight: globalRoas !== null },
-          { label: "Tasa de cierre",     value: totalLeads > 0 ? `${((totalWon / totalLeads) * 100).toFixed(1)}%` : "—", sub: `${totalWon} ganados de ${totalLeads} leads` },
+          { label: t("metaAdsPage.metaInvestment"),    value: fmt(totalSpend),        sub: t("metaAdsPage.metaInvestmentSub") },
+          { label: t("metaAdsPage.attributedRevenue"), value: fmt(totalRev),        sub: t("metaAdsPage.attributedRevenueSub") },
+          { label: t("metaAdsPage.globalRoas"),        value: globalRoas ? `${globalRoas.toFixed(2)}x` : "—", sub: t("metaAdsPage.globalRoasSub"), highlight: globalRoas !== null },
+          { label: t("metaAdsPage.closeRate"),     value: totalLeads > 0 ? `${((totalWon / totalLeads) * 100).toFixed(1)}%` : "—", sub: t("metaAdsPage.closeRateSub", { won: totalWon, leads: totalLeads }) },
         ].map((k, i) => (
           <Card key={i} className="border-none shadow-sm">
             <CardContent className="p-4">
@@ -1176,12 +1186,11 @@ function RoasTab({
       <Card className="border-none shadow-sm">
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-primary" /> ROAS por campaña
+            <TrendingUp className="h-4 w-4 text-primary" /> {t("metaAdsPage.roasByCampaign")}
           </CardTitle>
           {noData && (
             <p className="text-xs text-muted-foreground">
-              No hay leads importados con atribución de campaña aún.
-              Importa leads desde la pestaña Campañas → Sincronizar para cruzar datos.
+              {t("metaAdsPage.noAttributedLeads")}
             </p>
           )}
         </CardHeader>
@@ -1191,7 +1200,7 @@ function RoasTab({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="border-b bg-muted/30">
-                    {["Campaña", "Estado", "Inversión", "Leads CRM", "Deals ganados", "Ingresos cerrados", "ROAS", "CPL real", "Tasa cierre"].map(h => (
+                    {[t("metaAdsPage.thCampaign"), t("metaAdsPage.thStatus"), t("metaAdsPage.thInvestment"), t("metaAdsPage.thCrmLeads"), t("metaAdsPage.thWonDeals"), t("metaAdsPage.thClosedRevenue"), t("metaAdsPage.thRoas"), t("metaAdsPage.thRealCpl"), t("metaAdsPage.thCloseRate")].map(h => (
                       <th key={h} className="px-4 py-2.5 text-left font-medium text-muted-foreground whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
@@ -1235,9 +1244,9 @@ function RoasTab({
       </Card>
 
       <div className="rounded-lg border bg-blue-50/50 dark:bg-blue-900/10 border-blue-200 dark:border-blue-800 p-4 text-xs text-blue-700 dark:text-blue-300 space-y-1">
-        <p className="font-semibold">¿Cómo funciona la atribución?</p>
-        <p>Cada lead importado desde Meta (formularios o webhook) se etiqueta con el <strong>campaign_id</strong> del anuncio que lo generó. Cuando ese contacto avanza a <strong>deal ganado</strong> en tu pipeline, el valor del deal se atribuye a esa campaña.</p>
-        <p className="text-blue-600 dark:text-blue-400">Para capturar UTMs de tu sitio web → próximamente con el pixel de seguimiento en landing pages.</p>
+        <p className="font-semibold">{t("metaAdsPage.attributionHowTitle")}</p>
+        <p>{t("metaAdsPage.attributionHowP1Pre")}<strong>campaign_id</strong>{t("metaAdsPage.attributionHowP1Mid")}<strong>{t("metaAdsPage.attributionHowP1Deal")}</strong>{t("metaAdsPage.attributionHowP1Post")}</p>
+        <p className="text-blue-600 dark:text-blue-400">{t("metaAdsPage.attributionHowP2")}</p>
       </div>
     </div>
   );
@@ -1245,6 +1254,7 @@ function RoasTab({
 
 /* ─── Page ───────────────────────────────────────────────────────────────── */
 export default function MetaAdsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { organizationId } = useOrganizationContext();
   const fb = useFacebookIntegration();
@@ -1271,7 +1281,7 @@ export default function MetaAdsPage() {
     : 0;
   const syncOnCooldown = syncCooldownRemaining > 0;
   const syncCooldownLabel = syncOnCooldown
-    ? `Sync en ${Math.ceil(syncCooldownRemaining / 60000)} min`
+    ? t("metaAdsPage.syncInMin", { min: Math.ceil(syncCooldownRemaining / 60000) })
     : null;
 
   const [adCampaignFilter,  setAdCampaignFilter]  = useState("all");
@@ -1430,7 +1440,7 @@ export default function MetaAdsPage() {
 
     // Step 1: gather every ad account. Prefer the freshly-loaded list; fall back
     // to a live fetch, then to whatever accounts are already present in campaigns.
-    setSyncStep("Buscando cuentas publicitarias…");
+    setSyncStep(t("metaAdsPage.syncStepFindingAccounts"));
     let accounts = adAccounts.length ? adAccounts : await fb.getAdAccounts();
     if (accounts.length) setAdAccounts(accounts);
 
@@ -1449,7 +1459,7 @@ export default function MetaAdsPage() {
     if (!accountIds.length) {
       setSyncing(false);
       setSyncStep(null);
-      toast.error("No se encontró ninguna cuenta publicitaria vinculada");
+      toast.error(t("metaAdsPage.noLinkedAccount"));
       return;
     }
 
@@ -1470,9 +1480,9 @@ export default function MetaAdsPage() {
     for (const accId of accountIds) {
       done++;
       const label = accountIds.length > 1 ? ` (${done}/${accountIds.length})` : "";
-      setSyncStep(`Importando campañas de ${nameOf(accId)}${label}…`);
+      setSyncStep(t("metaAdsPage.syncStepImportingCampaigns", { name: nameOf(accId), label }));
       await fb.importCampaigns(accId);
-      setSyncStep(`Importando anuncios de ${nameOf(accId)}${label}…`);
+      setSyncStep(t("metaAdsPage.syncStepImportingAds", { name: nameOf(accId), label }));
       await fb.importAdsStructure(accId);
     }
 
@@ -1483,8 +1493,8 @@ export default function MetaAdsPage() {
     setSyncStep(null);
     toast.success(
       accountIds.length > 1
-        ? `${accountIds.length} cuentas publicitarias sincronizadas`
-        : "Cuenta publicitaria sincronizada"
+        ? t("metaAdsPage.accountsSynced", { count: accountIds.length })
+        : t("metaAdsPage.accountSynced")
     );
     const now = Date.now();
     setLastSyncAt(now);
@@ -1542,7 +1552,7 @@ export default function MetaAdsPage() {
   }, [campaigns, metaAds, adAccounts, accountNameMap]);
 
   /* ── Analysis ─────────────────────────────────────────────────────────── */
-  const scored = useMemo(() => analyzeCampaigns(filtered), [filtered]);
+  const scored = useMemo(() => analyzeCampaigns(filtered, t), [filtered, t]);
 
   /* ── Totals ───────────────────────────────────────────────────────────── */
   const totals = useMemo(() => filtered.reduce(
@@ -1580,25 +1590,25 @@ export default function MetaAdsPage() {
   }, [filtered]);
 
   const chartConfig = {
-    spend:  { label: "Gasto",  color: "hsl(var(--primary))" },
-    leads:  { label: "Leads",  color: "hsl(142 70% 45%)" },
-    clicks: { label: "Clicks", color: "hsl(220 70% 50%)" },
+    spend:  { label: t("metaAdsPage.spendShort"),  color: "hsl(var(--primary))" },
+    leads:  { label: t("metaAdsPage.leadsShort"),  color: "hsl(142 70% 45%)" },
+    clicks: { label: t("metaAdsPage.kpiClicks"), color: "hsl(220 70% 50%)" },
   };
 
   /* ── Not connected ────────────────────────────────────────────────────── */
   if (!fb.isConnected && !fb.loading) {
     return (
       <AppLayout>
-        <AppHeader title="Meta Ads" subtitle="Gestión y análisis de campañas" />
+        <AppHeader title="Meta Ads" subtitle={t("metaAdsPage.headerSubtitle")} />
         <main className="flex-1 overflow-y-auto p-6">
           <Card className="max-w-md mx-auto">
             <CardContent className="p-8 text-center space-y-4">
               <BarChart3 className="h-12 w-12 text-muted-foreground mx-auto" />
-              <h3 className="text-lg font-semibold">Conecta Meta Ads</h3>
+              <h3 className="text-lg font-semibold">{t("metaAdsPage.connectMetaAds")}</h3>
               <p className="text-sm text-muted-foreground">
-                Para ver y gestionar campañas, primero conecta tu cuenta de Meta desde Integraciones.
+                {t("metaAdsPage.connectMetaAdsDesc")}
               </p>
-              <Button onClick={() => navigate(path("/integrations"))}>Ir a Integraciones</Button>
+              <Button onClick={() => navigate(path("/integrations"))}>{t("metaAdsPage.goToIntegrations")}</Button>
             </CardContent>
           </Card>
         </main>
@@ -1608,7 +1618,7 @@ export default function MetaAdsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Meta Ads" subtitle="Gestión y análisis de campañas" />
+      <AppHeader title="Meta Ads" subtitle={t("metaAdsPage.headerSubtitle")} />
       <main className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
 
         {/* ── Tab bar ──────────────────────────────────────────────────── */}
@@ -1623,7 +1633,7 @@ export default function MetaAdsPage() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <BarChart3 className="h-3.5 w-3.5" /> Campañas
+              <BarChart3 className="h-3.5 w-3.5" /> {t("metaAdsPage.tabCampaigns")}
             </button>
             <button
               onClick={() => setActiveTab("ads")}
@@ -1634,7 +1644,7 @@ export default function MetaAdsPage() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <Layers className="h-3.5 w-3.5" /> Anuncios y creativos
+              <Layers className="h-3.5 w-3.5" /> {t("metaAdsPage.tabAds")}
               {metaAds.length > 0 && (
                 <span className="ml-1 rounded-full bg-primary/10 text-primary px-1.5 py-0 text-[10px] font-semibold">
                   {metaAds.length}
@@ -1650,7 +1660,7 @@ export default function MetaAdsPage() {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <TrendingUp className="h-3.5 w-3.5" /> Atribución ROAS
+              <TrendingUp className="h-3.5 w-3.5" /> {t("metaAdsPage.tabRoas")}
             </button>
           </div>
 
@@ -1658,19 +1668,19 @@ export default function MetaAdsPage() {
             <div className="flex items-center">
               <Button size="sm" onClick={handleSyncAll} disabled={syncing || syncOnCooldown}
                 className={adAccounts.length > 1 ? "rounded-r-none" : ""}
-                title={syncOnCooldown ? `Próxima sincronización disponible en ${Math.ceil(syncCooldownRemaining / 60000)} minutos` : undefined}>
+                title={syncOnCooldown ? t("metaAdsPage.nextSyncAvailable", { min: Math.ceil(syncCooldownRemaining / 60000) }) : undefined}>
                 {syncing
                   ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                   : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
                 {syncing
-                  ? (syncStep || "Sincronizando…")
+                  ? (syncStep || t("metaAdsPage.syncing"))
                   : syncOnCooldown
                     ? syncCooldownLabel!
                     : adAccounts.length > 1
                       ? (syncSelection.length === adAccounts.length || !syncSelection.length
-                          ? "Sincronizar todas"
-                          : `Sincronizar (${syncSelection.length})`)
-                      : "Sincronizar todo"}
+                          ? t("metaAdsPage.syncAllFem")
+                          : t("metaAdsPage.syncCount", { count: syncSelection.length }))
+                      : t("metaAdsPage.syncAll")}
               </Button>
 
               {/* Account picker — choose which ad accounts to sync */}
@@ -1679,21 +1689,21 @@ export default function MetaAdsPage() {
                   <PopoverTrigger asChild>
                     <Button size="sm" variant="default" disabled={syncing}
                       className="rounded-l-none border-l border-primary-foreground/20 px-2"
-                      title="Elegir qué cuentas sincronizar">
+                      title={t("metaAdsPage.chooseAccountsToSync")}>
                       <ChevronDown className="h-3.5 w-3.5" />
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent align="end" className="w-72 p-0">
                     <div className="flex items-center justify-between px-3 py-2 border-b">
-                      <span className="text-xs font-semibold">Cuentas a sincronizar</span>
+                      <span className="text-xs font-semibold">{t("metaAdsPage.accountsToSync")}</span>
                       <div className="flex gap-2">
                         <button className="text-[11px] text-primary hover:underline"
                           onClick={() => { const all = adAccounts.map(a => a.id); setSyncSelection(all); try { localStorage.setItem(`meta_sync_sel_${user?.id}`, JSON.stringify(all)); } catch { /* ignore */ } }}>
-                          Todas
+                          {t("metaAdsPage.allFem")}
                         </button>
                         <button className="text-[11px] text-muted-foreground hover:underline"
                           onClick={() => { setSyncSelection([]); try { localStorage.setItem(`meta_sync_sel_${user?.id}`, "[]"); } catch { /* ignore */ } }}>
-                          Ninguna
+                          {t("metaAdsPage.noneFem")}
                         </button>
                       </div>
                     </div>
@@ -1707,7 +1717,7 @@ export default function MetaAdsPage() {
                           <div className="min-w-0 flex-1">
                             <p className="text-xs font-medium truncate">{acc.name || acc.id}</p>
                             <p className="text-[10px] text-muted-foreground">
-                              {acc.currency}{acc.account_status === 1 ? " · Activa" : " · Inactiva"}
+                              {acc.currency}{acc.account_status === 1 ? ` · ${t("metaAdsPage.statusActive")}` : ` · ${t("metaAdsPage.inactiveFem")}`}
                             </p>
                           </div>
                         </label>
@@ -1717,7 +1727,7 @@ export default function MetaAdsPage() {
                       <Button size="sm" className="w-full h-8"
                         disabled={syncing || !syncSelection.length}
                         onClick={() => { setSyncPickerOpen(false); handleSyncAll(); }}>
-                        Sincronizar {syncSelection.length === adAccounts.length ? "todas" : `${syncSelection.length} cuenta${syncSelection.length === 1 ? "" : "s"}`}
+                        {syncSelection.length === adAccounts.length ? t("metaAdsPage.syncAllFem") : t("metaAdsPage.syncNAccounts", { count: syncSelection.length })}
                       </Button>
                     </div>
                   </PopoverContent>
@@ -1726,7 +1736,7 @@ export default function MetaAdsPage() {
             </div>
             {lastSyncAt && !syncing && (
               <span className="text-[10px] text-muted-foreground">
-                Últ. sync: {format(new Date(lastSyncAt), "HH:mm", { locale: es })}
+                {t("metaAdsPage.lastSync")} {format(new Date(lastSyncAt), "HH:mm", { locale: es })}
               </span>
             )}
           </div>
@@ -1740,10 +1750,10 @@ export default function MetaAdsPage() {
               {accountsWithData.length > 1 && (
                 <Select value={accountFilter} onValueChange={setAccountFilter}>
                   <SelectTrigger className="w-[190px] h-8 text-xs font-medium">
-                    <SelectValue placeholder="Cuenta publicitaria" />
+                    <SelectValue placeholder={t("metaAdsPage.adAccountPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las cuentas ({accountsWithData.length})</SelectItem>
+                    <SelectItem value="all">{t("metaAdsPage.allAccounts", { count: accountsWithData.length })}</SelectItem>
                     {accountsWithData.map(acc => (
                       <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                     ))}
@@ -1753,10 +1763,10 @@ export default function MetaAdsPage() {
 
               <Select value={adCampaignFilter} onValueChange={setAdCampaignFilter}>
                 <SelectTrigger className="w-[200px] h-8 text-xs">
-                  <SelectValue placeholder="Campaña" />
+                  <SelectValue placeholder={t("metaAdsPage.campaignPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las campañas</SelectItem>
+                  <SelectItem value="all">{t("metaAdsPage.allCampaigns")}</SelectItem>
                   {campaigns.map(c => (
                     <SelectItem key={c.campaign_id} value={c.campaign_id}>
                       <span className="truncate max-w-[180px]">{c.campaign_name}</span>
@@ -1767,42 +1777,42 @@ export default function MetaAdsPage() {
 
               <Select value={adStatusFilter} onValueChange={setAdStatusFilter}>
                 <SelectTrigger className="w-[150px] h-8 text-xs">
-                  <SelectValue placeholder="Estado" />
+                  <SelectValue placeholder={t("metaAdsPage.statusPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los estados</SelectItem>
-                  <SelectItem value="ACTIVE">Activos</SelectItem>
-                  <SelectItem value="PAUSED">Pausados</SelectItem>
+                  <SelectItem value="all">{t("metaAdsPage.allStatuses")}</SelectItem>
+                  <SelectItem value="ACTIVE">{t("metaAdsPage.activeMasc")}</SelectItem>
+                  <SelectItem value="PAUSED">{t("metaAdsPage.pausedMasc")}</SelectItem>
                 </SelectContent>
               </Select>
 
               {(adCampaignFilter !== "all" || adStatusFilter !== "all") && (
                 <Button size="sm" variant="ghost" className="h-8 text-xs"
                   onClick={() => { setAdCampaignFilter("all"); setAdStatusFilter("all"); }}>
-                  <X className="h-3 w-3 mr-1" /> Limpiar
+                  <X className="h-3 w-3 mr-1" /> {t("metaAdsPage.clear")}
                 </Button>
               )}
-              <Badge variant="secondary" className="text-xs">{filteredAds.length} anuncios</Badge>
+              <Badge variant="secondary" className="text-xs">{t("metaAdsPage.adsCount", { count: filteredAds.length })}</Badge>
             </div>
 
             {metaAds.length === 0 ? (
               <Card className="border-none shadow-sm">
                 <CardContent className="py-16 text-center space-y-3">
                   <Layers className="h-12 w-12 text-muted-foreground/30 mx-auto" />
-                  <p className="text-sm font-medium text-foreground">Sin anuncios importados</p>
+                  <p className="text-sm font-medium text-foreground">{t("metaAdsPage.noImportedAds")}</p>
                   <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                    Usa el botón "Sincronizar todo" para traer campañas, conjuntos y anuncios con sus creativos desde Meta.
+                    {t("metaAdsPage.noImportedAdsHint")}
                   </p>
                   <Button size="sm" onClick={handleSyncAll} disabled={syncing}>
                     {syncing ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
-                    Sincronizar todo
+                    {t("metaAdsPage.syncAll")}
                   </Button>
                 </CardContent>
               </Card>
             ) : filteredAds.length === 0 ? (
               <Card className="border-none shadow-sm">
                 <CardContent className="py-10 text-center text-sm text-muted-foreground">
-                  Sin anuncios para los filtros seleccionados.
+                  {t("metaAdsPage.noAdsForFilters")}
                 </CardContent>
               </Card>
             ) : (
@@ -1831,10 +1841,10 @@ export default function MetaAdsPage() {
             {accountsWithData.length > 1 && (
               <Select value={accountFilter} onValueChange={setAccountFilter}>
                 <SelectTrigger className="w-[190px] h-8 text-xs font-medium">
-                  <SelectValue placeholder="Cuenta publicitaria" />
+                  <SelectValue placeholder={t("metaAdsPage.adAccountPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las cuentas ({accountsWithData.length})</SelectItem>
+                  <SelectItem value="all">{t("metaAdsPage.allAccounts", { count: accountsWithData.length })}</SelectItem>
                   {accountsWithData.map(acc => (
                     <SelectItem key={acc.id} value={acc.id}>{acc.name}</SelectItem>
                   ))}
@@ -1844,23 +1854,23 @@ export default function MetaAdsPage() {
 
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[150px] h-8 text-xs">
-                <SelectValue placeholder="Estado" />
+                <SelectValue placeholder={t("metaAdsPage.statusPlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los estados</SelectItem>
-                <SelectItem value="ACTIVE">Activas</SelectItem>
-                <SelectItem value="PAUSED">Pausadas</SelectItem>
-                <SelectItem value="DELETED">Eliminadas</SelectItem>
-                <SelectItem value="ARCHIVED">Archivadas</SelectItem>
+                <SelectItem value="all">{t("metaAdsPage.allStatuses")}</SelectItem>
+                <SelectItem value="ACTIVE">{t("metaAdsPage.statusActive")}</SelectItem>
+                <SelectItem value="PAUSED">{t("metaAdsPage.statusPaused")}</SelectItem>
+                <SelectItem value="DELETED">{t("metaAdsPage.statusDeleted")}</SelectItem>
+                <SelectItem value="ARCHIVED">{t("metaAdsPage.statusArchived")}</SelectItem>
               </SelectContent>
             </Select>
 
             <Select value={objectiveFilter} onValueChange={setObjectiveFilter}>
               <SelectTrigger className="w-[160px] h-8 text-xs">
-                <SelectValue placeholder="Objetivo" />
+                <SelectValue placeholder={t("metaAdsPage.objectivePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los objetivos</SelectItem>
+                <SelectItem value="all">{t("metaAdsPage.allObjectives")}</SelectItem>
                 {uniqueObjectives.map(obj => (
                   <SelectItem key={obj} value={obj}>{obj}</SelectItem>
                 ))}
@@ -1871,7 +1881,7 @@ export default function MetaAdsPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-8 text-xs w-[130px] justify-start font-normal", !dateFrom && "text-muted-foreground")}>
                   <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : "Desde"}
+                  {dateFrom ? format(dateFrom, "dd/MM/yyyy") : t("metaAdsPage.dateFrom")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1883,7 +1893,7 @@ export default function MetaAdsPage() {
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className={cn("h-8 text-xs w-[130px] justify-start font-normal", !dateTo && "text-muted-foreground")}>
                   <CalendarIcon className="mr-1.5 h-3.5 w-3.5" />
-                  {dateTo ? format(dateTo, "dd/MM/yyyy") : "Hasta"}
+                  {dateTo ? format(dateTo, "dd/MM/yyyy") : t("metaAdsPage.dateTo")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -1894,11 +1904,11 @@ export default function MetaAdsPage() {
             {(dateFrom || dateTo || objectiveFilter !== "all" || statusFilter !== "all") && (
               <Button size="sm" variant="ghost" className="h-8 text-xs"
                 onClick={() => { setStatusFilter("all"); setObjectiveFilter("all"); setDateFrom(undefined); setDateTo(undefined); }}>
-                <X className="h-3 w-3 mr-1" /> Limpiar
+                <X className="h-3 w-3 mr-1" /> {t("metaAdsPage.clear")}
               </Button>
             )}
 
-            <Badge variant="secondary" className="text-xs">{filtered.length} campañas</Badge>
+            <Badge variant="secondary" className="text-xs">{t("metaAdsPage.campaignsCount", { count: filtered.length })}</Badge>
           </div>
 
           {/* Sync handled by the global "Sincronizar todo" button in the tab bar */}
@@ -1907,12 +1917,12 @@ export default function MetaAdsPage() {
         {/* ── KPI cards ─────────────────────────────────────────────────── */}
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           {[
-            { label: "Gasto total",   value: `$${totals.spend.toLocaleString("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: <DollarSign className="h-3.5 w-3.5" /> },
-            { label: "Impresiones",   value: totals.impressions.toLocaleString("es"),   icon: <Eye className="h-3.5 w-3.5" /> },
-            { label: "Clicks",        value: totals.clicks.toLocaleString("es"),        icon: <MousePointerClick className="h-3.5 w-3.5" /> },
-            { label: "Leads",         value: totals.leads.toLocaleString("es"),         icon: <Users className="h-3.5 w-3.5" /> },
-            { label: "CPL promedio",  value: `$${avgCpl.toFixed(2)}`,                  icon: <Target className="h-3.5 w-3.5" /> },
-            { label: "CTR",           value: `${ctr.toFixed(2)}%`,                     icon: <TrendingUp className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiTotalSpend"),   value: `$${totals.spend.toLocaleString("es", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, icon: <DollarSign className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiImpressions"),  value: totals.impressions.toLocaleString("es"),   icon: <Eye className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiClicks"),       value: totals.clicks.toLocaleString("es"),        icon: <MousePointerClick className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiLeads"),        value: totals.leads.toLocaleString("es"),         icon: <Users className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiAvgCpl"),       value: `$${avgCpl.toFixed(2)}`,                  icon: <Target className="h-3.5 w-3.5" /> },
+            { label: t("metaAdsPage.kpiCtr"),          value: `${ctr.toFixed(2)}%`,                     icon: <TrendingUp className="h-3.5 w-3.5" /> },
           ].map(k => (
             <Card key={k.label}>
               <CardContent className="p-4">
@@ -1932,11 +1942,11 @@ export default function MetaAdsPage() {
         <div className="grid gap-6 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Top campañas por gasto</CardTitle>
+              <CardTitle className="text-sm font-semibold">{t("metaAdsPage.topCampaignsBySpend")}</CardTitle>
             </CardHeader>
             <CardContent>
               {barData.length === 0 ? (
-                <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">Sin datos de campañas</div>
+                <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">{t("metaAdsPage.noCampaignData")}</div>
               ) : (
                 <ChartContainer config={chartConfig} className="h-[300px] w-full">
                   <BarChart data={barData} layout="vertical" margin={{ left: 10, right: 20 }}>
@@ -1953,11 +1963,11 @@ export default function MetaAdsPage() {
 
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Gasto por objetivo</CardTitle>
+              <CardTitle className="text-sm font-semibold">{t("metaAdsPage.spendByObjective")}</CardTitle>
             </CardHeader>
             <CardContent>
               {pieData.length === 0 ? (
-                <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">Sin datos</div>
+                <div className="flex items-center justify-center h-[250px] text-sm text-muted-foreground">{t("metaAdsPage.noData")}</div>
               ) : (
                 <>
                   <ChartContainer config={chartConfig} className="h-[260px] w-full">
@@ -1989,8 +1999,8 @@ export default function MetaAdsPage() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-semibold">Detalle de campañas</CardTitle>
-              <p className="text-xs text-muted-foreground">Puedes pausar o activar campañas directamente desde aquí</p>
+              <CardTitle className="text-sm font-semibold">{t("metaAdsPage.campaignDetail")}</CardTitle>
+              <p className="text-xs text-muted-foreground">{t("metaAdsPage.campaignDetailHint")}</p>
             </div>
           </CardHeader>
           <CardContent>
@@ -2000,23 +2010,23 @@ export default function MetaAdsPage() {
               </div>
             ) : scored.length === 0 ? (
               <div className="text-center py-12 text-sm text-muted-foreground">
-                No hay campañas importadas. Ve a Integraciones para importar campañas de Meta Ads.
+                {t("metaAdsPage.noImportedCampaigns")}
               </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left text-xs text-muted-foreground">
-                      <th className="pb-2 pr-3 font-medium">Campaña</th>
-                      {accountsWithData.length > 1 && <th className="pb-2 pr-3 font-medium">Cuenta</th>}
-                      <th className="pb-2 pr-3 font-medium">Estado</th>
-                      <th className="pb-2 pr-3 font-medium">Score</th>
-                      <th className="pb-2 pr-3 font-medium">Objetivo</th>
-                      <th className="pb-2 pr-3 font-medium text-right">Gasto</th>
-                      <th className="pb-2 pr-3 font-medium text-right">Impresiones</th>
-                      <th className="pb-2 pr-3 font-medium text-right">CTR</th>
-                      <th className="pb-2 pr-3 font-medium text-right">Leads</th>
-                      <th className="pb-2 font-medium text-right">CPL</th>
+                      <th className="pb-2 pr-3 font-medium">{t("metaAdsPage.thCampaign")}</th>
+                      {accountsWithData.length > 1 && <th className="pb-2 pr-3 font-medium">{t("metaAdsPage.thAccount")}</th>}
+                      <th className="pb-2 pr-3 font-medium">{t("metaAdsPage.thStatus")}</th>
+                      <th className="pb-2 pr-3 font-medium">{t("metaAdsPage.thScore")}</th>
+                      <th className="pb-2 pr-3 font-medium">{t("metaAdsPage.thObjective")}</th>
+                      <th className="pb-2 pr-3 font-medium text-right">{t("metaAdsPage.spendShort")}</th>
+                      <th className="pb-2 pr-3 font-medium text-right">{t("metaAdsPage.kpiImpressions")}</th>
+                      <th className="pb-2 pr-3 font-medium text-right">{t("metaAdsPage.thCtr")}</th>
+                      <th className="pb-2 pr-3 font-medium text-right">{t("metaAdsPage.leadsShort")}</th>
+                      <th className="pb-2 font-medium text-right">{t("metaAdsPage.cplLabel")}</th>
                     </tr>
                   </thead>
                   <tbody>

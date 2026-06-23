@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 interface Profile {
   first_name: string;
@@ -23,6 +24,7 @@ interface Profile {
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(true);
@@ -87,11 +89,11 @@ export default function ProfilePage() {
         );
 
       if (error) throw error;
-      toast.success("Perfil actualizado correctamente");
+      toast.success(t("profilePage.profileUpdated"));
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
       console.warn("Error saving profile:", err);
-      toast.error("Error al guardar el perfil");
+      toast.error(t("profilePage.profileSaveError"));
     } finally {
       setSaving(false);
     }
@@ -99,27 +101,27 @@ export default function ProfilePage() {
 
   const handleChangePassword = async () => {
     if (!newPassword || !confirmPassword) {
-      toast.error("Completa todos los campos de contraseña");
+      toast.error(t("profilePage.passwordFieldsRequired"));
       return;
     }
     if (newPassword.length < 6) {
-      toast.error("La nueva contraseña debe tener al menos 6 caracteres");
+      toast.error(t("profilePage.passwordTooShort"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      toast.error("Las contraseñas no coinciden");
+      toast.error(t("profilePage.passwordsDoNotMatch"));
       return;
     }
     setChangingPassword(true);
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
-      toast.success("Contraseña actualizada correctamente");
+      toast.success(t("profilePage.passwordUpdated"));
       setNewPassword("");
       setConfirmPassword("");
     } catch (err: any) {
       console.warn("Error changing password:", err);
-      toast.error(err.message || "Error al cambiar la contraseña");
+      toast.error(err.message || t("profilePage.passwordChangeError"));
     } finally {
       setChangingPassword(false);
     }
@@ -129,17 +131,17 @@ export default function ProfilePage() {
     setDeleting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("No hay sesión activa");
+      if (!session) throw new Error(t("profilePage.noActiveSession"));
 
       const response = await supabase.functions.invoke("delete-account");
       if (response.error) throw response.error;
 
       await signOut();
       navigate("/auth");
-      toast.success("Tu cuenta ha sido eliminada");
+      toast.success(t("profilePage.accountDeleted"));
     } catch (err: any) {
       console.warn("Error deleting account:", err);
-      toast.error(err.message || "Error al eliminar la cuenta");
+      toast.error(err.message || t("profilePage.accountDeleteError"));
     } finally {
       setDeleting(false);
     }
@@ -150,11 +152,11 @@ export default function ProfilePage() {
     if (!file || !user) return;
 
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo se permiten archivos de imagen");
+      toast.error(t("profilePage.imageOnly"));
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("La imagen no puede superar los 2MB");
+      toast.error(t("profilePage.imageTooLarge"));
       return;
     }
 
@@ -188,11 +190,11 @@ export default function ProfilePage() {
           { onConflict: "user_id" }
         );
 
-      toast.success("Foto de perfil actualizada");
+      toast.success(t("profilePage.avatarUpdated"));
       window.dispatchEvent(new Event("profile-updated"));
     } catch (err: any) {
       console.warn("Error uploading avatar:", err);
-      toast.error("Error al subir la imagen");
+      toast.error(t("profilePage.avatarUploadError"));
     } finally {
       setUploading(false);
     }
@@ -204,23 +206,23 @@ export default function ProfilePage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Mi perfil" subtitle="Gestiona tu información personal" />
+      <AppHeader title={t("profilePage.headerTitle")} subtitle={t("profilePage.headerSubtitle")} />
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-2xl space-y-6">
           {/* Avatar section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Foto de perfil</CardTitle>
+              <CardTitle className="text-base">{t("profilePage.avatarCardTitle")}</CardTitle>
               <CardDescription>
-                Sube una imagen que te represente. Máximo 2MB.
+                {t("profilePage.avatarCardDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-6">
                 <div className="relative group">
                   <Avatar className="h-24 w-24 border-2 border-border">
-                    <AvatarImage src={profile.avatar_url ?? undefined} alt="Avatar" />
+                    <AvatarImage src={profile.avatar_url ?? undefined} alt={t("profilePage.avatarAlt")} />
                     <AvatarFallback className="bg-primary text-primary-foreground text-xl font-semibold">
                       {initials}
                     </AvatarFallback>
@@ -248,7 +250,7 @@ export default function ProfilePage() {
                   <p className="text-sm font-medium text-foreground">
                     {profile.first_name || profile.last_name
                       ? `${profile.first_name} ${profile.last_name}`.trim()
-                      : "Sin nombre configurado"}
+                      : t("profilePage.noNameSet")}
                   </p>
                   <p className="text-xs text-muted-foreground">{user?.email}</p>
                   <Button
@@ -258,7 +260,7 @@ export default function ProfilePage() {
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploading}
                   >
-                    {uploading ? "Subiendo..." : "Cambiar foto"}
+                    {uploading ? t("profilePage.uploading") : t("profilePage.changePhoto")}
                   </Button>
                 </div>
               </div>
@@ -268,9 +270,9 @@ export default function ProfilePage() {
           {/* Personal info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Información personal</CardTitle>
+              <CardTitle className="text-base">{t("profilePage.personalInfoTitle")}</CardTitle>
               <CardDescription>
-                Actualiza tu nombre y número de teléfono.
+                {t("profilePage.personalInfoDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -282,10 +284,10 @@ export default function ProfilePage() {
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label htmlFor="first_name">Nombre</Label>
+                      <Label htmlFor="first_name">{t("profilePage.firstNameLabel")}</Label>
                       <Input
                         id="first_name"
-                        placeholder="Tu nombre"
+                        placeholder={t("profilePage.firstNamePlaceholder")}
                         value={profile.first_name}
                         onChange={(e) =>
                           setProfile((p) => ({ ...p, first_name: e.target.value }))
@@ -294,10 +296,10 @@ export default function ProfilePage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="last_name">Apellido</Label>
+                      <Label htmlFor="last_name">{t("profilePage.lastNameLabel")}</Label>
                       <Input
                         id="last_name"
-                        placeholder="Tu apellido"
+                        placeholder={t("profilePage.lastNamePlaceholder")}
                         value={profile.last_name}
                         onChange={(e) =>
                           setProfile((p) => ({ ...p, last_name: e.target.value }))
@@ -307,7 +309,7 @@ export default function ProfilePage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="phone">Teléfono</Label>
+                    <Label htmlFor="phone">{t("profilePage.phoneLabel")}</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -326,7 +328,7 @@ export default function ProfilePage() {
                       ) : (
                         <Save className="mr-2 h-4 w-4" />
                       )}
-                      Guardar cambios
+                      {t("profilePage.saveChanges")}
                     </Button>
                   </div>
                 </>
@@ -337,23 +339,23 @@ export default function ProfilePage() {
           {/* Account info (read-only) */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Cuenta</CardTitle>
+              <CardTitle className="text-base">{t("profilePage.accountCardTitle")}</CardTitle>
               <CardDescription>
-                Información de tu cuenta de acceso.
+                {t("profilePage.accountCardDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-3 rounded-lg border p-3">
                 <Mail className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Correo electrónico</p>
+                  <p className="text-xs text-muted-foreground">{t("profilePage.emailLabel")}</p>
                   <p className="text-sm font-medium text-foreground truncate">{user?.email ?? "—"}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 rounded-lg border p-3">
                 <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-xs text-muted-foreground">Último inicio de sesión</p>
+                  <p className="text-xs text-muted-foreground">{t("profilePage.lastSignIn")}</p>
                   <p className="text-sm font-medium text-foreground">
                     {user?.last_sign_in_at
                       ? new Date(user.last_sign_in_at).toLocaleString("es-MX")
@@ -367,29 +369,29 @@ export default function ProfilePage() {
           {/* Change password */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Cambiar contraseña</CardTitle>
+              <CardTitle className="text-base">{t("profilePage.changePasswordTitle")}</CardTitle>
               <CardDescription>
-                Actualiza tu contraseña de acceso.
+                {t("profilePage.changePasswordDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="new_password">Nueva contraseña</Label>
+                <Label htmlFor="new_password">{t("profilePage.newPasswordLabel")}</Label>
                 <Input
                   id="new_password"
                   type="password"
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t("profilePage.newPasswordPlaceholder")}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   maxLength={72}
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirm_password">Confirmar contraseña</Label>
+                <Label htmlFor="confirm_password">{t("profilePage.confirmPasswordLabel")}</Label>
                 <Input
                   id="confirm_password"
                   type="password"
-                  placeholder="Repite la nueva contraseña"
+                  placeholder={t("profilePage.confirmPasswordPlaceholder")}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   maxLength={72}
@@ -402,7 +404,7 @@ export default function ProfilePage() {
                   ) : (
                     <Lock className="mr-2 h-4 w-4" />
                   )}
-                  Cambiar contraseña
+                  {t("profilePage.changePasswordButton")}
                 </Button>
               </div>
             </CardContent>
@@ -411,9 +413,9 @@ export default function ProfilePage() {
           {/* Delete account */}
           <Card className="border-destructive/50">
             <CardHeader>
-              <CardTitle className="text-base text-destructive">Eliminar cuenta</CardTitle>
+              <CardTitle className="text-base text-destructive">{t("profilePage.deleteAccountTitle")}</CardTitle>
               <CardDescription>
-                Esta acción es permanente e irreversible. Se eliminarán todos tus datos.
+                {t("profilePage.deleteAccountDescription")}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -425,24 +427,23 @@ export default function ProfilePage() {
                     ) : (
                       <Trash2 className="mr-2 h-4 w-4" />
                     )}
-                    Eliminar mi cuenta
+                    {t("profilePage.deleteAccountButton")}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                    <AlertDialogTitle>{t("profilePage.confirmDeleteTitle")}</AlertDialogTitle>
                     <AlertDialogDescription>
-                      Esta acción no se puede deshacer. Se eliminará permanentemente tu cuenta,
-                      datos de perfil y todos los archivos asociados.
+                      {t("profilePage.confirmDeleteDescription")}
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogCancel>{t("profilePage.cancel")}</AlertDialogCancel>
                     <AlertDialogAction
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                       onClick={handleDeleteAccount}
                     >
-                      Sí, eliminar mi cuenta
+                      {t("profilePage.confirmDeleteButton")}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

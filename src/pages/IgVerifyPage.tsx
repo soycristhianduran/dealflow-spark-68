@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Loader2, CheckCircle2, XCircle, Instagram } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 type State =
   | { phase: "loading" }
@@ -23,11 +24,12 @@ const FUNCTION_URL = `${SUPABASE_URL}/functions/v1/ig-follow-verify`;
 
 export default function IgVerifyPage() {
   const { token } = useParams<{ token: string }>();
+  const { t } = useTranslation();
   const [state, setState] = useState<State>({ phase: "loading" });
 
   useEffect(() => {
     if (!token) {
-      setState({ phase: "error", message: "Token inválido" });
+      setState({ phase: "error", message: t("igVerifyPage.invalidToken") });
       return;
     }
 
@@ -40,7 +42,7 @@ export default function IgVerifyPage() {
         else if (data.status === "ready_to_deliver") setState({ phase: "ready" });
         else if (data.status === "already_delivered") setState({ phase: "already_delivered" });
         else if (data.status === "not_following") setState({ phase: "not_following", profileUrl: data.profile_url });
-        else setState({ phase: "error", message: data.message || "Error desconocido" });
+        else setState({ phase: "error", message: data.message || t("igVerifyPage.unknownError") });
       })
       .catch((e) => setState({ phase: "error", message: String(e) }));
   }, [token]);
@@ -61,8 +63,8 @@ export default function IgVerifyPage() {
           {state.phase === "loading" && (
             <div className="p-8 text-center space-y-4">
               <Loader2 className="h-10 w-10 animate-spin text-pink-500 mx-auto" />
-              <p className="text-base font-semibold text-gray-800">Verificando tu seguimiento...</p>
-              <p className="text-sm text-gray-500">Solo un momento 🙏</p>
+              <p className="text-base font-semibold text-gray-800">{t("igVerifyPage.verifyingFollow")}</p>
+              <p className="text-sm text-gray-500">{t("igVerifyPage.justAMoment")}</p>
             </div>
           )}
 
@@ -73,9 +75,9 @@ export default function IgVerifyPage() {
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">¡Tu recurso está listo! 🎉</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t("igVerifyPage.deliveredTitle")}</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Ya te enviamos el recurso a tu DM de Instagram. ¡Disfrútalo!
+                {t("igVerifyPage.deliveredBody")}
               </p>
               <div className="pt-2">
                 <a
@@ -83,7 +85,7 @@ export default function IgVerifyPage() {
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-md hover:from-pink-600 hover:to-orange-600 transition-all"
                 >
                   <Instagram className="h-4 w-4" />
-                  Ver mi DM →
+                  {t("igVerifyPage.viewMyDm")}
                 </a>
               </div>
             </div>
@@ -96,9 +98,9 @@ export default function IgVerifyPage() {
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">¡Seguimiento verificado! 🎉</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t("igVerifyPage.readyTitle")}</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                ¡Perfecto! Vuelve al chat y escríbenos <strong>cualquier mensaje</strong> para recibir el recurso al instante.
+                {t("igVerifyPage.readyBodyBefore")} <strong>{t("igVerifyPage.readyBodyEmphasis")}</strong> {t("igVerifyPage.readyBodyAfter")}
               </p>
               <div className="pt-2">
                 <a
@@ -106,7 +108,7 @@ export default function IgVerifyPage() {
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-md hover:from-pink-600 hover:to-orange-600 transition-all"
                 >
                   <Instagram className="h-4 w-4" />
-                  Ir al chat →
+                  {t("igVerifyPage.goToChat")}
                 </a>
               </div>
             </div>
@@ -119,9 +121,9 @@ export default function IgVerifyPage() {
                   <CheckCircle2 className="h-10 w-10 text-green-500" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Ya te enviamos el recurso</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t("igVerifyPage.alreadyDeliveredTitle")}</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Ya te habíamos enviado el recurso anteriormente. Revisa tus mensajes directos de Instagram.
+                {t("igVerifyPage.alreadyDeliveredBody")}
               </p>
               <div className="pt-2">
                 <a
@@ -129,7 +131,7 @@ export default function IgVerifyPage() {
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-md hover:from-pink-600 hover:to-orange-600 transition-all"
                 >
                   <Instagram className="h-4 w-4" />
-                  Ver DMs de Instagram
+                  {t("igVerifyPage.viewInstagramDms")}
                 </a>
               </div>
             </div>
@@ -142,10 +144,9 @@ export default function IgVerifyPage() {
                   <XCircle className="h-10 w-10 text-orange-400" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Aún no nos sigues 👀</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t("igVerifyPage.notFollowingTitle")}</h2>
               <p className="text-sm text-gray-600 leading-relaxed">
-                Para enviarte el recurso necesitamos que primero sigas la cuenta.
-                Una vez que lo hagas, vuelve aquí y presiona el botón de abajo.
+                {t("igVerifyPage.notFollowingBody")}
               </p>
               <div className="pt-2 space-y-2">
                 {state.profileUrl && (
@@ -154,7 +155,7 @@ export default function IgVerifyPage() {
                     className="flex items-center justify-center gap-2 bg-gradient-to-r from-pink-500 to-orange-500 text-white text-sm font-semibold px-6 py-3 rounded-2xl shadow-md hover:from-pink-600 hover:to-orange-600 transition-all"
                   >
                     <Instagram className="h-4 w-4" />
-                    Seguir ahora
+                    {t("igVerifyPage.followNow")}
                   </a>
                 )}
                 <button
@@ -169,13 +170,13 @@ export default function IgVerifyPage() {
                         else if (data.status === "ready_to_deliver") setState({ phase: "ready" });
                         else if (data.status === "already_delivered") setState({ phase: "already_delivered" });
                         else if (data.status === "not_following") setState({ phase: "not_following", profileUrl: data.profile_url });
-                        else setState({ phase: "error", message: data.message || "Error desconocido" });
+                        else setState({ phase: "error", message: data.message || t("igVerifyPage.unknownError") });
                       })
                       .catch((e) => setState({ phase: "error", message: String(e) }));
                   }}
                   className="flex w-full items-center justify-center gap-2 border-2 border-gray-200 text-gray-700 text-sm font-semibold px-6 py-3 rounded-2xl hover:border-pink-300 hover:text-pink-600 transition-all"
                 >
-                  ✅ Ya te sigo — verificar de nuevo
+                  {t("igVerifyPage.alreadyFollowingVerifyAgain")}
                 </button>
               </div>
             </div>
@@ -188,14 +189,14 @@ export default function IgVerifyPage() {
                   <XCircle className="h-10 w-10 text-red-400" />
                 </div>
               </div>
-              <h2 className="text-xl font-bold text-gray-900">Algo salió mal</h2>
+              <h2 className="text-xl font-bold text-gray-900">{t("igVerifyPage.errorTitle")}</h2>
               <p className="text-sm text-gray-500">{state.message}</p>
             </div>
           )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
-          Powered by <span className="font-semibold">Klosify CRM</span>
+          {t("igVerifyPage.poweredBy")} <span className="font-semibold">Klosify CRM</span>
         </p>
       </div>
     </div>

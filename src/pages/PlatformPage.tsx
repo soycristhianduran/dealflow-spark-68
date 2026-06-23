@@ -4,6 +4,7 @@
  * Data + access gate come from the platform-stats edge function.
  */
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -108,6 +109,7 @@ function InfraCard({ icon, title, right, children }: any) {
 }
 
 export default function PlatformPage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<any>(null);
   const [trend, setTrend] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +118,7 @@ export default function PlatformPage() {
   async function load() {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("platform-stats", { body: {} });
-    if (error) setError("No autorizado o error al cargar.");
+    if (error) setError(t("platformPage.unauthorizedError"));
     else if (data?.error) setError(data.error);
     else { setData(data); setError(null); }
     supabase.from("platform_daily_stats")
@@ -135,7 +137,7 @@ export default function PlatformPage() {
       <div>
         <AlertTriangle className="h-8 w-8 text-amber-500 mx-auto mb-3" />
         <p className="text-sm text-muted-foreground">{error}</p>
-        <Link to="/" className="text-sm text-primary mt-3 inline-block">Volver</Link>
+        <Link to="/" className="text-sm text-primary mt-3 inline-block">{t("platformPage.back")}</Link>
       </div>
     </div>
   );
@@ -161,8 +163,8 @@ export default function PlatformPage() {
                   <KlosifyLogo size={24} variant="white" />
                 </span>
                 <div>
-                  <h1 className="text-xl md:text-2xl font-bold tracking-tight">Panel de Plataforma</h1>
-                  <p className="text-xs text-white/70 mt-0.5">Klosify · Estado del SaaS · {new Date(data.generated_at).toLocaleString("es")}</p>
+                  <h1 className="text-xl md:text-2xl font-bold tracking-tight">{t("platformPage.title")}</h1>
+                  <p className="text-xs text-white/70 mt-0.5">{t("platformPage.subtitle", { date: new Date(data.generated_at).toLocaleString("es") })}</p>
                 </div>
               </div>
             </div>
@@ -175,25 +177,25 @@ export default function PlatformPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <KpiCard highlight label="MRR real" value={money(s.mrr_usd)} sub={s.mrr_trials_usd > 0 ? `+${money(s.mrr_trials_usd)} en trials` : "ingresos cobrados"} icon={<DollarSign className="h-4 w-4" />} />
-          <KpiCard accent="emerald" label="Margen bruto" value={`${margin}%`} sub={`infra ${money(s.infra_month_usd)}/mes`} icon={<TrendingUp className="h-4 w-4" />} />
-          <KpiCard accent="sky" label="Clientes pagando" value={`${s.paying_orgs ?? 0}`} sub={`${s.trial_orgs ?? 0} prueba · ${s.total_orgs} totales`} icon={<Activity className="h-4 w-4" />} />
-          <KpiCard accent="orange" label="Costo IA" value={money(s.anthropic_month_usd)} sub="tokens reales/mes" icon={<Sparkles className="h-4 w-4" />} />
+          <KpiCard highlight label={t("platformPage.mrrReal")} value={money(s.mrr_usd)} sub={s.mrr_trials_usd > 0 ? t("platformPage.mrrTrials", { amount: money(s.mrr_trials_usd) }) : t("platformPage.collectedRevenue")} icon={<DollarSign className="h-4 w-4" />} />
+          <KpiCard accent="emerald" label={t("platformPage.grossMargin")} value={`${margin}%`} sub={t("platformPage.infraPerMonth", { amount: money(s.infra_month_usd) })} icon={<TrendingUp className="h-4 w-4" />} />
+          <KpiCard accent="sky" label={t("platformPage.payingCustomers")} value={`${s.paying_orgs ?? 0}`} sub={t("platformPage.orgsBreakdown", { trial: s.trial_orgs ?? 0, total: s.total_orgs })} icon={<Activity className="h-4 w-4" />} />
+          <KpiCard accent="orange" label={t("platformPage.aiCost")} value={money(s.anthropic_month_usd)} sub={t("platformPage.realTokensPerMonth")} icon={<Sparkles className="h-4 w-4" />} />
         </div>
 
         {/* Infra */}
         <div>
-          <SectionTitle>Costo de infraestructura · tiempo real</SectionTitle>
+          <SectionTitle>{t("platformPage.infraSectionTitle")}</SectionTitle>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <InfraCard icon={<span className={LOGO_CHIP}><AnthropicIcon size={16} /></span>} title="Costo IA"
-              right={<span className="text-lg font-bold tracking-tight">{money(s.anthropic_month_usd)}<span className="text-[11px] font-normal text-muted-foreground">/mes</span></span>}>
+            <InfraCard icon={<span className={LOGO_CHIP}><AnthropicIcon size={16} /></span>} title={t("platformPage.aiCost")}
+              right={<span className="text-lg font-bold tracking-tight">{money(s.anthropic_month_usd)}<span className="text-[11px] font-normal text-muted-foreground">{t("platformPage.perMonthSuffix")}</span></span>}>
               <div className="space-y-1 text-[11px]">
                 {[
-                  ["Agente de Chat", data.anthropic.agent_usd, "Anthropic"],
-                  ["IA Landings", data.anthropic.landings_usd, "Anthropic"],
-                  ["Análisis llamadas", data.anthropic.call_usd, "Anthropic"],
-                  ["Análisis leads", data.anthropic.openai_analysis_usd, "OpenAI"],
-                  ["Asistente CRM", data.anthropic.openai_assistant_usd, "OpenAI"],
+                  [t("platformPage.chatAgent"), data.anthropic.agent_usd, "Anthropic"],
+                  [t("platformPage.aiLandings"), data.anthropic.landings_usd, "Anthropic"],
+                  [t("platformPage.callAnalysis"), data.anthropic.call_usd, "Anthropic"],
+                  [t("platformPage.leadAnalysis"), data.anthropic.openai_analysis_usd, "OpenAI"],
+                  [t("platformPage.crmAssistant"), data.anthropic.openai_assistant_usd, "OpenAI"],
                 ].map(([l, v, p]: any) => (
                   <div key={l} className="flex justify-between items-center py-0.5">
                     <span className="text-muted-foreground">{l} <span className="text-muted-foreground/50">· {p}</span></span>
@@ -201,12 +203,12 @@ export default function PlatformPage() {
                   </div>
                 ))}
               </div>
-              <p className="text-[10px] text-muted-foreground/70 pt-2 border-t border-border/50">Tokens reales · pago por uso</p>
+              <p className="text-[10px] text-muted-foreground/70 pt-2 border-t border-border/50">{t("platformPage.realTokensPayPerUse")}</p>
             </InfraCard>
 
-            <InfraCard icon={<span className={LOGO_CHIP}><ResendIcon size={16} /></span>} title="Resend · Email"
-              right={<span className="text-lg font-bold tracking-tight">{compact(data.resend.emails_this_month)}<span className="text-[11px] font-normal text-muted-foreground"> correos</span></span>}>
-              <Bar m={{ used: data.resend.emails_this_month, limit: data.resend.cap, pct: data.resend.pct, flag: data.resend.upgrade ? "near" : "ok" }} label={`Plan ${data.resend.tier}`} />
+            <InfraCard icon={<span className={LOGO_CHIP}><ResendIcon size={16} /></span>} title={t("platformPage.resendEmail")}
+              right={<span className="text-lg font-bold tracking-tight">{compact(data.resend.emails_this_month)}<span className="text-[11px] font-normal text-muted-foreground"> {t("platformPage.emailsWord")}</span></span>}>
+              <Bar m={{ used: data.resend.emails_this_month, limit: data.resend.cap, pct: data.resend.pct, flag: data.resend.upgrade ? "near" : "ok" }} label={t("platformPage.planLabel", { tier: data.resend.tier })} />
               <p className={`text-[10px] ${data.resend.upgrade ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground/70"}`}>{data.resend.suggestion}</p>
             </InfraCard>
 
@@ -214,32 +216,32 @@ export default function PlatformPage() {
               right={<span className="text-sm font-medium text-muted-foreground">{data.supabase.mau} MAU</span>}>
               <Bar m={{ used: data.supabase.db_size_gb, limit: data.supabase.db_included_gb, pct: data.supabase.db_pct, flag: data.supabase.upgrade ? "near" : "ok" }} label="DB (GB)" />
               <Bar m={{ used: data.supabase.storage_gb, limit: data.supabase.storage_included_gb, pct: data.supabase.storage_pct, flag: "ok" }} label="Storage (GB)" />
-              <p className="text-[10px] text-muted-foreground/70">{data.supabase.total_users} usuarios · egress en dashboard</p>
+              <p className="text-[10px] text-muted-foreground/70">{t("platformPage.supabaseUsers", { count: data.supabase.total_users })}</p>
             </InfraCard>
 
-            <InfraCard icon={<span className={LOGO_CHIP}><StripeIcon size={16} /></span>} title="Stripe · Comisiones"
-              right={<span className="text-lg font-bold tracking-tight">{data.stripe.fees_this_month_usd < 0 ? "—" : money(data.stripe.fees_this_month_usd)}<span className="text-[11px] font-normal text-muted-foreground">/mes</span></span>}>
-              <p className="text-[11px] text-muted-foreground">{data.stripe.paying_subs ?? 0} suscripciones activas</p>
+            <InfraCard icon={<span className={LOGO_CHIP}><StripeIcon size={16} /></span>} title={t("platformPage.stripeFees")}
+              right={<span className="text-lg font-bold tracking-tight">{data.stripe.fees_this_month_usd < 0 ? "—" : money(data.stripe.fees_this_month_usd)}<span className="text-[11px] font-normal text-muted-foreground">{t("platformPage.perMonthSuffix")}</span></span>}>
+              <p className="text-[11px] text-muted-foreground">{t("platformPage.activeSubscriptions", { count: data.stripe.paying_subs ?? 0 })}</p>
               <p className="text-[10px] text-muted-foreground/70">{data.stripe.note}</p>
             </InfraCard>
 
             {data.vercel?.available && (
-              <InfraCard icon={<span className={LOGO_CHIP}><VercelIcon size={15} /></span>} title="Vercel · Hosting"
+              <InfraCard icon={<span className={LOGO_CHIP}><VercelIcon size={15} /></span>} title={t("platformPage.vercelHosting")}
                 right={<span className="inline-flex items-center gap-1.5 text-[11px] font-medium"><span className={`h-1.5 w-1.5 rounded-full ${data.vercel.last_deploy_state === "READY" ? "bg-emerald-500" : "bg-amber-500"}`} />{data.vercel.last_deploy_state}</span>}>
-                <div className="text-sm font-medium">Plan {data.vercel.plan}</div>
+                <div className="text-sm font-medium">{t("platformPage.planLabel", { tier: data.vercel.plan })}</div>
                 <div className="text-[11px] text-muted-foreground space-y-0.5">
-                  <div>Deploys (30d): {data.vercel.deploys_30d}</div>
+                  <div>{t("platformPage.deploys30d", { count: data.vercel.deploys_30d })}</div>
                   <div>{data.vercel.limits}</div>
                 </div>
               </InfraCard>
             )}
 
             {data.cloudflare?.available && (
-              <InfraCard icon={<span className={LOGO_CHIP}><CloudflareIcon size={17} /></span>} title="Cloudflare · CDN"
-                right={<span className="text-lg font-bold tracking-tight">{compact(data.cloudflare.requests_30d)}<span className="text-[11px] font-normal text-muted-foreground"> req</span></span>}>
+              <InfraCard icon={<span className={LOGO_CHIP}><CloudflareIcon size={17} /></span>} title={t("platformPage.cloudflareCdn")}
+                right={<span className="text-lg font-bold tracking-tight">{compact(data.cloudflare.requests_30d)}<span className="text-[11px] font-normal text-muted-foreground"> {t("platformPage.reqWord")}</span></span>}>
                 <div className="text-[11px] text-muted-foreground space-y-0.5">
-                  <div>Transferencia: {data.cloudflare.gb_30d} GB · 30d</div>
-                  <div>Caché: {data.cloudflare.cached_pct}% · Plan {data.cloudflare.plan}</div>
+                  <div>{t("platformPage.cloudflareTransfer", { gb: data.cloudflare.gb_30d })}</div>
+                  <div>{t("platformPage.cloudflareCache", { pct: data.cloudflare.cached_pct, plan: data.cloudflare.plan })}</div>
                 </div>
               </InfraCard>
             )}
@@ -249,15 +251,15 @@ export default function PlatformPage() {
         {/* Integraciones */}
         {data.integrations?.whatsapp && (
           <div>
-            <SectionTitle>Integraciones · salud</SectionTitle>
+            <SectionTitle>{t("platformPage.integrationsSectionTitle")}</SectionTitle>
             <div className={`${CARD} p-5`}>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-5">
                 {[
-                  { name: "WhatsApp", logo: <WhatsAppIcon size={18} />, main: `${data.integrations.whatsapp.active}/${data.integrations.whatsapp.total}`, sub: `Webhook OK: ${data.integrations.whatsapp.webhook_ok}`, ok: true },
-                  { name: "Instagram", logo: <InstagramIcon size={18} />, main: `${data.integrations.instagram.active}/${data.integrations.instagram.total}`, sub: `Reconectar: ${data.integrations.instagram.needs_reconnect}`, ok: data.integrations.instagram.needs_reconnect === 0 },
-                  { name: "Google Calendar", logo: <GoogleCalendarIcon size={18} />, main: `${data.integrations.google_calendar.connected}`, sub: "conectados", ok: true },
-                  { name: "Voz · Vapi", logo: <VoiceIcon size={18} />, main: `${data.integrations.voice_vapi.active}/${data.integrations.voice_vapi.total}`, sub: "activos", ok: true },
-                  { name: "Meta Ads", logo: <MetaAdsIcon size={18} />, main: `${data.integrations.meta_ads.orgs_connected}`, sub: "orgs", ok: true },
+                  { name: "WhatsApp", logo: <WhatsAppIcon size={18} />, main: `${data.integrations.whatsapp.active}/${data.integrations.whatsapp.total}`, sub: t("platformPage.webhookOk", { value: data.integrations.whatsapp.webhook_ok }), ok: true },
+                  { name: "Instagram", logo: <InstagramIcon size={18} />, main: `${data.integrations.instagram.active}/${data.integrations.instagram.total}`, sub: t("platformPage.reconnect", { value: data.integrations.instagram.needs_reconnect }), ok: data.integrations.instagram.needs_reconnect === 0 },
+                  { name: "Google Calendar", logo: <GoogleCalendarIcon size={18} />, main: `${data.integrations.google_calendar.connected}`, sub: t("platformPage.connected"), ok: true },
+                  { name: t("platformPage.voiceVapi"), logo: <VoiceIcon size={18} />, main: `${data.integrations.voice_vapi.active}/${data.integrations.voice_vapi.total}`, sub: t("platformPage.active"), ok: true },
+                  { name: "Meta Ads", logo: <MetaAdsIcon size={18} />, main: `${data.integrations.meta_ads.orgs_connected}`, sub: t("platformPage.orgsWord"), ok: true },
                 ].map((i) => (
                   <div key={i.name} className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -277,17 +279,17 @@ export default function PlatformPage() {
         {/* Tendencia */}
         {trend.length > 0 && (
           <div>
-            <SectionTitle>Tendencia · snapshot diario</SectionTitle>
+            <SectionTitle>{t("platformPage.trendSectionTitle")}</SectionTitle>
             <div className={`${CARD} overflow-hidden`}>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="text-muted-foreground border-b border-border/60">
-                      <th className="text-left font-medium px-5 py-3">Fecha</th>
-                      <th className="text-right font-medium px-5 py-3">Orgs</th>
-                      <th className="text-right font-medium px-5 py-3">Costo IA</th>
-                      <th className="text-right font-medium px-5 py-3">Infra</th>
-                      <th className="text-right font-medium px-5 py-3">Correos</th>
+                      <th className="text-left font-medium px-5 py-3">{t("platformPage.colDate")}</th>
+                      <th className="text-right font-medium px-5 py-3">{t("platformPage.colOrgs")}</th>
+                      <th className="text-right font-medium px-5 py-3">{t("platformPage.aiCost")}</th>
+                      <th className="text-right font-medium px-5 py-3">{t("platformPage.colInfra")}</th>
+                      <th className="text-right font-medium px-5 py-3">{t("platformPage.colEmails")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,14 +305,14 @@ export default function PlatformPage() {
                   </tbody>
                 </table>
               </div>
-              <p className="text-[10px] text-muted-foreground/70 px-5 py-2.5 border-t border-border/40">Acumulado del mes · actualiza cada día 00:05 UTC</p>
+              <p className="text-[10px] text-muted-foreground/70 px-5 py-2.5 border-t border-border/40">{t("platformPage.trendFooter")}</p>
             </div>
           </div>
         )}
 
         {/* Orgs */}
         <div>
-          <SectionTitle>Organizaciones · consumo vs límites (mes)</SectionTitle>
+          <SectionTitle>{t("platformPage.orgsSectionTitle")}</SectionTitle>
           <div className="space-y-3">
             {data.orgs.filter((o: any) => o.active).map((o: any) => (
               <div key={o.org_id} className={`${CARD} p-5 space-y-4 transition-all duration-300 hover:shadow-lg`}>
@@ -322,19 +324,19 @@ export default function PlatformPage() {
                       <span className={`h-1.5 w-1.5 rounded-full ${o.status === "active" ? "bg-emerald-500" : "bg-amber-500"}`} />{o.status}
                     </span>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">Costo IA: <b className="text-foreground tabular-nums">{money(o.month_cost_usd)}</b></span>
+                  <span className="text-[11px] text-muted-foreground">{t("platformPage.aiCostLabel")} <b className="text-foreground tabular-nums">{money(o.month_cost_usd)}</b></span>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-x-8 gap-y-3">
-                  <Bar m={o.usage.users} label="Usuarios" />
-                  <Bar m={o.usage.contacts} label="Contactos" />
-                  <Bar m={o.usage.email} label="Correos" />
-                  <Bar m={o.usage.agent_credits} label="Créditos Agente" />
-                  <Bar m={o.usage.ai_analyses} label="Análisis IA" />
-                  <Bar m={o.usage.ai_assistant} label="Asistente IA" />
+                  <Bar m={o.usage.users} label={t("platformPage.users")} />
+                  <Bar m={o.usage.contacts} label={t("platformPage.contacts")} />
+                  <Bar m={o.usage.email} label={t("platformPage.colEmails")} />
+                  <Bar m={o.usage.agent_credits} label={t("platformPage.agentCredits")} />
+                  <Bar m={o.usage.ai_analyses} label={t("platformPage.aiAnalyses")} />
+                  <Bar m={o.usage.ai_assistant} label={t("platformPage.aiAssistant")} />
                 </div>
                 {(o.addon_balances.agent_credits > 0 || o.addon_balances.landing_credits > 0 || o.addon_balances.boost > 0) && (
                   <div className="text-[10px] text-muted-foreground pt-1 border-t border-border/40">
-                    Add-ons: {o.addon_balances.agent_credits} créd. agente · {o.addon_balances.landing_credits} créd. landings · {o.addon_balances.boost} boost
+                    {t("platformPage.addons", { agent: o.addon_balances.agent_credits, landing: o.addon_balances.landing_credits, boost: o.addon_balances.boost })}
                   </div>
                 )}
               </div>

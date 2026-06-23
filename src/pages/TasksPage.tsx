@@ -19,6 +19,7 @@ import {
 import { useState, useEffect, useCallback } from "react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 interface TaskRow {
   id: string;
@@ -66,6 +67,7 @@ const nextStatus: Record<string, string> = {
 };
 
 export default function TasksPage() {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const { isVendor, myUserId } = usePermissions();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
@@ -144,7 +146,7 @@ export default function TasksPage() {
   };
 
   const handleCreate = async () => {
-    if (!formTitle.trim()) { toast.error("El título es requerido"); return; }
+    if (!formTitle.trim()) { toast.error(t("tasksPage.titleRequired")); return; }
     setSaving(true);
     const { error } = await supabase.from("tasks").insert({
       title: formTitle.trim(),
@@ -158,8 +160,8 @@ export default function TasksPage() {
       status: "pending",
     });
     setSaving(false);
-    if (error) { toast.error("Error: " + error.message); return; }
-    toast.success("Tarea creada");
+    if (error) { toast.error(t("tasksPage.errorPrefix", { message: error.message })); return; }
+    toast.success(t("tasksPage.taskCreated"));
     setDialogOpen(false);
     fetchTasks();
   };
@@ -167,17 +169,17 @@ export default function TasksPage() {
   const handleDelete = async (id: string) => {
     setTasks(prev => prev.filter(t => t.id !== id));
     await supabase.from("tasks").delete().eq("id", id);
-    toast.success("Tarea eliminada");
+    toast.success(t("tasksPage.taskDeleted"));
   };
 
   return (
     <AppLayout>
       <AppHeader
-        title="Tareas"
-        subtitle={`${pendingCount} pendientes`}
+        title={t("tasksPage.title")}
+        subtitle={t("tasksPage.pendingCount", { count: pendingCount })}
         actions={
           <Button size="sm" className="gap-1.5" onClick={openCreate}>
-            <Plus className="h-4 w-4" /> Nueva tarea
+            <Plus className="h-4 w-4" /> {t("tasksPage.newTask")}
           </Button>
         }
       />
@@ -185,14 +187,14 @@ export default function TasksPage() {
         <Tabs value={tab} onValueChange={setTab}>
           <div className="flex items-center justify-between">
             <TabsList>
-              <TabsTrigger value="all">Todas</TabsTrigger>
-              <TabsTrigger value="today">Hoy</TabsTrigger>
-              <TabsTrigger value="overdue">Atrasadas</TabsTrigger>
-              <TabsTrigger value="completed">Completadas</TabsTrigger>
+              <TabsTrigger value="all">{t("tasksPage.tabAll")}</TabsTrigger>
+              <TabsTrigger value="today">{t("tasksPage.tabToday")}</TabsTrigger>
+              <TabsTrigger value="overdue">{t("tasksPage.tabOverdue")}</TabsTrigger>
+              <TabsTrigger value="completed">{t("tasksPage.tabCompleted")}</TabsTrigger>
             </TabsList>
             <div className="relative max-w-xs">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Buscar tareas..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
+              <Input placeholder={t("tasksPage.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9" />
             </div>
           </div>
 
@@ -202,11 +204,11 @@ export default function TasksPage() {
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : filtered.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground">No hay tareas en esta vista</div>
+              <div className="py-12 text-center text-muted-foreground">{t("tasksPage.emptyView")}</div>
             ) : (
               filtered.map((task) => (
                 <div key={task.id} className="flex items-center gap-3 rounded-lg border bg-card p-4 hover:shadow-sm transition-shadow group">
-                  <button className="shrink-0" onClick={() => toggleStatus(task)} title="Cambiar estado">
+                  <button className="shrink-0" onClick={() => toggleStatus(task)} title={t("tasksPage.changeStatus")}>
                     {statusIcons[task.status]}
                   </button>
                   <div className="flex-1 min-w-0">
@@ -233,7 +235,7 @@ export default function TasksPage() {
                     <button
                       onClick={() => setDeleteTargetId(task.id)}
                       className="opacity-0 group-hover:opacity-100 text-xs text-muted-foreground hover:text-destructive transition-opacity ml-1"
-                      title="Eliminar"
+                      title={t("tasksPage.delete")}
                     >
                       ✕
                     </button>
@@ -248,62 +250,62 @@ export default function TasksPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nueva tarea</DialogTitle>
+            <DialogTitle>{t("tasksPage.newTask")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Título *</Label>
-              <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Ej: Llamar a cliente" />
+              <Label>{t("tasksPage.labelTitle")}</Label>
+              <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder={t("tasksPage.titlePlaceholder")} />
             </div>
             <div className="space-y-2">
-              <Label>Descripción</Label>
-              <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Detalles..." rows={2} />
+              <Label>{t("tasksPage.labelDescription")}</Label>
+              <Textarea value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder={t("tasksPage.descriptionPlaceholder")} rows={2} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Tipo</Label>
+                <Label>{t("tasksPage.labelType")}</Label>
                 <Select value={formType} onValueChange={setFormType}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="follow_up">Seguimiento</SelectItem>
-                    <SelectItem value="call">Llamada</SelectItem>
+                    <SelectItem value="follow_up">{t("tasksPage.typeFollowUp")}</SelectItem>
+                    <SelectItem value="call">{t("tasksPage.typeCall")}</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
                     <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="meeting">Reunión</SelectItem>
-                    <SelectItem value="proposal">Propuesta</SelectItem>
-                    <SelectItem value="payment">Pago</SelectItem>
+                    <SelectItem value="meeting">{t("tasksPage.typeMeeting")}</SelectItem>
+                    <SelectItem value="proposal">{t("tasksPage.typeProposal")}</SelectItem>
+                    <SelectItem value="payment">{t("tasksPage.typePayment")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Prioridad</Label>
+                <Label>{t("tasksPage.labelPriority")}</Label>
                 <Select value={formPriority} onValueChange={setFormPriority}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baja</SelectItem>
-                    <SelectItem value="medium">Media</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="urgent">Urgente</SelectItem>
+                    <SelectItem value="low">{t("tasksPage.priorityLow")}</SelectItem>
+                    <SelectItem value="medium">{t("tasksPage.priorityMedium")}</SelectItem>
+                    <SelectItem value="high">{t("tasksPage.priorityHigh")}</SelectItem>
+                    <SelectItem value="urgent">{t("tasksPage.priorityUrgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Fecha</Label>
+                <Label>{t("tasksPage.labelDate")}</Label>
                 <Input type="date" value={formDueDate} onChange={e => setFormDueDate(e.target.value)} />
               </div>
               <div className="space-y-2">
-                <Label>Hora</Label>
+                <Label>{t("tasksPage.labelTime")}</Label>
                 <Input type="time" value={formDueTime} onChange={e => setFormDueTime(e.target.value)} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Contacto</Label>
+              <Label>{t("tasksPage.labelContact")}</Label>
               <Select value={formContactId} onValueChange={setFormContactId}>
-                <SelectTrigger><SelectValue placeholder="Opcional" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("tasksPage.optional")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin contacto</SelectItem>
+                  <SelectItem value="none">{t("tasksPage.noContact")}</SelectItem>
                   {contacts.map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.full_name}</SelectItem>
                   ))}
@@ -312,10 +314,10 @@ export default function TasksPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("tasksPage.cancel")}</Button>
             <Button onClick={handleCreate} disabled={saving || !formTitle.trim()}>
               {saving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Crear tarea
+              {t("tasksPage.createTask")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -323,16 +325,16 @@ export default function TasksPage() {
       <AlertDialog open={!!deleteTargetId} onOpenChange={open => { if (!open) setDeleteTargetId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar tarea?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("tasksPage.deleteTaskConfirm")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("tasksPage.deleteWarning")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("tasksPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deleteTargetId) handleDelete(deleteTargetId); setDeleteTargetId(null); }}
             >
-              Eliminar
+              {t("tasksPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

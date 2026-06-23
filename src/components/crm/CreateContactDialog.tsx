@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Plus, X, ChevronDown, ChevronUp } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface CreateContactDialogProps {
   open: boolean;
@@ -25,6 +26,7 @@ type CustomField = { key: string; value: string };
 export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateContactDialogProps) {
   const { organizationId } = useOrganizationContext();
   const { isVendor, myUserId } = usePermissions();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
@@ -60,9 +62,9 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
   const addCustomField = () => {
     const key = newFieldKey.trim();
-    if (!key) { toast.error("Escribe un nombre para el campo"); return; }
+    if (!key) { toast.error(t("createContactDialog.fieldNameRequired")); return; }
     if (customFields.some(f => f.key.toLowerCase() === key.toLowerCase())) {
-      toast.error("Ese campo ya existe"); return;
+      toast.error(t("createContactDialog.fieldAlreadyExists")); return;
     }
     setCustomFields(prev => [...prev, { key, value: "" }]);
     setNewFieldKey("");
@@ -78,7 +80,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.first_name.trim()) { toast.error("El nombre es requerido"); return; }
+    if (!form.first_name.trim()) { toast.error(t("createContactDialog.firstNameRequired")); return; }
     
     setLoading(true);
     const companyId = form.company_id && form.company_id !== "none" ? form.company_id : null;
@@ -120,11 +122,11 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
       if (error.message?.includes("contact_limit_reached")) {
         toast.error(
           (error as any).details ||
-          "Has alcanzado el límite de contactos de tu plan. Mejora tu suscripción para agregar más.",
+          t("createContactDialog.contactLimitReached"),
           { duration: 6000 }
         );
       } else {
-        toast.error("Error al crear lead: " + error.message);
+        toast.error(t("createContactDialog.createError", { message: error.message }));
       }
     } else {
       const { data: pipeline } = await supabase
@@ -157,7 +159,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
         }
       }
 
-      toast.success("Lead creado y agregado al pipeline");
+      toast.success(t("createContactDialog.createdSuccess"));
 
       // Fire contact_created automation trigger (fire-and-forget)
       supabase.functions.invoke("automation-runner", {
@@ -176,64 +178,64 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nuevo lead</DialogTitle>
+          <DialogTitle>{t("createContactDialog.title")}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 py-2">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Nombre *</Label>
+              <Label>{t("createContactDialog.firstNameLabel")}</Label>
               <Input value={form.first_name} onChange={e => update("first_name", e.target.value)} placeholder="Carlos" />
             </div>
             <div className="space-y-2">
-              <Label>Apellido</Label>
+              <Label>{t("createContactDialog.lastNameLabel")}</Label>
               <Input value={form.last_name} onChange={e => update("last_name", e.target.value)} placeholder="Mendoza" />
             </div>
             <div className="space-y-2">
-              <Label>Teléfono</Label>
+              <Label>{t("createContactDialog.phoneLabel")}</Label>
               <Input value={form.primary_phone} onChange={e => update("primary_phone", e.target.value)} placeholder="+52 55 1234 5678" />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>{t("createContactDialog.emailLabel")}</Label>
               <Input type="email" value={form.primary_email} onChange={e => update("primary_email", e.target.value)} placeholder="carlos@email.com" />
             </div>
             <div className="space-y-2">
-              <Label>Empresa</Label>
+              <Label>{t("createContactDialog.companyLabel")}</Label>
               <Select value={form.company_id} onValueChange={v => update("company_id", v)}>
-                <SelectTrigger><SelectValue placeholder="Sin empresa" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("createContactDialog.noCompany")} /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin empresa</SelectItem>
+                  <SelectItem value="none">{t("createContactDialog.noCompany")}</SelectItem>
                   {companies.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Origen</Label>
+              <Label>{t("createContactDialog.sourceLabel")}</Label>
               <Select value={form.source} onValueChange={v => update("source", v)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("createContactDialog.selectPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {sources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>Canal preferido</Label>
+              <Label>{t("createContactDialog.preferredChannelLabel")}</Label>
               <Select value={form.preferred_channel} onValueChange={v => update("preferred_channel", v)}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("createContactDialog.selectPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {channels.map(c => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>País</Label>
+              <Label>{t("createContactDialog.countryLabel")}</Label>
               <Input value={form.country} onChange={e => update("country", e.target.value)} placeholder="México" />
             </div>
             <div className="space-y-2">
-              <Label>Ciudad</Label>
+              <Label>{t("createContactDialog.cityLabel")}</Label>
               <Input value={form.city} onChange={e => update("city", e.target.value)} placeholder="CDMX" />
             </div>
             <div className="space-y-2">
-              <Label>Fecha de nacimiento</Label>
+              <Label>{t("createContactDialog.birthdayLabel")}</Label>
               <Input type="date" value={form.birthday} onChange={e => update("birthday", e.target.value)} />
             </div>
           </div>
@@ -247,7 +249,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
             >
               <span className="flex items-center gap-2">
                 <Plus className="h-4 w-4 text-primary" />
-                Campos personalizados
+                {t("createContactDialog.customFields")}
                 {customFields.length > 0 && (
                   <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">
                     {customFields.length}
@@ -269,7 +271,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
                         <Input
                           value={field.value}
                           onChange={e => updateCustomField(index, e.target.value)}
-                          placeholder="Valor"
+                          placeholder={t("createContactDialog.valuePlaceholder")}
                           className="h-8 text-sm"
                         />
                         <Button
@@ -290,7 +292,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
                   <Input
                     value={newFieldKey}
                     onChange={e => setNewFieldKey(e.target.value)}
-                    placeholder="Nombre del campo"
+                    placeholder={t("createContactDialog.fieldNamePlaceholder")}
                     className="h-8 text-sm flex-1"
                     onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addCustomField(); } }}
                   />
@@ -302,7 +304,7 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
                     onClick={addCustomField}
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" />
-                    Agregar
+                    {t("createContactDialog.add")}
                   </Button>
                 </div>
               </div>
@@ -310,8 +312,8 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={loading}>{loading ? "Creando..." : "Crear lead"}</Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{t("createContactDialog.cancel")}</Button>
+            <Button type="submit" disabled={loading}>{loading ? t("createContactDialog.creating") : t("createContactDialog.create")}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

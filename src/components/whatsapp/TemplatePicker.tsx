@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,7 @@ export function TemplatePicker({
   /** When true (bulk send), show + require a campaign name field. */
   requireCampaignName?: boolean;
 }) {
+  const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduleAt, setScheduleAt] = useState("");
@@ -79,24 +81,24 @@ export function TemplatePicker({
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Enviar plantilla</DialogTitle>
+          <DialogTitle>{t("templatePicker.sendTemplate")}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-1">
           {requireCampaignName && (
             <div className="space-y-1.5">
-              <Label>Nombre de la campaña <span className="text-red-500">*</span></Label>
+              <Label>{t("templatePicker.campaignName")} <span className="text-red-500">*</span></Label>
               <Input
                 value={campaignName}
                 onChange={(e) => setCampaignName(e.target.value)}
-                placeholder="Ej: Lanzamiento Verdanzza junio"
+                placeholder={t("templatePicker.campaignNamePlaceholder")}
               />
             </div>
           )}
           <div className="space-y-1.5">
-            <Label>Plantilla aprobada</Label>
+            <Label>{t("templatePicker.approvedTemplate")}</Label>
             <Select value={selected} onValueChange={setSelected}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecciona una plantilla..." />
+                <SelectValue placeholder={t("templatePicker.selectTemplatePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
                 {approved.map((t) => (
@@ -108,7 +110,7 @@ export function TemplatePicker({
               </SelectContent>
             </Select>
             {approved.length === 0 && (
-              <p className="text-xs text-muted-foreground">No hay plantillas aprobadas.</p>
+              <p className="text-xs text-muted-foreground">{t("templatePicker.noApprovedTemplates")}</p>
             )}
           </div>
 
@@ -122,13 +124,13 @@ export function TemplatePicker({
 
           {tpl && varNums.length > 0 && (
             <div className="space-y-2">
-              <Label>Variables</Label>
+              <Label>{t("templatePicker.variables")}</Label>
               {varNums.map((n, i) => (
                 <div key={n} className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
                     <Input
-                      placeholder={requireCampaignName ? "Texto fijo o usa un campo →" : `Valor para {{${n}}}`}
+                      placeholder={requireCampaignName ? t("templatePicker.fixedTextOrField") : t("templatePicker.valueFor", { n })}
                       value={vars[i] || ""}
                       onChange={(e) =>
                         setVars((v) => {
@@ -142,17 +144,17 @@ export function TemplatePicker({
                   </div>
                   {requireCampaignName && (
                     <div className="flex flex-wrap gap-1 pl-10">
-                      {PERSONALIZATION_TOKENS.map((t) => (
+                      {PERSONALIZATION_TOKENS.map((tok) => (
                         <button
-                          key={t.token}
+                          key={tok.token}
                           type="button"
                           onClick={() =>
-                            setVars((v) => { const nv = [...v]; nv[i] = ((nv[i] || "") + t.token); return nv; })
+                            setVars((v) => { const nv = [...v]; nv[i] = ((nv[i] || "") + tok.token); return nv; })
                           }
                           className="rounded-full border bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted"
-                          title={`Inserta ${t.token}`}
+                          title={t("templatePicker.insertToken", { token: tok.token })}
                         >
-                          + {t.label}
+                          + {t(`templatePicker.token_${tok.token.replace(/[{}]/g, "")}`)}
                         </button>
                       ))}
                     </div>
@@ -161,7 +163,7 @@ export function TemplatePicker({
               ))}
               {requireCampaignName && (
                 <p className="text-[11px] text-muted-foreground pl-10">
-                  Los campos como <span className="font-mono">{"{{nombre}}"}</span> se reemplazan por el dato de cada contacto al enviar.
+                  {t("templatePicker.fieldsReplacedPrefix")} <span className="font-mono">{"{{nombre}}"}</span> {t("templatePicker.fieldsReplacedSuffix")}
                 </p>
               )}
             </div>
@@ -174,10 +176,10 @@ export function TemplatePicker({
                 {needsMedia && (
                   <div className="bg-gray-100 rounded p-1.5 text-center text-xs text-muted-foreground">
                     {tpl.header_type === "IMAGE"
-                      ? "🖼 Imagen"
+                      ? t("templatePicker.image")
                       : tpl.header_type === "VIDEO"
-                        ? "🎬 Video"
-                        : "📄 Documento"}
+                        ? t("templatePicker.video")
+                        : t("templatePicker.document")}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap text-sm">{preview}</p>
@@ -199,13 +201,13 @@ export function TemplatePicker({
 
           {requireCampaignName && (
             <div className="space-y-2">
-              <Label>¿Cuándo enviar?</Label>
+              <Label>{t("templatePicker.whenToSend")}</Label>
               <div className="flex gap-2">
                 <Button type="button" size="sm" variant={sendMode === "now" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setSendMode("now")}>
-                  Enviar ahora
+                  {t("templatePicker.sendNow")}
                 </Button>
                 <Button type="button" size="sm" variant={sendMode === "schedule" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setSendMode("schedule")}>
-                  Programar
+                  {t("templatePicker.schedule")}
                 </Button>
               </div>
               {sendMode === "schedule" && (
@@ -222,7 +224,7 @@ export function TemplatePicker({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
-            Cancelar
+            {t("templatePicker.cancel")}
           </Button>
           <Button
             disabled={!canSend || sending || (sendMode === "schedule" && !scheduleAt)}
@@ -235,12 +237,12 @@ export function TemplatePicker({
             {sending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                Procesando...
+                {t("templatePicker.processing")}
               </>
             ) : (
               <>
                 <Send className="h-4 w-4 mr-1" />
-                {sendMode === "schedule" ? "Programar envío" : "Enviar ahora"}
+                {sendMode === "schedule" ? t("templatePicker.scheduleSend") : t("templatePicker.sendNow")}
               </>
             )}
           </Button>

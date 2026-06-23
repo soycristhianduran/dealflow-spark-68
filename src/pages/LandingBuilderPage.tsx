@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
@@ -600,6 +601,7 @@ function getPreviewUrl(slug: string) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LandingBuilderPage() {
+  const { t } = useTranslation();
   // Editor
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -748,6 +750,16 @@ export default function LandingBuilderPage() {
     const idx = PAGE_ROLES.indexOf(current as typeof PAGE_ROLES[number]);
     return PAGE_ROLES[(idx === -1 ? 1 : (idx + 1)) % PAGE_ROLES.length];
   };
+  // Translated label for a page role (ROLE_META labels are Spanish constants)
+  const roleLabel = (role: string): string => {
+    const key: Record<string, string> = {
+      main: "landingBuilderPage.rolePrincipal",
+      thankyou: "landingBuilderPage.roleThankyou",
+      upsell: "landingBuilderPage.roleUpsell",
+      other: "landingBuilderPage.roleOther",
+    };
+    return t(key[role] ?? "landingBuilderPage.roleOther");
+  };
 
   // ── Fetch funnels ────────────────────────────────────────────────────────────
   const fetchFunnels = useCallback(async () => {
@@ -791,7 +803,7 @@ export default function LandingBuilderPage() {
       .insert({ name: newFunnelName.trim() })
       .select()
       .single();
-    if (error) { toast.error("Error al crear el funnel"); return; }
+    if (error) { toast.error(t("landingBuilderPage.errorCreateFunnel")); return; }
     const nf = data as LandingFunnel;
     setFunnels(prev => [...prev, nf]);
     setSelectedFunnelId(nf.id);
@@ -799,20 +811,20 @@ export default function LandingBuilderPage() {
     setNewFunnelOpen(false);
     setNewFunnelName("");
     setBuilderView("pages");
-    toast.success("Proyecto creado");
+    toast.success(t("landingBuilderPage.projectCreated"));
   };
 
   // ── Delete funnel ────────────────────────────────────────────────────────────
   const handleDeleteFunnel = async (id: string) => {
     const { error } = await supabase.from("landing_funnels").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar el funnel"); return; }
+    if (error) { toast.error(t("landingBuilderPage.errorDeleteFunnel")); return; }
     setFunnels(prev => prev.filter(f => f.id !== id));
     if (selectedFunnelId === id) {
       const remaining = funnels.filter(f => f.id !== id);
       setSelectedFunnelId(remaining[0]?.id ?? null);
       if (remaining.length === 0) setPickerLevel("funnels");
     }
-    toast.success("Funnel eliminado");
+    toast.success(t("landingBuilderPage.funnelDeleted"));
   };
 
   // ── Inline rename ────────────────────────────────────────────────────────────
@@ -833,11 +845,11 @@ export default function LandingBuilderPage() {
 
     if (renaming.type === "funnel") {
       const { error } = await supabase.from("landing_funnels").update({ name: trimmed }).eq("id", renaming.id);
-      if (error) { toast.error("Error al renombrar"); return; }
+      if (error) { toast.error(t("landingBuilderPage.errorRename")); return; }
       setFunnels(prev => prev.map(f => f.id === renaming.id ? { ...f, name: trimmed } : f));
     } else {
       const { error } = await supabase.from("landing_pages").update({ name: trimmed }).eq("id", renaming.id);
-      if (error) { toast.error("Error al renombrar"); return; }
+      if (error) { toast.error(t("landingBuilderPage.errorRename")); return; }
       setPages(prev => prev.map(p => p.id === renaming.id ? { ...p, name: trimmed } : p));
       if (selectedId === renaming.id) setName(trimmed);
     }
@@ -874,7 +886,7 @@ export default function LandingBuilderPage() {
       'background:#6366f1;color:#fff;text-align:center;padding:9px 12px;' +
       'font-size:13px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;' +
       'pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.3)';
-    bar.textContent = '✏️  Modo edición activo — haz clic en cualquier texto para editar';
+    bar.textContent = '✏️  ' + t("landingBuilderPage.editModeActive");
     doc.body.insertBefore(bar, doc.body.firstChild);
     doc.body.style.paddingTop = '42px';
 
@@ -1020,7 +1032,7 @@ export default function LandingBuilderPage() {
     setCtaPopover(p => ({ ...p, open: false }));
     if (selectedId) {
       supabase.from("landing_pages").update({ html: work }).eq("id", selectedId)
-        .then(({ error }) => { if (!error) toast.success("Botón actualizado"); });
+        .then(({ error }) => { if (!error) toast.success(t("landingBuilderPage.buttonUpdated")); });
     }
   };
 
@@ -1122,36 +1134,36 @@ export default function LandingBuilderPage() {
       lastError = res.error;
       if (res.error.code !== "23505") break; // not a uniqueness conflict — stop retrying
     }
-    if (!data) { toast.error(`Error al crear la página: ${lastError?.message}`); console.error("Create page error:", lastError); return; }
+    if (!data) { toast.error(t("landingBuilderPage.errorCreatePage", { message: lastError?.message })); console.error("Create page error:", lastError); return; }
     const newPage = data as LandingPage;
     setPages(prev => [...prev, newPage]);
     selectPage(newPage);
     setNewPageOpen(false);
     setNewPageName("");
     setBuilderView("editor");
-    toast.success("Página creada");
+    toast.success(t("landingBuilderPage.pageCreated"));
   };
 
   // ── Set page role (Principal / Gracias / Upsell) ────────────────────────────
   const handleSetPageRole = async (pageId: string, role: string) => {
     setPages(prev => prev.map(p => p.id === pageId ? { ...p, page_role: role } : p));
     const { error } = await supabase.from("landing_pages").update({ page_role: role }).eq("id", pageId);
-    if (error) { toast.error("Error al actualizar rol"); return; }
-    const label = ROLE_META[role]?.label ?? role;
-    toast.success(`Página marcada como "${label}"`);
+    if (error) { toast.error(t("landingBuilderPage.errorUpdateRole")); return; }
+    const label = roleLabel(role);
+    toast.success(t("landingBuilderPage.pageMarkedAs", { label }));
   };
 
   // ── Delete page ─────────────────────────────────────────────────────────────
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("landing_pages").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar"); return; }
+    if (error) { toast.error(t("landingBuilderPage.errorDelete")); return; }
     setPages(prev => prev.filter(p => p.id !== id));
     if (selectedId === id) {
       setSelectedId(null);
       setGeneratedHtml("");
       setPreviewHtml("");
     }
-    toast.success("Página eliminada");
+    toast.success(t("landingBuilderPage.pageDeleted"));
   };
 
   // ── Inject configured form into current HTML ────────────────────────────────
@@ -1162,13 +1174,13 @@ export default function LandingBuilderPage() {
     setGeneratedHtml(injected);
     setPreviewHtml(injected);
     setHtmlVersion(v => v + 1); // force iframe remount so injected form is visible immediately
-    toast.success("Formulario inyectado en la landing");
+    toast.success(t("landingBuilderPage.formInjected"));
   }, [generatedHtml, formConfig, selectedId]);
 
   // ── Image upload ────────────────────────────────────────────────────────────
   const handleImageAttach = async (file: File) => {
-    if (!file.type.startsWith("image/")) { toast.error("Solo se permiten imágenes"); return; }
-    if (file.size > 5 * 1024 * 1024) { toast.error("La imagen debe ser menor a 5 MB"); return; }
+    if (!file.type.startsWith("image/")) { toast.error(t("landingBuilderPage.onlyImagesAllowed")); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error(t("landingBuilderPage.imageTooLarge")); return; }
     setUploadingImage(true);
     try {
       const ext = file.name.split(".").pop() || "jpg";
@@ -1183,7 +1195,7 @@ export default function LandingBuilderPage() {
       const preview = URL.createObjectURL(file);
       setAttachedImages(prev => [...prev, { url: publicUrl, preview, name: file.name }]);
     } catch (e: any) {
-      toast.error("Error al subir imagen: " + (e.message || "Intenta de nuevo"));
+      toast.error(t("landingBuilderPage.errorUploadImage", { message: e.message || t("landingBuilderPage.tryAgain") }));
     } finally {
       setUploadingImage(false);
     }
@@ -1191,14 +1203,14 @@ export default function LandingBuilderPage() {
 
   // ── PDF attachment ──────────────────────────────────────────────────────────
   const handlePdfAttach = (file: File) => {
-    if (file.type !== "application/pdf") { toast.error("Solo se permiten archivos PDF"); return; }
-    if (file.size > 10 * 1024 * 1024) { toast.error("El PDF debe ser menor a 10 MB"); return; }
+    if (file.type !== "application/pdf") { toast.error(t("landingBuilderPage.onlyPdfAllowed")); return; }
+    if (file.size > 10 * 1024 * 1024) { toast.error(t("landingBuilderPage.pdfTooLarge")); return; }
     const reader = new FileReader();
     reader.onload = () => {
       // Strip "data:application/pdf;base64," prefix
       const base64 = (reader.result as string).split(",")[1];
       setAttachedPdf({ name: file.name, base64, sizeKb: Math.round(file.size / 1024) });
-      toast.success(`PDF adjunto: ${file.name}`);
+      toast.success(t("landingBuilderPage.pdfAttached", { name: file.name }));
     };
     reader.readAsDataURL(file);
   };
@@ -1248,7 +1260,7 @@ export default function LandingBuilderPage() {
       chatPageErr = res.error;
       if (res.error.code !== "23505") break;
     }
-    if (!chatPageData) { toast.error(`Error al crear la página: ${chatPageErr?.message}`); console.error("Create page from chat error:", chatPageErr); return; }
+    if (!chatPageData) { toast.error(t("landingBuilderPage.errorCreatePage", { message: chatPageErr?.message })); console.error("Create page from chat error:", chatPageErr); return; }
 
     const newPage = chatPageData as LandingPage;
     setPages(prev => [...prev, newPage]);
@@ -1258,7 +1270,7 @@ export default function LandingBuilderPage() {
     const initHistory: ChatMessage[] = [{
       id: Math.random().toString(36).slice(2),
       role: "assistant",
-      content: `Página creada dentro del funnel "${funnelName}". Generando con el estilo del funnel...`,
+      content: t("landingBuilderPage.pageCreatedInFunnel", { funnelName }),
       status: "done",
     }];
 
@@ -1317,12 +1329,12 @@ export default function LandingBuilderPage() {
       const ct = fetchResp.headers.get("content-type") ?? "";
       if (!ct.includes("text/event-stream")) {
         const errBody = await fetchResp.json().catch(() => ({}));
-        throw new Error(errBody.error ?? "Error del servidor");
+        throw new Error(errBody.error ?? t("landingBuilderPage.serverError"));
       }
 
       const reader = fetchResp.body!.getReader();
       const decoder = new TextDecoder();
-      let buf = "", html = "", summary = "Página creada con estilo del funnel", tokensUsed = 0, accumulated = "";
+      let buf = "", html = "", summary = t("landingBuilderPage.pageCreatedWithFunnelStyle"), tokensUsed = 0, accumulated = "";
 
       const dispatch = (seg: string): boolean => {
         const dl = seg.split("\n").find(l => l.startsWith("data: "));
@@ -1331,7 +1343,7 @@ export default function LandingBuilderPage() {
         try { evt = JSON.parse(dl.slice(6)); } catch { return false; }
         if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
         else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); return true; }
-        else if (evt.type === "error") { throw new Error(evt.error ?? "Error generando"); }
+        else if (evt.type === "error") { throw new Error(evt.error ?? t("landingBuilderPage.errorGenerating")); }
         return false;
       };
 
@@ -1350,7 +1362,7 @@ export default function LandingBuilderPage() {
         if (r && !r.trimEnd().toLowerCase().endsWith("</html>")) { if (!r.toLowerCase().includes("</body>")) r += "\n</body>"; r += "\n</html>"; }
         if (r.startsWith("<!DOCTYPE")) html = r;
       }
-      if (!html) throw new Error("La IA no devolvió HTML");
+      if (!html) throw new Error(t("landingBuilderPage.aiNoHtml"));
 
       setGeneratedHtml(html);
       setPreviewHtml(html);
@@ -1359,14 +1371,14 @@ export default function LandingBuilderPage() {
       // Proactive suggestions after fresh generation (Lovable-style)
       const suggestionId = Math.random().toString(36).slice(2);
       const suggestions = [];
-      if (!html.includes('id="testimonials"') && !html.includes("★★★★★")) suggestions.push("💬 Agrega testimonios reales para aumentar conversión");
-      if (!html.includes('id="faq"') && !html.includes("<details")) suggestions.push("❓ Incluye una sección FAQ para resolver objeciones");
-      if (!html.includes('id="pricing"') && !html.toLowerCase().includes("precio")) suggestions.push("💲 Considera agregar precios o planes para calificar leads");
-      if (!html.includes('id="video"')) suggestions.push("▶️ Un video demo puede duplicar la tasa de conversión");
-      if (html.includes("placehold.co")) suggestions.push("🖼️ Sube imágenes reales para reemplazar los placeholders");
+      if (!html.includes('id="testimonials"') && !html.includes("★★★★★")) suggestions.push("💬 " + t("landingBuilderPage.suggestTestimonials"));
+      if (!html.includes('id="faq"') && !html.includes("<details")) suggestions.push("❓ " + t("landingBuilderPage.suggestFaq"));
+      if (!html.includes('id="pricing"') && !html.toLowerCase().includes("precio")) suggestions.push("💲 " + t("landingBuilderPage.suggestPricing"));
+      if (!html.includes('id="video"')) suggestions.push("▶️ " + t("landingBuilderPage.suggestVideo"));
+      if (html.includes("placehold.co")) suggestions.push("🖼️ " + t("landingBuilderPage.suggestImages"));
 
       const suggestionMsg = suggestions.length > 0
-        ? `\n\n💡 **Sugerencias para mejorar:**\n${suggestions.slice(0, 3).map(s => `• ${s}`).join('\n')}`
+        ? `\n\n💡 **${t("landingBuilderPage.suggestionsHeading")}**\n${suggestions.slice(0, 3).map(s => `• ${s}`).join('\n')}`
         : "";
 
       const updatedHistory: ChatMessage[] = [
@@ -1381,10 +1393,10 @@ export default function LandingBuilderPage() {
         .then(() => {});
 
       await fetchPages();
-      toast.success(`Página "${capitalized}" creada en el funnel`);
+      toast.success(t("landingBuilderPage.pageCreatedInFunnelToast", { name: capitalized }));
     } catch (e: any) {
       setChatMessages(prev => prev.map(m =>
-        m.id === assistantMsgId ? { ...m, content: e.message || "Error", status: "error" } : m
+        m.id === assistantMsgId ? { ...m, content: e.message || t("landingBuilderPage.error"), status: "error" } : m
       ));
     } finally {
       setGenerating(false);
@@ -1397,7 +1409,7 @@ export default function LandingBuilderPage() {
   // ── AI Generation (chat-driven) ─────────────────────────────────────────────
   const handleGenerate = async () => {
     const currentInput = chatInput.trim();
-    if (!currentInput) { toast.error("Escribe qué quieres en tu landing page"); return; }
+    if (!currentInput) { toast.error(t("landingBuilderPage.describeLandingError")); return; }
 
     // Detect "create new page" intent — show inline confirmation instead of modifying current page
     if (isNewPageIntent(currentInput)) {
@@ -1577,11 +1589,11 @@ export default function LandingBuilderPage() {
       // open the SSE stream. Read it and surface the real message.
       const contentType = fetchResp.headers.get("content-type") ?? "";
       if (!contentType.includes("text/event-stream")) {
-        let errMsg = "Error del servidor. Intenta de nuevo.";
+        let errMsg = t("landingBuilderPage.serverErrorTryAgain");
         try {
           const errBody = await fetchResp.json();
           if (errBody.code === "no_landing_credits") {
-            errMsg = "No tienes tokens suficientes. Compra más en Facturación.";
+            errMsg = t("landingBuilderPage.noCredits");
           } else if (errBody.error) {
             errMsg = errBody.error;
           }
@@ -1594,7 +1606,7 @@ export default function LandingBuilderPage() {
       const decoder = new TextDecoder();
       let buf = "";
       let html = "";
-      let summary = "✓ Aplicado";
+      let summary = t("landingBuilderPage.applied");
       let tokensUsedThisCall = 0;
       // Accumulate raw delta text as a fallback in case the "done" event is
       // never received (e.g. edge function timeout before sending it).
@@ -1613,7 +1625,7 @@ export default function LandingBuilderPage() {
           setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4));
         } else if (evt.type === "done") {
           html = evt.html ?? "";
-          summary = evt.summary ?? "✓ Aplicado";
+          summary = evt.summary ?? t("landingBuilderPage.applied");
           tokensUsedThisCall = evt.tokensUsed ?? 0;
           if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining);
           // Store the section ID for visual highlight after iframe loads
@@ -1621,12 +1633,12 @@ export default function LandingBuilderPage() {
           return true;
         } else if (evt.type === "error") {
           if (evt.code === "no_landing_credits") {
-            throw new Error("No tienes tokens suficientes. Compra más en Facturación.");
+            throw new Error(t("landingBuilderPage.noCredits"));
           }
           if (evt.code === "trial_expired") {
-            throw new Error("Tu prueba gratuita terminó. Ve a Facturación para elegir un plan.");
+            throw new Error(t("landingBuilderPage.trialExpired"));
           }
-          throw new Error(evt.error ?? "Error generando la landing");
+          throw new Error(evt.error ?? t("landingBuilderPage.errorGeneratingLanding"));
         }
         return false;
       };
@@ -1682,8 +1694,8 @@ export default function LandingBuilderPage() {
         }
         if (recovered.startsWith("<!DOCTYPE")) {
           html = recovered;
-          summary = "✓ Recuperado (generación interrumpida)";
-          toast.warning("La generación se interrumpió cerca del final. Se recuperó el HTML generado.");
+          summary = t("landingBuilderPage.recoveredInterrupted");
+          toast.warning(t("landingBuilderPage.generationInterruptedRecovered"));
         }
       }
 
@@ -1697,18 +1709,18 @@ export default function LandingBuilderPage() {
           .maybeSingle();
         if (savedPage?.html && savedPage.html !== generatedHtml) {
           html = savedPage.html;
-          summary = "✓ Recuperado desde servidor";
-          toast.info("Página recuperada desde el servidor.");
+          summary = t("landingBuilderPage.recoveredFromServer");
+          toast.info(t("landingBuilderPage.pageRecoveredFromServer"));
         }
       }
 
-      if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
+      if (!html) throw new Error(t("landingBuilderPage.aiNoHtmlTryAgain"));
 
       // Debug: log HTML change
       const htmlChanged = html !== generatedHtml;
       console.log(`[LandingBuilder] stream done — ${html.length} chars, changed: ${htmlChanged}`);
       if (!htmlChanged) {
-        toast.warning("La IA no modificó el HTML. Intenta ser más específico.");
+        toast.warning(t("landingBuilderPage.aiNoChange"));
       }
 
       // Save current HTML to undo history before overwriting
@@ -1797,7 +1809,7 @@ export default function LandingBuilderPage() {
           const retryDecoder = new TextDecoder();
           let retryBuf = "";
           let retryHtml = "";
-          let retrySummary = "✓ Aplicado";
+          let retrySummary = t("landingBuilderPage.applied");
           let retryAccumulated = "";
 
           outerRetry: while (true) {
@@ -1812,8 +1824,8 @@ export default function LandingBuilderPage() {
               let evt: any;
               try { evt = JSON.parse(dataLine.slice(6)); } catch { continue; } // skip malformed SSE lines
               if (evt.type === "delta") { retryAccumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
-              else if (evt.type === "done") { retryHtml = evt.html ?? ""; retrySummary = evt.summary ?? "✓ Aplicado"; break outerRetry; }
-              else if (evt.type === "error") throw new Error(evt.error ?? "Error en reintento");
+              else if (evt.type === "done") { retryHtml = evt.html ?? ""; retrySummary = evt.summary ?? t("landingBuilderPage.applied"); break outerRetry; }
+              else if (evt.type === "error") throw new Error(evt.error ?? t("landingBuilderPage.errorRetry"));
             }
           }
 
@@ -1825,7 +1837,7 @@ export default function LandingBuilderPage() {
             if (rec.startsWith("<!DOCTYPE")) retryHtml = rec;
           }
 
-          if (!retryHtml) throw new Error("La IA no devolvió HTML.");
+          if (!retryHtml) throw new Error(t("landingBuilderPage.aiNoHtml"));
 
           setGeneratedHtml(retryHtml);
           setPreviewHtml(retryHtml);
@@ -1842,12 +1854,12 @@ export default function LandingBuilderPage() {
 
         } catch (retryErr: any) {
           setChatMessages(prev => prev.map(m =>
-            m.id === assistantMsgId ? { ...m, content: retryErr.message || "Error de conexión. Intenta de nuevo.", status: "error" } : m
+            m.id === assistantMsgId ? { ...m, content: retryErr.message || t("landingBuilderPage.connectionError"), status: "error" } : m
           ));
         }
       } else {
         setChatMessages(prev => prev.map(m =>
-          m.id === assistantMsgId ? { ...m, content: e.message || "Error generando la landing", status: "error" } : m
+          m.id === assistantMsgId ? { ...m, content: e.message || t("landingBuilderPage.errorGeneratingLanding"), status: "error" } : m
         ));
       }
     } finally {
@@ -1865,7 +1877,7 @@ export default function LandingBuilderPage() {
 
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = useCallback(async (publishOverride?: boolean) => {
-    if (!selectedId) { toast.error("Selecciona o crea una página primero"); return; }
+    if (!selectedId) { toast.error(t("landingBuilderPage.selectOrCreatePage")); return; }
     setSaving(true);
 
     const targetStatus = publishOverride !== undefined ? (publishOverride ? "published" : "draft") : status;
@@ -1918,9 +1930,9 @@ export default function LandingBuilderPage() {
 
       setStatus(targetStatus);
       await fetchPages();
-      toast.success(targetStatus === "published" ? "¡Landing publicada!" : "Guardado");
+      toast.success(targetStatus === "published" ? t("landingBuilderPage.landingPublished") : t("landingBuilderPage.saved"));
     } catch (e: any) {
-      toast.error(e.message || "Error al guardar");
+      toast.error(e.message || t("landingBuilderPage.errorSaving"));
     } finally {
       setSaving(false);
     }
@@ -1929,14 +1941,14 @@ export default function LandingBuilderPage() {
   // ── Copy URL ────────────────────────────────────────────────────────────────
   const copyUrl = () => {
     const effectiveSlug = slug || toSlug(name);
-    if (!effectiveSlug) { toast.error("La página necesita un slug para tener URL pública"); return; }
+    if (!effectiveSlug) { toast.error(t("landingBuilderPage.slugRequired")); return; }
     navigator.clipboard.writeText(getPublicUrl(effectiveSlug));
-    toast.success("URL copiada: pages.klosify.com/" + effectiveSlug);
+    toast.success(t("landingBuilderPage.urlCopied", { url: "pages.klosify.com/" + effectiveSlug }));
   };
 
   const openPublicUrl = () => {
     const effectiveSlug = slug || toSlug(name);
-    if (status !== "published") { toast.error("Publica la página primero"); return; }
+    if (status !== "published") { toast.error(t("landingBuilderPage.publishFirst")); return; }
     window.open(getPublicUrl(effectiveSlug), "_blank");
   };
 
@@ -1954,14 +1966,14 @@ export default function LandingBuilderPage() {
               className="text-muted-foreground hover:text-foreground transition-colors text-xs font-medium px-1.5 py-0.5 rounded hover:bg-accent"
               onClick={() => setBuilderView("projects")}
             >
-              Proyectos
+              {t("landingBuilderPage.projects")}
             </button>
             <ChevronDown className="h-3 w-3 text-muted-foreground/40 rotate-[-90deg] shrink-0" />
             <button
               className="text-muted-foreground hover:text-foreground transition-colors text-xs font-medium px-1.5 py-0.5 rounded hover:bg-accent max-w-[120px] truncate"
               onClick={() => setBuilderView("pages")}
             >
-              {funnels.find(f => f.id === selectedFunnelId)?.name ?? "Proyecto"}
+              {funnels.find(f => f.id === selectedFunnelId)?.name ?? t("landingBuilderPage.project")}
             </button>
             <ChevronDown className="h-3 w-3 text-muted-foreground/40 rotate-[-90deg] shrink-0" />
             <span className="text-xs font-medium text-foreground max-w-[140px] truncate">{name}</span>
@@ -1983,15 +1995,15 @@ export default function LandingBuilderPage() {
               {pickerLevel === "funnels" && (
                 <>
                   <div className="p-2 border-b border-border flex items-center justify-between">
-                    <p className="text-xs font-semibold text-muted-foreground px-1">Mis funnels</p>
+                    <p className="text-xs font-semibold text-muted-foreground px-1">{t("landingBuilderPage.myFunnels")}</p>
                     <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2"
                       onClick={() => { setNewFunnelOpen(true); setPagePickerOpen(false); }}>
-                      <Plus className="h-3 w-3" /> Nuevo
+                      <Plus className="h-3 w-3" /> {t("landingBuilderPage.new")}
                     </Button>
                   </div>
                   <div className="max-h-72 overflow-y-auto py-1">
                     {funnels.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-6">Sin funnels todavía</p>
+                      <p className="text-xs text-muted-foreground text-center py-6">{t("landingBuilderPage.noFunnelsYet")}</p>
                     ) : funnels.map(funnel => (
                       <button key={funnel.id}
                         className={cn(
@@ -2029,11 +2041,11 @@ export default function LandingBuilderPage() {
                         {funnels.find(f => f.id === selectedFunnelId)?.name}
                       </span>
                     </button>
-                    <span className="text-muted-foreground/40 text-xs ml-auto">páginas</span>
+                    <span className="text-muted-foreground/40 text-xs ml-auto">{t("landingBuilderPage.pages")}</span>
                   </div>
                   <div className="max-h-72 overflow-y-auto py-1">
                     {funnelPages.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-6">Sin páginas en este funnel</p>
+                      <p className="text-xs text-muted-foreground text-center py-6">{t("landingBuilderPage.noPagesInFunnel")}</p>
                     ) : funnelPages.map((page, idx) => (
                       <button key={page.id}
                         className={cn(
@@ -2074,11 +2086,11 @@ export default function LandingBuilderPage() {
                                   )}
                                   onClick={e => { e.stopPropagation(); handleSetPageRole(page.id, cycleRoleOf(page.page_role)); }}
                                 >
-                                  {ROLE_META[page.page_role]?.label ?? "Otra"}
+                                  {roleLabel(page.page_role)}
                                 </button>
                               </TooltipTrigger>
                               <TooltipContent side="left" className="text-xs">
-                                Clic para cambiar rol · actual: {ROLE_META[page.page_role]?.label ?? page.page_role}
+                                {t("landingBuilderPage.clickToChangeRole", { role: roleLabel(page.page_role) })}
                               </TooltipContent>
                             </Tooltip>
                           </TooltipProvider>
@@ -2099,7 +2111,7 @@ export default function LandingBuilderPage() {
                   <div className="p-2 border-t border-border">
                     <Button size="sm" variant="ghost" className="w-full h-8 text-xs gap-1.5 justify-start"
                       onClick={() => { setNewPageOpen(true); setPagePickerOpen(false); }}>
-                      <Plus className="h-3.5 w-3.5" /> Nueva página en este funnel
+                      <Plus className="h-3.5 w-3.5" /> {t("landingBuilderPage.newPageInFunnel")}
                     </Button>
                   </div>
                 </>
@@ -2126,7 +2138,7 @@ export default function LandingBuilderPage() {
                   <button
                     className="hover:text-foreground underline font-mono max-w-[120px] truncate"
                     onClick={() => setSlugEditing(true)}
-                    title="Editar slug"
+                    title={t("landingBuilderPage.editSlug")}
                   >
                     {slug || toSlug(name)}
                   </button>
@@ -2138,7 +2150,7 @@ export default function LandingBuilderPage() {
                         <Link2 className="h-3 w-3 hover:text-foreground" />
                       </button>
                     </TooltipTrigger>
-                    <TooltipContent>Copiar URL pública</TooltipContent>
+                    <TooltipContent>{t("landingBuilderPage.copyPublicUrl")}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
                 {status === "published" && (
@@ -2149,7 +2161,7 @@ export default function LandingBuilderPage() {
                           <Eye className="h-3 w-3 hover:text-foreground" />
                         </button>
                       </TooltipTrigger>
-                      <TooltipContent>Ver página publicada</TooltipContent>
+                      <TooltipContent>{t("landingBuilderPage.viewPublishedPage")}</TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 )}
@@ -2204,7 +2216,7 @@ export default function LandingBuilderPage() {
                       onClick={() => setFormConfigOpen(true)}
                     >
                       <Check className="h-3.5 w-3.5" />
-                      Integrado
+                      {t("landingBuilderPage.integrated")}
                     </Button>
                   ) : (
                     <Button
@@ -2214,7 +2226,7 @@ export default function LandingBuilderPage() {
                       onClick={() => setFormConfigOpen(true)}
                     >
                       <ClipboardList className="h-3.5 w-3.5" />
-                      Integrar formulario
+                      {t("landingBuilderPage.integrateForm")}
                       <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-orange-500 text-white text-[9px] flex items-center justify-center font-bold">
                         {(formConfig.fields ?? []).length}
                       </span>
@@ -2231,7 +2243,7 @@ export default function LandingBuilderPage() {
                   disabled={saving}
                 >
                   {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : status === "published" ? <EyeOff className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-                  {status === "published" ? "Despublicar" : "Publicar"}
+                  {status === "published" ? t("landingBuilderPage.unpublish") : t("landingBuilderPage.publish")}
                 </Button>
 
                 <Button
@@ -2240,7 +2252,7 @@ export default function LandingBuilderPage() {
                   disabled={saving}
                   className="h-8 text-xs"
                 >
-                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : "Guardar"}
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : t("landingBuilderPage.save")}
                 </Button>
               </>
             ) : null}
@@ -2252,11 +2264,11 @@ export default function LandingBuilderPage() {
             <div className="max-w-5xl mx-auto">
               <div className="flex items-center justify-between mb-6">
                 <div>
-                  <h2 className="text-xl font-bold">Mis proyectos</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">Cada proyecto agrupa las páginas de un funnel</p>
+                  <h2 className="text-xl font-bold">{t("landingBuilderPage.myProjects")}</h2>
+                  <p className="text-sm text-muted-foreground mt-0.5">{t("landingBuilderPage.projectsSubtitle")}</p>
                 </div>
                 <Button onClick={() => setNewFunnelOpen(true)} className="gap-2">
-                  <Plus className="h-4 w-4" /> Nuevo proyecto
+                  <Plus className="h-4 w-4" /> {t("landingBuilderPage.newProject")}
                 </Button>
               </div>
 
@@ -2267,9 +2279,9 @@ export default function LandingBuilderPage() {
               ) : funnels.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
                   <FolderOpen className="h-14 w-14 text-muted-foreground/30" />
-                  <p className="text-muted-foreground text-sm">Aún no tienes proyectos.<br/>Crea uno para empezar.</p>
+                  <p className="text-muted-foreground text-sm">{t("landingBuilderPage.noProjectsYet")}<br/>{t("landingBuilderPage.createOneToStart")}</p>
                   <Button onClick={() => setNewFunnelOpen(true)} variant="outline" className="gap-2">
-                    <Plus className="h-4 w-4" /> Crear primer proyecto
+                    <Plus className="h-4 w-4" /> {t("landingBuilderPage.createFirstProject")}
                   </Button>
                 </div>
               ) : (
@@ -2304,7 +2316,7 @@ export default function LandingBuilderPage() {
                             ) : (
                               <p className="font-semibold text-sm truncate">{funnel.name}</p>
                             )}
-                            <p className="text-[11px] text-muted-foreground">{fp.length} {fp.length === 1 ? "página" : "páginas"}</p>
+                            <p className="text-[11px] text-muted-foreground">{fp.length} {fp.length === 1 ? t("landingBuilderPage.page") : t("landingBuilderPage.pages")}</p>
                           </div>
                           </div>
                           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -2345,9 +2357,9 @@ export default function LandingBuilderPage() {
                           </span>
                           <span className="ml-auto flex items-center gap-1">
                             {published > 0 ? (
-                              <><span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" /> {published} publicada{published > 1 ? "s" : ""}</>
+                              <><span className="h-1.5 w-1.5 rounded-full bg-green-500 inline-block" /> {t("landingBuilderPage.publishedCount", { count: published })}</>
                             ) : (
-                              <><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30 inline-block" /> Borrador</>
+                              <><span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/30 inline-block" /> {t("landingBuilderPage.draft")}</>
                             )}
                           </span>
                         </div>
@@ -2363,7 +2375,7 @@ export default function LandingBuilderPage() {
                     <div className="h-9 w-9 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
                       <Plus className="h-4 w-4" />
                     </div>
-                    <p className="text-sm font-medium">Nuevo proyecto</p>
+                    <p className="text-sm font-medium">{t("landingBuilderPage.newProject")}</p>
                   </div>
                 </div>
               )}
@@ -2381,23 +2393,23 @@ export default function LandingBuilderPage() {
                   className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
                   onClick={() => setBuilderView("projects")}
                 >
-                  <ChevronLeft className="h-4 w-4" /> Proyectos
+                  <ChevronLeft className="h-4 w-4" /> {t("landingBuilderPage.projects")}
                 </button>
                 <span className="text-muted-foreground/40">/</span>
                 <h2 className="text-xl font-bold">
                   {funnels.find(f => f.id === selectedFunnelId)?.name}
                 </h2>
                 <Button size="sm" onClick={() => setNewPageOpen(true)} className="ml-auto gap-1.5">
-                  <Plus className="h-3.5 w-3.5" /> Nueva página
+                  <Plus className="h-3.5 w-3.5" /> {t("landingBuilderPage.newPage")}
                 </Button>
               </div>
 
               {funnelPages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-64 gap-4 text-center">
                   <FileText className="h-14 w-14 text-muted-foreground/30" />
-                  <p className="text-muted-foreground text-sm">Este proyecto no tiene páginas aún.</p>
+                  <p className="text-muted-foreground text-sm">{t("landingBuilderPage.projectHasNoPages")}</p>
                   <Button onClick={() => setNewPageOpen(true)} variant="outline" className="gap-2">
-                    <Plus className="h-4 w-4" /> Crear primera página
+                    <Plus className="h-4 w-4" /> {t("landingBuilderPage.createFirstPage")}
                   </Button>
                 </div>
               ) : (
@@ -2415,12 +2427,12 @@ export default function LandingBuilderPage() {
                           <span className="text-4xl font-black text-muted-foreground/20">{idx + 1}</span>
                           <div className="absolute top-2 left-2">
                             <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", roleMeta.cls)}>
-                              {roleMeta.label}
+                              {roleLabel(page.page_role)}
                             </span>
                           </div>
                           <div className="absolute top-2 right-2 flex items-center gap-1.5">
                             <span className={cn("h-2 w-2 rounded-full", page.status === "published" ? "bg-green-500" : "bg-muted-foreground/30")} />
-                            <span className="text-[10px] text-muted-foreground">{page.status === "published" ? "Publicada" : "Borrador"}</span>
+                            <span className="text-[10px] text-muted-foreground">{page.status === "published" ? t("landingBuilderPage.published") : t("landingBuilderPage.draft")}</span>
                           </div>
                           <button
                             className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-destructive p-1 rounded hover:bg-destructive/10 bg-background/80"
@@ -2458,14 +2470,14 @@ export default function LandingBuilderPage() {
                           </p>
                           <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                             <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {page.views || 0}</span>
-                            <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3" /> {page.leads_count || 0} leads</span>
+                            <span className="flex items-center gap-1"><BarChart2 className="h-3 w-3" /> {page.leads_count || 0} {t("landingBuilderPage.leads")}</span>
                             <Button
                               size="sm"
                               variant="outline"
                               className="ml-auto h-6 text-[10px] px-2"
                               onClick={e => { e.stopPropagation(); selectPage(page); setSelectedFunnelId(page.funnel_id!); }}
                             >
-                              Editar
+                              {t("landingBuilderPage.edit")}
                             </Button>
                           </div>
                         </div>
@@ -2481,7 +2493,7 @@ export default function LandingBuilderPage() {
                     <div className="h-9 w-9 rounded-lg border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
                       <Plus className="h-4 w-4" />
                     </div>
-                    <p className="text-sm font-medium">Nueva página</p>
+                    <p className="text-sm font-medium">{t("landingBuilderPage.newPage")}</p>
                   </div>
                 </div>
               )}
@@ -2495,9 +2507,9 @@ export default function LandingBuilderPage() {
           {!selectedId ? (
             <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-4">
               <Globe className="h-12 w-12 opacity-20" />
-              <p className="text-sm">Selecciona una landing page o crea una nueva</p>
+              <p className="text-sm">{t("landingBuilderPage.selectOrCreateLanding")}</p>
               <Button onClick={() => setNewPageOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" /> Nueva landing page
+                <Plus className="h-4 w-4 mr-2" /> {t("landingBuilderPage.newLandingPage")}
               </Button>
             </div>
           ) : mode === "ai" ? (
@@ -2524,7 +2536,7 @@ export default function LandingBuilderPage() {
                           !editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        <Eye className="h-3 w-3" /> Vista previa
+                        <Eye className="h-3 w-3" /> {t("landingBuilderPage.preview")}
                       </button>
                       <button
                         onClick={() => setEditMode(true)}
@@ -2533,7 +2545,7 @@ export default function LandingBuilderPage() {
                           editMode ? "bg-accent text-accent-foreground" : "text-muted-foreground hover:text-foreground"
                         )}
                       >
-                        <Edit2 className="h-3 w-3" /> Editar texto
+                        <Edit2 className="h-3 w-3" /> {t("landingBuilderPage.editText")}
                       </button>
 
                       <div className="flex-1" />
@@ -2542,9 +2554,9 @@ export default function LandingBuilderPage() {
                       <div className="flex items-center gap-0.5 rounded-md border border-border p-0.5">
                         {(
                           [
-                            { id: "desktop", icon: Monitor,    label: "Escritorio",   w: "–"     },
-                            { id: "tablet",  icon: Tablet,     label: "Tablet 768px", w: "768px" },
-                            { id: "mobile",  icon: Smartphone, label: "Móvil 390px",  w: "390px" },
+                            { id: "desktop", icon: Monitor,    label: t("landingBuilderPage.deviceDesktop"), w: "–"     },
+                            { id: "tablet",  icon: Tablet,     label: t("landingBuilderPage.deviceTablet"),  w: "768px" },
+                            { id: "mobile",  icon: Smartphone, label: t("landingBuilderPage.deviceMobile"),  w: "390px" },
                           ] as const
                         ).map(({ id, icon: Icon, label }) => (
                           <button
@@ -2591,16 +2603,16 @@ export default function LandingBuilderPage() {
                                   if (selectedId) {
                                     supabase.from("landing_pages").update({ html: prev }).eq("id", selectedId).then(() => {});
                                   }
-                                  toast.success("Cambio deshecho");
+                                  toast.success(t("landingBuilderPage.changeUndone"));
                                 }}
                                 className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
-                                title="Deshacer último cambio de IA"
+                                title={t("landingBuilderPage.undoLastAi")}
                               >
-                                ↩ Deshacer
+                                ↩ {t("landingBuilderPage.undo")}
                               </button>
                             </TooltipTrigger>
                             <TooltipContent>
-                              <p>Deshacer último cambio de IA ({htmlHistoryRef.current.length} disponible{htmlHistoryRef.current.length !== 1 ? "s" : ""})</p>
+                              <p>{t("landingBuilderPage.undoLastAiCount", { count: htmlHistoryRef.current.length })}</p>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
@@ -2612,13 +2624,13 @@ export default function LandingBuilderPage() {
                           <button
                             onClick={() => setShowVersions(v => !v)}
                             className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium border border-border text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
-                            title="Historial de versiones"
+                            title={t("landingBuilderPage.versionHistory")}
                           >
                             🕐 {dbVersions.length}
                           </button>
                           {showVersions && (
                             <div className="absolute right-0 top-full mt-1 w-72 bg-popover border border-border rounded-xl shadow-xl z-50 p-2 space-y-1">
-                              <p className="text-xs font-semibold text-muted-foreground px-2 py-1">Historial de versiones</p>
+                              <p className="text-xs font-semibold text-muted-foreground px-2 py-1">{t("landingBuilderPage.versionHistory")}</p>
                               {dbVersions.map(v => (
                                 <button
                                   key={v.id}
@@ -2634,7 +2646,7 @@ export default function LandingBuilderPage() {
                                     setPreviewHtml(data.html);
                                     setHtmlVersion(n => n + 1);
                                     if (selectedId) supabase.from("landing_pages").update({ html: data.html }).eq("id", selectedId).then(() => {});
-                                    toast.success(`Versión ${v.version_number} restaurada`);
+                                    toast.success(t("landingBuilderPage.versionRestored", { version: v.version_number }));
                                     setShowVersions(false);
                                   }}
                                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-accent text-xs transition-colors"
@@ -2659,7 +2671,7 @@ export default function LandingBuilderPage() {
                                 ? "border-amber-400 text-amber-600 bg-amber-50"
                                 : "border-border text-muted-foreground hover:text-foreground hover:border-foreground/30"
                             )}
-                            title="Bloquear/desbloquear secciones"
+                            title={t("landingBuilderPage.lockUnlockSections")}
                           >
                             🔒
                             {detectSectionIds(generatedHtml).some(id => isSectionLocked(generatedHtml, id)) && (
@@ -2672,7 +2684,7 @@ export default function LandingBuilderPage() {
                           {showLockPanel && (
                             <div className="absolute right-0 top-full mt-1 w-72 bg-popover border border-border rounded-xl shadow-xl z-50 p-2">
                               <p className="text-xs font-semibold text-muted-foreground px-2 py-1.5">
-                                🔒 Secciones bloqueadas — la IA no las modifica
+                                🔒 {t("landingBuilderPage.lockedSectionsTitle")}
                               </p>
                               <div className="space-y-0.5 max-h-80 overflow-y-auto">
                                 {detectSectionIds(generatedHtml).map(sectionId => {
@@ -2702,14 +2714,14 @@ export default function LandingBuilderPage() {
                                         "font-medium text-[10px] px-2 py-0.5 rounded-full",
                                         locked ? "bg-amber-200 text-amber-800" : "bg-muted text-muted-foreground"
                                       )}>
-                                        {locked ? "🔒 Bloqueada" : "🔓 Libre"}
+                                        {locked ? "🔒 " + t("landingBuilderPage.locked") : "🔓 " + t("landingBuilderPage.unlocked")}
                                       </span>
                                     </button>
                                   );
                                 })}
                               </div>
                               <p className="text-[10px] text-muted-foreground px-2 pt-2 border-t border-border mt-1">
-                                Las secciones bloqueadas no se modifican aunque le pidas cambios generales a la IA.
+                                {t("landingBuilderPage.lockedSectionsHint")}
                               </p>
                             </div>
                           )}
@@ -2734,7 +2746,7 @@ export default function LandingBuilderPage() {
                             </button>
                           </TooltipTrigger>
                           <TooltipContent side="bottom">
-                            {chatOpen ? "Cerrar panel IA" : "Abrir panel IA"}
+                            {chatOpen ? t("landingBuilderPage.closeAiPanel") : t("landingBuilderPage.openAiPanel")}
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -2775,7 +2787,7 @@ export default function LandingBuilderPage() {
                             onLoad={setupEditMode}
                             className="w-full border-0"
                             style={{ height: previewContentHeight > 200 ? `${previewContentHeight}px` : "100vh" }}
-                            title="Editar landing"
+                            title={t("landingBuilderPage.editLandingTitle")}
                           />
                         ) : (
                           /* Preview mode: fixed viewport height = identical to published page.
@@ -2787,7 +2799,7 @@ export default function LandingBuilderPage() {
                             srcDoc={buildPreviewSrcDoc(previewHtml)}
                             className="w-full h-full border-0"
                             sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-                            title="Vista previa landing"
+                            title={t("landingBuilderPage.previewLandingTitle")}
                             onLoad={() => {
                               // Visual highlight: briefly flash the changed section (Lovable-style)
                               const sid = highlightSectionRef.current;
@@ -2822,7 +2834,7 @@ export default function LandingBuilderPage() {
                           const assistantMsgId = Math.random().toString(36).slice(2);
                           setChatMessages(prev => [
                             ...prev,
-                            { id: userMsgId, role: "user" as const, content: `📋 Plantilla: ${templateName}`, status: "done" as const },
+                            { id: userMsgId, role: "user" as const, content: `📋 ${t("landingBuilderPage.templateLabel", { name: templateName })}`, status: "done" as const },
                             { id: assistantMsgId, role: "assistant" as const, content: "", status: "loading" as const },
                           ]);
                           setChatInput("");
@@ -2861,12 +2873,12 @@ export default function LandingBuilderPage() {
                               const ct = fetchResp.headers.get("content-type") ?? "";
                               if (!ct.includes("text/event-stream")) {
                                 const errBody = await fetchResp.json().catch(() => ({}));
-                                throw new Error(errBody.error ?? "Error del servidor");
+                                throw new Error(errBody.error ?? t("landingBuilderPage.serverError"));
                               }
 
                               const reader = fetchResp.body!.getReader();
                               const decoder = new TextDecoder();
-                              let buf = "", html = "", summary = "✓ Plantilla generada", tokensUsed = 0, accumulated = "";
+                              let buf = "", html = "", summary = t("landingBuilderPage.templateGenerated"), tokensUsed = 0, accumulated = "";
 
                               const dispatch = (seg: string): boolean => {
                                 const dl = seg.split("\n").find(l => l.startsWith("data: "));
@@ -2875,7 +2887,7 @@ export default function LandingBuilderPage() {
                                 try { evt = JSON.parse(dl.slice(6)); } catch { return false; }
                                 if (evt.type === "delta") { accumulated += evt.text ?? ""; setStreamedTokens(t => t + Math.ceil((evt.text ?? "").length / 4)); }
                                 else if (evt.type === "done") { html = evt.html ?? ""; summary = evt.summary ?? summary; tokensUsed = evt.tokensUsed ?? 0; if (evt.tokensRemaining != null) setTokensRemaining(evt.tokensRemaining); return true; }
-                                else if (evt.type === "error") { if (evt.code === "no_landing_credits") throw new Error("No tienes tokens suficientes. Compra más en Facturación."); if (evt.code === "trial_expired") throw new Error("Tu prueba gratuita terminó. Ve a Facturación para elegir un plan."); throw new Error(evt.error ?? "Error generando"); }
+                                else if (evt.type === "error") { if (evt.code === "no_landing_credits") throw new Error(t("landingBuilderPage.noCredits")); if (evt.code === "trial_expired") throw new Error(t("landingBuilderPage.trialExpired")); throw new Error(evt.error ?? t("landingBuilderPage.errorGenerating")); }
                                 return false;
                               };
 
@@ -2891,9 +2903,9 @@ export default function LandingBuilderPage() {
                                 let r = accumulated.replace(/^```html\s*/i,"").replace(/^```\s*/i,"").replace(/```\s*$/i,"").trim();
                                 const di = r.indexOf("<!DOCTYPE"); if (di !== -1) r = r.slice(di);
                                 if (r && !r.trimEnd().toLowerCase().endsWith("</html>")) { if (!r.toLowerCase().includes("</body>")) r += "\n</body>"; r += "\n</html>"; }
-                                if (r.startsWith("<!DOCTYPE")) { html = r; toast.warning("Generación recuperada parcialmente."); }
+                                if (r.startsWith("<!DOCTYPE")) { html = r; toast.warning(t("landingBuilderPage.generationPartiallyRecovered")); }
                               }
-                              if (!html) throw new Error("La IA no devolvió HTML. Intenta de nuevo.");
+                              if (!html) throw new Error(t("landingBuilderPage.aiNoHtmlTryAgain"));
 
                               setGeneratedHtml(html);
                               setPreviewHtml(html);
@@ -2901,13 +2913,13 @@ export default function LandingBuilderPage() {
                               if (selectedId) supabase.from("landing_pages").update({ html }).eq("id", selectedId).then(() => {});
 
                               const msgs: ChatMessage[] = [
-                                { id: userMsgId, role: "user" as const, content: `📋 Plantilla: ${templateName}`, status: "done" as const },
+                                { id: userMsgId, role: "user" as const, content: `📋 ${t("landingBuilderPage.templateLabel", { name: templateName })}`, status: "done" as const },
                                 { id: assistantMsgId, role: "assistant" as const, content: summary + (tokensUsed ? ` · ${tokensUsed.toLocaleString()} tokens` : ""), summary, status: "done" as const },
                               ];
                               setChatMessages(msgs);
                               if (selectedId) supabase.from("landing_pages").update({ chat_history: msgs }).eq("id", selectedId).then(() => {});
                             } catch (e: any) {
-                              setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: e.message || "Error", status: "error" as const } : m));
+                              setChatMessages(prev => prev.map(m => m.id === assistantMsgId ? { ...m, content: e.message || t("landingBuilderPage.error"), status: "error" as const } : m));
                             } finally {
                               setGenerating(false);
                               if (generationTimerRef.current) { clearInterval(generationTimerRef.current); generationTimerRef.current = null; }
@@ -2925,10 +2937,10 @@ export default function LandingBuilderPage() {
                   ) : (
                     <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-3">
                       <Sparkles className="h-10 w-10 opacity-20" />
-                      <p className="text-sm">Describe tu landing page en el panel IA</p>
+                      <p className="text-sm">{t("landingBuilderPage.describeLandingInPanel")}</p>
                       <div className="flex items-center gap-2">
                         <Button size="sm" variant="outline" onClick={() => setShowTemplates(true)} className="gap-1.5">
-                          <Sparkles className="h-3.5 w-3.5" /> Ver plantillas
+                          <Sparkles className="h-3.5 w-3.5" /> {t("landingBuilderPage.viewTemplates")}
                         </Button>
                       </div>
                     </div>
@@ -3058,12 +3070,12 @@ export default function LandingBuilderPage() {
                       <div className="flex flex-col items-center gap-3" style={{ width: 280 }}>
                         <p className="text-sm font-semibold text-foreground tracking-tight text-center">
                           {streamedTokens < 500
-                            ? "✦ Analizando tu prompt..."
+                            ? "✦ " + t("landingBuilderPage.progressAnalyzing")
                             : streamedTokens < 2500
-                            ? "✦ Diseñando secciones y layout..."
+                            ? "✦ " + t("landingBuilderPage.progressDesigning")
                             : streamedTokens < 8000
-                            ? "✦ Generando HTML completo..."
-                            : "✦ Puliendo los últimos detalles..."}
+                            ? "✦ " + t("landingBuilderPage.progressGeneratingHtml")
+                            : "✦ " + t("landingBuilderPage.progressPolishing")}
                         </p>
 
                         {/* Real token-based progress bar */}
@@ -3081,7 +3093,7 @@ export default function LandingBuilderPage() {
                         <p className="text-[11px] text-muted-foreground tabular-nums">
                           {streamedTokens > 0
                             ? `${streamedTokens.toLocaleString()} tokens · ${generationElapsed}s`
-                            : `${generationElapsed}s · conectando...`}
+                            : `${generationElapsed}s · ${t("landingBuilderPage.connecting")}`}
                         </p>
                       </div>
                     </div>
@@ -3097,7 +3109,7 @@ export default function LandingBuilderPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold flex items-center gap-1.5">
                       <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      Editar con IA
+                      {t("landingBuilderPage.editWithAi")}
                     </span>
                     {tokensRemaining !== null && (
                       <span className={cn(
@@ -3134,7 +3146,7 @@ export default function LandingBuilderPage() {
                         }
                       }}
                     >
-                      Nueva
+                      {t("landingBuilderPage.newChat")}
                     </Button>
                     <Button
                       variant="ghost"
@@ -3153,7 +3165,7 @@ export default function LandingBuilderPage() {
                     <div className="flex flex-col items-center justify-center h-full gap-2 py-8">
                       <Sparkles className="h-8 w-8 opacity-20" />
                       <p className="text-sm text-muted-foreground text-center">
-                        Describe tu landing para comenzar
+                        {t("landingBuilderPage.describeLandingToStart")}
                       </p>
                     </div>
                   ) : (
@@ -3165,7 +3177,7 @@ export default function LandingBuilderPage() {
                             {msg.attachments && msg.attachments.length > 0 && (
                               <div className="flex flex-wrap gap-1.5">
                                 {msg.attachments.map((url, i) => (
-                                  <img key={i} src={url} alt="adjunto"
+                                  <img key={i} src={url} alt={t("landingBuilderPage.attachment")}
                                     className="h-16 w-16 object-cover rounded-lg opacity-90" />
                                 ))}
                               </div>
@@ -3178,9 +3190,9 @@ export default function LandingBuilderPage() {
                             <div className="flex items-start gap-2">
                               <FileText className="h-4 w-4 text-primary shrink-0 mt-0.5" />
                               <div>
-                                <p className="text-xs font-semibold text-foreground">¿Crear nueva página en el funnel?</p>
+                                <p className="text-xs font-semibold text-foreground">{t("landingBuilderPage.createNewPageInFunnelQ")}</p>
                                 <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                                  Se creará con el estilo visual de esta página para que quede consistente.
+                                  {t("landingBuilderPage.createNewPageInFunnelDesc")}
                                 </p>
                               </div>
                             </div>
@@ -3189,7 +3201,7 @@ export default function LandingBuilderPage() {
                                 disabled={generating}
                                 onClick={() => handleCreatePageFromChat(msg.newPagePrompt!, msg.id)}>
                                 <Plus className="h-3 w-3" />
-                                Sí, crear nueva página
+                                {t("landingBuilderPage.yesCreateNewPage")}
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 text-xs"
                                 disabled={generating}
@@ -3198,7 +3210,7 @@ export default function LandingBuilderPage() {
                                   setChatMessages(prev => prev.filter(m => m.id !== msg.id));
                                   setChatInput(msg.newPagePrompt || "");
                                 }}>
-                                No, modificar esta
+                                {t("landingBuilderPage.noModifyThis")}
                               </Button>
                             </div>
                           </div>
@@ -3214,10 +3226,10 @@ export default function LandingBuilderPage() {
                               <span className="flex items-center gap-2 text-muted-foreground">
                                 <Loader2 className="animate-spin h-3 w-3 shrink-0" />
                                 <span className="text-xs tabular-nums">
-                                  {streamedTokens < 500 ? "Analizando..." :
-                                   streamedTokens < 2500 ? "Diseñando..." :
-                                   streamedTokens < 8000 ? "Generando HTML..." :
-                                   "Finalizando..."}
+                                  {streamedTokens < 500 ? t("landingBuilderPage.statusAnalyzing") :
+                                   streamedTokens < 2500 ? t("landingBuilderPage.statusDesigning") :
+                                   streamedTokens < 8000 ? t("landingBuilderPage.statusGeneratingHtml") :
+                                   t("landingBuilderPage.statusFinalizing")}
                                   {streamedTokens > 0
                                     ? <span className="opacity-50 ml-1">{streamedTokens.toLocaleString()} tkn</span>
                                     : generationElapsed > 0 && <span className="opacity-50 ml-1">{generationElapsed}s</span>}
@@ -3245,7 +3257,7 @@ export default function LandingBuilderPage() {
                     /* No form detected yet */
                     <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
                       <ClipboardList className="h-3 w-3 shrink-0" />
-                      Menciona en tu prompt que quieres un formulario de captura
+                      {t("landingBuilderPage.mentionFormInPrompt")}
                     </p>
                   ) : (
                     /* Form detected — show fields + integrate button */
@@ -3253,13 +3265,13 @@ export default function LandingBuilderPage() {
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] text-green-600 font-medium flex items-center gap-1">
                           <ClipboardList className="h-3 w-3" />
-                          {(formConfig.fields ?? []).length} campos detectados
+                          {t("landingBuilderPage.fieldsDetected", { count: (formConfig.fields ?? []).length })}
                         </span>
                         <button
                           onClick={() => setFormConfigOpen(true)}
                           className="text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors"
                         >
-                          Integrar con CRM →
+                          {t("landingBuilderPage.integrateWithCrm")} →
                         </button>
                       </div>
                       <div className="flex flex-wrap gap-1 mt-1.5">
@@ -3270,7 +3282,7 @@ export default function LandingBuilderPage() {
                         ))}
                         {(formConfig.fields ?? []).length > 5 && (
                           <span className="text-[10px] text-muted-foreground self-center">
-                            +{(formConfig.fields ?? []).length - 5} más
+                            {t("landingBuilderPage.moreCount", { count: (formConfig.fields ?? []).length - 5 })}
                           </span>
                         )}
                       </div>
@@ -3320,7 +3332,7 @@ export default function LandingBuilderPage() {
                   <Textarea
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={generatedHtml ? "Describe qué cambiar..." : "Describe tu landing desde cero..."}
+                    placeholder={generatedHtml ? t("landingBuilderPage.describeChangePlaceholder") : t("landingBuilderPage.describeFromScratchPlaceholder")}
                     className="text-sm resize-none min-h-[72px]"
                     onKeyDown={(e) => {
                       if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
@@ -3372,7 +3384,7 @@ export default function LandingBuilderPage() {
                             }
                           </Button>
                         </TooltipTrigger>
-                        <TooltipContent side="top">Adjuntar imagen</TooltipContent>
+                        <TooltipContent side="top">{t("landingBuilderPage.attachImage")}</TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
 
@@ -3391,14 +3403,14 @@ export default function LandingBuilderPage() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top">
-                          {attachedPdf ? `PDF: ${attachedPdf.name}` : "Adjuntar brochure PDF"}
+                          {attachedPdf ? `PDF: ${attachedPdf.name}` : t("landingBuilderPage.attachPdfBrochure")}
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
 
                     {generatedHtml && (
                       <span className="text-[10px] text-muted-foreground flex-1">
-                        Modo refinado — mantiene el diseño
+                        {t("landingBuilderPage.refineMode")}
                       </span>
                     )}
 
@@ -3409,7 +3421,7 @@ export default function LandingBuilderPage() {
                       onClick={handleGenerate}
                     >
                       <Send className="h-3.5 w-3.5" />
-                      {generating ? "Enviando..." : generatedHtml ? "Refinar" : "Generar"}
+                      {generating ? t("landingBuilderPage.sending") : generatedHtml ? t("landingBuilderPage.refine") : t("landingBuilderPage.generate")}
                     </Button>
                   </div>
                 </div>
@@ -3444,27 +3456,27 @@ export default function LandingBuilderPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FolderOpen className="h-4 w-4 text-primary" /> Nuevo proyecto
+              <FolderOpen className="h-4 w-4 text-primary" /> {t("landingBuilderPage.newProject")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>Nombre del funnel</Label>
+              <Label>{t("landingBuilderPage.funnelNameLabel")}</Label>
               <Input
                 value={newFunnelName}
                 onChange={(e) => setNewFunnelName(e.target.value)}
-                placeholder="Ej: Webinar Mayo, Lanzamiento producto..."
+                placeholder={t("landingBuilderPage.funnelNamePlaceholder")}
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleCreateFunnel()}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Agrupa varias páginas dentro de un mismo embudo (principal, gracias, upsell…)
+              {t("landingBuilderPage.funnelHint")}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreateFunnel} disabled={!newFunnelName.trim()}>Crear funnel</Button>
+            <Button variant="outline" onClick={() => setNewFunnelOpen(false)}>{t("landingBuilderPage.cancel")}</Button>
+            <Button onClick={handleCreateFunnel} disabled={!newFunnelName.trim()}>{t("landingBuilderPage.createFunnel")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3474,32 +3486,32 @@ export default function LandingBuilderPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-4 w-4 text-primary" /> Nueva página
+              <FileText className="h-4 w-4 text-primary" /> {t("landingBuilderPage.newPage")}
               {selectedFunnelId && funnels.find(f => f.id === selectedFunnelId) && (
                 <span className="text-muted-foreground font-normal text-sm">
-                  en {funnels.find(f => f.id === selectedFunnelId)!.name}
+                  {t("landingBuilderPage.inFunnel", { name: funnels.find(f => f.id === selectedFunnelId)!.name })}
                 </span>
               )}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>Nombre de la página</Label>
+              <Label>{t("landingBuilderPage.pageNameLabel")}</Label>
               <Input
                 value={newPageName}
                 onChange={(e) => setNewPageName(e.target.value)}
-                placeholder="Ej: Página de gracias, Upsell..."
+                placeholder={t("landingBuilderPage.pageNamePlaceholder")}
                 autoFocus
                 onKeyDown={(e) => e.key === "Enter" && handleCreatePage()}
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              URL pública: <span className="font-mono">{toSlug(newPageName) || "mi-pagina"}</span>
+              {t("landingBuilderPage.publicUrlLabel")} <span className="font-mono">{toSlug(newPageName) || "mi-pagina"}</span>
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewPageOpen(false)}>Cancelar</Button>
-            <Button onClick={handleCreatePage} disabled={!newPageName.trim()}>Crear página</Button>
+            <Button variant="outline" onClick={() => setNewPageOpen(false)}>{t("landingBuilderPage.cancel")}</Button>
+            <Button onClick={handleCreatePage} disabled={!newPageName.trim()}>{t("landingBuilderPage.createPage")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3520,10 +3532,10 @@ export default function LandingBuilderPage() {
           <SheetHeader className="px-5 py-4 border-b shrink-0">
             <SheetTitle className="flex items-center gap-2 text-base">
               <ClipboardList className="h-4 w-4 text-primary" />
-              Integrar formulario con CRM
+              {t("landingBuilderPage.integrateFormWithCrm")}
             </SheetTitle>
             <p className="text-xs text-muted-foreground">
-              La IA detecta los campos automáticamente. Solo indica a qué columna del CRM va cada uno.
+              {t("landingBuilderPage.integrateFormDesc")}
             </p>
           </SheetHeader>
 
@@ -3532,7 +3544,7 @@ export default function LandingBuilderPage() {
             {/* ── Detected fields ── */}
             <div>
               <Label className="text-sm font-semibold mb-3 block">
-                Campos detectados del formulario
+                {t("landingBuilderPage.detectedFormFields")}
               </Label>
 
               {(formConfig.fields ?? []).length === 0 ? (
@@ -3540,10 +3552,10 @@ export default function LandingBuilderPage() {
                 <div className="rounded-lg border border-dashed border-muted-foreground/30 p-5 text-center space-y-2">
                   <AlertCircle className="h-8 w-8 text-muted-foreground/40 mx-auto" />
                   <p className="text-sm text-muted-foreground">
-                    No se detectó ningún formulario en la landing.
+                    {t("landingBuilderPage.noFormDetected")}
                   </p>
                   <p className="text-xs text-muted-foreground">
-                    Genera una landing con IA y menciona que quieres un formulario de captura de leads.
+                    {t("landingBuilderPage.noFormDetectedHint")}
                   </p>
                 </div>
               ) : (
@@ -3604,12 +3616,12 @@ export default function LandingBuilderPage() {
                 <div className="space-y-4 border rounded-lg p-4 bg-muted/20">
                   <Label className="text-sm font-semibold flex items-center gap-1.5">
                     <Link2 className="h-3.5 w-3.5 text-muted-foreground" />
-                    Conexiones y navegación
+                    {t("landingBuilderPage.connectionsAndNav")}
                   </Label>
 
                   {/* Form submit destination */}
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Al enviar el formulario</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("landingBuilderPage.onFormSubmit")}</p>
                     <Select
                       value={redirectMode}
                       onValueChange={v => {
@@ -3627,20 +3639,20 @@ export default function LandingBuilderPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="message">Mostrar mensaje de éxito</SelectItem>
+                        <SelectItem value="message">{t("landingBuilderPage.showSuccessMessage")}</SelectItem>
                         {targetPages.map(p => (
                           <SelectItem key={p.id} value={p.id}>
                             → {p.name}
-                            {p.page_role === "thankyou" && <span className="text-green-600 ml-1">(Gracias)</span>}
+                            {p.page_role === "thankyou" && <span className="text-green-600 ml-1">({t("landingBuilderPage.roleThankyou")})</span>}
                           </SelectItem>
                         ))}
-                        <SelectItem value="custom">URL externa personalizada…</SelectItem>
+                        <SelectItem value="custom">{t("landingBuilderPage.customExternalUrl")}</SelectItem>
                       </SelectContent>
                     </Select>
                     {redirectMode === "custom" && (
                       <Input
                         className="h-8 text-sm"
-                        placeholder="https://tudominio.com/gracias"
+                        placeholder={t("landingBuilderPage.thankYouUrlPlaceholder")}
                         value={redirectVal}
                         onChange={e => setFormConfig(prev => ({ ...prev, redirect_url: e.target.value }))}
                       />
@@ -3649,24 +3661,24 @@ export default function LandingBuilderPage() {
                       <Textarea
                         className="text-sm resize-none"
                         rows={2}
-                        placeholder="¡Gracias! Te contactaremos pronto."
+                        placeholder={t("landingBuilderPage.successMessagePlaceholder")}
                         value={formConfig.success_message || ""}
                         onChange={e => setFormConfig(prev => ({ ...prev, success_message: e.target.value }))}
                       />
                     )}
                     {redirectMode !== "message" && redirectMode !== "custom" && (
                       <p className="text-[10px] text-green-600 flex items-center gap-1">
-                        ✓ Redirigirá a {targetPages.find(p => p.id === redirectMode)?.name}
+                        ✓ {t("landingBuilderPage.willRedirectTo", { name: targetPages.find(p => p.id === redirectMode)?.name })}
                       </p>
                     )}
                   </div>
 
                   {/* CTA buttons — per-button configuration */}
                   <div className="space-y-2">
-                    <p className="text-xs font-medium text-muted-foreground">Botones CTA detectados</p>
+                    <p className="text-xs font-medium text-muted-foreground">{t("landingBuilderPage.detectedCtaButtons")}</p>
                     {(formConfig.cta_links ?? []).length === 0 ? (
                       <p className="text-[11px] text-muted-foreground/60 italic">
-                        No se detectaron botones CTA con href="#" en la página.
+                        {t("landingBuilderPage.noCtaButtonsDetected")}
                       </p>
                     ) : (
                       <div className="space-y-2">
@@ -3697,23 +3709,23 @@ export default function LandingBuilderPage() {
                                 }}
                               >
                                 <SelectTrigger className="h-7 text-xs">
-                                  <SelectValue placeholder="Sin configurar" />
+                                  <SelectValue placeholder={t("landingBuilderPage.notConfigured")} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="none">Sin configurar (href del diseño)</SelectItem>
+                                  <SelectItem value="none">{t("landingBuilderPage.notConfiguredHref")}</SelectItem>
                                   {targetPages.map(p => (
                                     <SelectItem key={p.id} value={p.id}>
                                       → {p.name}
                                       {p.page_role === "thankyou" && " ✓"}
                                     </SelectItem>
                                   ))}
-                                  <SelectItem value="custom">URL externa…</SelectItem>
+                                  <SelectItem value="custom">{t("landingBuilderPage.externalUrl")}</SelectItem>
                                 </SelectContent>
                               </Select>
                               {mode === "custom" && (
                                 <Input
                                   className="h-7 text-xs"
-                                  placeholder="https://tudominio.com/pagina"
+                                  placeholder={t("landingBuilderPage.domainPagePlaceholder")}
                                   value={val}
                                   onChange={e => setFormConfig(prev => ({
                                     ...prev,
@@ -3729,7 +3741,7 @@ export default function LandingBuilderPage() {
                       </div>
                     )}
                     <p className="text-[10px] text-muted-foreground/60">
-                      Solo aplica a botones con href="#". Links externos no se modifican.
+                      {t("landingBuilderPage.ctaHrefHint")}
                     </p>
                   </div>
                 </div>
@@ -3740,7 +3752,7 @@ export default function LandingBuilderPage() {
             <div className="space-y-3">
               <Label className="text-sm font-semibold flex items-center gap-1.5">
                 <Settings2 className="h-3.5 w-3.5 text-muted-foreground" />
-                Asignación automática al pipeline
+                {t("landingBuilderPage.autoPipelineAssignment")}
               </Label>
               <div className="space-y-2">
                 <Select
@@ -3755,10 +3767,10 @@ export default function LandingBuilderPage() {
                   }}
                 >
                   <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Sin asignación de pipeline" />
+                    <SelectValue placeholder={t("landingBuilderPage.noPipelineAssignment")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">Sin asignación</SelectItem>
+                    <SelectItem value="none">{t("landingBuilderPage.noAssignment")}</SelectItem>
                     {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -3776,10 +3788,10 @@ export default function LandingBuilderPage() {
                     }}
                   >
                     <SelectTrigger className="h-8 text-sm">
-                      <SelectValue placeholder="Seleccionar etapa..." />
+                      <SelectValue placeholder={t("landingBuilderPage.selectStage")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Sin etapa específica</SelectItem>
+                      <SelectItem value="none">{t("landingBuilderPage.noSpecificStage")}</SelectItem>
                       {pipelineStages.filter(s => s.pipeline_id === formConfig.pipeline_id).map(s => (
                         <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                       ))}
@@ -3789,7 +3801,7 @@ export default function LandingBuilderPage() {
 
                 {formConfig.pipeline_id && formConfig.stage_id && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
-                    ✓ Los leads irán a <strong>{formConfig.pipeline_name} → {formConfig.stage_name}</strong>
+                    ✓ {t("landingBuilderPage.leadsWillGoTo")} <strong>{formConfig.pipeline_name} → {formConfig.stage_name}</strong>
                   </p>
                 )}
               </div>
@@ -3813,11 +3825,11 @@ export default function LandingBuilderPage() {
               )}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardList className="h-4 w-4" />}
-              Guardar integración
+              {t("landingBuilderPage.saveIntegration")}
             </Button>
             {!(formConfig.fields ?? []).length && (
               <p className="text-[10px] text-muted-foreground text-center mt-2">
-                Genera una landing con formulario para mapear campos al CRM.
+                {t("landingBuilderPage.generateFormToMap")}
               </p>
             )}
           </div>
@@ -3843,7 +3855,7 @@ export default function LandingBuilderPage() {
               <div className="min-w-0">
                 <p className="text-xs font-semibold flex items-center gap-1.5">
                   <Link2 className="h-3 w-3 text-primary shrink-0" />
-                  Configurar botón
+                  {t("landingBuilderPage.configureButton")}
                 </p>
                 <p className="text-[11px] text-muted-foreground truncate mt-0.5" title={ctaPopover.text}>
                   "{ctaPopover.text}"
@@ -3859,7 +3871,7 @@ export default function LandingBuilderPage() {
 
             {/* Destination selector */}
             <div className="space-y-2">
-              <p className="text-[10px] text-muted-foreground font-medium">¿A dónde lleva este botón?</p>
+              <p className="text-[10px] text-muted-foreground font-medium">{t("landingBuilderPage.whereDoesButtonGo")}</p>
               <Select
                 value={mode}
                 onValueChange={v => {
@@ -3872,25 +3884,25 @@ export default function LandingBuilderPage() {
                 }}
               >
                 <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Seleccionar destino…" />
+                  <SelectValue placeholder={t("landingBuilderPage.selectDestination")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Sin destino (href="#")</SelectItem>
+                  <SelectItem value="none">{t("landingBuilderPage.noDestinationHref")}</SelectItem>
                   {targetPages.map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       {p.name}
-                      {p.page_role === "thankyou" && <span className="text-green-600 ml-1">· Gracias</span>}
-                      {p.page_role === "upsell" && <span className="text-orange-500 ml-1">· Upsell</span>}
+                      {p.page_role === "thankyou" && <span className="text-green-600 ml-1">· {t("landingBuilderPage.roleThankyou")}</span>}
+                      {p.page_role === "upsell" && <span className="text-orange-500 ml-1">· {t("landingBuilderPage.roleUpsell")}</span>}
                     </SelectItem>
                   ))}
-                  <SelectItem value="custom">URL externa…</SelectItem>
+                  <SelectItem value="custom">{t("landingBuilderPage.externalUrl")}</SelectItem>
                 </SelectContent>
               </Select>
 
               {mode === "custom" && (
                 <Input
                   className="h-8 text-sm"
-                  placeholder="https://tudominio.com/pagina"
+                  placeholder={t("landingBuilderPage.domainPagePlaceholder")}
                   value={ctaPopoverUrl}
                   onChange={e => setCtaPopoverUrl(e.target.value)}
                   autoFocus
@@ -3905,7 +3917,7 @@ export default function LandingBuilderPage() {
                   onClick={() => applyCtaLink(ctaPopoverUrl)}
                   disabled={mode === "none"}
                 >
-                  <Check className="h-3 w-3" /> Aplicar
+                  <Check className="h-3 w-3" /> {t("landingBuilderPage.apply")}
                 </Button>
                 <Button
                   size="sm"
@@ -3913,7 +3925,7 @@ export default function LandingBuilderPage() {
                   className="h-7 text-xs"
                   onClick={() => setCtaPopover(p => ({ ...p, open: false }))}
                 >
-                  Cancelar
+                  {t("landingBuilderPage.cancel")}
                 </Button>
               </div>
             </div>
@@ -3923,16 +3935,16 @@ export default function LandingBuilderPage() {
       <AlertDialog open={!!deleteFunnelTarget} onOpenChange={open => { if (!open) setDeleteFunnelTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar funnel?</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminará el funnel y todas sus páginas de forma permanente. Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("landingBuilderPage.deleteFunnelQ")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("landingBuilderPage.deleteFunnelDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("landingBuilderPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deleteFunnelTarget) handleDeleteFunnel(deleteFunnelTarget); setDeleteFunnelTarget(null); }}
             >
-              Eliminar funnel
+              {t("landingBuilderPage.deleteFunnel")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -3941,16 +3953,16 @@ export default function LandingBuilderPage() {
       <AlertDialog open={!!deletePageTarget} onOpenChange={open => { if (!open) setDeletePageTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar página?</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminará la página permanentemente. Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("landingBuilderPage.deletePageQ")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("landingBuilderPage.deletePageDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("landingBuilderPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deletePageTarget) handleDelete(deletePageTarget); setDeletePageTarget(null); }}
             >
-              Eliminar página
+              {t("landingBuilderPage.deletePage")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

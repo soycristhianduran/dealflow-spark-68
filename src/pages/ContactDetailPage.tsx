@@ -28,6 +28,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 // Normalize a single raw custom_fields value to a plain string.
 // Handles two storage formats:
@@ -57,6 +58,7 @@ function normalizeContact(data: any): any {
 }
 
 export default function ContactDetailPage() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
@@ -184,9 +186,9 @@ export default function ContactDetailPage() {
       })(),
     }).eq("id", id);
     if (error) {
-      toast.error("Error al guardar: " + error.message);
+      toast.error(t("contactDetailPage.saveError") + error.message);
     } else {
-      toast.success("Lead actualizado");
+      toast.success(t("contactDetailPage.leadUpdated"));
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(normalizeContact(data));
       setEditingContact(false);
@@ -222,8 +224,8 @@ export default function ContactDetailPage() {
     // Merge call_logs into the activities timeline as synthetic "call" events
     const callActivities = (cl.data || []).map((log: any) => {
       const statusLabel: Record<string, string> = {
-        completed: "Completada", no_answer: "Sin respuesta", failed: "Fallida",
-        initiated: "Iniciada", in_progress: "En curso", cancelled: "Cancelada",
+        completed: t("contactDetailPage.callStatusCompleted"), no_answer: t("contactDetailPage.callStatusNoAnswer"), failed: t("contactDetailPage.callStatusFailed"),
+        initiated: t("contactDetailPage.callStatusInitiated"), in_progress: t("contactDetailPage.callStatusInProgress"), cancelled: t("contactDetailPage.callStatusCancelled"),
       };
       const status = statusLabel[log.status] ?? log.status;
       const min = log.duration_seconds != null ? Math.floor(log.duration_seconds / 60) : null;
@@ -235,7 +237,7 @@ export default function ContactDetailPage() {
         related_entity_type: "contact",
         related_entity_id: id,
         event_type: "call",
-        summary: `📞 Llamada IA${dur} · ${status}${summary}`,
+        summary: `${t("contactDetailPage.aiCallLabel")}${dur} · ${status}${summary}`,
         created_at: log.created_at,
         organization_id: log.organization_id,
       };
@@ -313,11 +315,11 @@ export default function ContactDetailPage() {
         await supabase.from("activities").insert({
           related_entity_type: "contact", related_entity_id: id,
           event_type: "stage_changed", event_source: "contact_detail_inline",
-          summary: `Etapa cambiada a "${stageName}"`,
+          summary: t("contactDetailPage.stageChangedTo", { stage: stageName }),
         });
         supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
       }
-      toast.success("Pipeline actualizado");
+      toast.success(t("contactDetailPage.pipelineUpdated"));
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(normalizeContact(data));
       setPpl({
@@ -372,7 +374,7 @@ export default function ContactDetailPage() {
     if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; }
     const { error } = await supabase.from("contacts").update(update).eq("id", id);
     if (error) {
-      toast.error(error.message?.includes("BUDGET") || error.message?.includes("presupuesto") ? "Registra el presupuesto de cierre para marcar como ganado." : "Error al cambiar etapa: " + error.message);
+      toast.error(error.message?.includes("BUDGET") || error.message?.includes("presupuesto") ? t("contactDetailPage.closingBudgetRequired") : t("contactDetailPage.stageChangeError") + error.message);
       setSavingStage(false);
       return;
     }
@@ -382,7 +384,7 @@ export default function ContactDetailPage() {
         await supabase.from("activities").insert({
           related_entity_type: "contact", related_entity_id: id,
           event_type: "stage_changed", event_source: "contact_detail_inline",
-          summary: `Etapa cambiada a "${stageName}"`,
+          summary: t("contactDetailPage.stageChangedTo", { stage: stageName }),
         });
         supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
       }
@@ -390,7 +392,7 @@ export default function ContactDetailPage() {
       setContact(normalizeContact(data));
       setPpl(p => ({ ...p, stage_id: newStageId, pipeline_id: newPipelineId }));
       setStagesForPipeline(stagesForPicker);
-      toast.success(`Etapa: ${stageName}`);
+      toast.success(t("contactDetailPage.stageToast", { stage: stageName }));
     }
     setSavingStage(false);
   };
@@ -462,7 +464,7 @@ export default function ContactDetailPage() {
   if (loading) {
     return (
       <AppLayout>
-        <AppHeader title="Cargando..." />
+        <AppHeader title={t("contactDetailPage.loading")} />
         <main className="flex-1 flex items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </main>
@@ -473,10 +475,10 @@ export default function ContactDetailPage() {
   if (!contact) {
     return (
       <AppLayout>
-        <AppHeader title="Lead no encontrado" />
+        <AppHeader title={t("contactDetailPage.leadNotFound")} />
         <main className="flex-1 flex items-center justify-center flex-col gap-3">
-          <p className="text-muted-foreground">El lead no existe.</p>
-          <Button variant="outline" onClick={() => navigate(path('/contacts'))}>Volver a leads</Button>
+          <p className="text-muted-foreground">{t("contactDetailPage.leadDoesNotExist")}</p>
+          <Button variant="outline" onClick={() => navigate(path('/contacts'))}>{t("contactDetailPage.backToLeads")}</Button>
         </main>
       </AppLayout>
     );
@@ -493,31 +495,31 @@ export default function ContactDetailPage() {
             {canDeleteContacts && <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive">
-                  <Trash2 className="h-4 w-4" /> Eliminar
+                  <Trash2 className="h-4 w-4" /> {t("contactDetailPage.delete")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar este lead?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("contactDetailPage.deleteLeadTitle")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Se eliminará permanentemente a <strong>{contact.full_name}</strong> y no se podrá recuperar. Los deals, tareas y citas asociados no se eliminarán.
+                    {t("contactDetailPage.deleteLeadDescPrefix")}<strong>{contact.full_name}</strong>{t("contactDetailPage.deleteLeadDescSuffix")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogCancel>{t("contactDetailPage.cancel")}</AlertDialogCancel>
                   <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={async () => {
                     const { error } = await supabase.from("contacts").delete().eq("id", id!);
-                    if (error) { toast.error("Error al eliminar: " + error.message); return; }
-                    toast.success("Lead eliminado");
+                    if (error) { toast.error(t("contactDetailPage.deleteError") + error.message); return; }
+                    toast.success(t("contactDetailPage.leadDeleted"));
                     navigate(path("/contacts"));
                   }}>
-                    Eliminar
+                    {t("contactDetailPage.delete")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>}
             <Button variant="ghost" size="sm" onClick={() => navigate(path('/contacts'))} className="gap-1.5">
-              <ArrowLeft className="h-4 w-4" /> Volver
+              <ArrowLeft className="h-4 w-4" /> {t("contactDetailPage.back")}
             </Button>
           </div>
         }
@@ -544,16 +546,16 @@ export default function ContactDetailPage() {
                       )}
                       {contact.created_at && (
                         <p className="text-[11px] text-muted-foreground/70 mt-0.5">
-                          Ingresó el {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          {t("contactDetailPage.enteredOn")} {new Date(contact.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                         </p>
                       )}
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         {contact.lead_status === "won" && (
-                          <Badge className="bg-green-500 text-white border-0 gap-1"><Trophy className="h-3 w-3" /> Ganado</Badge>
+                          <Badge className="bg-green-500 text-white border-0 gap-1"><Trophy className="h-3 w-3" /> {t("contactDetailPage.won")}</Badge>
                         )}
                         {contact.lead_status === "lost" && (
                           <>
-                            <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> Perdido</Badge>
+                            <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" /> {t("contactDetailPage.lost")}</Badge>
                             {contact.lost_reason && (
                               <span className="text-xs text-muted-foreground">· {contact.lost_reason}</span>
                             )}
@@ -563,7 +565,7 @@ export default function ContactDetailPage() {
                           <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium">
                             {currentStage
                               ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
-                              : <span className="text-muted-foreground">Sin etapa</span>}
+                              : <span className="text-muted-foreground">{t("contactDetailPage.noStage")}</span>}
                           </div>
                         )}
                         {canEditContacts && (
@@ -573,10 +575,10 @@ export default function ContactDetailPage() {
                                 {savingStage
                                   ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   : !contact.pipeline_id
-                                    ? <span className="text-primary flex items-center gap-1"><Plus className="h-3.5 w-3.5" />Asignar a pipeline</span>
+                                    ? <span className="text-primary flex items-center gap-1"><Plus className="h-3.5 w-3.5" />{t("contactDetailPage.assignToPipeline")}</span>
                                     : currentStage
                                       ? <><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: currentStage.color }} />{currentStage.name}</>
-                                      : <span className="text-muted-foreground">Sin etapa</span>
+                                      : <span className="text-muted-foreground">{t("contactDetailPage.noStage")}</span>
                                 }
                                 <svg className="h-3.5 w-3.5 text-muted-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6"/></svg>
                               </button>
@@ -600,7 +602,7 @@ export default function ContactDetailPage() {
                               {/* Stages for selected pipeline */}
                               <div className="p-1">
                                 {stagesForPicker.length === 0 ? (
-                                  <p className="text-xs text-muted-foreground px-3 py-2">Selecciona un pipeline</p>
+                                  <p className="text-xs text-muted-foreground px-3 py-2">{t("contactDetailPage.selectPipeline")}</p>
                                 ) : stagesForPicker.map(stage => (
                                   <button
                                     key={stage.id}
@@ -622,7 +624,7 @@ export default function ContactDetailPage() {
                   {!editingContact ? (
                     canEditContacts && (
                       <Button size="sm" variant="ghost" className="h-7 text-xs gap-1 px-2" onClick={startEditing}>
-                        <Pencil className="h-3 w-3" /> Editar
+                        <Pencil className="h-3 w-3" /> {t("contactDetailPage.edit")}
                       </Button>
                     )
                   ) : (
@@ -631,7 +633,7 @@ export default function ContactDetailPage() {
                         <X className="h-3 w-3" />
                       </Button>
                       <Button size="sm" variant="default" className="h-7 text-xs px-2 gap-1" onClick={saveContactInfo} disabled={savingContact}>
-                        <Check className="h-3 w-3" /> {savingContact ? "..." : "Guardar"}
+                        <Check className="h-3 w-3" /> {savingContact ? "..." : t("contactDetailPage.save")}
                       </Button>
                     </div>
                   )}
@@ -642,14 +644,14 @@ export default function ContactDetailPage() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <div className="flex items-center justify-between">
-                          <label className="text-xs text-muted-foreground">Nombre</label>
+                          <label className="text-xs text-muted-foreground">{t("contactDetailPage.firstName")}</label>
                           <CopyIdBtn fieldId="first_name" />
                         </div>
                         <Input value={editForm.first_name} onChange={e => setEditForm(p => ({ ...p, first_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
                       </div>
                       <div>
                         <div className="flex items-center justify-between">
-                          <label className="text-xs text-muted-foreground">Apellido</label>
+                          <label className="text-xs text-muted-foreground">{t("contactDetailPage.lastName")}</label>
                           <CopyIdBtn fieldId="last_name" />
                         </div>
                         <Input value={editForm.last_name} onChange={e => setEditForm(p => ({ ...p, last_name: e.target.value }))} className="h-8 text-sm mt-0.5" />
@@ -657,66 +659,66 @@ export default function ContactDetailPage() {
                     </div>
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-muted-foreground">Teléfono</label>
+                        <label className="text-xs text-muted-foreground">{t("contactDetailPage.phone")}</label>
                         <CopyIdBtn fieldId="primary_phone" />
                       </div>
                       <Input value={editForm.primary_phone} onChange={e => setEditForm(p => ({ ...p, primary_phone: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="+52 55 1234 5678" />
                     </div>
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-muted-foreground">Email</label>
+                        <label className="text-xs text-muted-foreground">{t("contactDetailPage.email")}</label>
                         <CopyIdBtn fieldId="primary_email" />
                       </div>
-                      <Input type="email" value={editForm.primary_email} onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="email@ejemplo.com" />
+                      <Input type="email" value={editForm.primary_email} onChange={e => setEditForm(p => ({ ...p, primary_email: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder={t("contactDetailPage.emailPlaceholder")} />
                     </div>
                     <div>
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-muted-foreground">Cumpleaños</label>
+                        <label className="text-xs text-muted-foreground">{t("contactDetailPage.birthday")}</label>
                         <CopyIdBtn fieldId="birthday" />
                       </div>
                       <Input type="date" value={editForm.birthday} onChange={e => setEditForm(p => ({ ...p, birthday: e.target.value }))} className="h-8 text-sm mt-0.5" />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> Empresa</label>
-                      <Input value={editForm.company_name} onChange={e => setEditForm(p => ({ ...p, company_name: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Nombre de la empresa" maxLength={120} />
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Building2 className="h-3 w-3" /> {t("contactDetailPage.company")}</label>
+                      <Input value={editForm.company_name} onChange={e => setEditForm(p => ({ ...p, company_name: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder={t("contactDetailPage.companyPlaceholder")} maxLength={120} />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> Ciudad</label>
-                        <Input value={editForm.city} onChange={e => setEditForm(p => ({ ...p, city: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Ciudad" maxLength={80} />
+                        <label className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="h-3 w-3" /> {t("contactDetailPage.city")}</label>
+                        <Input value={editForm.city} onChange={e => setEditForm(p => ({ ...p, city: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder={t("contactDetailPage.cityPlaceholder")} maxLength={80} />
                       </div>
                       <div>
-                        <label className="text-xs text-muted-foreground">País</label>
-                        <Input value={editForm.country} onChange={e => setEditForm(p => ({ ...p, country: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="País" maxLength={80} />
+                        <label className="text-xs text-muted-foreground">{t("contactDetailPage.country")}</label>
+                        <Input value={editForm.country} onChange={e => setEditForm(p => ({ ...p, country: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder={t("contactDetailPage.countryPlaceholder")} maxLength={80} />
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" /> Idioma</label>
-                      <Input value={editForm.language} onChange={e => setEditForm(p => ({ ...p, language: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder="Ej: Español, English" maxLength={40} />
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Globe className="h-3 w-3" /> {t("contactDetailPage.language")}</label>
+                      <Input value={editForm.language} onChange={e => setEditForm(p => ({ ...p, language: e.target.value }))} className="h-8 text-sm mt-0.5" placeholder={t("contactDetailPage.languagePlaceholder")} maxLength={40} />
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Radio className="h-3 w-3" /> Canal preferido</label>
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><Radio className="h-3 w-3" /> {t("contactDetailPage.preferredChannel")}</label>
                       <Select value={editForm.preferred_channel || "__none__"} onValueChange={v => setEditForm(p => ({ ...p, preferred_channel: v === "__none__" ? "" : v }))}>
-                        <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder="Sin especificar" /></SelectTrigger>
+                        <SelectTrigger className="h-8 text-sm mt-0.5"><SelectValue placeholder={t("contactDetailPage.unspecified")} /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="__none__">Sin especificar</SelectItem>
+                          <SelectItem value="__none__">{t("contactDetailPage.unspecified")}</SelectItem>
                           <SelectItem value="whatsapp">WhatsApp</SelectItem>
                           <SelectItem value="instagram">Instagram</SelectItem>
                           <SelectItem value="email">Email</SelectItem>
-                          <SelectItem value="phone">Teléfono</SelectItem>
+                          <SelectItem value="phone">{t("contactDetailPage.phone")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3" /> Notas</label>
-                      <Textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} className="text-sm mt-0.5 min-h-[72px] resize-none" placeholder="Notas internas sobre este lead…" maxLength={2000} />
+                      <label className="text-xs text-muted-foreground flex items-center gap-1"><FileText className="h-3 w-3" /> {t("contactDetailPage.notes")}</label>
+                      <Textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))} className="text-sm mt-0.5 min-h-[72px] resize-none" placeholder={t("contactDetailPage.notesPlaceholder")} maxLength={2000} />
                     </div>
 
                     {/* Custom fields — values only, schema managed in Settings → Campos */}
                     {fieldDefs.length > 0 && (
                       <div className="pt-1 border-t">
                         <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1">
-                          <Settings2 className="h-3 w-3" /> Campos personalizados
+                          <Settings2 className="h-3 w-3" /> {t("contactDetailPage.customFields")}
                         </p>
                         <div className="space-y-1.5">
                           {fieldDefs.map(def => {
@@ -734,11 +736,11 @@ export default function ContactDetailPage() {
                                 {def.field_type === "boolean" ? (
                                   <div className="flex-1 flex items-center gap-2">
                                     <Switch checked={value === "true"} onCheckedChange={v => setVal(v ? "true" : "false")} />
-                                    <span className="text-xs text-muted-foreground">{value === "true" ? "Sí" : "No"}</span>
+                                    <span className="text-xs text-muted-foreground">{value === "true" ? t("contactDetailPage.yes") : t("contactDetailPage.no")}</span>
                                   </div>
                                 ) : def.field_type === "select" ? (
                                   <Select value={value} onValueChange={setVal}>
-                                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                                    <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={t("contactDetailPage.selectPlaceholder")} /></SelectTrigger>
                                     <SelectContent>{(def.options || []).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                                   </Select>
                                 ) : (
@@ -755,12 +757,12 @@ export default function ContactDetailPage() {
                           })}
                         </div>
                         <p className="text-[10px] text-muted-foreground mt-2">
-                          Para agregar campos ve a{" "}
+                          {t("contactDetailPage.toAddFieldsGoTo")}{" "}
                           <button
                             className="underline hover:text-foreground"
                             onClick={() => navigate(path("/settings") + "?tab=campos")}
                           >
-                            Configuración → Campos
+                            {t("contactDetailPage.settingsFields")}
                           </button>
                         </p>
                       </div>
@@ -828,7 +830,7 @@ export default function ContactDetailPage() {
                         <div className="flex justify-end">
                           <Button size="sm" variant="default" className="h-6 text-[10px] px-2 gap-1" onClick={savePipelineFields} disabled={savingPpl}>
                             {savingPpl ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                            Guardar
+                            {t("contactDetailPage.save")}
                           </Button>
                         </div>
                       )}
@@ -836,7 +838,7 @@ export default function ContactDetailPage() {
                       {/* Budget — visible solo si tiene permiso */}
                       {canSeeBudget(contact?.owner_id) && (
                         <div className="rounded-lg bg-primary/5 border border-primary/10 px-3 py-2.5">
-                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">Presupuesto</p>
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1.5">{t("contactDetailPage.budget")}</p>
                           {budgetEditing ? (
                             <div className="flex gap-1.5 items-center">
                               <Input
@@ -859,7 +861,7 @@ export default function ContactDetailPage() {
                             <button
                               className="w-full text-left flex items-baseline gap-1.5 group"
                               onClick={() => canEditContacts && setBudgetEditing(true)}
-                              title={canEditContacts ? "Clic para editar presupuesto" : undefined}
+                              title={canEditContacts ? t("contactDetailPage.clickToEditBudget") : undefined}
                             >
                               <span className="text-2xl font-bold text-foreground leading-none">
                                 {ppl.budget ? formatMoney(Number(ppl.budget), ppl.budget_currency || defaultCurrency) : "—"}
@@ -873,7 +875,7 @@ export default function ContactDetailPage() {
 
                       {/* Expected close date */}
                       <div>
-                        <label className="text-xs text-muted-foreground">Fecha cierre estimada</label>
+                        <label className="text-xs text-muted-foreground">{t("contactDetailPage.expectedCloseDate")}</label>
                         <Input
                           type="date" value={ppl.expected_close_date}
                           onChange={e => updatePpl({ expected_close_date: e.target.value })}
@@ -889,17 +891,17 @@ export default function ContactDetailPage() {
                         className="flex-col h-auto py-2 gap-1 text-xs"
                         disabled={!contact.primary_phone}
                         onClick={() => { if (contact.primary_phone) window.location.href = `tel:${contact.primary_phone.replace(/[^+\d]/g, "")}`; }}
-                        title={contact.primary_phone ? `Llamar a ${contact.primary_phone}` : "Sin teléfono"}
+                        title={contact.primary_phone ? t("contactDetailPage.callTo", { phone: contact.primary_phone }) : t("contactDetailPage.noPhone")}
                       >
                         <Phone className="h-4 w-4" />
-                        Llamar
+                        {t("contactDetailPage.call")}
                       </Button>
                       <Button
                         variant="outline" size="sm"
                         className="flex-col h-auto py-2 gap-1 text-xs"
                         disabled={!contact.primary_phone}
                         onClick={() => { if (contact.primary_phone) setActiveTab("whatsapp"); }}
-                        title={contact.primary_phone ? "Abrir chat de WhatsApp" : "Sin teléfono"}
+                        title={contact.primary_phone ? t("contactDetailPage.openWhatsAppChat") : t("contactDetailPage.noPhone")}
                       >
                         <MessageCircle className="h-4 w-4" />
                         WhatsApp
@@ -908,11 +910,11 @@ export default function ContactDetailPage() {
                         variant="outline" size="sm"
                         className="flex-col h-auto py-2 gap-1 text-xs"
                         disabled={!contact.primary_email}
-                        onClick={() => { if (contact.primary_email) { const s = `Hola ${contact.full_name?.split(" ")[0] || ""}`.trim(); window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(s)}`; } }}
-                        title={contact.primary_email ? `Email a ${contact.primary_email}` : "Sin email"}
+                        onClick={() => { if (contact.primary_email) { const s = t("contactDetailPage.emailGreeting", { name: contact.full_name?.split(" ")[0] || "" }).trim(); window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(s)}`; } }}
+                        title={contact.primary_email ? t("contactDetailPage.emailTo", { email: contact.primary_email }) : t("contactDetailPage.noEmail")}
                       >
                         <Mail className="h-4 w-4" />
-                        Email
+                        {t("contactDetailPage.email")}
                       </Button>
                       <Button
                         variant="outline" size="sm"
@@ -920,7 +922,7 @@ export default function ContactDetailPage() {
                         onClick={() => setMeetingDialogOpen(true)}
                       >
                         <Calendar className="h-4 w-4" />
-                        Agendar
+                        {t("contactDetailPage.schedule")}
                       </Button>
                     </div>
                   </div>
@@ -960,10 +962,10 @@ export default function ContactDetailPage() {
           <div className="lg:col-span-2">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
               <TabsList>
-                <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                <TabsTrigger value="info">Info</TabsTrigger>
-                <TabsTrigger value="tasks">Tareas ({tasks.length})</TabsTrigger>
-                <TabsTrigger value="meetings">Citas ({meetings.length})</TabsTrigger>
+                <TabsTrigger value="timeline">{t("contactDetailPage.tabTimeline")}</TabsTrigger>
+                <TabsTrigger value="info">{t("contactDetailPage.tabInfo")}</TabsTrigger>
+                <TabsTrigger value="tasks">{t("contactDetailPage.tabTasks")} ({tasks.length})</TabsTrigger>
+                <TabsTrigger value="meetings">{t("contactDetailPage.tabMeetings")} ({meetings.length})</TabsTrigger>
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
@@ -972,7 +974,7 @@ export default function ContactDetailPage() {
                   onAddNote={async (text) => {
                     const { data: { user } } = await supabase.auth.getUser();
                     if (!user) {
-                      toast.error("Tu sesión expiró. Vuelve a iniciar sesión.");
+                      toast.error(t("contactDetailPage.sessionExpired"));
                       return;
                     }
                     const { error } = await supabase.from("activities").insert({
@@ -984,10 +986,10 @@ export default function ContactDetailPage() {
                       created_by: user.id,
                     });
                     if (error) {
-                      toast.error("No se pudo guardar la nota: " + error.message);
+                      toast.error(t("contactDetailPage.noteSaveError") + error.message);
                       return;
                     }
-                    toast.success("Nota guardada");
+                    toast.success(t("contactDetailPage.noteSaved"));
                     fetchRelated();
                   }}
                 />
@@ -1021,7 +1023,7 @@ export default function ContactDetailPage() {
                     <Card className="border-none shadow-sm">
                       <CardHeader className="pb-2">
                         <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                          <Megaphone className="h-3.5 w-3.5" /> Origen y campaña
+                          <Megaphone className="h-3.5 w-3.5" /> {t("contactDetailPage.originAndCampaign")}
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -1029,7 +1031,7 @@ export default function ContactDetailPage() {
                           {/* Origen — primary + any merged sources */}
                           {hasOriginData && (
                             <div className="col-span-2 flex flex-col gap-1.5">
-                              <span className="text-[11px] font-medium text-muted-foreground">Origen</span>
+                              <span className="text-[11px] font-medium text-muted-foreground">{t("contactDetailPage.origin")}</span>
                               <div className="flex flex-wrap gap-1.5 items-center">
                                 {contact.source && (
                                   <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-700 border border-blue-100 dark:bg-blue-950 dark:text-blue-300 dark:border-blue-800">
@@ -1044,11 +1046,11 @@ export default function ContactDetailPage() {
                               </div>
                             </div>
                           )}
-                          {contact.campaign     && <InfoItem label="Campaña" value={contact.campaign} />}
-                          {contact.adset        && <InfoItem label="Ad Set" value={contact.adset} />}
+                          {contact.campaign     && <InfoItem label={t("contactDetailPage.campaign")} value={contact.campaign} />}
+                          {contact.adset        && <InfoItem label={t("contactDetailPage.adSet")} value={contact.adset} />}
                           {contact.ad && (
                             <div className="flex flex-col gap-1">
-                              <span className="text-[11px] font-medium text-muted-foreground">Anuncio</span>
+                              <span className="text-[11px] font-medium text-muted-foreground">{t("contactDetailPage.ad")}</span>
                               {contact.meta_ad_id ? (
                                 <button
                                   onClick={() => setAdPreviewOpen(true)}
@@ -1073,16 +1075,16 @@ export default function ContactDetailPage() {
                   <Card className="border-none shadow-sm">
                     <CardHeader className="pb-2">
                       <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                        <BarChart3 className="h-3.5 w-3.5" /> Origen del tráfico
+                        <BarChart3 className="h-3.5 w-3.5" /> {t("contactDetailPage.trafficSource")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-2 gap-4">
-                        {contact.utm_source   && <InfoItem label="Fuente (utm_source)"   value={contact.utm_source} />}
-                        {contact.utm_medium   && <InfoItem label="Medio (utm_medium)"    value={contact.utm_medium} />}
-                        {contact.utm_campaign && <InfoItem label="Campaña (utm_campaign)" value={contact.utm_campaign} />}
-                        {contact.utm_content  && <InfoItem label="Contenido (utm_content)" value={contact.utm_content} />}
-                        {contact.utm_term     && <InfoItem label="Término (utm_term)"    value={contact.utm_term} />}
+                        {contact.utm_source   && <InfoItem label={t("contactDetailPage.utmSource")}   value={contact.utm_source} />}
+                        {contact.utm_medium   && <InfoItem label={t("contactDetailPage.utmMedium")}    value={contact.utm_medium} />}
+                        {contact.utm_campaign && <InfoItem label={t("contactDetailPage.utmCampaign")} value={contact.utm_campaign} />}
+                        {contact.utm_content  && <InfoItem label={t("contactDetailPage.utmContent")} value={contact.utm_content} />}
+                        {contact.utm_term     && <InfoItem label={t("contactDetailPage.utmTerm")}    value={contact.utm_term} />}
                       </div>
                     </CardContent>
                   </Card>
@@ -1090,15 +1092,15 @@ export default function ContactDetailPage() {
 
                 <Card className="border-none shadow-sm">
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Fechas</CardTitle>
+                    <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("contactDetailPage.dates")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-4">
-                      <InfoItem label="Cumpleaños" value={contact.birthday ? new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined} />
-                      <InfoItem label="Creado" value={new Date(contact.created_at).toLocaleString()} />
-                      <InfoItem label="Actualizado" value={new Date(contact.updated_at).toLocaleString()} />
-                      <InfoItem label="Último contacto" value={contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString() : undefined} />
-                      <InfoItem label="Próxima acción" value={contact.next_action_at ? new Date(contact.next_action_at).toLocaleString() : undefined} />
+                      <InfoItem label={t("contactDetailPage.birthday")} value={contact.birthday ? new Date(contact.birthday + 'T12:00:00').toLocaleDateString('es', { day: 'numeric', month: 'long', year: 'numeric' }) : undefined} />
+                      <InfoItem label={t("contactDetailPage.created")} value={new Date(contact.created_at).toLocaleString()} />
+                      <InfoItem label={t("contactDetailPage.updated")} value={new Date(contact.updated_at).toLocaleString()} />
+                      <InfoItem label={t("contactDetailPage.lastContact")} value={contact.last_contact_at ? new Date(contact.last_contact_at).toLocaleString() : undefined} />
+                      <InfoItem label={t("contactDetailPage.nextAction")} value={contact.next_action_at ? new Date(contact.next_action_at).toLocaleString() : undefined} />
                     </div>
                   </CardContent>
                 </Card>
@@ -1141,8 +1143,8 @@ export default function ContactDetailPage() {
                 )) : (
                   <EmptyState
                     variant="tasks"
-                    title="Sin tareas asociadas"
-                    description="Las tareas que crees para este contacto (follow-up, llamada, etc.) aparecerán aquí."
+                    title={t("contactDetailPage.noTasksTitle")}
+                    description={t("contactDetailPage.noTasksDesc")}
                   />
                 )}
               </TabsContent>
@@ -1164,8 +1166,8 @@ export default function ContactDetailPage() {
                 )) : (
                   <EmptyState
                     variant="meetings"
-                    title="Sin citas asociadas"
-                    description="Agenda una llamada o reunión con este contacto desde el botón 'Agendar' arriba."
+                    title={t("contactDetailPage.noMeetingsTitle")}
+                    description={t("contactDetailPage.noMeetingsDesc")}
                   />
                 )}
               </TabsContent>
@@ -1192,15 +1194,15 @@ export default function ContactDetailPage() {
       <Dialog open={!!wonDlg} onOpenChange={(o) => { if (!o) setWonDlg(null); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Marcar como ganado</DialogTitle>
+            <DialogTitle>{t("contactDetailPage.markAsWon")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Para mover este lead a la etapa <span className="font-medium">"{wonDlg?.stageName}"</span> registra el presupuesto de cierre (valor de la venta). Es obligatorio.
+              {t("contactDetailPage.markAsWonDescPrefix")}<span className="font-medium">"{wonDlg?.stageName}"</span>{t("contactDetailPage.markAsWonDescSuffix")}
             </p>
             <div className="flex gap-2">
               <div className="flex-1">
-                <label className="text-xs font-medium">Presupuesto de cierre</label>
+                <label className="text-xs font-medium">{t("contactDetailPage.closingBudget")}</label>
                 <Input
                   type="number" min="0" autoFocus placeholder="0"
                   value={wonAmt}
@@ -1208,7 +1210,7 @@ export default function ContactDetailPage() {
                 />
               </div>
               <div className="w-28">
-                <label className="text-xs font-medium">Moneda</label>
+                <label className="text-xs font-medium">{t("contactDetailPage.currency")}</label>
                 <Select value={wonCur} onValueChange={setWonCur}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -1226,7 +1228,7 @@ export default function ContactDetailPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setWonDlg(null)} disabled={savingStage}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setWonDlg(null)} disabled={savingStage}>{t("contactDetailPage.cancel")}</Button>
             <Button
               disabled={savingStage || !(Number(wonAmt) > 0)}
               onClick={() => {
@@ -1236,7 +1238,7 @@ export default function ContactDetailPage() {
                 quickChangeStage(d.stageId, d.pipelineId, { amount: Number(wonAmt), currency: wonCur });
               }}
             >
-              Confirmar venta
+              {t("contactDetailPage.confirmSale")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1246,11 +1248,12 @@ export default function ContactDetailPage() {
 }
 
 function CopyIdBtn({ fieldId }: { fieldId: string }) {
+  const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   return (
     <button
       className="text-muted-foreground hover:text-foreground transition-colors"
-      title={`Copiar ID: ${fieldId}`}
+      title={t("contactDetailPage.copyId", { id: fieldId })}
       onClick={() => {
         navigator.clipboard.writeText(fieldId);
         setCopied(true);
@@ -1282,6 +1285,7 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
   canEdit: boolean;
   onUpdated: () => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(notes || "");
   const [saving, setSaving] = useState(false);
@@ -1295,8 +1299,8 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
       .from("contacts")
       .update({ notes: value.trim() || null })
       .eq("id", contactId);
-    if (error) toast.error("Error al guardar notas");
-    else { toast.success("Notas guardadas"); onUpdated(); }
+    if (error) toast.error(t("contactDetailPage.notesSaveError"));
+    else { toast.success(t("contactDetailPage.notesSaved")); onUpdated(); }
     setSaving(false);
     setEditing(false);
   };
@@ -1311,11 +1315,11 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
       <CardHeader className="pb-2 pt-4 px-5">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5" /> Notas
+            <FileText className="h-3.5 w-3.5" /> {t("contactDetailPage.notes")}
           </CardTitle>
           {canEdit && !editing && (
             <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => setEditing(true)}>
-              <Pencil className="h-3 w-3" /> {notes ? "Editar" : "Añadir"}
+              <Pencil className="h-3 w-3" /> {notes ? t("contactDetailPage.edit") : t("contactDetailPage.add")}
             </Button>
           )}
           {editing && (
@@ -1324,7 +1328,7 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
                 <X className="h-3 w-3" />
               </Button>
               <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> Guardar</>}
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> {t("contactDetailPage.save")}</>}
               </Button>
             </div>
           )}
@@ -1336,7 +1340,7 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
             value={value}
             onChange={e => setValue(e.target.value)}
             className="text-sm resize-none min-h-[96px]"
-            placeholder="Añade notas internas sobre este lead…"
+            placeholder={t("contactDetailPage.notesPlaceholder")}
             maxLength={2000}
             autoFocus
           />
@@ -1345,7 +1349,7 @@ function NotesCard({ contactId, notes, canEdit, onUpdated }: {
         ) : (
           <p className="text-xs text-muted-foreground text-center py-3 cursor-pointer hover:text-foreground transition-colors"
             onClick={() => canEdit && setEditing(true)}>
-            {canEdit ? "Clic para añadir notas…" : "Sin notas"}
+            {canEdit ? t("contactDetailPage.clickToAddNotes") : t("contactDetailPage.noNotes")}
           </p>
         )}
       </CardContent>
@@ -1359,6 +1363,7 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
   fieldDefs: FieldDefMini[];
   onUpdated: () => void;
 }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [values, setValues] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -1385,8 +1390,8 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
     const toSave: Record<string, string> = {};
     Object.entries(values).forEach(([k, v]) => { if (v !== "") toSave[k] = v; });
     const { error } = await supabase.from("contacts").update({ custom_fields: Object.keys(toSave).length > 0 ? toSave : null }).eq("id", contactId);
-    if (error) toast.error("Error al guardar campos");
-    else { toast.success("Campos guardados"); onUpdated(); }
+    if (error) toast.error(t("contactDetailPage.fieldsSaveError"));
+    else { toast.success(t("contactDetailPage.fieldsSaved")); onUpdated(); }
     setSaving(false);
     setEditing(false);
   };
@@ -1405,11 +1410,11 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-            <Settings2 className="h-3.5 w-3.5" /> Campos personalizados
+            <Settings2 className="h-3.5 w-3.5" /> {t("contactDetailPage.customFields")}
           </CardTitle>
           {!editing ? (
             <Button size="sm" variant="ghost" className="h-6 text-xs gap-1 px-2" onClick={() => setEditing(true)}>
-              <Pencil className="h-3 w-3" /> Editar
+              <Pencil className="h-3 w-3" /> {t("contactDetailPage.edit")}
             </Button>
           ) : (
             <div className="flex gap-1">
@@ -1417,7 +1422,7 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
                 <X className="h-3 w-3" />
               </Button>
               <Button size="sm" variant="default" className="h-6 text-xs px-2 gap-1" onClick={handleSave} disabled={saving}>
-                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> Guardar</>}
+                {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <><Check className="h-3 w-3" /> {t("contactDetailPage.save")}</>}
               </Button>
             </div>
           )}
@@ -1439,11 +1444,11 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
                   {type === "boolean" ? (
                     <div className="flex items-center gap-2 flex-1">
                       <Switch checked={val === "true"} onCheckedChange={v => setValue(key, v ? "true" : "false")} />
-                      <span className="text-xs text-muted-foreground">{val === "true" ? "Sí" : "No"}</span>
+                      <span className="text-xs text-muted-foreground">{val === "true" ? t("contactDetailPage.yes") : t("contactDetailPage.no")}</span>
                     </div>
                   ) : type === "select" ? (
                     <Select value={val} onValueChange={v => setValue(key, v)}>
-                      <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Seleccionar…" /></SelectTrigger>
+                      <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder={t("contactDetailPage.selectPlaceholder")} /></SelectTrigger>
                       <SelectContent>{opts.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
                     </Select>
                   ) : (
@@ -1460,7 +1465,7 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
                   <p className="text-xs text-muted-foreground">{label}</p>
                   <p className="text-sm font-medium text-foreground text-right">
                     {type === "boolean"
-                      ? (val === "true" ? "Sí" : val === "false" ? "No" : "—")
+                      ? (val === "true" ? t("contactDetailPage.yes") : val === "false" ? t("contactDetailPage.no") : "—")
                       : val || <span className="text-muted-foreground/50">—</span>}
                   </p>
                 </div>
@@ -1471,7 +1476,7 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
 
         {fieldDefs.length === 0 && (!customFields || Object.keys(customFields).length === 0) && (
           <p className="text-xs text-muted-foreground text-center py-2">
-            Define campos en Configuración → Campos para verlos aquí.
+            {t("contactDetailPage.defineFieldsHint")}
           </p>
         )}
       </CardContent>

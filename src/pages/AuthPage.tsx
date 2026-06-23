@@ -13,6 +13,7 @@ import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/compo
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { trackEvent } from "@/lib/metaPixel";
+import { useTranslation } from "react-i18next";
 
 const industries = [
   "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
@@ -32,6 +33,7 @@ const companySizes = [
 ];
 
 export default function AuthPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { session } = useAuth();
   const [searchParams] = useSearchParams();
@@ -103,7 +105,7 @@ export default function AuthPage() {
       options: { redirectTo },
     });
     if (error) {
-      toast.error("Error al conectar con Google: " + error.message);
+      toast.error(t("authPage.googleConnectError") + error.message);
       setGoogleLoading(false);
     }
     // On success, browser redirects to Google — googleLoading stays true
@@ -131,7 +133,7 @@ export default function AuthPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!firstName.trim() || !lastName.trim()) {
-      toast.error("Nombre y apellido son requeridos");
+      toast.error(t("authPage.nameRequired"));
       return;
     }
     setLoading(true);
@@ -156,7 +158,7 @@ export default function AuthPage() {
     });
     if (error) toast.error(error.message);
     else {
-      toast.success("Cuenta creada exitosamente");
+      toast.success(t("authPage.accountCreated"));
       // Meta: CompleteRegistration (pixel + CAPI, deduplicated by event_id)
       trackEvent(
         "CompleteRegistration",
@@ -175,19 +177,19 @@ export default function AuthPage() {
             <KlosifyLogo size={48} />
           </div>
           <CardTitle className="text-2xl font-bold">Klosify CRM</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">Gestión comercial inteligente</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("authPage.tagline")}</p>
         </CardHeader>
         <CardContent>
           {/* ── Forgot password: sent ── */}
           {view === "forgot-sent" && (
             <div className="space-y-4 text-center py-2">
               <div className="text-4xl">📬</div>
-              <p className="font-medium">Revisa tu correo</p>
+              <p className="font-medium">{t("authPage.checkEmail")}</p>
               <p className="text-sm text-muted-foreground">
-                Enviamos un enlace a <strong>{forgotEmail}</strong> para que restablezcas tu contraseña.
+                {t("authPage.resetLinkSentPrefix")} <strong>{forgotEmail}</strong> {t("authPage.resetLinkSentSuffix")}
               </p>
               <Button variant="ghost" size="sm" onClick={() => setView("tabs")}>
-                ← Volver al inicio de sesión
+                {t("authPage.backToLogin")}
               </Button>
             </div>
           )}
@@ -196,23 +198,23 @@ export default function AuthPage() {
           {view === "forgot" && (
             <form onSubmit={handleForgotPassword} className="space-y-4">
               <p className="text-sm text-muted-foreground">
-                Ingresa tu email y te enviaremos un enlace para restablecer tu contraseña.
+                {t("authPage.forgotPasswordIntro")}
               </p>
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>{t("authPage.email")}</Label>
                 <Input
                   type="email"
                   value={forgotEmail}
                   onChange={e => setForgotEmail(e.target.value)}
-                  placeholder="tu@email.com"
+                  placeholder={t("authPage.emailPlaceholder")}
                   required
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Enviando..." : "Enviar enlace"}
+                {loading ? t("authPage.sending") : t("authPage.sendLink")}
               </Button>
               <Button type="button" variant="ghost" size="sm" className="w-full" onClick={() => setView("tabs")}>
-                ← Volver
+                {t("authPage.back")}
               </Button>
             </form>
           )}
@@ -221,8 +223,8 @@ export default function AuthPage() {
           {view === "tabs" && <>
           {inviteToken && (
             <div className="mb-4 rounded-lg bg-primary/10 border border-primary/20 px-4 py-3 text-sm text-center">
-              🎉 Te invitaron a unirte a {inviteInfo?.org_name ? <strong>{inviteInfo.org_name}</strong> : "un equipo"}. <br />
-              <span className="text-muted-foreground">Crea tu cuenta con <strong>{inviteInfo?.email || "tu correo"}</strong> para continuar.</span>
+              🎉 {t("authPage.invitedToJoin")} {inviteInfo?.org_name ? <strong>{inviteInfo.org_name}</strong> : t("authPage.aTeam")}. <br />
+              <span className="text-muted-foreground">{t("authPage.createAccountWith")} <strong>{inviteInfo?.email || t("authPage.yourEmail")}</strong> {t("authPage.toContinue")}</span>
             </div>
           )}
 
@@ -244,52 +246,52 @@ export default function AuthPage() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
             )}
-            Continuar con Google
+            {t("authPage.continueWithGoogle")}
           </Button>
 
           <div className="relative mb-4">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">o</span>
+              <span className="bg-background px-2 text-muted-foreground">{t("authPage.or")}</span>
             </div>
           </div>
 
           <Tabs value={authTab} onValueChange={(v) => setAuthTab(v as "login" | "register")}>
             {inviteToken ? (
               <p className="text-center text-sm font-medium mb-4">
-                {authTab === "register" ? "Crea tu cuenta para unirte" : "Inicia sesión para unirte"}
+                {authTab === "register" ? t("authPage.createAccountToJoin") : t("authPage.loginToJoin")}
               </p>
             ) : (
               <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="login">Iniciar sesión</TabsTrigger>
-                <TabsTrigger value="register">Registrarse</TabsTrigger>
+                <TabsTrigger value="login">{t("authPage.login")}</TabsTrigger>
+                <TabsTrigger value="register">{t("authPage.register")}</TabsTrigger>
               </TabsList>
             )}
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
+                  <Label>{t("authPage.email")}</Label>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t("authPage.emailPlaceholder")} required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Contraseña</Label>
+                  <Label>{t("authPage.password")}</Label>
                   <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Ingresando..." : "Iniciar sesión"}
+                  {loading ? t("authPage.loggingIn") : t("authPage.login")}
                 </Button>
                 <button
                   type="button"
                   onClick={() => { setForgotEmail(email); setView("forgot"); }}
                   className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors mt-1"
                 >
-                  ¿Olvidaste tu contraseña?
+                  {t("authPage.forgotPasswordLink")}
                 </button>
                 {inviteToken && (
                   <button type="button" onClick={() => setAuthTab("register")}
                     className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors">
-                    ¿No tienes cuenta? Crea una
+                    {t("authPage.noAccountCreateOne")}
                   </button>
                 )}
               </form>
@@ -299,29 +301,29 @@ export default function AuthPage() {
               <form onSubmit={handleSignUp} className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Nombre *</Label>
-                    <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Juan" required />
+                    <Label>{t("authPage.firstName")}</Label>
+                    <Input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder={t("authPage.firstNamePlaceholder")} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Apellido *</Label>
-                    <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Pérez" required />
+                    <Label>{t("authPage.lastName")}</Label>
+                    <Input value={lastName} onChange={e => setLastName(e.target.value)} placeholder={t("authPage.lastNamePlaceholder")} required />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Email *</Label>
-                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="tu@email.com" required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
-                  {inviteInfo && <p className="text-xs text-muted-foreground">Este correo viene de tu invitación y no se puede cambiar.</p>}
+                  <Label>{t("authPage.emailRequired")}</Label>
+                  <Input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder={t("authPage.emailPlaceholder")} required readOnly={!!inviteInfo} className={inviteInfo ? "bg-muted cursor-not-allowed" : undefined} />
+                  {inviteInfo && <p className="text-xs text-muted-foreground">{t("authPage.inviteEmailLocked")}</p>}
                 </div>
                 {!inviteToken && (
                   <div className="space-y-2">
-                    <Label>Nombre de la empresa</Label>
-                    <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder="Ej: Acme Corp" />
+                    <Label>{t("authPage.companyName")}</Label>
+                    <Input value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder={t("authPage.companyNamePlaceholder")} />
                   </div>
                 )}
                 {!inviteToken && (
                   <>
                     <div className="space-y-2">
-                      <Label>Teléfono</Label>
+                      <Label>{t("authPage.phone")}</Label>
                       <CountryPhoneInput
                         value={phone}
                         onChange={setPhone}
@@ -330,10 +332,10 @@ export default function AuthPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Industria</Label>
+                      <Label>{t("authPage.industry")}</Label>
                       <Select value={industry} onValueChange={setIndustry}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona tu industria" />
+                          <SelectValue placeholder={t("authPage.industryPlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
                           {industries.map(i => (
@@ -343,10 +345,10 @@ export default function AuthPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Tamaño de empresa</Label>
+                      <Label>{t("authPage.companySize")}</Label>
                       <Select value={companySize} onValueChange={setCompanySize}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Número de empleados" />
+                          <SelectValue placeholder={t("authPage.companySizePlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
                           {companySizes.map(s => (
@@ -356,10 +358,10 @@ export default function AuthPage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Rol / Cargo</Label>
+                      <Label>{t("authPage.jobTitle")}</Label>
                       <Select value={jobTitle} onValueChange={setJobTitle}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Selecciona tu cargo" />
+                          <SelectValue placeholder={t("authPage.jobTitlePlaceholder")} />
                         </SelectTrigger>
                         <SelectContent>
                           {["CEO / Director General", "Director Comercial", "Gerente de Ventas", "Ejecutivo de Ventas", "Director de Marketing", "Gerente de Marketing", "Director de Operaciones", "Gerente de Proyecto", "Fundador / Co-fundador", "Consultor", "Freelancer", "Otro"].map(r => (
@@ -371,16 +373,16 @@ export default function AuthPage() {
                   </>
                 )}
                 <div className="space-y-2">
-                  <Label>Contraseña *</Label>
-                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
+                  <Label>{t("authPage.passwordRequired")}</Label>
+                  <Input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder={t("authPage.passwordPlaceholder")} minLength={6} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creando cuenta..." : "Crear cuenta"}
+                  {loading ? t("authPage.creatingAccount") : t("authPage.createAccount")}
                 </Button>
                 {inviteToken && (
                   <button type="button" onClick={() => setAuthTab("login")}
                     className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition-colors mt-1">
-                    ¿Ya tienes una cuenta? Inicia sesión
+                    {t("authPage.haveAccountLogin")}
                   </button>
                 )}
               </form>

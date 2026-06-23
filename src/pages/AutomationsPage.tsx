@@ -3,6 +3,7 @@
 // ══════════════════════════════════════════════════════════════════════
 import "@xyflow/react/dist/style.css";
 import { useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import React, { useState, useEffect, useCallback, useContext, createContext, useMemo } from "react";
 import {
@@ -362,6 +363,7 @@ function makeEdge(src: string, tgt: string, insertIndex: number): Edge {
 
 // ── Custom: Trigger node ──────────────────────────────────────────────────────
 function TriggerNode(_: NodeProps) {
+  const { t } = useTranslation();
   const { selectedId, triggerType, triggerConfig, triggers } = useContext(FlowCtx);
   const isSelected = selectedId === "trigger";
 
@@ -383,23 +385,23 @@ function TriggerNode(_: NodeProps) {
       <div className="flex items-center gap-2 px-4 py-3 rounded-t-xl" style={{ background: "linear-gradient(135deg,#6366f1,#8b5cf6)" }}>
         <Zap className="h-4 w-4 text-white" />
         <span className="text-sm font-semibold text-white">
-          {list.length > 1 ? "Disparadores (cualquiera)" : "Trigger de inicio"}
+          {list.length > 1 ? t("automationsPage.triggersAny") : t("automationsPage.startTrigger")}
         </span>
-        {isSelected && <span className="ml-auto text-xs text-indigo-200">← config</span>}
+        {isSelected && <span className="ml-auto text-xs text-indigo-200">{t("automationsPage.configArrow")}</span>}
       </div>
       <div className="px-4 py-2.5 space-y-1.5">
-        {list.map((t, i) => {
-          const cfg = t.config || {};
-          const sub = t.type === "meta_lead_form"
-            ? (cfg.form_name ? `📋 ${cfg.form_name}` : "Sin formulario")
-            : t.type === "tag_added" ? (cfg.tag ? `Tag: "${cfg.tag}"` : "")
-            : t.type === "contact_stage_changed" ? (cfg.stage_name ? `Etapa: "${cfg.stage_name}"` : "")
-            : t.type === "scheduled" ? (cfg.cron_expression ? describeCron(cfg.cron_expression) : "Sin configurar")
-            : t.type === "contact_created" ? (cfg.source && cfg.source !== "any" ? `Origen: ${cfg.source}` : "")
+        {list.map((tr, i) => {
+          const cfg = tr.config || {};
+          const sub = tr.type === "meta_lead_form"
+            ? (cfg.form_name ? `📋 ${cfg.form_name}` : t("automationsPage.noForm"))
+            : tr.type === "tag_added" ? (cfg.tag ? t("automationsPage.tagSub", { tag: cfg.tag }) : "")
+            : tr.type === "contact_stage_changed" ? (cfg.stage_name ? t("automationsPage.stageSub", { stage: cfg.stage_name }) : "")
+            : tr.type === "scheduled" ? (cfg.cron_expression ? describeCron(cfg.cron_expression) : t("automationsPage.notConfigured"))
+            : tr.type === "contact_created" ? (cfg.source && cfg.source !== "any" ? t("automationsPage.sourceSub", { source: cfg.source }) : "")
             : null;
           return (
             <div key={i} className={i > 0 ? "pt-1.5 border-t border-slate-100" : ""}>
-              <p className="text-xs font-semibold text-slate-700">{TRIGGER_LABELS[t.type] || t.type}</p>
+              <p className="text-xs font-semibold text-slate-700">{TRIGGER_LABELS[tr.type] || tr.type}</p>
               {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
             </div>
           );
@@ -454,10 +456,11 @@ function StepNode({ data }: NodeProps) {
 
 // ── Custom: End node ──────────────────────────────────────────────────────────
 function EndNode(_: NodeProps) {
+  const { t } = useTranslation();
   return (
     <div className="flex items-center justify-center rounded-full border-2 border-dashed border-slate-300 bg-white" style={{ width: NODE_W, height: 48 }}>
       <Handle type="target" position={Position.Top} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
-      <span className="text-xs text-slate-400 font-medium">Fin del flujo</span>
+      <span className="text-xs text-slate-400 font-medium">{t("automationsPage.flowEnd")}</span>
     </div>
   );
 }
@@ -468,6 +471,7 @@ function EndNode(_: NodeProps) {
 // We therefore read the callback from the module-level _onInsertStep ref,
 // which AutomationBuilder keeps up-to-date on every render.
 function AddableEdge({ sourceX, sourceY, targetX, targetY, data }: EdgeProps) {
+  const { t } = useTranslation();
   const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY });
   const insertIndex: number = (data as EdgeNodeData)?.insertIndex ?? 0;
 
@@ -486,7 +490,7 @@ function AddableEdge({ sourceX, sourceY, targetX, targetY, data }: EdgeProps) {
           <button
             onClick={e => { e.stopPropagation(); _onInsertStep?.(insertIndex); }}
             className="group flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-slate-400 shadow transition-all hover:border-indigo-500 hover:text-indigo-600 hover:scale-110 hover:shadow-md"
-            title="Añadir paso aquí"
+            title={t("automationsPage.addStepHere")}
           >
             <Plus className="h-3 w-3" />
           </button>
@@ -504,6 +508,7 @@ function StepPicker({ open, onClose, onSelect }: {
   open: boolean; onClose: () => void;
   onSelect: (type: AutomationStep["type"]) => void;
 }) {
+  const { t } = useTranslation();
   const [query, setQuery] = useState("");
 
   const filteredGroups = STEP_GROUPS.map(group => ({
@@ -521,7 +526,7 @@ function StepPicker({ open, onClose, onSelect }: {
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b">
           <Plus className="h-4 w-4 text-muted-foreground shrink-0" />
-          <span className="text-sm font-semibold">Añadir paso</span>
+          <span className="text-sm font-semibold">{t("automationsPage.addStep")}</span>
           <button onClick={() => { onClose(); setQuery(""); }} className="ml-auto text-muted-foreground hover:text-foreground transition-colors">
             <X className="h-4 w-4" />
           </button>
@@ -535,7 +540,7 @@ function StepPicker({ open, onClose, onSelect }: {
               autoFocus
               value={query}
               onChange={e => setQuery(e.target.value)}
-              placeholder="Buscar acción…"
+              placeholder={t("automationsPage.searchActionPlaceholder")}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60"
             />
             {query && (
@@ -549,7 +554,7 @@ function StepPicker({ open, onClose, onSelect }: {
         {/* Groups + items */}
         <div className="overflow-y-auto max-h-[400px] py-1">
           {filteredGroups.length === 0 && (
-            <p className="text-center text-sm text-muted-foreground py-8">Sin resultados para "{query}"</p>
+            <p className="text-center text-sm text-muted-foreground py-8">{t("automationsPage.noResultsFor", { query })}</p>
           )}
           {filteredGroups.map(group => (
             <div key={group.label}>
@@ -626,6 +631,7 @@ function describeCron(expr: string): string {
 // Pipeline + stage selector for the "stage changed" trigger (stores stage_id so
 // the runner matches reliably). Empty = any stage.
 function StageTriggerPicker({ config, onChange }: { config: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
+  const { t } = useTranslation();
   const [pipelines, setPipelines] = React.useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = React.useState<{ id: string; name: string; pipeline_id: string }[]>([]);
   React.useEffect(() => {
@@ -637,12 +643,12 @@ function StageTriggerPicker({ config, onChange }: { config: Record<string, any>;
   const pname = (id: string) => pipelines.find(p => p.id === id)?.name ?? "";
   return (
     <div className="space-y-2">
-      <Label>Etapa disparadora (opcional)</Label>
+      <Label>{t("automationsPage.triggerStageOptional")}</Label>
       {pipelines.length > 1 && (
         <Select value={pid || "all"} onValueChange={v => onChange({ ...config, pipeline_id: v === "all" ? "" : v, stage_id: "", stage_name: "" })}>
-          <SelectTrigger className="mt-1"><SelectValue placeholder="Todos los pipelines" /></SelectTrigger>
+          <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.allPipelines")} /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos los pipelines</SelectItem>
+            <SelectItem value="all">{t("automationsPage.allPipelines")}</SelectItem>
             {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
@@ -652,13 +658,13 @@ function StageTriggerPicker({ config, onChange }: { config: Record<string, any>;
         const st = stages.find(s => s.id === v);
         onChange({ ...config, stage_id: v, stage_name: st?.name ?? "", pipeline_id: st?.pipeline_id ?? config?.pipeline_id ?? "" });
       }}>
-        <SelectTrigger className="mt-1"><SelectValue placeholder="Cualquier etapa" /></SelectTrigger>
+        <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.anyStage")} /></SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Cualquier etapa</SelectItem>
+          <SelectItem value="all">{t("automationsPage.anyStage")}</SelectItem>
           {stagesFor.map(s => <SelectItem key={s.id} value={s.id}>{s.name}{pipelines.length > 1 ? ` · ${pname(s.pipeline_id)}` : ""}</SelectItem>)}
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground">Se activa cuando un lead se mueve a esta etapa. Deja "Cualquier etapa" para disparar en cualquier cambio.</p>
+      <p className="text-xs text-muted-foreground">{t("automationsPage.stageTriggerHint")}</p>
     </div>
   );
 }
@@ -666,6 +672,7 @@ function StageTriggerPicker({ config, onChange }: { config: Record<string, any>;
 function ScheduledTriggerEditor({
   triggerConfig, onChange,
 }: { triggerConfig: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
+  const { t } = useTranslation();
   const cronExpr: string = triggerConfig?.cron_expression ?? "";
   const knownPreset = CRON_PRESETS.find(p => p.value === cronExpr && p.value !== "__custom__");
   const [presetKey, setPresetKey] = React.useState<string>(knownPreset?.value ?? (cronExpr ? "__custom__" : "0 9 * * *"));
@@ -698,7 +705,7 @@ function ScheduledTriggerEditor({
       <div>
         <Label className="text-xs font-semibold flex items-center gap-1.5">
           <Clock className="h-3.5 w-3.5 text-amber-500" />
-          Frecuencia de disparo
+          {t("automationsPage.triggerFrequency")}
         </Label>
         <Select value={presetKey} onValueChange={handlePreset}>
           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
@@ -712,14 +719,14 @@ function ScheduledTriggerEditor({
 
       {presetKey === "__custom__" && (
         <div>
-          <Label className="text-xs">Expresión cron personalizada</Label>
+          <Label className="text-xs">{t("automationsPage.customCronExpression")}</Label>
           <Input
             className="mt-1 font-mono text-sm"
             value={custom}
             onChange={e => handleCustom(e.target.value)}
             placeholder="0 9 * * 1"
           />
-          <p className="text-xs text-muted-foreground mt-1">Formato: minuto hora díaMes mes díaSemana</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("automationsPage.cronFormatHint")}</p>
         </div>
       )}
 
@@ -728,9 +735,9 @@ function ScheduledTriggerEditor({
           <p className="font-medium">{isValid ? description : description}</p>
           {isValid && (
             <p className="text-amber-600/80">
-              El runner corre cada 5 minutos. Cada vez que se detecte una nueva
-              hora de disparo, <strong>todos los contactos de tu organización</strong> serán
-              enrolados en el flujo.
+              {t("automationsPage.cronRunnerInfoPre")}{" "}
+              <strong>{t("automationsPage.cronRunnerInfoBold")}</strong>{" "}
+              {t("automationsPage.cronRunnerInfoPost")}
             </p>
           )}
         </div>
@@ -747,6 +754,7 @@ function TriggerConfigEditor({
   triggerConfig: Record<string, any>;
   onChange: (type: string, config: Record<string, any>) => void;
 }) {
+  const { t } = useTranslation();
   const [metaForms, setMetaForms] = useState<{ form_id: string; form_name: string; page_id: string }[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [landingPages, setLandingPages] = useState<{ id: string; name: string; slug: string }[]>([]);
@@ -754,8 +762,8 @@ function TriggerConfigEditor({
   const [emailCampaigns, setEmailCampaigns] = useState<{ id: string; name: string }[]>([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
   const [dateFields, setDateFields] = useState<{ value: string; label: string }[]>([
-    { value: "birthday", label: "Cumpleaños" },
-    { value: "expected_close_date", label: "Fecha de cierre esperada" },
+    { value: "birthday", label: t("automationsPage.fieldBirthday") },
+    { value: "expected_close_date", label: t("automationsPage.fieldExpectedCloseDate") },
   ]);
   useEffect(() => {
     if (triggerType !== "contact_date") return;
@@ -814,7 +822,7 @@ function TriggerConfigEditor({
   return (
     <div className="space-y-4">
       <div>
-        <Label>Tipo de trigger</Label>
+        <Label>{t("automationsPage.triggerType")}</Label>
         <Select value={triggerType} onValueChange={v => onChange(v, {})}>
           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -831,14 +839,14 @@ function TriggerConfigEditor({
           <div>
             <Label className="flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-blue-500" />
-              Formulario de Meta
+              {t("automationsPage.metaForm")}
             </Label>
             {loadingForms ? (
-              <p className="text-xs text-muted-foreground mt-2">Cargando formularios...</p>
+              <p className="text-xs text-muted-foreground mt-2">{t("automationsPage.loadingForms")}</p>
             ) : metaForms.length === 0 ? (
               <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
-                <p className="font-medium">No hay formularios sincronizados</p>
-                <p>Ve a <strong>Integraciones → Meta Lead Ads</strong> y sincroniza tus formularios primero.</p>
+                <p className="font-medium">{t("automationsPage.noSyncedForms")}</p>
+                <p>{t("automationsPage.noSyncedFormsHintPre")}<strong>{t("automationsPage.metaLeadAdsPath")}</strong>{t("automationsPage.noSyncedFormsHintPost")}</p>
               </div>
             ) : (
               <Select
@@ -854,7 +862,7 @@ function TriggerConfigEditor({
                 }}
               >
                 <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Seleccionar formulario..." />
+                  <SelectValue placeholder={t("automationsPage.selectFormPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {metaForms.map(f => (
@@ -872,9 +880,9 @@ function TriggerConfigEditor({
             <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700 space-y-0.5">
               <p className="font-medium flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Configurado correctamente
+                {t("automationsPage.configuredCorrectly")}
               </p>
-              <p>Cuando llegue un nuevo lead del formulario <strong>"{triggerConfig.form_name}"</strong>, el contacto será enrolado automáticamente en esta automatización.</p>
+              <p>{t("automationsPage.metaFormConfiguredPre")}<strong>"{triggerConfig.form_name}"</strong>{t("automationsPage.metaFormConfiguredPost")}</p>
             </div>
           )}
         </div>
@@ -886,14 +894,14 @@ function TriggerConfigEditor({
           <div>
             <Label className="flex items-center gap-1.5">
               <FileText className="h-3.5 w-3.5 text-indigo-500" />
-              Landing Page
+              {t("automationsPage.landingPage")}
             </Label>
             {loadingLandings ? (
-              <p className="text-xs text-muted-foreground mt-2">Cargando landings...</p>
+              <p className="text-xs text-muted-foreground mt-2">{t("automationsPage.loadingLandings")}</p>
             ) : landingPages.length === 0 ? (
               <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
-                <p className="font-medium">No hay landings publicadas</p>
-                <p>Ve a <strong>Marketing → Landings</strong> y publica una landing page primero.</p>
+                <p className="font-medium">{t("automationsPage.noPublishedLandings")}</p>
+                <p>{t("automationsPage.noPublishedLandingsHintPre")}<strong>{t("automationsPage.marketingLandingsPath")}</strong>{t("automationsPage.noPublishedLandingsHintPost")}</p>
               </div>
             ) : (
               <>
@@ -909,10 +917,10 @@ function TriggerConfigEditor({
                   }}
                 >
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Cualquier landing..." />
+                    <SelectValue placeholder={t("automationsPage.anyLandingPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Cualquier landing page</SelectItem>
+                    <SelectItem value="all">{t("automationsPage.anyLandingPage")}</SelectItem>
                     {landingPages.map(p => (
                       <SelectItem key={p.id} value={p.id}>
                         <span className="font-medium">{p.name}</span>
@@ -922,7 +930,7 @@ function TriggerConfigEditor({
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Deja "Cualquier landing page" para disparar desde cualquier formulario.
+                  {t("automationsPage.anyLandingHint")}
                 </p>
               </>
             )}
@@ -931,12 +939,12 @@ function TriggerConfigEditor({
             <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-700 space-y-0.5">
               <p className="font-medium flex items-center gap-1">
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Listo
+                {t("automationsPage.ready")}
               </p>
               <p>
                 {triggerConfig?.page_id
-                  ? <>Cuando alguien envíe el formulario en <strong>"{triggerConfig.page_name}"</strong>, el contacto será enrolado.</>
-                  : <>Cuando alguien envíe un formulario en <strong>cualquier</strong> landing page, el contacto será enrolado.</>
+                  ? <>{t("automationsPage.landingConfiguredSpecificPre")}<strong>"{triggerConfig.page_name}"</strong>{t("automationsPage.landingConfiguredSpecificPost")}</>
+                  : <>{t("automationsPage.landingConfiguredAnyPre")}<strong>{t("automationsPage.landingConfiguredAnyBold")}</strong>{t("automationsPage.landingConfiguredAnyPost")}</>
                 }
               </p>
             </div>
@@ -950,10 +958,10 @@ function TriggerConfigEditor({
           <div>
             <Label className="flex items-center gap-1.5">
               <Mail className="h-3.5 w-3.5 text-blue-500" />
-              Campaña de email
+              {t("automationsPage.emailCampaign")}
             </Label>
             {loadingCampaigns ? (
-              <p className="text-xs text-muted-foreground mt-2">Cargando campañas...</p>
+              <p className="text-xs text-muted-foreground mt-2">{t("automationsPage.loadingCampaigns")}</p>
             ) : (
               <>
                 <Select
@@ -968,17 +976,17 @@ function TriggerConfigEditor({
                   }}
                 >
                   <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Cualquier campaña..." />
+                    <SelectValue placeholder={t("automationsPage.anyCampaignPlaceholder")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Cualquier campaña</SelectItem>
+                    <SelectItem value="all">{t("automationsPage.anyCampaign")}</SelectItem>
                     {emailCampaigns.map(c => (
                       <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Filtra opcionalmente por campaña específica.
+                  {t("automationsPage.filterByCampaignHint")}
                 </p>
               </>
             )}
@@ -986,12 +994,12 @@ function TriggerConfigEditor({
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700 space-y-0.5">
             <p className="font-medium flex items-center gap-1">
               <Info className="h-3.5 w-3.5" />
-              Solo se dispara una vez por contacto
+              {t("automationsPage.firesOncePerContact")}
             </p>
             <p>
               {triggerType === "email_opened"
-                ? "Se activa la primera vez que el contacto abre el email."
-                : "Se activa la primera vez que el contacto hace click en un enlace del email."
+                ? t("automationsPage.firesOnFirstOpen")
+                : t("automationsPage.firesOnFirstClick")
               }
             </p>
           </div>
@@ -1001,11 +1009,11 @@ function TriggerConfigEditor({
       {/* ── Other trigger configs ── */}
       {triggerType === "tag_added" && (
         <div>
-          <Label>Tag disparador</Label>
+          <Label>{t("automationsPage.triggerTag")}</Label>
           <TagPicker
             value={triggerConfig?.tag ?? ""}
             onChange={v => onChange(triggerType, { ...triggerConfig, tag: v })}
-            placeholder="Elige o crea una etiqueta"
+            placeholder={t("automationsPage.chooseOrCreateTag")}
           />
         </div>
       )}
@@ -1014,21 +1022,21 @@ function TriggerConfigEditor({
       )}
       {triggerType === "contact_created" && (
         <div>
-          <Label>Origen del contacto</Label>
+          <Label>{t("automationsPage.contactSource")}</Label>
           <Select value={triggerConfig?.source ?? "any"} onValueChange={v => onChange("contact_created", { ...triggerConfig, source: v })}>
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="any">Cualquier origen</SelectItem>
-              <SelectItem value="api">API (n8n / Zapier / externo)</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp entrante</SelectItem>
-              <SelectItem value="meta_lead_form">Formulario de Meta Lead Ads</SelectItem>
-              <SelectItem value="landing">Landing Page de Klosify</SelectItem>
-              <SelectItem value="embed_form">Formulario web (embed)</SelectItem>
-              <SelectItem value="manual">Creado manualmente</SelectItem>
+              <SelectItem value="any">{t("automationsPage.anySource")}</SelectItem>
+              <SelectItem value="api">{t("automationsPage.sourceApi")}</SelectItem>
+              <SelectItem value="whatsapp">{t("automationsPage.sourceWhatsappIncoming")}</SelectItem>
+              <SelectItem value="meta_lead_form">{t("automationsPage.sourceMetaLeadForm")}</SelectItem>
+              <SelectItem value="landing">{t("automationsPage.sourceLanding")}</SelectItem>
+              <SelectItem value="embed_form">{t("automationsPage.sourceEmbedForm")}</SelectItem>
+              <SelectItem value="manual">{t("automationsPage.sourceManual")}</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground mt-1">
-            Dispara solo cuando el contacto se cree por este canal. "Cualquier origen" dispara siempre.
+            {t("automationsPage.contactSourceHint")}
           </p>
         </div>
       )}
@@ -1040,46 +1048,45 @@ function TriggerConfigEditor({
       {triggerType === "contact_date" && (
         <div className="space-y-3">
           <div>
-            <Label className="flex items-center gap-1.5"><Cake className="h-3.5 w-3.5 text-pink-500" /> Campo de fecha</Label>
+            <Label className="flex items-center gap-1.5"><Cake className="h-3.5 w-3.5 text-pink-500" /> {t("automationsPage.dateField")}</Label>
             <Select value={triggerConfig?.date_field ?? ""} onValueChange={v => onChange("contact_date", { ...triggerConfig, date_field: v })}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar campo..." /></SelectTrigger>
+              <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectFieldPlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {dateFields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
           <div>
-            <Label>Cuándo disparar</Label>
+            <Label>{t("automationsPage.whenToTrigger")}</Label>
             <div className="flex gap-2 mt-1 items-center">
               <Input type="number" min={0} className="w-20"
                 value={triggerConfig?.offset_value ?? 0}
                 onChange={e => onChange("contact_date", { ...triggerConfig, offset_value: Number(e.target.value) })} />
-              <span className="text-sm text-muted-foreground">días</span>
+              <span className="text-sm text-muted-foreground">{t("automationsPage.days")}</span>
               <Select value={triggerConfig?.offset_dir ?? "on"} onValueChange={v => onChange("contact_date", { ...triggerConfig, offset_dir: v })}>
                 <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="before">antes</SelectItem>
-                  <SelectItem value="on">el mismo día</SelectItem>
-                  <SelectItem value="after">después</SelectItem>
+                  <SelectItem value="before">{t("automationsPage.before")}</SelectItem>
+                  <SelectItem value="on">{t("automationsPage.sameDay")}</SelectItem>
+                  <SelectItem value="after">{t("automationsPage.after")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
           <div>
-            <Label>Hora del disparo</Label>
+            <Label>{t("automationsPage.triggerHour")}</Label>
             <Input type="number" min={0} max={23} className="w-24 mt-1"
               value={triggerConfig?.send_hour ?? 9}
               onChange={e => onChange("contact_date", { ...triggerConfig, send_hour: Number(e.target.value) })} />
-            <span className="text-xs text-muted-foreground ml-2">hora local (0–23)</span>
+            <span className="text-xs text-muted-foreground ml-2">{t("automationsPage.localHourRange")}</span>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" checked={triggerConfig?.annual ?? true}
               onChange={e => onChange("contact_date", { ...triggerConfig, annual: e.target.checked })} />
-            Fecha anual (cumpleaños / aniversario) — se repite cada año
+            {t("automationsPage.annualDate")}
           </label>
           <div className="rounded-lg border border-pink-200 bg-pink-50 p-3 text-xs text-pink-700">
-            Cada día, el sistema busca contactos cuya fecha coincida (con el ajuste de días) y los inscribe
-            automáticamente en este flujo. Atrapa a todos tus contactos, incluso los que ya existían.
+            {t("automationsPage.contactDateInfo")}
           </div>
         </div>
       )}
@@ -1094,6 +1101,7 @@ function MultiTriggerEditor({
   triggers: { type: string; config: Record<string, any> }[];
   onChange: (triggers: { type: string; config: Record<string, any> }[]) => void;
 }) {
+  const { t } = useTranslation();
   const list = triggers.length ? triggers : [{ type: "manual", config: {} }];
   const update = (idx: number, type: string, config: Record<string, any>) =>
     onChange(list.map((t, i) => (i === idx ? { type, config } : t)));
@@ -1111,7 +1119,7 @@ function MultiTriggerEditor({
     <div className="space-y-4">
       {list.length > 1 && (
         <div className="rounded-lg border border-indigo-100 bg-indigo-50/60 px-3 py-2 text-xs text-indigo-700">
-          El flujo se ejecuta cuando ocurra <strong>cualquiera</strong> de estos disparadores (lógica O).
+          {t("automationsPage.multiTriggerInfoPre")}<strong>{t("automationsPage.multiTriggerInfoBold")}</strong>{t("automationsPage.multiTriggerInfoPost")}
         </div>
       )}
       {list.map((t, idx) => (
@@ -1119,7 +1127,7 @@ function MultiTriggerEditor({
           {list.length > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Disparador {idx + 1}
+                {t("automationsPage.triggerN", { n: idx + 1 })}
               </span>
               <button onClick={() => remove(idx)} className="text-muted-foreground hover:text-red-600">
                 <Trash2 className="h-3.5 w-3.5" />
@@ -1134,7 +1142,7 @@ function MultiTriggerEditor({
         </div>
       ))}
       <Button variant="outline" size="sm" className="w-full gap-2" onClick={add}>
-        <Plus className="h-4 w-4" /> Agregar otro disparador
+        <Plus className="h-4 w-4" /> {t("automationsPage.addAnotherTrigger")}
       </Button>
     </div>
   );
@@ -1152,6 +1160,7 @@ function NodeConfigPanel({
   onStepChange: (step: AutomationStep) => void;
   onTriggersChange: (triggers: { type: string; config: Record<string, any> }[]) => void;
 }) {
+  const { t } = useTranslation();
   const step = steps.find(s => s.id === selectedId) || null;
   const isTrigger = selectedId === "trigger";
 
@@ -1161,7 +1170,7 @@ function NodeConfigPanel({
       <div className="flex items-center justify-between border-b px-4 py-3 shrink-0">
         <div className="flex items-center gap-2">
           {isTrigger
-            ? <><Zap className="h-4 w-4 text-indigo-500" /><span className="text-sm font-semibold">Trigger</span></>
+            ? <><Zap className="h-4 w-4 text-indigo-500" /><span className="text-sm font-semibold">{t("automationsPage.trigger")}</span></>
             : step
               ? (() => { const m = STEP_META[step.type]; const I = m.icon; return <><I className="h-4 w-4" style={{ color: m.color }} /><span className="text-sm font-semibold">{m.label}</span></>; })()
               : null
@@ -1232,6 +1241,7 @@ function WhatsAppStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
 
   const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string }[]>([]);
@@ -1272,13 +1282,13 @@ function WhatsAppStepEditor({ step, onChange }: {
     <div className="space-y-4">
       {/* ── Selector de plantilla ── */}
       <div>
-        <Label className="text-xs font-semibold">Plantilla de WhatsApp</Label>
+        <Label className="text-xs font-semibold">{t("automationsPage.whatsappTemplate")}</Label>
         {loadingTpl ? (
-          <p className="text-xs text-muted-foreground mt-1">Cargando plantillas...</p>
+          <p className="text-xs text-muted-foreground mt-1">{t("automationsPage.loadingTemplates")}</p>
         ) : displayTemplates.length === 0 ? (
           <div className="mt-1 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700 space-y-1">
-            <p className="font-medium">No hay plantillas disponibles</p>
-            <p>Ve a <strong>WA Plantillas</strong> y crea o sincroniza tus plantillas primero.</p>
+            <p className="font-medium">{t("automationsPage.noTemplatesAvailable")}</p>
+            <p>{t("automationsPage.noWhatsappTemplatesHintPre")}<strong>{t("automationsPage.waTemplatesPath")}</strong>{t("automationsPage.noWhatsappTemplatesHintPost")}</p>
           </div>
         ) : (
           <Select
@@ -1286,7 +1296,7 @@ function WhatsAppStepEditor({ step, onChange }: {
             onValueChange={handleSelectTemplate}
           >
             <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Seleccionar plantilla..." />
+              <SelectValue placeholder={t("automationsPage.selectTemplatePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {displayTemplates.map(t => (
@@ -1312,7 +1322,7 @@ function WhatsAppStepEditor({ step, onChange }: {
       {/* ── Vista previa con variables resaltadas ── */}
       {selectedTpl && (
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Vista previa</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t("automationsPage.preview")}</p>
           <HighlightedBody body={selectedTpl.body_text} variables={variables} />
         </div>
       )}
@@ -1320,9 +1330,9 @@ function WhatsAppStepEditor({ step, onChange }: {
       {/* ── Mapper de variables ── */}
       {selectedTpl && varCount > 0 && (
         <div className="space-y-2">
-          <Label className="text-xs font-semibold">Variables del mensaje</Label>
+          <Label className="text-xs font-semibold">{t("automationsPage.messageVariables")}</Label>
           <p className="text-xs text-muted-foreground -mt-1">
-            Asigna qué campo del contacto reemplazará cada variable.
+            {t("automationsPage.messageVariablesHint")}
           </p>
           {Array.from({ length: varCount }, (_, i) => (
             <div key={i} className="flex items-center gap-2">
@@ -1334,7 +1344,7 @@ function WhatsAppStepEditor({ step, onChange }: {
                 onValueChange={val => setVar(i, val)}
               >
                 <SelectTrigger className="h-8 text-xs">
-                  <SelectValue placeholder="Seleccionar campo..." />
+                  <SelectValue placeholder={t("automationsPage.selectFieldPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
                   {CONTACT_FIELDS.map(f => (
@@ -1344,7 +1354,7 @@ function WhatsAppStepEditor({ step, onChange }: {
                     </SelectItem>
                   ))}
                   <SelectItem value="__custom__" className="text-xs italic">
-                    Texto personalizado...
+                    {t("automationsPage.customText")}
                   </SelectItem>
                 </SelectContent>
               </Select>
@@ -1352,7 +1362,7 @@ function WhatsAppStepEditor({ step, onChange }: {
               {variables[i] === "__custom__" && (
                 <Input
                   className="h-8 text-xs"
-                  placeholder="Escribe el texto"
+                  placeholder={t("automationsPage.writeTextPlaceholder")}
                   onChange={e => setVar(i, e.target.value || "__custom__")}
                 />
               )}
@@ -1364,7 +1374,7 @@ function WhatsAppStepEditor({ step, onChange }: {
       {selectedTpl && varCount === 0 && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
-          Esta plantilla no tiene variables — se enviará tal cual.
+          {t("automationsPage.templateNoVariables")}
         </p>
       )}
     </div>
@@ -1376,6 +1386,7 @@ function AssignOwnerStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [profiles, setProfiles] = useState<{ user_id: string; full_name: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1445,20 +1456,20 @@ function AssignOwnerStepEditor({ step, onChange }: {
     <div className="space-y-3">
       {/* Mode selector */}
       <div>
-        <Label className="text-xs font-semibold">Modo de asignación</Label>
+        <Label className="text-xs font-semibold">{t("automationsPage.assignmentMode")}</Label>
         <Select value={mode} onValueChange={setMode}>
           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="specific">
               <div className="flex flex-col">
-                <span className="font-medium">Vendedor específico</span>
-                <span className="text-xs text-muted-foreground">Siempre asigna al mismo vendedor</span>
+                <span className="font-medium">{t("automationsPage.specificRep")}</span>
+                <span className="text-xs text-muted-foreground">{t("automationsPage.specificRepDesc")}</span>
               </div>
             </SelectItem>
             <SelectItem value="round_robin">
               <div className="flex flex-col">
-                <span className="font-medium">Round Robin</span>
-                <span className="text-xs text-muted-foreground">Rota equitativamente entre varios vendedores</span>
+                <span className="font-medium">{t("automationsPage.roundRobin")}</span>
+                <span className="text-xs text-muted-foreground">{t("automationsPage.roundRobinDesc")}</span>
               </div>
             </SelectItem>
           </SelectContent>
@@ -1468,7 +1479,7 @@ function AssignOwnerStepEditor({ step, onChange }: {
       {/* Specific mode */}
       {mode === "specific" && (
         <div>
-          <Label className="text-xs">Vendedor</Label>
+          <Label className="text-xs">{t("automationsPage.salesRep")}</Label>
           <Select
             value={c.owner_id ?? ""}
             onValueChange={v => {
@@ -1480,36 +1491,36 @@ function AssignOwnerStepEditor({ step, onChange }: {
               {/* Show saved name while profiles load, avoiding raw UUID display */}
               {c.owner_name
                 ? <span className="text-sm">{c.owner_name}</span>
-                : <SelectValue placeholder="Selecciona un vendedor..." />}
+                : <SelectValue placeholder={t("automationsPage.selectRepPlaceholder")} />}
             </SelectTrigger>
             <SelectContent>
               {loading
-                ? <div className="px-3 py-2 text-xs text-muted-foreground">Cargando vendedores...</div>
+                ? <div className="px-3 py-2 text-xs text-muted-foreground">{t("automationsPage.loadingReps")}</div>
                 : profiles.length === 0
-                  ? <div className="px-3 py-2 text-xs text-muted-foreground">Sin vendedores en la organización</div>
+                  ? <div className="px-3 py-2 text-xs text-muted-foreground">{t("automationsPage.noRepsInOrg")}</div>
                   : profiles.map(p => (
                       <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
                     ))
               }
             </SelectContent>
           </Select>
-          <p className="text-xs text-muted-foreground mt-1.5">El lead siempre se asignará a este vendedor.</p>
+          <p className="text-xs text-muted-foreground mt-1.5">{t("automationsPage.leadAlwaysAssignedHint")}</p>
         </div>
       )}
 
       {/* Round Robin mode */}
       {mode === "round_robin" && (
         <div className="space-y-2">
-          <Label className="text-xs font-semibold">Vendedores en rotación</Label>
+          <Label className="text-xs font-semibold">{t("automationsPage.repsInRotation")}</Label>
           <p className="text-xs text-muted-foreground">
-            Se asignará al vendedor con menos leads asignados recientemente.
+            {t("automationsPage.roundRobinAssignHint")}
           </p>
           <div className="rounded-lg border divide-y">
             {loading && (
-              <p className="px-3 py-2 text-xs text-muted-foreground">Cargando vendedores...</p>
+              <p className="px-3 py-2 text-xs text-muted-foreground">{t("automationsPage.loadingReps")}</p>
             )}
             {!loading && profiles.length === 0 && (
-              <p className="px-3 py-2 text-xs text-muted-foreground">Sin vendedores en la organización</p>
+              <p className="px-3 py-2 text-xs text-muted-foreground">{t("automationsPage.noRepsInOrg")}</p>
             )}
             {profiles.map(p => (
               <label key={p.user_id} className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-muted/40">
@@ -1526,13 +1537,13 @@ function AssignOwnerStepEditor({ step, onChange }: {
           {ownerIds.length === 0 && (
             <p className="text-xs text-amber-600 flex items-center gap-1">
               <Info className="h-3.5 w-3.5 shrink-0" />
-              Selecciona al menos un vendedor
+              {t("automationsPage.selectAtLeastOneRep")}
             </p>
           )}
           {ownerIds.length > 0 && (
             <p className="text-xs text-muted-foreground flex items-center gap-1">
               <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-              Rotación entre {ownerIds.length} vendedor{ownerIds.length !== 1 ? "es" : ""}:&nbsp;
+              {t("automationsPage.rotationAmong", { count: ownerIds.length })}:&nbsp;
               <span className="font-medium">{ownerNames.join(", ")}</span>
             </p>
           )}
@@ -1547,6 +1558,7 @@ function MovePipelineStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
   const c = step.config;
@@ -1563,25 +1575,25 @@ function MovePipelineStepEditor({ step, onChange }: {
   return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Pipeline</Label>
+        <Label className="text-xs">{t("automationsPage.pipeline")}</Label>
         <Select value={c.pipeline_id ?? ""} onValueChange={v => onChange({ ...step, config: { ...c, pipeline_id: v, stage_id: "", stage_name: "" } })}>
-          <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar pipeline..." /></SelectTrigger>
+          <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectPipelinePlaceholder")} /></SelectTrigger>
           <SelectContent>{pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}</SelectContent>
         </Select>
       </div>
       {c.pipeline_id && (
         <div>
-          <Label className="text-xs">Etapa destino</Label>
+          <Label className="text-xs">{t("automationsPage.destinationStage")}</Label>
           <Select value={c.stage_id ?? ""} onValueChange={v => {
             const stage = stages.find(s => s.id === v);
             onChange({ ...step, config: { ...c, stage_id: v, stage_name: stage?.name ?? "" } });
           }}>
-            <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar etapa..." /></SelectTrigger>
+            <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectStagePlaceholder")} /></SelectTrigger>
             <SelectContent>{stages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
           </Select>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground">Mueve al contacto a esta etapa del pipeline. Solo funciona si el contacto ya tiene un pipeline asignado.</p>
+      <p className="text-[11px] text-muted-foreground">{t("automationsPage.movePipelineHint")}</p>
     </div>
   );
 }
@@ -1591,6 +1603,7 @@ function EmailStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
@@ -1630,25 +1643,25 @@ function EmailStepEditor({ step, onChange }: {
       {/* ── Remitente ── */}
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs">Nombre remitente</Label>
-          <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder="Mi Empresa" />
+          <Label className="text-xs">{t("automationsPage.senderName")}</Label>
+          <Input value={c.from_name ?? ""} onChange={e => set("from_name", e.target.value)} placeholder={t("automationsPage.senderNamePlaceholder")} />
         </div>
         <div>
-          <Label className="text-xs">Email remitente</Label>
+          <Label className="text-xs">{t("automationsPage.senderEmail")}</Label>
           <Input value={c.from_email ?? ""} onChange={e => set("from_email", e.target.value)} placeholder="hola@empresa.com" />
         </div>
       </div>
 
       {/* ── Asunto ── */}
       <div>
-        <Label className="text-xs">Asunto</Label>
+        <Label className="text-xs">{t("automationsPage.subject")}</Label>
         <Input
           value={c.subject ?? ""}
           onChange={e => set("subject", e.target.value)}
           placeholder="Hola {{contact.first_name}}"
         />
         <p className="text-[11px] text-muted-foreground mt-0.5">
-          Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
+          {t("automationsPage.variablesLabel")} <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
         </p>
       </div>
 
@@ -1656,7 +1669,7 @@ function EmailStepEditor({ step, onChange }: {
       <div className="space-y-2">
         <Label className="text-xs font-semibold flex items-center gap-1.5">
           <Mail className="h-3.5 w-3.5 text-blue-500" />
-          Contenido del email
+          {t("automationsPage.emailContent")}
         </Label>
 
         {/* Template selected state */}
@@ -1673,13 +1686,13 @@ function EmailStepEditor({ step, onChange }: {
                   onClick={() => setPreviewOpen(p => !p)}
                   className="text-xs text-blue-600 hover:text-blue-800 px-2 py-0.5 rounded hover:bg-blue-100 transition-colors"
                 >
-                  {previewOpen ? "Ocultar" : "Vista previa"}
+                  {previewOpen ? t("automationsPage.hide") : t("automationsPage.preview")}
                 </button>
                 <button
                   onClick={detachTemplate}
                   className="text-xs text-slate-500 hover:text-red-500 px-2 py-0.5 rounded hover:bg-red-50 transition-colors"
                 >
-                  Cambiar
+                  {t("automationsPage.change")}
                 </button>
               </div>
             </div>
@@ -1690,12 +1703,12 @@ function EmailStepEditor({ step, onChange }: {
                 className="w-full border-0"
                 style={{ height: 280, background: "#fff" }}
                 sandbox="allow-same-origin"
-                title="Vista previa del email"
+                title={t("automationsPage.emailPreviewTitle")}
               />
             )}
             {!previewOpen && (
               <p className="text-xs text-blue-600 px-3 py-2">
-                Haz clic en "Vista previa" para ver el diseño del email.
+                {t("automationsPage.clickPreviewHint")}
               </p>
             )}
           </div>
@@ -1703,11 +1716,11 @@ function EmailStepEditor({ step, onChange }: {
           /* No template — show picker + manual textarea */
           <>
             {loadingTpl ? (
-              <p className="text-xs text-muted-foreground">Cargando plantillas...</p>
+              <p className="text-xs text-muted-foreground">{t("automationsPage.loadingTemplates")}</p>
             ) : templates.length > 0 ? (
               <Select value="" onValueChange={handleSelectTemplate}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Usar plantilla del Email Builder..." />
+                  <SelectValue placeholder={t("automationsPage.useEmailBuilderTemplate")} />
                 </SelectTrigger>
                 <SelectContent>
                   {templates.map(t => (
@@ -1720,13 +1733,13 @@ function EmailStepEditor({ step, onChange }: {
               </Select>
             ) : (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                <p className="font-medium">No hay plantillas</p>
-                <p>Ve a <strong>Marketing → Email Builder</strong> para crear una.</p>
+                <p className="font-medium">{t("automationsPage.noTemplates")}</p>
+                <p>{t("automationsPage.noEmailTemplatesHintPre")}<strong>{t("automationsPage.marketingEmailBuilderPath")}</strong>{t("automationsPage.noEmailTemplatesHintPost")}</p>
               </div>
             )}
 
             <div>
-              <Label className="text-xs text-muted-foreground">O escribe el HTML manualmente</Label>
+              <Label className="text-xs text-muted-foreground">{t("automationsPage.orWriteHtmlManually")}</Label>
               <Textarea
                 className="mt-1 font-mono text-xs"
                 value={c.html_content ?? ""}
@@ -1817,6 +1830,7 @@ function UpdateContactEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
@@ -1828,10 +1842,10 @@ function UpdateContactEditor({ step, onChange }: {
     <div className="space-y-3">
       {/* Field selector */}
       <div>
-        <Label className="text-xs font-semibold">Campo a actualizar</Label>
+        <Label className="text-xs font-semibold">{t("automationsPage.fieldToUpdate")}</Label>
         <Select value={c.field ?? ""} onValueChange={v => set("field", v)}>
           <SelectTrigger className="mt-1">
-            <SelectValue placeholder="Seleccionar campo..." />
+            <SelectValue placeholder={t("automationsPage.selectFieldPlaceholder")} />
           </SelectTrigger>
           <SelectContent>
             {UPDATE_CONTACT_FIELDS.map(group => (
@@ -1853,10 +1867,10 @@ function UpdateContactEditor({ step, onChange }: {
       {/* Value input — adapts to field type */}
       {fieldDef && (
         <div>
-          <Label className="text-xs font-semibold">Nuevo valor</Label>
+          <Label className="text-xs font-semibold">{t("automationsPage.newValue")}</Label>
           {fieldDef.type === "select" && (
             <Select value={c.value ?? ""} onValueChange={v => set("value", v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+              <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectPlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {fieldDef.options!.map(o => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
@@ -1866,7 +1880,7 @@ function UpdateContactEditor({ step, onChange }: {
           )}
           {fieldDef.type === "text" && (
             <Input className="mt-1" value={c.value ?? ""} onChange={e => set("value", e.target.value)}
-              placeholder={`Nuevo ${fieldDef.label.toLowerCase()}`} />
+              placeholder={t("automationsPage.newFieldPlaceholder", { field: fieldDef.label.toLowerCase() })} />
           )}
           {fieldDef.type === "number" && (
             <Input type="number" className="mt-1" value={c.value ?? ""} onChange={e => set("value", e.target.value)}
@@ -1878,9 +1892,9 @@ function UpdateContactEditor({ step, onChange }: {
           {fieldDef.type === "textarea" && (
             <>
               <Textarea className="mt-1" rows={3} value={c.value ?? ""} onChange={e => set("value", e.target.value)}
-                placeholder={`Escribe las ${fieldDef.label.toLowerCase()}...`} />
+                placeholder={t("automationsPage.writeFieldPlaceholder", { field: fieldDef.label.toLowerCase() })} />
               <p className="text-[11px] text-muted-foreground mt-0.5">
-                Variables: <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
+                {t("automationsPage.variablesLabel")} <code>{"{{contact.first_name}}"}</code> <code>{"{{contact.last_name}}"}</code>
               </p>
             </>
           )}
@@ -1890,7 +1904,7 @@ function UpdateContactEditor({ step, onChange }: {
       {!c.field && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Info className="h-3.5 w-3.5 shrink-0" />
-          Selecciona un campo para configurar el valor.
+          {t("automationsPage.selectFieldToConfigure")}
         </p>
       )}
     </div>
@@ -1902,6 +1916,7 @@ function MakeCallStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
   const { organizationId } = useOrganizationContext();
@@ -1926,31 +1941,31 @@ function MakeCallStepEditor({ step, onChange }: {
       <div>
         <Label className="text-xs font-semibold flex items-center gap-1.5">
           <PhoneCall className="h-3.5 w-3.5 text-teal-600" />
-          Agente de llamadas IA
+          {t("automationsPage.aiCallingAgent")}
         </Label>
         {loading ? (
-          <p className="text-xs text-muted-foreground mt-2">Cargando agentes...</p>
+          <p className="text-xs text-muted-foreground mt-2">{t("automationsPage.loadingAgents")}</p>
         ) : agents.length === 0 ? (
           <div className="mt-2 rounded-lg border border-dashed border-teal-200 bg-teal-50 p-3">
-            <p className="text-xs text-teal-700 font-medium">No hay agentes configurados</p>
+            <p className="text-xs text-teal-700 font-medium">{t("automationsPage.noAgentsConfigured")}</p>
             <p className="text-xs text-teal-600 mt-0.5">
-              Crea un agente en{" "}
+              {t("automationsPage.createAgentHintPre")}{" "}
               <a href="/calling-agent" className="underline hover:text-teal-800" target="_blank" rel="noreferrer">
-                Agente de Llamadas
+                {t("automationsPage.callingAgentLink")}
               </a>{" "}
-              para usar este paso.
+              {t("automationsPage.createAgentHintPost")}
             </p>
           </div>
         ) : (
           <Select value={c.calling_agent_id ?? ""} onValueChange={v => set("calling_agent_id", v)}>
             <SelectTrigger className="mt-1">
-              <SelectValue placeholder="Seleccionar agente..." />
+              <SelectValue placeholder={t("automationsPage.selectAgentPlaceholder")} />
             </SelectTrigger>
             <SelectContent>
               {agents.map(a => (
                 <SelectItem key={a.id} value={a.id}>
                   <span className="font-medium">{a.name}</span>
-                  <span className="ml-2 text-xs text-muted-foreground">· Voz: {a.voice}</span>
+                  <span className="ml-2 text-xs text-muted-foreground">{t("automationsPage.voiceLabel", { voice: a.voice })}</span>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -1961,8 +1976,7 @@ function MakeCallStepEditor({ step, onChange }: {
       {c.calling_agent_id && (
         <div className="rounded-lg border border-teal-100 bg-teal-50/60 px-3 py-2">
           <p className="text-xs text-teal-700">
-            El agente llamará al número de teléfono del contacto. El resultado de la llamada
-            (temperatura, interés, resumen) se guardará automáticamente en el CRM.
+            {t("automationsPage.makeCallInfo")}
           </p>
         </div>
       )}
@@ -1970,7 +1984,7 @@ function MakeCallStepEditor({ step, onChange }: {
       {!c.calling_agent_id && agents.length > 0 && (
         <p className="text-xs text-muted-foreground flex items-center gap-1">
           <Info className="h-3.5 w-3.5 shrink-0" />
-          Selecciona el agente que realizará la llamada.
+          {t("automationsPage.selectAgentHint")}
         </p>
       )}
     </div>
@@ -1982,14 +1996,15 @@ function WaitStepEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
   const waitMode = c.mode ?? "duration";
 
   // Date fields available to wait on: standard + custom (type date).
   const [dateFields, setDateFields] = useState<{ value: string; label: string }[]>([
-    { value: "birthday", label: "Cumpleaños" },
-    { value: "expected_close_date", label: "Fecha de cierre esperada" },
+    { value: "birthday", label: t("automationsPage.fieldBirthday") },
+    { value: "expected_close_date", label: t("automationsPage.fieldExpectedCloseDate") },
   ]);
   useEffect(() => {
     supabase
@@ -2009,20 +2024,20 @@ function WaitStepEditor({ step, onChange }: {
   return (
     <div className="space-y-3">
       <div>
-        <Label>Tipo de espera</Label>
+        <Label>{t("automationsPage.waitType")}</Label>
         <Select value={waitMode} onValueChange={v => set("mode", v)}>
           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="duration">Esperar un tiempo (relativo)</SelectItem>
-            <SelectItem value="until_date">Esperar hasta una fecha específica</SelectItem>
-            <SelectItem value="contact_date">Esperar hasta una fecha del contacto</SelectItem>
+            <SelectItem value="duration">{t("automationsPage.waitDuration")}</SelectItem>
+            <SelectItem value="until_date">{t("automationsPage.waitUntilDate")}</SelectItem>
+            <SelectItem value="contact_date">{t("automationsPage.waitContactDate")}</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       {waitMode === "until_date" && (
         <div>
-          <Label>Esperar hasta</Label>
+          <Label>{t("automationsPage.waitUntil")}</Label>
           <Input
             type="datetime-local"
             className="mt-1"
@@ -2030,7 +2045,7 @@ function WaitStepEditor({ step, onChange }: {
             onChange={e => set("until_date", e.target.value)}
           />
           <p className="text-xs text-muted-foreground mt-1">
-            Se usa la zona horaria de tu organización (Configuración → General). Si la fecha ya pasó, continúa de inmediato.
+            {t("automationsPage.waitUntilDateHint")}
           </p>
         </div>
       )}
@@ -2038,9 +2053,9 @@ function WaitStepEditor({ step, onChange }: {
       {waitMode === "contact_date" && (
         <div className="space-y-3">
           <div>
-            <Label>Campo de fecha del contacto</Label>
+            <Label>{t("automationsPage.contactDateField")}</Label>
             <Select value={c.date_field ?? ""} onValueChange={v => set("date_field", v)}>
-              <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar campo..." /></SelectTrigger>
+              <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectFieldPlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {dateFields.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
               </SelectContent>
@@ -2048,33 +2063,33 @@ function WaitStepEditor({ step, onChange }: {
           </div>
 
           <div>
-            <Label>Cuándo enviar</Label>
+            <Label>{t("automationsPage.whenToSend")}</Label>
             <div className="flex gap-2 mt-1 items-center">
               <Input
                 type="number" min={0} className="w-20"
                 value={c.offset_value ?? 0}
                 onChange={e => set("offset_value", Number(e.target.value))}
               />
-              <span className="text-sm text-muted-foreground">días</span>
+              <span className="text-sm text-muted-foreground">{t("automationsPage.days")}</span>
               <Select value={c.offset_dir ?? "on"} onValueChange={v => set("offset_dir", v)}>
                 <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="before">antes</SelectItem>
-                  <SelectItem value="on">el mismo día</SelectItem>
-                  <SelectItem value="after">después</SelectItem>
+                  <SelectItem value="before">{t("automationsPage.before")}</SelectItem>
+                  <SelectItem value="on">{t("automationsPage.sameDay")}</SelectItem>
+                  <SelectItem value="after">{t("automationsPage.after")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div>
-            <Label>Hora del envío</Label>
+            <Label>{t("automationsPage.sendHour")}</Label>
             <Input
               type="number" min={0} max={23} className="w-24 mt-1"
               value={c.send_hour ?? 9}
               onChange={e => set("send_hour", Number(e.target.value))}
             />
-            <span className="text-xs text-muted-foreground ml-2">hora local (0–23)</span>
+            <span className="text-xs text-muted-foreground ml-2">{t("automationsPage.localHourRange")}</span>
           </div>
 
           <label className="flex items-center gap-2 text-sm">
@@ -2083,13 +2098,12 @@ function WaitStepEditor({ step, onChange }: {
               checked={c.annual ?? false}
               onChange={e => set("annual", e.target.checked)}
             />
-            Fecha anual (cumpleaños / aniversario) — usar la próxima ocurrencia
+            {t("automationsPage.annualDateNextOccurrence")}
           </label>
 
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
             <p>
-              El flujo espera hasta la fecha guardada en ese campo del contacto, aplicando el ajuste
-              de días y la hora local. Si el contacto no tiene esa fecha, el paso se omite.
+              {t("automationsPage.waitContactDateInfo")}
             </p>
           </div>
         </div>
@@ -2097,16 +2111,16 @@ function WaitStepEditor({ step, onChange }: {
 
       {waitMode === "duration" && (
         <div>
-          <Label>Duración de la espera</Label>
+          <Label>{t("automationsPage.waitDurationLabel")}</Label>
           <div className="flex gap-2 mt-1">
             <Input type="number" min={1} value={c.delay_value ?? 1} onChange={e => set("delay_value", Number(e.target.value))} className="w-24" />
             <Select value={c.delay_unit ?? "days"} onValueChange={v => set("delay_unit", v)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="seconds">Segundos</SelectItem>
-                <SelectItem value="minutes">Minutos</SelectItem>
-                <SelectItem value="hours">Horas</SelectItem>
-                <SelectItem value="days">Días</SelectItem>
+                <SelectItem value="seconds">{t("automationsPage.seconds")}</SelectItem>
+                <SelectItem value="minutes">{t("automationsPage.minutes")}</SelectItem>
+                <SelectItem value="hours">{t("automationsPage.hours")}</SelectItem>
+                <SelectItem value="days">{t("automationsPage.daysUnit")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -2121,6 +2135,7 @@ function EnrollAutomationEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const [autos, setAutos] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   useEffect(() => {
@@ -2134,7 +2149,7 @@ function EnrollAutomationEditor({ step, onChange }: {
   return (
     <div className="space-y-3">
       <div>
-        <Label>Automatización destino</Label>
+        <Label>{t("automationsPage.destinationAutomation")}</Label>
         <Select
           value={c.automation_id ?? ""}
           onValueChange={v => {
@@ -2142,20 +2157,19 @@ function EnrollAutomationEditor({ step, onChange }: {
             onChange({ ...step, config: { ...c, automation_id: v, automation_name: a?.name ?? "" } });
           }}
         >
-          <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar automatización..." /></SelectTrigger>
+          <SelectTrigger className="mt-1"><SelectValue placeholder={t("automationsPage.selectAutomationPlaceholder")} /></SelectTrigger>
           <SelectContent>
-            {autos.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No hay otras automatizaciones</div>}
+            {autos.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">{t("automationsPage.noOtherAutomations")}</div>}
             {autos.map(a => (
               <SelectItem key={a.id} value={a.id}>
-                {a.name}{!a.is_active && <span className="text-muted-foreground ml-1 text-xs">(inactiva)</span>}
+                {a.name}{!a.is_active && <span className="text-muted-foreground ml-1 text-xs">{t("automationsPage.inactiveParen")}</span>}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
       </div>
       <div className="rounded-lg border border-purple-200 bg-purple-50 p-3 text-xs text-purple-700">
-        El contacto será inscrito en la automatización seleccionada y empezará su flujo desde el primer paso.
-        Si ya está activo en ella, no se duplica.
+        {t("automationsPage.enrollAutomationInfo")}
       </div>
     </div>
   );
@@ -2166,6 +2180,7 @@ function StepConfigEditor({ step, onChange }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
 }) {
+  const { t } = useTranslation();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
@@ -2177,8 +2192,8 @@ function StepConfigEditor({ step, onChange }: {
 
   if (step.type === "add_tag") return (
     <div>
-      <Label>Tag a añadir</Label>
-      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder="Elige o crea una etiqueta" />
+      <Label>{t("automationsPage.tagToAdd")}</Label>
+      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder={t("automationsPage.chooseOrCreateTag")} />
     </div>
   );
 
@@ -2190,8 +2205,8 @@ function StepConfigEditor({ step, onChange }: {
 
   if (step.type === "remove_tag") return (
     <div>
-      <Label>Tag a eliminar</Label>
-      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder="Elige una etiqueta" allowCreate={false} />
+      <Label>{t("automationsPage.tagToRemove")}</Label>
+      <TagPicker value={c.tag ?? ""} onChange={v => set("tag", v)} placeholder={t("automationsPage.chooseTag")} allowCreate={false} />
     </div>
   );
 
@@ -2202,16 +2217,16 @@ function StepConfigEditor({ step, onChange }: {
   if (step.type === "create_task") return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Título de la tarea</Label>
+        <Label className="text-xs">{t("automationsPage.taskTitle")}</Label>
         <Input className="mt-1" value={c.title ?? ""} onChange={e => set("title", e.target.value)} placeholder="Llamar a {{contact.name}}" />
       </div>
       <div>
-        <Label className="text-xs">Vence en (días)</Label>
+        <Label className="text-xs">{t("automationsPage.dueInDays")}</Label>
         <Input type="number" min={0} className="mt-1" value={c.due_in_days ?? 1} onChange={e => set("due_in_days", parseInt(e.target.value) || 1)} />
       </div>
       <div className="flex items-center gap-2">
         <input type="checkbox" id="assign_owner_task" checked={c.assign_to_owner ?? true} onChange={e => set("assign_to_owner", e.target.checked)} />
-        <Label htmlFor="assign_owner_task" className="text-xs cursor-pointer">Asignar al vendedor del contacto</Label>
+        <Label htmlFor="assign_owner_task" className="text-xs cursor-pointer">{t("automationsPage.assignToContactRep")}</Label>
       </div>
     </div>
   );
@@ -2219,12 +2234,12 @@ function StepConfigEditor({ step, onChange }: {
   if (step.type === "send_webhook") return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">URL del webhook</Label>
+        <Label className="text-xs">{t("automationsPage.webhookUrl")}</Label>
         <Input className="mt-1 font-mono text-xs" value={c.url ?? ""} onChange={e => set("url", e.target.value)} placeholder="https://n8n.tudominio.com/webhook/xyz" />
-        <p className="text-[11px] text-muted-foreground mt-1">Compatible con n8n, Zapier, Make, o cualquier endpoint HTTP.</p>
+        <p className="text-[11px] text-muted-foreground mt-1">{t("automationsPage.webhookHint")}</p>
       </div>
       <div>
-        <Label className="text-xs">Método HTTP</Label>
+        <Label className="text-xs">{t("automationsPage.httpMethod")}</Label>
         <Select value={c.method ?? "POST"} onValueChange={v => set("method", v)}>
           <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -2235,7 +2250,7 @@ function StepConfigEditor({ step, onChange }: {
       </div>
       <div className="flex items-center gap-2">
         <input type="checkbox" id="include_contact" checked={c.include_contact ?? true} onChange={e => set("include_contact", e.target.checked)} />
-        <Label htmlFor="include_contact" className="text-xs cursor-pointer">Incluir datos del contacto en el payload</Label>
+        <Label htmlFor="include_contact" className="text-xs cursor-pointer">{t("automationsPage.includeContactInPayload")}</Label>
       </div>
     </div>
   );
@@ -2243,9 +2258,9 @@ function StepConfigEditor({ step, onChange }: {
   if (step.type === "notify_owner") return (
     <div className="space-y-3">
       <div>
-        <Label className="text-xs">Mensaje de notificación</Label>
+        <Label className="text-xs">{t("automationsPage.notificationMessage")}</Label>
         <Textarea className="mt-1" rows={3} value={c.message ?? ""} onChange={e => set("message", e.target.value)} placeholder="Nuevo evento: {{contact.name}} completó una acción." />
-        <p className="text-[11px] text-muted-foreground mt-1">Se envía por email al vendedor asignado al contacto.</p>
+        <p className="text-[11px] text-muted-foreground mt-1">{t("automationsPage.notifyOwnerHint")}</p>
       </div>
     </div>
   );
@@ -2262,51 +2277,51 @@ function StepConfigEditor({ step, onChange }: {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         <div>
-          <Label className="text-xs">Campo</Label>
+          <Label className="text-xs">{t("automationsPage.field")}</Label>
           <Select value={c.field ?? "tags"} onValueChange={v => set("field", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="tags">Tags</SelectItem>
-              <SelectItem value="primary_email">Email</SelectItem>
-              <SelectItem value="lead_status">Estado</SelectItem>
+              <SelectItem value="tags">{t("automationsPage.conditionTags")}</SelectItem>
+              <SelectItem value="primary_email">{t("automationsPage.conditionEmail")}</SelectItem>
+              <SelectItem value="lead_status">{t("automationsPage.conditionStatus")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Operador</Label>
+          <Label className="text-xs">{t("automationsPage.operator")}</Label>
           <Select value={c.operator ?? "contains"} onValueChange={v => set("operator", v)}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="contains">Contiene</SelectItem>
-              <SelectItem value="equals">Es igual</SelectItem>
-              <SelectItem value="not_empty">No vacío</SelectItem>
+              <SelectItem value="contains">{t("automationsPage.opContains")}</SelectItem>
+              <SelectItem value="equals">{t("automationsPage.opEquals")}</SelectItem>
+              <SelectItem value="not_empty">{t("automationsPage.opNotEmpty")}</SelectItem>
             </SelectContent>
           </Select>
         </div>
         <div>
-          <Label className="text-xs">Valor</Label>
+          <Label className="text-xs">{t("automationsPage.value")}</Label>
           <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)} />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <Label className="text-xs">Pasos a omitir si se cumple (true)</Label>
+          <Label className="text-xs">{t("automationsPage.skipIfTrue")}</Label>
           <Input type="number" min={0} className="mt-1"
             value={c.true_next_index !== undefined ? c.true_next_index : 0}
             onChange={e => set("true_next_index", parseInt(e.target.value) || 0)}
-            placeholder="0 = siguiente paso" />
+            placeholder={t("automationsPage.skipIfTruePlaceholder")} />
         </div>
         <div>
-          <Label className="text-xs">Pasos a omitir si NO se cumple (false)</Label>
+          <Label className="text-xs">{t("automationsPage.skipIfFalse")}</Label>
           <Input type="number" min={1} className="mt-1"
             value={c.false_skip_count ?? 1}
             onChange={e => set("false_skip_count", parseInt(e.target.value) || 1)}
-            placeholder="1 = saltar 1 paso" />
+            placeholder={t("automationsPage.skipIfFalsePlaceholder")} />
         </div>
       </div>
       <p className="text-xs text-muted-foreground flex items-start gap-1">
         <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-        Si se cumple, salta N pasos hacia adelante (0 = siguiente). Si no se cumple, omite N pasos (por defecto 1).
+        {t("automationsPage.conditionHint")}
       </p>
     </div>
   );
@@ -2316,6 +2331,7 @@ function StepConfigEditor({ step, onChange }: {
 
 // ── Enroll Dialog ─────────────────────────────────────────────────────────────
 function EnrollDialog({ automationId, open, onClose }: { automationId: string; open: boolean; onClose: () => void }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { organizationId } = useOrganizationContext();
   const [contacts, setContacts] = useState<any[]>([]);
@@ -2352,36 +2368,36 @@ function EnrollDialog({ automationId, open, onClose }: { automationId: string; o
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      toast({ title: `${data.enrolled} contacto(s) enrolados` });
+      toast({ title: t("automationsPage.contactsEnrolledToast", { count: data.enrolled }) });
       setSelected(new Set()); onClose();
     } catch (e: any) {
-      toast({ title: "Error", description: e.message, variant: "destructive" });
+      toast({ title: t("automationsPage.error"), description: e.message, variant: "destructive" });
     } finally { setEnrolling(false); }
   };
 
   return (
     <Dialog open={open} onOpenChange={v => !v && onClose()}>
       <DialogContent className="max-w-lg max-h-[80vh] flex flex-col">
-        <DialogHeader><DialogTitle>Enrolar contactos</DialogTitle></DialogHeader>
-        <Input placeholder="Buscar..." value={search} onChange={e => setSearch(e.target.value)} className="shrink-0" />
+        <DialogHeader><DialogTitle>{t("automationsPage.enrollContacts")}</DialogTitle></DialogHeader>
+        <Input placeholder={t("automationsPage.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="shrink-0" />
         <div className="flex-1 overflow-y-auto space-y-0.5 min-h-0">
-          {loading && <p className="text-sm text-center text-muted-foreground py-6">Cargando...</p>}
+          {loading && <p className="text-sm text-center text-muted-foreground py-6">{t("automationsPage.loading")}</p>}
           {filtered.map(c => (
             <label key={c.id} className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
               <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggle(c.id)} className="accent-primary" />
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{c.first_name} {c.last_name}</p>
-                <p className="text-xs text-muted-foreground truncate">{c.primary_email || "Sin email"}</p>
+                <p className="text-xs text-muted-foreground truncate">{c.primary_email || t("automationsPage.noEmail")}</p>
               </div>
             </label>
           ))}
         </div>
         <div className="flex items-center justify-between pt-3 border-t shrink-0">
-          <span className="text-sm text-muted-foreground">{selected.size} seleccionado(s)</span>
+          <span className="text-sm text-muted-foreground">{t("automationsPage.selectedCount", { count: selected.size })}</span>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button variant="outline" onClick={onClose}>{t("automationsPage.cancel")}</Button>
             <Button onClick={handleEnroll} disabled={!selected.size || enrolling}>
-              {enrolling ? "Enrolando..." : "Enrolar"}
+              {enrolling ? t("automationsPage.enrolling") : t("automationsPage.enroll")}
             </Button>
           </div>
         </div>
@@ -2400,6 +2416,7 @@ function AutomationBuilder({
   onBack: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { organizationId } = useOrganizationContext();
   const { canAccessPowerFeatures: canEditBuilder } = usePermissions();
@@ -2509,11 +2526,11 @@ function AutomationBuilder({
 
   // Save
   const handleSave = async () => {
-    if (!name.trim()) { toast({ title: "El nombre es obligatorio", variant: "destructive" }); return; }
+    if (!name.trim()) { toast({ title: t("automationsPage.nameRequired"), variant: "destructive" }); return; }
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No autenticado");
+      if (!user) throw new Error(t("automationsPage.notAuthenticated"));
 
       // Embed positions into steps and trigger_config so they survive a page reload
       const stepsWithPos = steps.map(s => ({
@@ -2545,11 +2562,11 @@ function AutomationBuilder({
         ({ error: err } = await supabase.from("automations").insert({ ...payload, created_at: new Date().toISOString(), ...(organizationId ? { organization_id: organizationId } : {}) }));
       }
       if (err) throw err;
-      toast({ title: "Guardado ✓" });
+      toast({ title: t("automationsPage.savedToast") });
       onSaved();
       onBack();
     } catch (e: any) {
-      toast({ title: "Error al guardar", description: e.message, variant: "destructive" });
+      toast({ title: t("automationsPage.saveErrorToast"), description: e.message, variant: "destructive" });
     } finally { setSaving(false); }
   };
 
@@ -2566,22 +2583,22 @@ function AutomationBuilder({
             value={name}
             onChange={e => setName(e.target.value)}
             className="h-8 text-sm font-semibold border-0 bg-transparent px-0 focus-visible:ring-0 focus-visible:ring-offset-0 max-w-xs"
-            placeholder="Nombre de la automatización"
+            placeholder={t("automationsPage.automationNamePlaceholder")}
           />
         </div>
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <Switch checked={isActive} onCheckedChange={setIsActive} />
-          <span>{isActive ? "Activa" : "Inactiva"}</span>
+          <span>{isActive ? t("automationsPage.active") : t("automationsPage.inactive")}</span>
         </div>
         {automation?.id && (
           <Button variant="outline" size="sm" onClick={() => setEnrollOpen(true)} disabled={!isActive}>
-            <Play className="h-3.5 w-3.5 mr-1.5" />Enrolar
+            <Play className="h-3.5 w-3.5 mr-1.5" />{t("automationsPage.enroll")}
           </Button>
         )}
         {canEditBuilder && (
           <Button size="sm" onClick={handleSave} disabled={saving}>
             <Save className="h-3.5 w-3.5 mr-1.5" />
-            {saving ? "Guardando..." : "Guardar"}
+            {saving ? t("automationsPage.saving") : t("automationsPage.save")}
           </Button>
         )}
       </div>
@@ -2614,7 +2631,7 @@ function AutomationBuilder({
               {steps.length === 0 && (
                 <div className="mr-4 mt-4 flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-xs text-slate-500 shadow">
                   <Info className="h-3.5 w-3.5 text-indigo-400" />
-                  Haz clic en <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-indigo-400 text-indigo-500 font-bold">+</span> para añadir pasos
+                  {t("automationsPage.emptyFlowHintPre")}<span className="inline-flex h-5 w-5 items-center justify-center rounded-full border-2 border-indigo-400 text-indigo-500 font-bold">+</span>{t("automationsPage.emptyFlowHintPost")}
                 </div>
               )}
             </Panel>
@@ -2667,6 +2684,7 @@ function AutomationCard({
   canEdit?: boolean;
   onEnroll: () => void;
 }) {
+  const { t } = useTranslation();
   const stepColors = (automation.steps || []).slice(0, 6);
 
   return (
@@ -2680,7 +2698,7 @@ function AutomationCard({
           <div className="flex items-center gap-2 flex-wrap">
             <h3 className="font-semibold text-sm">{automation.name}</h3>
             <Badge variant="secondary" className={automation.is_active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}>
-              {automation.is_active ? "Activa" : "Inactiva"}
+              {automation.is_active ? t("automationsPage.active") : t("automationsPage.inactive")}
             </Badge>
             <Badge variant="outline" className="text-xs hidden sm:inline-flex">{TRIGGER_LABELS[automation.trigger_type] || automation.trigger_type}</Badge>
           </div>
@@ -2700,19 +2718,19 @@ function AutomationCard({
               {(automation.steps?.length || 0) > 6 && (
                 <span className="text-xs text-muted-foreground ml-1">+{automation.steps.length - 6}</span>
               )}
-              {!automation.steps?.length && <span className="text-xs text-muted-foreground">Sin pasos</span>}
+              {!automation.steps?.length && <span className="text-xs text-muted-foreground">{t("automationsPage.noSteps")}</span>}
             </div>
             <span className="text-xs text-muted-foreground flex items-center gap-1">
-              <Users className="h-3 w-3" />{automation._enrollment_count || 0} enrolamientos
+              <Users className="h-3 w-3" />{t("automationsPage.enrollmentsCount", { count: automation._enrollment_count || 0 })}
             </span>
           </div>
           {/* Actions — shown below on mobile */}
           <div className="flex items-center gap-1 mt-3 sm:hidden">
             <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEnroll(); }} disabled={!automation.is_active}>
-              <Play className="h-3.5 w-3.5 mr-1" />Enrolar
+              <Play className="h-3.5 w-3.5 mr-1" />{t("automationsPage.enroll")}
             </Button>
             <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); onEdit(); }}>
-              <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? "Editar" : "Ver"}
+              <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? t("automationsPage.edit") : t("automationsPage.view")}
             </Button>
             {canEdit && (
               <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
@@ -2725,12 +2743,12 @@ function AutomationCard({
         {/* Actions — desktop only */}
         <div className="hidden sm:flex items-center gap-1 shrink-0">
           {canEdit && (
-            <Button variant="ghost" size="sm" onClick={onEnroll} disabled={!automation.is_active} title={!automation.is_active ? "Activa para enrolar" : undefined}>
-              <Play className="h-3.5 w-3.5 mr-1" />Enrolar
+            <Button variant="ghost" size="sm" onClick={onEnroll} disabled={!automation.is_active} title={!automation.is_active ? t("automationsPage.activateToEnroll") : undefined}>
+              <Play className="h-3.5 w-3.5 mr-1" />{t("automationsPage.enroll")}
             </Button>
           )}
           <Button variant="ghost" size="sm" onClick={onEdit}>
-            <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? "Editar" : "Ver"}
+            <Edit className="h-3.5 w-3.5 mr-1" />{canEdit ? t("automationsPage.edit") : t("automationsPage.view")}
           </Button>
           {canEdit && (
             <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8" onClick={onDelete}>
@@ -2745,6 +2763,7 @@ function AutomationCard({
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function AutomationsPage() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { canAccessPowerFeatures: canEdit } = usePermissions();
   const [automations, setAutomations] = useState<Automation[]>([]);
@@ -2789,8 +2808,8 @@ export default function AutomationsPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { error } = await supabase.from("automations").delete().eq("id", deleteTarget.id);
-    if (error) { toast({ title: "Error", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Eliminada" });
+    if (error) { toast({ title: t("automationsPage.error"), description: error.message, variant: "destructive" }); return; }
+    toast({ title: t("automationsPage.deletedToast") });
     setDeleteTarget(null);
     load();
   };
@@ -2822,15 +2841,15 @@ export default function AutomationsPage() {
           <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
             <div className="flex items-center gap-2">
               <Zap className="h-5 w-5 text-indigo-500" />
-              <h1 className="text-xl font-bold">Automatizaciones</h1>
+              <h1 className="text-xl font-bold">{t("automationsPage.title")}</h1>
             </div>
             {canEdit && (
               <div className="flex items-center gap-2">
                 <Button variant="outline" onClick={() => setShowTemplates(true)}>
-                  📚 <span className="ml-1.5 hidden sm:inline">Plantillas</span>
+                  📚 <span className="ml-1.5 hidden sm:inline">{t("automationsPage.templates")}</span>
                 </Button>
                 <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-                  <Plus className="h-4 w-4 mr-2" />Nueva automatización
+                  <Plus className="h-4 w-4 mr-2" />{t("automationsPage.newAutomation")}
                 </Button>
               </div>
             )}
@@ -2839,18 +2858,18 @@ export default function AutomationsPage() {
 
           {/* List */}
           <div className="flex-1 overflow-y-auto p-6 space-y-3">
-            {loading && <div className="flex h-32 items-center justify-center text-muted-foreground"><p>Cargando...</p></div>}
+            {loading && <div className="flex h-32 items-center justify-center text-muted-foreground"><p>{t("automationsPage.loading")}</p></div>}
             {!loading && automations.length === 0 && (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
                 <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-50">
                   <Zap className="h-8 w-8 text-indigo-400" />
                 </div>
-                <p className="text-muted-foreground text-sm">No hay automatizaciones.{canEdit ? " Empieza con una plantilla o créala desde cero." : ""}</p>
+                <p className="text-muted-foreground text-sm">{t("automationsPage.noAutomations")}{canEdit ? t("automationsPage.noAutomationsCanEdit") : ""}</p>
                 {canEdit && (
                   <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={() => setShowTemplates(true)}>📚 Usar una plantilla</Button>
+                    <Button variant="outline" onClick={() => setShowTemplates(true)}>📚 {t("automationsPage.useTemplate")}</Button>
                     <Button onClick={() => { setEditTarget(null); setView("builder"); }}>
-                      <Plus className="h-4 w-4 mr-2" />Desde cero
+                      <Plus className="h-4 w-4 mr-2" />{t("automationsPage.fromScratch")}
                     </Button>
                   </div>
                 )}
@@ -2878,8 +2897,8 @@ export default function AutomationsPage() {
           <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
             <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>📚 Biblioteca de plantillas</DialogTitle>
-                <DialogDescription>Elige un flujo listo para usar. Lo creas con un clic y luego personalizas los textos.</DialogDescription>
+                <DialogTitle>📚 {t("automationsPage.templateLibrary")}</DialogTitle>
+                <DialogDescription>{t("automationsPage.templateLibraryDesc")}</DialogDescription>
               </DialogHeader>
               <div className="space-y-6 py-2">
                 {TEMPLATE_CATEGORIES.map(cat => {
@@ -2924,12 +2943,12 @@ export default function AutomationsPage() {
           <AlertDialog open={!!deleteTarget} onOpenChange={v => !v && setDeleteTarget(null)}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>¿Eliminar automatización?</AlertDialogTitle>
-                <AlertDialogDescription>Se eliminará "{deleteTarget?.name}" y todos sus enrolamientos permanentemente.</AlertDialogDescription>
+                <AlertDialogTitle>{t("automationsPage.deleteAutomationTitle")}</AlertDialogTitle>
+                <AlertDialogDescription>{t("automationsPage.deleteAutomationDesc", { name: deleteTarget?.name })}</AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                <AlertDialogCancel>{t("automationsPage.cancel")}</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t("automationsPage.delete")}</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

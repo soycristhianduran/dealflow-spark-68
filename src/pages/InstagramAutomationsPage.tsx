@@ -22,6 +22,7 @@ import {
   Link as LinkIcon, ChevronDown, ChevronUp, ArrowLeft, Save,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
 
 type TriggerType = "comment" | "story_reply" | "story_mention" | "new_follower";
@@ -58,6 +59,7 @@ function ButtonBuilder({
   onChange: (btns: IgButton[]) => void;
   label?: string;
 }) {
+  const { t } = useTranslation();
   const add = () => {
     if (buttons.length >= 3) return;
     onChange([...buttons, { title: "", url: "" }]);
@@ -73,7 +75,7 @@ function ButtonBuilder({
         <div key={i} className="flex gap-2 items-center">
           <div className="flex-1 grid grid-cols-2 gap-1.5">
             <Input
-              placeholder="Texto del botón (máx 20 car.)"
+              placeholder={t("instagramAutomationsPage.buttonTextPlaceholder")}
               value={btn.title}
               maxLength={20}
               onChange={(e) => update(i, "title", e.target.value)}
@@ -103,7 +105,7 @@ function ButtonBuilder({
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
         >
           <LinkIcon className="h-3 w-3" />
-          Agregar botón con enlace {buttons.length > 0 ? `(${3 - buttons.length} más)` : "(máx 3)"}
+          {t("instagramAutomationsPage.addLinkButton")} {buttons.length > 0 ? t("instagramAutomationsPage.moreCount", { count: 3 - buttons.length }) : t("instagramAutomationsPage.maxThree")}
         </button>
       )}
     </div>
@@ -112,8 +114,8 @@ function ButtonBuilder({
 
 // Variables disponibles para personalizar mensajes
 const IG_VARS = [
-  { label: "Nombre", tag: "{{nombre}}", desc: "Nombre completo del usuario" },
-  { label: "@usuario", tag: "{{username}}", desc: "Usuario de Instagram (@handle)" },
+  { labelKey: "varNameLabel", tag: "{{nombre}}", descKey: "varNameDesc" },
+  { labelKey: "varUsernameLabel", tag: "{{username}}", descKey: "varUsernameDesc" },
 ];
 
 // Textarea con chips de variables clicables — estilo ManyChat
@@ -125,6 +127,7 @@ function VarTextarea({
   placeholder?: string;
   rows?: number;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const insertVar = (tag: string) => {
@@ -152,16 +155,16 @@ function VarTextarea({
         className="resize-none"
       />
       <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="text-[10px] text-muted-foreground">Insertar:</span>
+        <span className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.insert")}</span>
         {IG_VARS.map((v) => (
           <button
             key={v.tag}
             type="button"
-            title={v.desc}
+            title={t(`instagramAutomationsPage.${v.descKey}`)}
             onClick={() => insertVar(v.tag)}
             className="inline-flex items-center gap-1 rounded-full border border-pink-300 dark:border-pink-700 bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 px-2 py-0.5 text-[11px] font-medium hover:bg-pink-100 dark:hover:bg-pink-900/50 transition-colors"
           >
-            + {v.label}
+            + {t(`instagramAutomationsPage.${v.labelKey}`)}
           </button>
         ))}
       </div>
@@ -170,6 +173,7 @@ function VarTextarea({
 }
 
 export default function InstagramAutomationsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { path } = useWorkspace();
   const navigate = useNavigate();
@@ -205,7 +209,7 @@ export default function InstagramAutomationsPage() {
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false });
-    if (error) toast.error("Error al cargar automatizaciones: " + error.message);
+    if (error) toast.error(t("instagramAutomationsPage.loadError") + error.message);
     setAutomations((data || []) as Automation[]);
     setLoading(false);
   }, [user]);
@@ -255,11 +259,11 @@ export default function InstagramAutomationsPage() {
   const handleSave = async () => {
     if (!user) return;
     if (!name.trim()) {
-      toast.error("La automatización necesita un nombre");
+      toast.error(t("instagramAutomationsPage.needNameError"));
       return;
     }
     if (!replyText.trim() && !dmText.trim()) {
-      toast.error("Necesitas configurar al menos una acción (responder comentario o enviar DM)");
+      toast.error(t("instagramAutomationsPage.needActionError"));
       return;
     }
 
@@ -275,7 +279,7 @@ export default function InstagramAutomationsPage() {
       .maybeSingle();
 
     if (!account) {
-      toast.error("Conecta Instagram primero");
+      toast.error(t("instagramAutomationsPage.connectFirstError"));
       setSaving(false);
       return;
     }
@@ -310,9 +314,9 @@ export default function InstagramAutomationsPage() {
       : await supabase.from("instagram_comment_automations").insert(payload);
 
     if (error) {
-      toast.error("Error al guardar: " + error.message);
+      toast.error(t("instagramAutomationsPage.saveError") + error.message);
     } else {
-      toast.success(editing ? "Automatización actualizada" : "Automatización creada");
+      toast.success(editing ? t("instagramAutomationsPage.updatedMsg") : t("instagramAutomationsPage.createdMsg"));
       setDialogOpen(false);
       loadAutomations();
     }
@@ -327,7 +331,7 @@ export default function InstagramAutomationsPage() {
       .update({ is_active: newState })
       .eq("id", a.id);
     if (error) {
-      toast.error("Error: " + error.message);
+      toast.error(t("instagramAutomationsPage.genericError") + error.message);
       // revert
       setAutomations((prev) => prev.map((x) => x.id === a.id ? { ...x, is_active: !newState } : x));
     }
@@ -344,9 +348,9 @@ export default function InstagramAutomationsPage() {
       .delete()
       .eq("id", deletingAutomation.id);
     setDeletingAutomation(null);
-    if (error) toast.error("Error al eliminar: " + error.message);
+    if (error) toast.error(t("instagramAutomationsPage.deleteError") + error.message);
     else {
-      toast.success("Eliminada");
+      toast.success(t("instagramAutomationsPage.deletedMsg"));
       loadAutomations();
     }
   };
@@ -362,12 +366,12 @@ export default function InstagramAutomationsPage() {
                 <Instagram className="h-8 w-8 text-pink-600" />
               </div>
             </div>
-            <h2 className="text-lg font-bold">Conecta Instagram</h2>
+            <h2 className="text-lg font-bold">{t("instagramAutomationsPage.connectTitle")}</h2>
             <p className="text-sm text-muted-foreground">
-              Las automatizaciones requieren tener Instagram conectado. Ve a Integraciones.
+              {t("instagramAutomationsPage.connectDescription")}
             </p>
             <Button onClick={() => navigate(path("/integrations"))} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
-              <Instagram className="h-4 w-4" /> Conectar Instagram
+              <Instagram className="h-4 w-4" /> {t("instagramAutomationsPage.connectInstagram")}
             </Button>
           </div>
         </div>
@@ -384,15 +388,14 @@ export default function InstagramAutomationsPage() {
           <div>
             <div className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-pink-600" />
-              <h1 className="text-2xl font-bold">Automatizaciones de Instagram</h1>
+              <h1 className="text-2xl font-bold">{t("instagramAutomationsPage.pageTitle")}</h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1 max-w-2xl">
-              Cuando alguien comente en una publicación con cierta palabra clave, responde automáticamente
-              el comentario y/o envíale un DM. Estilo ManyChat.
+              {t("instagramAutomationsPage.pageDescription")}
             </p>
           </div>
           <Button onClick={openCreate} className="gap-2 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
-            <Plus className="h-4 w-4" /> Nueva automatización
+            <Plus className="h-4 w-4" /> {t("instagramAutomationsPage.newAutomation")}
           </Button>
         </div>
 
@@ -404,12 +407,12 @@ export default function InstagramAutomationsPage() {
         ) : automations.length === 0 ? (
           <div className="text-center py-16 rounded-xl border-2 border-dashed">
             <Sparkles className="h-12 w-12 mx-auto text-muted-foreground/40 mb-3" />
-            <h3 className="font-semibold mb-1">No tienes automatizaciones aún</h3>
+            <h3 className="font-semibold mb-1">{t("instagramAutomationsPage.emptyTitle")}</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Crea tu primera regla: cuando alguien comente "INFO" en una publicación, le respondes automáticamente y le envías un DM con info detallada.
+              {t("instagramAutomationsPage.emptyDescription")}
             </p>
             <Button onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" /> Crear automatización
+              <Plus className="h-4 w-4" /> {t("instagramAutomationsPage.createAutomation")}
             </Button>
           </div>
         ) : (
@@ -422,14 +425,14 @@ export default function InstagramAutomationsPage() {
                       <h3 className="font-semibold">{a.name}</h3>
                       {a.is_active ? (
                         <Badge variant="outline" className="text-[10px] gap-1 text-green-600 border-green-300 bg-green-50">
-                          <Zap className="h-2.5 w-2.5" /> Activa
+                          <Zap className="h-2.5 w-2.5" /> {t("instagramAutomationsPage.active")}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">Inactiva</Badge>
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.inactive")}</Badge>
                       )}
                       {a.trigger_count > 0 && (
                         <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                          {a.trigger_count} activaciones
+                          {t("instagramAutomationsPage.triggerCount", { count: a.trigger_count })}
                         </Badge>
                       )}
                     </div>
@@ -442,28 +445,28 @@ export default function InstagramAutomationsPage() {
                           <span className="text-foreground font-medium flex flex-wrap gap-1">
                             {(a.trigger_types?.length ? a.trigger_types : [a.trigger_type]).map((tt) => (
                               <span key={tt}>
-                                {tt === "story_reply" ? "📖 Story reply" :
-                                 tt === "story_mention" ? "📣 Mención story" :
-                                 tt === "new_follower" ? "🤝 Nuevo seguidor" :
-                                 "💬 Comentario"}
+                                {tt === "story_reply" ? t("instagramAutomationsPage.triggerStoryReply") :
+                                 tt === "story_mention" ? t("instagramAutomationsPage.triggerStoryMention") :
+                                 tt === "new_follower" ? t("instagramAutomationsPage.triggerNewFollower") :
+                                 t("instagramAutomationsPage.triggerComment")}
                               </span>
                             ))}
                           </span>{" "}
                           {a.keywords && a.keywords.length > 0 ? (
                             <>
                               <span className="text-foreground">
-                                {a.match_mode === "exact" ? "exactamente " : a.match_mode === "all" ? "con todas: " : "con alguna de: "}
+                                {a.match_mode === "exact" ? t("instagramAutomationsPage.matchExactly") : a.match_mode === "all" ? t("instagramAutomationsPage.matchAll") : t("instagramAutomationsPage.matchAny")}
                               </span>
                               {a.keywords.map((k) => (
                                 <Badge key={k} variant="outline" className="text-[10px] mr-1">{k}</Badge>
                               ))}
                             </>
                           ) : (
-                            <span className="text-foreground">con cualquier texto</span>
+                            <span className="text-foreground">{t("instagramAutomationsPage.withAnyText")}</span>
                           )}
-                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && (a.media_ids?.length || a.media_id) && <span> en {a.media_ids?.length || 1} pub.</span>}
-                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && !a.media_ids?.length && !a.media_id && <span className="text-xs"> (todas las publicaciones)</span>}
-                          {a.require_follower && <span className="text-xs text-orange-600 dark:text-orange-400"> · verifica seguidor</span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && (a.media_ids?.length || a.media_id) && <span> {t("instagramAutomationsPage.inNPosts", { count: a.media_ids?.length || 1 })}</span>}
+                          {(a.trigger_types?.includes("comment") || a.trigger_type === "comment") && !a.media_ids?.length && !a.media_id && <span className="text-xs"> {t("instagramAutomationsPage.allPostsHint")}</span>}
+                          {a.require_follower && <span className="text-xs text-orange-600 dark:text-orange-400"> {t("instagramAutomationsPage.verifiesFollower")}</span>}
                         </div>
                       </div>
 
@@ -472,7 +475,7 @@ export default function InstagramAutomationsPage() {
                         <div className="flex items-start gap-2 text-muted-foreground">
                           <MessageCircle className="h-3.5 w-3.5 mt-0.5 shrink-0 text-blue-500" />
                           <div>
-                            <span className="text-foreground font-medium">Responde comentario:</span>{" "}
+                            <span className="text-foreground font-medium">{t("instagramAutomationsPage.repliesComment")}</span>{" "}
                             <span className="italic">"{a.reply_to_comment_text}"</span>
                           </div>
                         </div>
@@ -481,7 +484,7 @@ export default function InstagramAutomationsPage() {
                         <div className="flex items-start gap-2 text-muted-foreground">
                           <MessageSquare className="h-3.5 w-3.5 mt-0.5 shrink-0 text-pink-500" />
                           <div>
-                            <span className="text-foreground font-medium">Envía DM:</span>{" "}
+                            <span className="text-foreground font-medium">{t("instagramAutomationsPage.sendsDm")}</span>{" "}
                             <span className="italic">"{a.dm_message_text}"</span>
                           </div>
                         </div>
@@ -514,12 +517,12 @@ export default function InstagramAutomationsPage() {
                 onClick={() => setDialogOpen(false)}
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                <ArrowLeft className="h-4 w-4" /> Automatizaciones
+                <ArrowLeft className="h-4 w-4" /> {t("instagramAutomationsPage.breadcrumbAutomations")}
               </button>
               <span className="text-muted-foreground">/</span>
-              <span className="text-sm font-semibold">{editing ? "Editar automatización" : "Nueva automatización"}</span>
+              <span className="text-sm font-semibold">{editing ? t("instagramAutomationsPage.editAutomation") : t("instagramAutomationsPage.newAutomation")}</span>
               <div className="flex-1" />
-              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>{t("instagramAutomationsPage.cancel")}</Button>
               <Button
                 size="sm"
                 onClick={handleSave}
@@ -527,7 +530,7 @@ export default function InstagramAutomationsPage() {
                 className="bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600 gap-1.5"
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                {editing ? "Actualizar" : "Crear automatización"}
+                {editing ? t("instagramAutomationsPage.update") : t("instagramAutomationsPage.createAutomation")}
               </Button>
             </div>
 
@@ -537,9 +540,9 @@ export default function InstagramAutomationsPage() {
             <div className="space-y-5 pt-2">
               {/* Name */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Nombre interno</Label>
+                <Label className="text-xs font-medium">{t("instagramAutomationsPage.internalName")}</Label>
                 <Input
-                  placeholder="Ej: Bot de info para post de lanzamiento"
+                  placeholder={t("instagramAutomationsPage.internalNamePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -548,18 +551,18 @@ export default function InstagramAutomationsPage() {
               {/* Trigger section */}
               <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                  <Filter className="h-3.5 w-3.5" /> Disparador (cuándo se activa)
+                  <Filter className="h-3.5 w-3.5" /> {t("instagramAutomationsPage.triggerSectionTitle")}
                 </h4>
 
                 {/* Trigger type multi-select */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs">¿Cuándo se activa? <span className="text-muted-foreground font-normal">(selecciona uno o varios)</span></Label>
+                  <Label className="text-xs">{t("instagramAutomationsPage.whenActivates")} <span className="text-muted-foreground font-normal">{t("instagramAutomationsPage.selectOneOrMore")}</span></Label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {([
-                      { value: "comment" as TriggerType, icon: "💬", label: "Comentario en post" },
-                      { value: "story_reply" as TriggerType, icon: "📖", label: "Respuesta a story" },
-                      { value: "story_mention" as TriggerType, icon: "📣", label: "Mención en story" },
-                      { value: "new_follower" as TriggerType, icon: "🤝", label: "Nuevo seguidor" },
+                      { value: "comment" as TriggerType, icon: "💬", label: t("instagramAutomationsPage.optCommentOnPost") },
+                      { value: "story_reply" as TriggerType, icon: "📖", label: t("instagramAutomationsPage.optStoryReply") },
+                      { value: "story_mention" as TriggerType, icon: "📣", label: t("instagramAutomationsPage.optStoryMention") },
+                      { value: "new_follower" as TriggerType, icon: "🤝", label: t("instagramAutomationsPage.optNewFollower") },
                     ]).map((opt) => {
                       const active = triggerTypes.includes(opt.value);
                       const toggle = () => {
@@ -591,36 +594,36 @@ export default function InstagramAutomationsPage() {
                       );
                     })}
                   </div>
-                  <p className="text-[10px] text-muted-foreground">Puedes activar la misma automatización con varios tipos de interacción a la vez.</p>
+                  <p className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.multiTriggerHint")}</p>
                 </div>
 
                 {/* Keywords & match mode hidden when only new_follower */}
                 {!(triggerTypes.length === 1 && triggerTypes[0] === "new_follower") && (
                   <div className="space-y-3">
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Palabras clave (separadas por coma)</Label>
+                      <Label className="text-xs">{t("instagramAutomationsPage.keywordsLabel")}</Label>
                       <Input
                         placeholder={
                           triggerTypes.includes("story_mention") && triggerTypes.length === 1
-                            ? "Vacío = cualquier mención activa la automatización"
+                            ? t("instagramAutomationsPage.keywordsPlaceholderMention")
                             : triggerTypes.includes("comment")
-                            ? "Ej: INFO, precio, link"
-                            : "Ej: RECURSO, quiero, info — vacío = cualquier respuesta"
+                            ? t("instagramAutomationsPage.keywordsPlaceholderComment")
+                            : t("instagramAutomationsPage.keywordsPlaceholderReply")
                         }
                         value={keywordsInput}
                         onChange={(e) => setKeywordsInput(e.target.value)}
                       />
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs">Modo de coincidencia</Label>
+                      <Label className="text-xs">{t("instagramAutomationsPage.matchModeLabel")}</Label>
                       <select
                         value={matchMode}
                         onChange={(e) => setMatchMode(e.target.value as "any" | "all" | "exact")}
                         className="w-full h-9 rounded-md border bg-background px-3 text-sm"
                       >
-                        <option value="any">Contiene CUALQUIERA de las palabras</option>
-                        <option value="all">Contiene TODAS las palabras</option>
-                        <option value="exact">Coincide EXACTAMENTE con una palabra</option>
+                        <option value="any">{t("instagramAutomationsPage.matchOptionAny")}</option>
+                        <option value="all">{t("instagramAutomationsPage.matchOptionAll")}</option>
+                        <option value="exact">{t("instagramAutomationsPage.matchOptionExact")}</option>
                       </select>
                     </div>
                   </div>
@@ -628,16 +631,18 @@ export default function InstagramAutomationsPage() {
 
                 {triggerTypes.includes("comment") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Publicaciones específicas (opcional)</Label>
+                    <Label className="text-xs">{t("instagramAutomationsPage.specificPostsLabel")}</Label>
                     {mediaIds.length > 0 ? (
                       <div className="rounded-xl border bg-background p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-muted-foreground">
-                            {mediaIds.length} publicación{mediaIds.length > 1 ? "es" : ""} seleccionada{mediaIds.length > 1 ? "s" : ""}
+                            {mediaIds.length > 1
+                              ? t("instagramAutomationsPage.postsSelectedPlural", { count: mediaIds.length })
+                              : t("instagramAutomationsPage.postsSelectedSingular", { count: mediaIds.length })}
                           </span>
                           <div className="flex gap-1.5">
                             <Button size="sm" variant="outline" onClick={() => setPickerOpen(true)}>
-                              Cambiar
+                              {t("instagramAutomationsPage.change")}
                             </Button>
                             <Button
                               size="sm"
@@ -667,11 +672,11 @@ export default function InstagramAutomationsPage() {
                         className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-pink-500/50 hover:text-foreground transition-colors"
                       >
                         <ImageIcon className="h-4 w-4" />
-                        Seleccionar publicaciones...
+                        {t("instagramAutomationsPage.selectPosts")}
                       </button>
                     )}
                     <p className="text-[10px] text-muted-foreground">
-                      Si no eliges ninguna, la regla aplica a comentarios en TODAS tus publicaciones.
+                      {t("instagramAutomationsPage.allPostsRuleHint")}
                     </p>
                   </div>
                 )}
@@ -682,10 +687,10 @@ export default function InstagramAutomationsPage() {
               {triggerTypes.includes("comment") && (
                 <div className="rounded-xl border bg-blue-50 dark:bg-blue-950/30 p-4 space-y-2">
                   <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                    <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> Responder comentario (público, opcional)
+                    <MessageCircle className="h-3.5 w-3.5 text-blue-500" /> {t("instagramAutomationsPage.replyCommentSectionTitle")}
                   </h4>
                   <VarTextarea
-                    placeholder="Ej: ¡Te envié toda la info al DM {{username}}! 📨"
+                    placeholder={t("instagramAutomationsPage.replyCommentPlaceholder")}
                     value={replyText}
                     onChange={setReplyText}
                     rows={2}
@@ -696,7 +701,7 @@ export default function InstagramAutomationsPage() {
               {/* DM Messages section — two panels side by side when follower mode on */}
               <div className="space-y-3">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">
-                  <MessageSquare className="h-3.5 w-3.5 text-pink-500" /> Mensaje DM privado
+                  <MessageSquare className="h-3.5 w-3.5 text-pink-500" /> {t("instagramAutomationsPage.dmSectionTitle")}
                 </h4>
 
                 {/* Follower toggle — visible always, prominent */}
@@ -712,12 +717,12 @@ export default function InstagramAutomationsPage() {
                     onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0" />
                   <div>
                     <p className="text-xs font-semibold">
-                      Verificar si es seguidor antes de enviar
+                      {t("instagramAutomationsPage.verifyFollowerTitle")}
                     </p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       {requireFollower
-                        ? "✅ Activo — seguidores reciben el recurso, no seguidores reciben el mensaje de abajo"
-                        : "Todos reciben el mismo DM sin verificar si siguen tu cuenta"}
+                        ? t("instagramAutomationsPage.verifyFollowerActive")
+                        : t("instagramAutomationsPage.verifyFollowerInactive")}
                     </p>
                   </div>
                 </div>
@@ -730,22 +735,22 @@ export default function InstagramAutomationsPage() {
                 }`}>
                   <p className="text-xs font-semibold flex items-center gap-1.5">
                     {requireFollower
-                      ? <><span className="text-base">✅</span> DM para <span className="text-green-700 dark:text-green-400">seguidores</span> — el recurso o lead magnet</>
-                      : <><span className="text-base">💬</span> Mensaje DM</>
+                      ? <><span className="text-base">✅</span> {t("instagramAutomationsPage.dmForFollowersPre")} <span className="text-green-700 dark:text-green-400">{t("instagramAutomationsPage.followersWord")}</span> {t("instagramAutomationsPage.dmForFollowersPost")}</>
+                      : <><span className="text-base">💬</span> {t("instagramAutomationsPage.dmMessageLabel")}</>
                     }
                   </p>
                   <VarTextarea
                     value={dmText}
                     onChange={setDmText}
                     placeholder={requireFollower
-                      ? "Ej: ¡Hola {{nombre}}! 🎉 Aquí está tu recurso:\n\n👉 https://tulink.com/recurso\n\n¡Gracias por seguirme!"
-                      : "Ej: ¡Hola {{nombre}}! Aquí está la info:\n\n👉 https://miempresa.com/oferta"}
+                      ? t("instagramAutomationsPage.dmFollowerPlaceholder")
+                      : t("instagramAutomationsPage.dmDefaultPlaceholder")}
                     rows={4}
                   />
                   <ButtonBuilder
                     buttons={dmButtons}
                     onChange={setDmButtons}
-                    label="Botones con enlace (opcional, máx 3)"
+                    label={t("instagramAutomationsPage.linkButtonsLabel")}
                   />
                 </div>
 
@@ -753,21 +758,21 @@ export default function InstagramAutomationsPage() {
                 {requireFollower && (
                   <div className="rounded-xl border-2 border-orange-300 dark:border-orange-700 bg-orange-50/60 dark:bg-orange-950/20 p-4 space-y-3">
                     <p className="text-xs font-semibold flex items-center gap-1.5">
-                      <span className="text-base">⏳</span> DM para <span className="text-orange-600 dark:text-orange-400">NO seguidores</span> — pídeles que te sigan primero
+                      <span className="text-base">⏳</span> {t("instagramAutomationsPage.dmForNonFollowersPre")} <span className="text-orange-600 dark:text-orange-400">{t("instagramAutomationsPage.nonFollowersWord")}</span> {t("instagramAutomationsPage.dmForNonFollowersPost")}
                     </p>
                     <p className="text-[10px] text-orange-700 dark:text-orange-400">
-                      Cuando te sigan y te escriban de vuelta, recibirán el recurso de arriba <strong>automáticamente</strong>.
+                      {t("instagramAutomationsPage.nonFollowerExplainPre")} <strong>{t("instagramAutomationsPage.automaticallyWord")}</strong>.
                     </p>
                     <VarTextarea
                       value={dmNonFollowerText}
                       onChange={setDmNonFollowerText}
-                      placeholder={"Ej: ¡Hola {{nombre}}! 👋\n\nPara enviarte el recurso necesito que primero me sigas 🙏\n\n👉 Sígueme @tucuenta\n\nUna vez que me sigas, escríbeme aquí y te lo mando de inmediato! 📩"}
+                      placeholder={t("instagramAutomationsPage.dmNonFollowerPlaceholder")}
                       rows={4}
                     />
                     <ButtonBuilder
                       buttons={dmButtonsNonFollower}
                       onChange={setDmButtonsNonFollower}
-                      label="Botones con enlace (ej: enlace a tu perfil)"
+                      label={t("instagramAutomationsPage.linkButtonsProfileLabel")}
                     />
                   </div>
                 )}
@@ -775,9 +780,9 @@ export default function InstagramAutomationsPage() {
 
               {/* Bottom save — visible on mobile where top bar might be off screen */}
               <div className="flex gap-2 pt-4 pb-8 md:hidden">
-                <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancelar</Button>
+                <Button variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">{t("instagramAutomationsPage.cancel")}</Button>
                 <Button onClick={handleSave} disabled={saving} className="flex-1 bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600">
-                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editing ? "Actualizar" : "Crear automatización")}
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : (editing ? t("instagramAutomationsPage.update") : t("instagramAutomationsPage.createAutomation"))}
                 </Button>
               </div>
             </div>
@@ -799,15 +804,15 @@ export default function InstagramAutomationsPage() {
       <AlertDialog open={!!deletingAutomation} onOpenChange={open => { if (!open) setDeletingAutomation(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar automatización?</AlertDialogTitle>
+            <AlertDialogTitle>{t("instagramAutomationsPage.deleteConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Se eliminará <strong>"{deletingAutomation?.name}"</strong>. Esta acción no se puede deshacer.
+              {t("instagramAutomationsPage.deleteConfirmPre")} <strong>"{deletingAutomation?.name}"</strong>. {t("instagramAutomationsPage.deleteConfirmPost")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("instagramAutomationsPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("instagramAutomationsPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

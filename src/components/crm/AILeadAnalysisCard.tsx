@@ -8,6 +8,7 @@ import {
   CheckCircle2, ArrowRight, RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -43,6 +44,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [applyingStage, setApplyingStage] = useState(false);
+  const { t } = useTranslation();
 
   const fetchAnalysis = useCallback(async () => {
     setLoading(true);
@@ -85,11 +87,11 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
         p_contact_id: contactId,
       });
       if (error) throw error;
-      if (!data?.success) throw new Error(data?.error || "No se pudo aplicar");
-      toast.success(`Lead movido a "${data.new_stage_name}"`);
+      if (!data?.success) throw new Error(data?.error || t("aILeadAnalysisCard.couldNotApply"));
+      toast.success(t("aILeadAnalysisCard.leadMovedTo", { stage: data.new_stage_name }));
       await fetchAnalysis();
     } catch (e: any) {
-      toast.error("Error: " + e.message);
+      toast.error(t("aILeadAnalysisCard.errorPrefix") + e.message);
     } finally {
       setApplyingStage(false);
     }
@@ -110,11 +112,11 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
         body: { contact_id: contactId },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
-      toast.success(`Análisis IA listo. Temperatura: ${data.analysis.temperature}/100`);
+      toast.success(t("aILeadAnalysisCard.analysisReady", { temperature: data.analysis.temperature }));
       await fetchAnalysis();
       if (data.new_contact_score != null) onAnalysisComplete?.(data.new_contact_score);
     } catch (e: any) {
-      toast.error("Error al analizar: " + e.message);
+      toast.error(t("aILeadAnalysisCard.errorAnalyzing") + e.message);
     } finally {
       setAnalyzing(false);
     }
@@ -123,19 +125,19 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
   // Sentiment metadata
   const sentimentMeta = (s: string) => {
     switch (s) {
-      case "positive": return { label: "Positivo", icon: <TrendingUp className="h-3 w-3" />, cls: "text-green-600 bg-green-50 border-green-300 dark:bg-green-950/30" };
-      case "negative": return { label: "Negativo", icon: <TrendingDown className="h-3 w-3" />, cls: "text-red-600 bg-red-50 border-red-300 dark:bg-red-950/30" };
-      case "mixed":    return { label: "Mixto",    icon: <AlertTriangle className="h-3 w-3" />, cls: "text-amber-600 bg-amber-50 border-amber-300 dark:bg-amber-950/30" };
-      default:         return { label: "Neutral",  icon: <Target className="h-3 w-3" />, cls: "text-muted-foreground bg-muted border-border" };
+      case "positive": return { label: t("aILeadAnalysisCard.sentimentPositive"), icon: <TrendingUp className="h-3 w-3" />, cls: "text-green-600 bg-green-50 border-green-300 dark:bg-green-950/30" };
+      case "negative": return { label: t("aILeadAnalysisCard.sentimentNegative"), icon: <TrendingDown className="h-3 w-3" />, cls: "text-red-600 bg-red-50 border-red-300 dark:bg-red-950/30" };
+      case "mixed":    return { label: t("aILeadAnalysisCard.sentimentMixed"),    icon: <AlertTriangle className="h-3 w-3" />, cls: "text-amber-600 bg-amber-50 border-amber-300 dark:bg-amber-950/30" };
+      default:         return { label: t("aILeadAnalysisCard.sentimentNeutral"),  icon: <Target className="h-3 w-3" />, cls: "text-muted-foreground bg-muted border-border" };
     }
   };
 
   const intentMeta = (i: string) => {
     switch (i) {
-      case "high":   return { label: "Alta", cls: "text-green-700 bg-green-100 dark:bg-green-950/40" };
-      case "medium": return { label: "Media", cls: "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40" };
-      case "low":    return { label: "Baja", cls: "text-orange-700 bg-orange-100 dark:bg-orange-950/40" };
-      default:       return { label: "Ninguna", cls: "text-muted-foreground bg-muted" };
+      case "high":   return { label: t("aILeadAnalysisCard.intentHigh"), cls: "text-green-700 bg-green-100 dark:bg-green-950/40" };
+      case "medium": return { label: t("aILeadAnalysisCard.intentMedium"), cls: "text-yellow-700 bg-yellow-100 dark:bg-yellow-950/40" };
+      case "low":    return { label: t("aILeadAnalysisCard.intentLow"), cls: "text-orange-700 bg-orange-100 dark:bg-orange-950/40" };
+      default:       return { label: t("aILeadAnalysisCard.intentNone"), cls: "text-muted-foreground bg-muted" };
     }
   };
 
@@ -143,7 +145,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
     return (
       <div className="rounded-xl border bg-gradient-to-br from-violet-50 to-pink-50 dark:from-violet-950/20 dark:to-pink-950/20 p-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando análisis IA...
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("aILeadAnalysisCard.loadingAnalysis")}
         </div>
       </div>
     );
@@ -157,10 +159,10 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
           <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-pink-500">
             <Sparkles className="h-4 w-4 text-white" />
           </div>
-          <h3 className="text-sm font-semibold">Análisis IA del Lead</h3>
+          <h3 className="text-sm font-semibold">{t("aILeadAnalysisCard.cardTitle")}</h3>
         </div>
         <p className="text-xs text-muted-foreground">
-          Aún no se ha analizado este contacto con IA. El análisis evalúa el sentimiento y la intención de compra basándose en las conversaciones reales (WhatsApp, Instagram, llamadas, notas).
+          {t("aILeadAnalysisCard.emptyDescription")}
         </p>
         <Button
           size="sm"
@@ -168,7 +170,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
           disabled={analyzing}
           className="gap-2 bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600"
         >
-          {analyzing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Analizando...</> : <><Sparkles className="h-3.5 w-3.5" /> Analizar con IA</>}
+          {analyzing ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("aILeadAnalysisCard.analyzing")}</> : <><Sparkles className="h-3.5 w-3.5" /> {t("aILeadAnalysisCard.analyzeWithAI")}</>}
         </Button>
       </div>
     );
@@ -192,9 +194,9 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold">Análisis IA del Lead</h3>
+            <h3 className="text-sm font-semibold">{t("aILeadAnalysisCard.cardTitle")}</h3>
             <p className="text-[10px] text-muted-foreground">
-              {analysis.messages_analyzed} mensaje(s) analizados · {formatDistanceToNow(new Date(analysis.analyzed_at), { addSuffix: true, locale: es })}
+              {t("aILeadAnalysisCard.messagesAnalyzed", { count: analysis.messages_analyzed })} · {formatDistanceToNow(new Date(analysis.analyzed_at), { addSuffix: true, locale: es })}
             </p>
           </div>
         </div>
@@ -212,7 +214,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
       {/* Temperature gauge */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Temperatura IA</span>
+          <span className="text-muted-foreground">{t("aILeadAnalysisCard.aiTemperature")}</span>
           <span className="font-bold">{analysis.temperature}/100</span>
         </div>
         <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
@@ -226,10 +228,10 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
       {/* Sentiment + Intent badges */}
       <div className="flex flex-wrap gap-1.5">
         <Badge variant="outline" className={`text-[10px] gap-1 ${sm.cls}`}>
-          {sm.icon} Sentimiento: {sm.label}
+          {sm.icon} {t("aILeadAnalysisCard.sentimentLabel")}: {sm.label}
         </Badge>
         <Badge variant="outline" className={`text-[10px] ${im.cls}`}>
-          Intención de compra: {im.label}
+          {t("aILeadAnalysisCard.buyingIntentLabel")}: {im.label}
         </Badge>
       </div>
 
@@ -240,7 +242,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
             <span className="text-base leading-none">🔥</span>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-orange-900 dark:text-orange-200">
-                Sugerencia: avanzar a "{suggestedStage.name}"
+                {t("aILeadAnalysisCard.suggestionAdvanceTo", { stage: suggestedStage.name })}
               </p>
               {analysis.suggested_stage_reasoning && (
                 <p className="text-[11px] text-orange-800/80 dark:text-orange-300/80 mt-0.5">
@@ -257,7 +259,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
               disabled={applyingStage}
             >
               {applyingStage ? <Loader2 className="h-3 w-3 animate-spin" /> : <ArrowRight className="h-3 w-3" />}
-              Aplicar
+              {t("aILeadAnalysisCard.apply")}
             </Button>
             <Button
               size="sm"
@@ -266,7 +268,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
               onClick={dismissStageSuggestion}
               disabled={applyingStage}
             >
-              Ignorar
+              {t("aILeadAnalysisCard.ignore")}
             </Button>
           </div>
         </div>
@@ -278,7 +280,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
           <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
           <div className="flex-1">
             <p className="text-[10px] font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wide">
-              Tarea creada automáticamente
+              {t("aILeadAnalysisCard.taskAutoCreated")}
             </p>
             <p className="text-xs text-foreground mt-0.5">{analysis.suggested_task_title}</p>
           </div>
@@ -298,7 +300,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
       {analysis.signals_detected?.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold text-green-700 dark:text-green-400 flex items-center gap-1">
-            <CheckCircle2 className="h-3 w-3" /> Señales positivas
+            <CheckCircle2 className="h-3 w-3" /> {t("aILeadAnalysisCard.positiveSignals")}
           </p>
           <ul className="space-y-0.5">
             {analysis.signals_detected.map((s, i) => (
@@ -314,7 +316,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
       {analysis.objections?.length > 0 && (
         <div className="space-y-1.5">
           <p className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 flex items-center gap-1">
-            <AlertTriangle className="h-3 w-3" /> Objeciones detectadas
+            <AlertTriangle className="h-3 w-3" /> {t("aILeadAnalysisCard.objectionsDetected")}
           </p>
           <ul className="space-y-0.5">
             {analysis.objections.map((o, i) => (
@@ -332,7 +334,7 @@ export function AILeadAnalysisCard({ contactId, onAnalysisComplete }: Props) {
           <ArrowRight className="h-4 w-4 text-violet-600 mt-0.5 shrink-0" />
           <div>
             <p className="text-[10px] font-semibold text-violet-700 dark:text-violet-400 uppercase tracking-wide">
-              Próxima mejor acción
+              {t("aILeadAnalysisCard.nextBestAction")}
             </p>
             <p className="text-xs text-foreground mt-0.5">{analysis.next_best_action}</p>
           </div>

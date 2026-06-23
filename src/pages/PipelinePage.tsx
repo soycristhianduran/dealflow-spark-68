@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTranslation } from "react-i18next";
 
 interface Pipeline {
   id: string;
@@ -47,19 +48,20 @@ interface ContactRow {
 }
 
 const stageColorOptions = [
-  { value: "#3b82f6", label: "Azul" },
-  { value: "#8b5cf6", label: "Púrpura" },
-  { value: "#eab308", label: "Amarillo" },
-  { value: "#f97316", label: "Naranja" },
-  { value: "#14b8a6", label: "Teal" },
-  { value: "#06b6d4", label: "Celeste" },
-  { value: "#22c55e", label: "Verde" },
-  { value: "#ef4444", label: "Rojo" },
-  { value: "#ec4899", label: "Rosa" },
-  { value: "#a855f7", label: "Violeta" },
+  { value: "#3b82f6", labelKey: "blue" },
+  { value: "#8b5cf6", labelKey: "purple" },
+  { value: "#eab308", labelKey: "yellow" },
+  { value: "#f97316", labelKey: "orange" },
+  { value: "#14b8a6", labelKey: "teal" },
+  { value: "#06b6d4", labelKey: "lightBlue" },
+  { value: "#22c55e", labelKey: "green" },
+  { value: "#ef4444", labelKey: "red" },
+  { value: "#ec4899", labelKey: "pink" },
+  { value: "#a855f7", labelKey: "violet" },
 ];
 
 export default function PipelinePage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { session } = useAuth();
@@ -233,13 +235,13 @@ export default function PipelinePage() {
     setSavingPipeline(true);
     if (editingPipeline) {
       const { error } = await supabase.from("pipelines").update({ name: pipelineName.trim() }).eq("id", editingPipeline.id);
-      if (error) toast.error("Error: " + error.message);
-      else { toast.success("Pipeline renombrado"); setPipelines(prev => prev.map(p => p.id === editingPipeline.id ? { ...p, name: pipelineName.trim() } : p)); }
+      if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
+      else { toast.success(t("pipelinePage.pipelineRenamed")); setPipelines(prev => prev.map(p => p.id === editingPipeline.id ? { ...p, name: pipelineName.trim() } : p)); }
     } else {
       const { data, error } = await supabase.from("pipelines").insert({ name: pipelineName.trim(), ...(organizationId ? { organization_id: organizationId } : {}) }).select("id, name").single();
-      if (error) toast.error("Error: " + error.message);
+      if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
       else if (data) {
-        toast.success("Pipeline creado");
+        toast.success(t("pipelinePage.pipelineCreated"));
         setPipelines(prev => [...prev, data]);
         setSelectedPipelineId(data.id);
         setContacts([]);
@@ -253,13 +255,13 @@ export default function PipelinePage() {
   };
 
   const handleDeletePipeline = async (pid: string) => {
-    if (pipelines.length <= 1) { toast.error("Debes tener al menos un pipeline"); return; }
+    if (pipelines.length <= 1) { toast.error(t("pipelinePage.atLeastOnePipeline")); return; }
     const { count } = await supabase.from("contacts").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
-    if (count && count > 0) { toast.error("No puedes eliminar un pipeline con leads. Mueve o elimina los leads primero."); return; }
+    if (count && count > 0) { toast.error(t("pipelinePage.cannotDeletePipelineWithLeads")); return; }
     await supabase.from("pipeline_stages").delete().eq("pipeline_id", pid);
     const { error } = await supabase.from("pipelines").delete().eq("id", pid);
-    if (error) { toast.error("Error: " + error.message); return; }
-    toast.success("Pipeline eliminado");
+    if (error) { toast.error(t("pipelinePage.errorPrefix") + error.message); return; }
+    toast.success(t("pipelinePage.pipelineDeleted"));
     const remaining = pipelines.filter(p => p.id !== pid);
     setPipelines(remaining);
     if (selectedPipelineId === pid && remaining.length > 0) {
@@ -280,7 +282,7 @@ export default function PipelinePage() {
 
   const handleCreateLead = async () => {
     if (!leadFullName.trim() || !selectedPipelineId || !leadStageId) {
-      toast.error("El nombre es requerido");
+      toast.error(t("pipelinePage.nameRequired"));
       return;
     }
     setSavingLead(true);
@@ -306,11 +308,11 @@ export default function PipelinePage() {
       if (error.message?.includes("contact_limit_reached")) {
         toast.error(
           (error as any).details ||
-          "Has alcanzado el límite de contactos de tu plan. Mejora tu suscripción.",
+          t("pipelinePage.contactLimitReached"),
           { duration: 6000 }
         );
       } else {
-        toast.error("Error: " + error.message);
+        toast.error(t("pipelinePage.errorPrefix") + error.message);
       }
       return;
     }
@@ -322,7 +324,7 @@ export default function PipelinePage() {
       }).catch(() => {});
     }
 
-    toast.success("Lead creado");
+    toast.success(t("pipelinePage.leadCreated"));
     setLeadDialogOpen(false);
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
@@ -402,7 +404,7 @@ export default function PipelinePage() {
   const confirmLostDrop = async () => {
     if (!pendingLostDrop) return;
     const reason = lostReasonSelected === "Otra razón…" ? lostReasonCustom.trim() : lostReasonSelected;
-    if (!reason) { toast.error("Selecciona o escribe una razón"); return; }
+    if (!reason) { toast.error(t("pipelinePage.selectOrWriteReason")); return; }
     setLostReasonSaving(true);
     const stage = stages.find(s => s.id === pendingLostDrop.stageId);
     const update: Record<string, any> = { stage_id: pendingLostDrop.stageId, lead_status: "lost", lost_reason: reason };
@@ -413,7 +415,7 @@ export default function PipelinePage() {
       body: { action: "trigger_event", trigger_type: "contact_stage_changed", contact_id: pendingLostDrop.contactId,
         trigger_data: { stage_id: pendingLostDrop.stageId, stage_name: stage?.name ?? "", pipeline_id: selectedPipelineId } },
     }).catch(() => {});
-    toast.success("Lead marcado como perdido");
+    toast.success(t("pipelinePage.leadMarkedLost"));
     setLostReasonSaving(false);
     setLostReasonDialogOpen(false);
     setPendingLostDrop(null);
@@ -423,10 +425,10 @@ export default function PipelinePage() {
   const confirmWonDrop = async () => {
     if (!pendingWonDrop) return;
     const amount = parseFloat(wonBudgetAmount.replace(/,/g, "."));
-    if (!amount || amount <= 0) { toast.error("Ingresa un valor válido mayor a 0"); return; }
+    if (!amount || amount <= 0) { toast.error(t("pipelinePage.enterValidValue")); return; }
     setWonBudgetSaving(true);
     await completeDrop(pendingWonDrop.contactId, pendingWonDrop.stageId, "won", { amount, currency: wonBudgetCurrency });
-    toast.success("Lead cerrado como ganado 🎉");
+    toast.success(t("pipelinePage.leadClosedWon"));
     setWonBudgetSaving(false);
     setWonBudgetDialogOpen(false);
     setPendingWonDrop(null);
@@ -462,8 +464,8 @@ export default function PipelinePage() {
         color: stageColor,
         probability: Number(stageProbability) || 0,
       }).eq("id", editingStage.id);
-      if (error) toast.error("Error: " + error.message);
-      else toast.success("Etapa actualizada");
+      if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
+      else toast.success(t("pipelinePage.stageUpdated"));
     } else {
       // Insert new stages BEFORE the system won/lost stages (which sit at order 9998/9999).
       const nonSystem = stages.filter(s => !(s as any).is_system);
@@ -475,8 +477,8 @@ export default function PipelinePage() {
         probability: Number(stageProbability) || 0,
         order: newOrder,
       });
-      if (error) toast.error("Error: " + error.message);
-      else toast.success("Etapa creada");
+      if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
+      else toast.success(t("pipelinePage.stageCreated"));
     }
 
     setSavingStage(false);
@@ -487,17 +489,17 @@ export default function PipelinePage() {
   const handleDeleteStage = async (stageId: string) => {
     const target = stages.find(s => s.id === stageId);
     if (target && (target as any).is_system) {
-      toast.error("Las etapas de cierre (Ganado/Perdido) no se pueden eliminar.");
+      toast.error(t("pipelinePage.cannotDeleteClosingStages"));
       return;
     }
     const stageContacts = contacts.filter(c => c.stage_id === stageId);
     if (stageContacts.length > 0) {
-      toast.error("No puedes eliminar una etapa con leads. Mueve los leads primero.");
+      toast.error(t("pipelinePage.cannotDeleteStageWithLeads"));
       return;
     }
     const { error } = await supabase.from("pipeline_stages").delete().eq("id", stageId);
-    if (error) toast.error("Error: " + error.message);
-    else { toast.success("Etapa eliminada"); if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId); }
+    if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
+    else { toast.success(t("pipelinePage.stageDeleted")); if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId); }
   };
 
   const handleMoveStage = async (stageId: string, direction: "up" | "down") => {
@@ -550,7 +552,7 @@ export default function PipelinePage() {
     if (status === "won") {
       const c = contacts.find(x => x.id === contactId);
       if (!c || !c.budget || Number(c.budget) <= 0) {
-        toast.error("El lead debe tener un presupuesto asignado (> 0) para marcarse como ganado");
+        toast.error(t("pipelinePage.leadNeedsBudgetToWin"));
         return;
       }
     }
@@ -562,7 +564,7 @@ export default function PipelinePage() {
       summary: status === "won" ? "Lead marcado como ganado 🎉" : "Lead marcado como perdido",
       created_by: session?.user?.id || null,
     });
-    toast.success(status === "won" ? "Lead marcado como ganado 🎉" : "Lead marcado como perdido");
+    toast.success(status === "won" ? t("pipelinePage.leadMarkedWon") : t("pipelinePage.leadMarkedLost"));
     supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
@@ -572,15 +574,15 @@ export default function PipelinePage() {
   return (
     <AppLayout>
       <AppHeader
-        title="Pipeline"
-        subtitle="Vista Kanban de leads"
+        title={t("pipelinePage.title")}
+        subtitle={t("pipelinePage.subtitle")}
         actions={
           <div className="flex items-center gap-2">
             {/* Pipeline selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm" className="gap-1.5 max-w-[200px]">
-                  <span className="truncate">{currentPipeline?.name || "Pipeline"}</span>
+                  <span className="truncate">{currentPipeline?.name || t("pipelinePage.title")}</span>
                   <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
                 </Button>
               </DropdownMenuTrigger>
@@ -616,7 +618,7 @@ export default function PipelinePage() {
                 ))}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={openCreatePipeline}>
-                  <FolderPlus className="h-4 w-4 mr-2" /> Nuevo pipeline
+                  <FolderPlus className="h-4 w-4 mr-2" /> {t("pipelinePage.newPipeline")}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -629,12 +631,12 @@ export default function PipelinePage() {
               onClick={() => setManageMode(!manageMode)}
             >
               <Settings2 className="h-4 w-4" />
-              {manageMode ? "Listo" : "Personalizar"}
+              {manageMode ? t("pipelinePage.done") : t("pipelinePage.customize")}
             </Button>
             )}
             {manageMode && (
               <Button size="sm" className="gap-1.5" onClick={openAddStage}>
-                <Plus className="h-4 w-4" /> Nueva etapa
+                <Plus className="h-4 w-4" /> {t("pipelinePage.newStage")}
               </Button>
             )}
           </div>
@@ -647,9 +649,9 @@ export default function PipelinePage() {
           </div>
         ) : stages.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <p className="text-muted-foreground">No hay etapas en este pipeline.</p>
+            <p className="text-muted-foreground">{t("pipelinePage.noStages")}</p>
             <Button onClick={openAddStage} className="gap-1.5">
-              <Plus className="h-4 w-4" /> Crear primera etapa
+              <Plus className="h-4 w-4" /> {t("pipelinePage.createFirstStage")}
             </Button>
           </div>
         ) : (
@@ -725,28 +727,28 @@ export default function PipelinePage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEditStage(stage)}>
-                              <Pencil className="h-3.5 w-3.5 mr-2" /> Editar
+                              <Pencil className="h-3.5 w-3.5 mr-2" /> {t("pipelinePage.edit")}
                             </DropdownMenuItem>
                             {!sys && idx > 0 && !(stages[idx - 1] as any)?.is_system && (
                               <DropdownMenuItem onClick={() => handleMoveStage(stage.id, "up")}>
-                                <GripVertical className="h-3.5 w-3.5 mr-2" /> Mover izquierda
+                                <GripVertical className="h-3.5 w-3.5 mr-2" /> {t("pipelinePage.moveLeft")}
                               </DropdownMenuItem>
                             )}
                             {!sys && idx < stages.length - 1 && !(stages[idx + 1] as any)?.is_system && (
                               <DropdownMenuItem onClick={() => handleMoveStage(stage.id, "down")}>
-                                <GripVertical className="h-3.5 w-3.5 mr-2" /> Mover derecha
+                                <GripVertical className="h-3.5 w-3.5 mr-2" /> {t("pipelinePage.moveRight")}
                               </DropdownMenuItem>
                             )}
                             {sys ? (
                               <DropdownMenuItem disabled className="text-muted-foreground">
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {isFirst ? "Etapa inicial (fija)" : "Etapa de cierre (fija)"}
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {isFirst ? t("pipelinePage.initialStageFixed") : t("pipelinePage.closingStageFixed")}
                               </DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem
                                 className="text-destructive focus:text-destructive"
                                 onClick={() => setDeleteStageTarget(stage.id)}
                               >
-                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Eliminar
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> {t("pipelinePage.delete")}
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -776,13 +778,13 @@ export default function PipelinePage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                               <DropdownMenuItem onClick={() => navigate(path(`/contacts/${contact.id}`))}>
-                                <Pencil className="h-3.5 w-3.5 mr-2" /> Ver / Editar
+                                <Pencil className="h-3.5 w-3.5 mr-2" /> {t("pipelinePage.viewEdit")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => closeContact(contact.id, "won")}>
-                                <Trophy className="h-3.5 w-3.5 mr-2 text-green-500" /> Marcar ganado
+                                <Trophy className="h-3.5 w-3.5 mr-2 text-green-500" /> {t("pipelinePage.markWon")}
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => closeContact(contact.id, "lost")}>
-                                <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> Marcar perdido
+                                <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> {t("pipelinePage.markLost")}
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -795,19 +797,19 @@ export default function PipelinePage() {
                           {contact.budget ? (
                             <span className="text-sm font-semibold text-foreground">{formatMoney(contact.budget, contact.budget_currency || defaultCurrency)}</span>
                           ) : (
-                            <span className="text-xs text-muted-foreground">Sin presupuesto</span>
+                            <span className="text-xs text-muted-foreground">{t("pipelinePage.noBudget")}</span>
                           )}
                           {contact.budget_currency && contact.budget && (
                             <Badge variant="outline" className="text-xs">{contact.budget_currency}</Badge>
                           )}
                         </div>
                         {contact.expected_close_date && (
-                          <p className="text-xs text-muted-foreground mt-1.5">Cierre: {contact.expected_close_date}</p>
+                          <p className="text-xs text-muted-foreground mt-1.5">{t("pipelinePage.closeLabel")} {contact.expected_close_date}</p>
                         )}
                       </div>
                     ))}
                     {stageContacts.length === 0 && (
-                      <p className="text-xs text-muted-foreground text-center py-6">Sin leads</p>
+                      <p className="text-xs text-muted-foreground text-center py-6">{t("pipelinePage.noLeads")}</p>
                     )}
                   </div>
                 </div>
@@ -821,7 +823,7 @@ export default function PipelinePage() {
                 className="flex w-[260px] sm:w-72 flex-col items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/20 hover:border-primary/40 hover:bg-primary/5 transition-colors gap-2 py-12"
               >
                 <Plus className="h-5 w-5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">Agregar etapa</span>
+                <span className="text-sm text-muted-foreground">{t("pipelinePage.addStage")}</span>
               </button>
             )}
           </div>
@@ -832,19 +834,19 @@ export default function PipelinePage() {
       <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{editingStage ? "Editar etapa" : "Nueva etapa"}</DialogTitle>
+            <DialogTitle>{editingStage ? t("pipelinePage.editStage") : t("pipelinePage.newStage")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Nombre</Label>
-              <Input value={stageName} onChange={e => setStageName(e.target.value)} placeholder="Ej: Propuesta enviada" />
+              <Label>{t("pipelinePage.name")}</Label>
+              <Input value={stageName} onChange={e => setStageName(e.target.value)} placeholder={t("pipelinePage.stageNamePlaceholder")} />
             </div>
             <div className="space-y-2">
-              <Label>Probabilidad (%)</Label>
+              <Label>{t("pipelinePage.probability")}</Label>
               <Input type="number" min={0} max={100} value={stageProbability} onChange={e => setStageProbability(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Color</Label>
+              <Label>{t("pipelinePage.color")}</Label>
               <div className="flex flex-wrap gap-2">
                 {stageColorOptions.map(c => (
                   <button
@@ -855,17 +857,17 @@ export default function PipelinePage() {
                       stageColor === c.value ? "border-foreground scale-110" : "border-transparent"
                     )}
                     style={{ backgroundColor: c.value }}
-                    title={c.label}
+                    title={t(`pipelinePage.color_${c.labelKey}`)}
                   />
                 ))}
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStageDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setStageDialogOpen(false)}>{t("pipelinePage.cancel")}</Button>
             <Button onClick={handleSaveStage} disabled={savingStage || !stageName.trim()}>
               {savingStage && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {editingStage ? "Guardar" : "Crear"}
+              {editingStage ? t("pipelinePage.save") : t("pipelinePage.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -875,19 +877,19 @@ export default function PipelinePage() {
       <Dialog open={pipelineDialogOpen} onOpenChange={setPipelineDialogOpen}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{editingPipeline ? "Renombrar pipeline" : "Nuevo pipeline"}</DialogTitle>
+            <DialogTitle>{editingPipeline ? t("pipelinePage.renamePipeline") : t("pipelinePage.newPipeline")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Nombre</Label>
-              <Input value={pipelineName} onChange={e => setPipelineName(e.target.value)} placeholder="Ej: Pipeline de ventas B2B" />
+              <Label>{t("pipelinePage.name")}</Label>
+              <Input value={pipelineName} onChange={e => setPipelineName(e.target.value)} placeholder={t("pipelinePage.pipelineNamePlaceholder")} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPipelineDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setPipelineDialogOpen(false)}>{t("pipelinePage.cancel")}</Button>
             <Button onClick={handleSavePipeline} disabled={savingPipeline || !pipelineName.trim()}>
               {savingPipeline && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              {editingPipeline ? "Guardar" : "Crear"}
+              {editingPipeline ? t("pipelinePage.save") : t("pipelinePage.create")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -897,24 +899,24 @@ export default function PipelinePage() {
       <Dialog open={leadDialogOpen} onOpenChange={setLeadDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Nuevo lead</DialogTitle>
+            <DialogTitle>{t("pipelinePage.newLead")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Nombre completo *</Label>
-              <Input value={leadFullName} onChange={e => setLeadFullName(e.target.value)} placeholder="Ej: Juan Pérez" />
+              <Label>{t("pipelinePage.fullName")}</Label>
+              <Input value={leadFullName} onChange={e => setLeadFullName(e.target.value)} placeholder={t("pipelinePage.fullNamePlaceholder")} />
             </div>
             <div className="space-y-2">
-              <Label>Teléfono</Label>
+              <Label>{t("pipelinePage.phone")}</Label>
               <Input value={leadPhone} onChange={e => setLeadPhone(e.target.value)} placeholder="+52 55 1234 5678" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Presupuesto</Label>
+                <Label>{t("pipelinePage.budget")}</Label>
                 <Input type="number" min={0} value={leadBudget} onChange={e => setLeadBudget(e.target.value)} placeholder="0" />
               </div>
               <div className="space-y-2">
-                <Label>Moneda</Label>
+                <Label>{t("pipelinePage.currency")}</Label>
                 <Select value={leadCurrency} onValueChange={setLeadCurrency}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -929,15 +931,15 @@ export default function PipelinePage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Fecha de cierre estimada</Label>
+              <Label>{t("pipelinePage.expectedCloseDate")}</Label>
               <Input type="date" value={leadCloseDate} onChange={e => setLeadCloseDate(e.target.value)} />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setLeadDialogOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setLeadDialogOpen(false)}>{t("pipelinePage.cancel")}</Button>
             <Button onClick={handleCreateLead} disabled={savingLead || !leadFullName.trim()}>
               {savingLead && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-              Crear lead
+              {t("pipelinePage.createLead")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -948,11 +950,11 @@ export default function PipelinePage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <XCircle className="h-5 w-5 text-destructive" /> ¿Por qué se perdió este deal?
+              <XCircle className="h-5 w-5 text-destructive" /> {t("pipelinePage.whyLostDeal")}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Registrar la razón ayuda a identificar patrones y mejorar el proceso de ventas.
+            {t("pipelinePage.lostReasonHelp")}
           </p>
           <div className="space-y-2">
             {LOST_REASONS.map(reason => (
@@ -972,7 +974,7 @@ export default function PipelinePage() {
             {lostReasonSelected === "Otra razón…" && (
               <Input
                 autoFocus
-                placeholder="Describe la razón…"
+                placeholder={t("pipelinePage.describeReasonPlaceholder")}
                 value={lostReasonCustom}
                 onChange={e => setLostReasonCustom(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && confirmLostDrop()}
@@ -982,11 +984,11 @@ export default function PipelinePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setLostReasonDialogOpen(false); setPendingLostDrop(null); }} disabled={lostReasonSaving}>
-              Cancelar
+              {t("pipelinePage.cancel")}
             </Button>
             <Button onClick={confirmLostDrop} disabled={lostReasonSaving || !lostReasonSelected || (lostReasonSelected === "Otra razón…" && !lostReasonCustom.trim())} variant="destructive" className="gap-1.5">
               {lostReasonSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Confirmar
+              {t("pipelinePage.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -997,11 +999,11 @@ export default function PipelinePage() {
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-green-500" /> ¿Cuál fue el valor del deal?
+              <Trophy className="h-5 w-5 text-green-500" /> {t("pipelinePage.whatWasDealValue")}
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Para mover <strong>{contacts.find(c => c.id === pendingWonDrop?.contactId)?.full_name}</strong> a <strong>{pendingWonDrop?.stageName}</strong> necesitas registrar el valor cerrado.
+            {t("pipelinePage.wonBudgetHelpPart1")} <strong>{contacts.find(c => c.id === pendingWonDrop?.contactId)?.full_name}</strong> {t("pipelinePage.wonBudgetHelpPart2")} <strong>{pendingWonDrop?.stageName}</strong> {t("pipelinePage.wonBudgetHelpPart3")}
           </p>
           <div className="flex gap-2 items-center">
             <Select value={wonBudgetCurrency} onValueChange={setWonBudgetCurrency}>
@@ -1027,11 +1029,11 @@ export default function PipelinePage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => { setWonBudgetDialogOpen(false); setPendingWonDrop(null); }} disabled={wonBudgetSaving}>
-              Cancelar
+              {t("pipelinePage.cancel")}
             </Button>
             <Button onClick={confirmWonDrop} disabled={wonBudgetSaving || !wonBudgetAmount} className="gap-1.5 bg-green-600 hover:bg-green-700">
               {wonBudgetSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              Confirmar cierre
+              {t("pipelinePage.confirmClose")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1040,16 +1042,16 @@ export default function PipelinePage() {
       <AlertDialog open={!!deletePipelineTarget} onOpenChange={open => { if (!open) setDeletePipelineTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar pipeline?</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminará el pipeline y todas sus etapas. Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("pipelinePage.deletePipelineTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("pipelinePage.deletePipelineDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("pipelinePage.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deletePipelineTarget) handleDeletePipeline(deletePipelineTarget); setDeletePipelineTarget(null); }}
             >
-              Eliminar
+              {t("pipelinePage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -1058,16 +1060,16 @@ export default function PipelinePage() {
       <AlertDialog open={!!deleteStageTarget} onOpenChange={open => { if (!open) setDeleteStageTarget(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar etapa?</AlertDialogTitle>
-            <AlertDialogDescription>Se eliminará la etapa permanentemente. Esta acción no se puede deshacer.</AlertDialogDescription>
+            <AlertDialogTitle>{t("pipelinePage.deleteStageTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("pipelinePage.deleteStageDesc")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("pipelinePage.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => { if (deleteStageTarget) handleDeleteStage(deleteStageTarget); setDeleteStageTarget(null); }}
             >
-              Eliminar
+              {t("pipelinePage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

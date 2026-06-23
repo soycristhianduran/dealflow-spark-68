@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -89,6 +90,7 @@ const editableRoles = [
 ];
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const { organizationId, organization } = useOrganizationContext();
 
@@ -116,8 +118,8 @@ export default function SettingsPage() {
   const handleRenameTag = async () => {
     if (!editingTag) return;
     const ok = await renameOrgTag(editingTag, editTagValue);
-    if (ok) { toast.success("Tag renombrado"); setEditingTag(null); setEditTagValue(""); }
-    else toast.error("No se pudo renombrar (¿nombre vacío o ya existe?)");
+    if (ok) { toast.success(t("settingsPage.tagRenamed")); setEditingTag(null); setEditTagValue(""); }
+    else toast.error(t("settingsPage.tagRenameError"));
   };
 
   // Pipeline state
@@ -212,8 +214,8 @@ export default function SettingsPage() {
       body: { action: "save_email_sender", email_from_name: emailFromName.trim(), email_from_email: emailFromEmail.trim() },
     });
     setSenderSaving(false);
-    if (error || data?.error) { toast.error(data?.error || "Error al guardar"); return; }
-    toast.success("Remitente guardado correctamente");
+    if (error || data?.error) { toast.error(data?.error || t("settingsPage.saveError")); return; }
+    toast.success(t("settingsPage.senderSaved"));
   };
 
   const fetchTeam = async () => {
@@ -227,7 +229,7 @@ export default function SettingsPage() {
       if (data?.members) setMembers(data.members);
       if (data?.invitations) setInvitations(data.invitations);
     } catch (err: any) {
-      toast.error("Error al cargar el equipo: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.loadTeamError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setTeamLoading(false);
     }
@@ -238,7 +240,7 @@ export default function SettingsPage() {
   }, [organizationId]);
 
   const handleInvite = async () => {
-    if (!inviteEmail.trim()) { toast.error("El email es requerido"); return; }
+    if (!inviteEmail.trim()) { toast.error(t("settingsPage.emailRequired")); return; }
     setInviting(true);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
@@ -247,13 +249,13 @@ export default function SettingsPage() {
       // Prefer the specific error message from the function body over the generic HTTP error
       if (data?.error) throw new Error(data.error);
       if (error) throw error;
-      toast.success(`Invitación enviada a ${inviteEmail.trim()}`);
+      toast.success(t("settingsPage.invitationSent", { email: inviteEmail.trim() }));
       setInviteEmail("");
       setInviteRole("member");
       setInviteDialogOpen(false);
       fetchTeam();
     } catch (err: any) {
-      toast.error("Error al invitar: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.inviteError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setInviting(false);
     }
@@ -268,9 +270,9 @@ export default function SettingsPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setMembers(prev => prev.map(m => m.user_id === memberUserId ? { ...m, role: newRole } : m));
-      toast.success("Rol actualizado");
+      toast.success(t("settingsPage.roleUpdated"));
     } catch (err: any) {
-      toast.error("Error al cambiar rol: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.roleUpdateError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setUpdatingRoleFor(null);
     }
@@ -284,10 +286,10 @@ export default function SettingsPage() {
       });
       if (data?.error) throw new Error(data.error);
       if (error) throw error;
-      toast.success(`Invitación reenviada a ${email}`);
+      toast.success(t("settingsPage.invitationResent", { email }));
       fetchTeam(); // refresh to show updated expiry
     } catch (err: any) {
-      toast.error("Error al reenviar: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.resendError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setResendingInvite(null);
     }
@@ -302,9 +304,9 @@ export default function SettingsPage() {
       if (data?.error) throw new Error(data.error);
       if (error) throw error;
       setInvitations(prev => prev.filter(inv => inv.id !== invitationId));
-      toast.success(`Invitación de ${email} cancelada`);
+      toast.success(t("settingsPage.invitationCanceled", { email }));
     } catch (err: any) {
-      toast.error("Error al cancelar: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.cancelError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setCancelingInvite(null);
     }
@@ -319,9 +321,9 @@ export default function SettingsPage() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setMembers(prev => prev.filter(m => m.user_id !== memberUserId));
-      toast.success("Miembro eliminado del equipo");
+      toast.success(t("settingsPage.memberRemoved"));
     } catch (err: any) {
-      toast.error("Error al eliminar miembro: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.removeMemberError") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setRemovingMember(null);
     }
@@ -333,13 +335,13 @@ export default function SettingsPage() {
 
     // Validate file type
     if (!file.type.startsWith("image/")) {
-      toast.error("Solo se permiten archivos de imagen");
+      toast.error(t("settingsPage.imageFilesOnly"));
       return;
     }
 
     // Validate size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
-      toast.error("El archivo no debe superar los 2MB");
+      toast.error(t("settingsPage.fileSizeLimit"));
       return;
     }
 
@@ -352,7 +354,7 @@ export default function SettingsPage() {
       .upload(fileName, file, { upsert: true });
 
     if (error) {
-      toast.error("Error al subir el logo");
+      toast.error(t("settingsPage.logoUploadError"));
       setUploadingLogo(false);
       return;
     }
@@ -365,7 +367,7 @@ export default function SettingsPage() {
     setLogoUrl(url);
     localStorage.setItem("crm_logo_url", url);
     setUploadingLogo(false);
-    toast.success("Logo actualizado");
+    toast.success(t("settingsPage.logoUpdated"));
     // Dispatch event so sidebar updates in real-time
     window.dispatchEvent(new Event("logo-updated"));
   };
@@ -374,21 +376,21 @@ export default function SettingsPage() {
     setLogoUrl(null);
     localStorage.removeItem("crm_logo_url");
     window.dispatchEvent(new Event("logo-updated"));
-    toast.success("Logo eliminado");
+    toast.success(t("settingsPage.logoRemoved"));
   };
 
   const handleAddTag = async () => {
     const tag = newTag.trim();
     if (!tag) return;
-    if (tags.some(t => t.toLowerCase() === tag.toLowerCase())) { toast.error("El tag ya existe"); return; }
+    if (tags.some(x => x.toLowerCase() === tag.toLowerCase())) { toast.error(t("settingsPage.tagExists")); return; }
     const added = await addOrgTag(tag);
-    if (added) { setNewTag(""); toast.success("Tag agregado"); }
-    else toast.error("No se pudo agregar el tag");
+    if (added) { setNewTag(""); toast.success(t("settingsPage.tagAdded")); }
+    else toast.error(t("settingsPage.tagAddError"));
   };
 
   const handleRemoveTag = async (tag: string) => {
     await removeOrgTag(tag);
-    toast.success("Tag eliminado");
+    toast.success(t("settingsPage.tagRemoved"));
   };
 
   const handleSaveGeneral = async () => {
@@ -397,9 +399,9 @@ export default function SettingsPage() {
         body: { action: "save_general", name: orgName.trim() || undefined, timezone, default_currency: currency },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
-      toast.success("Configuración guardada");
+      toast.success(t("settingsPage.settingsSaved"));
     } catch (e: any) {
-      toast.error(e.message || "No se pudo guardar la configuración");
+      toast.error(e.message || t("settingsPage.settingsSaveError"));
     }
   };
 
@@ -417,13 +419,13 @@ export default function SettingsPage() {
       }
       setOrgSlug(slugInput);
       if (isSetupMode) {
-        toast.success("¡Dirección confirmada! Bienvenido a tu espacio de trabajo.");
+        toast.success(t("settingsPage.addressConfirmed"));
         navigate(`/w/${slugInput}`, { replace: true });
       } else {
-        toast.success("¡Dirección guardada! Tu URL: " + buildWorkspaceUrl(slugInput));
+        toast.success(t("settingsPage.addressSaved", { url: buildWorkspaceUrl(slugInput) }));
       }
     } catch (err: any) {
-      toast.error("Error al guardar: " + (err.message ?? "Error desconocido"));
+      toast.error(t("settingsPage.saveErrorPrefix") + (err.message ?? t("settingsPage.unknownError")));
     } finally {
       setSlugSaving(false);
     }
@@ -446,22 +448,22 @@ export default function SettingsPage() {
   };
 
   const handleSaveStage = () => {
-    if (!stageName.trim()) { toast.error("El nombre es requerido"); return; }
+    if (!stageName.trim()) { toast.error(t("settingsPage.nameRequired")); return; }
     const prob = Math.min(100, Math.max(0, parseInt(stageProbability) || 0));
     if (editingStage) {
       setStages(prev => prev.map(s => s.id === editingStage.id ? { ...s, name: stageName, color: stageColor, probability: prob } : s));
-      toast.success("Etapa actualizada");
+      toast.success(t("settingsPage.stageUpdated"));
     } else {
       const newOrder = stages.length + 1;
       setStages(prev => [...prev, { id: crypto.randomUUID(), pipeline_id: "p1", name: stageName, order: newOrder, color: stageColor, probability: prob }]);
-      toast.success("Etapa agregada");
+      toast.success(t("settingsPage.stageAdded"));
     }
     setStageDialogOpen(false);
   };
 
   const handleDeleteStage = (id: string) => {
     setStages(prev => prev.filter(s => s.id !== id).map((s, i) => ({ ...s, order: i + 1 })));
-    toast.success("Etapa eliminada");
+    toast.success(t("settingsPage.stageDeleted"));
   };
 
   const handleMoveStage = (id: string, direction: "up" | "down") => {
@@ -483,23 +485,23 @@ export default function SettingsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Configuración" />
+      <AppHeader title={t("settingsPage.title")} />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
         {isReadonly && (
           <div className="mb-4 flex items-center gap-2 rounded-lg border bg-muted/40 px-4 py-2.5 text-sm text-muted-foreground">
-            <Eye className="h-4 w-4 shrink-0" /> Modo solo lectura — puedes ver la configuración pero no modificarla.
+            <Eye className="h-4 w-4 shrink-0" /> {t("settingsPage.readOnlyBanner")}
           </div>
         )}
         <Tabs defaultValue={defaultTab}>
           <TabsList className="mb-6">
-            <TabsTrigger value="general">General</TabsTrigger>
-            <TabsTrigger value="pipeline">Pipeline</TabsTrigger>
-            <TabsTrigger value="equipo">Equipo</TabsTrigger>
-            <TabsTrigger value="tags">Tags</TabsTrigger>
-            <TabsTrigger value="campos">Campos</TabsTrigger>
-            <TabsTrigger value="email">Email</TabsTrigger>
-            <TabsTrigger value="formulario">Formulario web</TabsTrigger>
-            <TabsTrigger value="api">API</TabsTrigger>
+            <TabsTrigger value="general">{t("settingsPage.tabGeneral")}</TabsTrigger>
+            <TabsTrigger value="pipeline">{t("settingsPage.tabPipeline")}</TabsTrigger>
+            <TabsTrigger value="equipo">{t("settingsPage.tabTeam")}</TabsTrigger>
+            <TabsTrigger value="tags">{t("settingsPage.tabTags")}</TabsTrigger>
+            <TabsTrigger value="campos">{t("settingsPage.tabFields")}</TabsTrigger>
+            <TabsTrigger value="email">{t("settingsPage.tabEmail")}</TabsTrigger>
+            <TabsTrigger value="formulario">{t("settingsPage.tabWebForm")}</TabsTrigger>
+            <TabsTrigger value="api">{t("settingsPage.tabApi")}</TabsTrigger>
           </TabsList>
 
           {/* Read-only members can view every tab but not edit anything. A disabled
@@ -516,9 +518,9 @@ export default function SettingsPage() {
           <TabsContent value="pipeline" className="space-y-4">
             <Card className="border-none shadow-sm">
               <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-sm font-semibold">Etapas del Pipeline</CardTitle>
+                <CardTitle className="text-sm font-semibold">{t("settingsPage.pipelineStages")}</CardTitle>
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={openAddStage}>
-                  <Plus className="h-4 w-4" /> Agregar etapa
+                  <Plus className="h-4 w-4" /> {t("settingsPage.addStage")}
                 </Button>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -535,7 +537,7 @@ export default function SettingsPage() {
                     <div className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />
                     <span className="flex-1 text-sm font-medium text-foreground">{stage.name}</span>
                     <Badge variant="outline" className="text-xs">{stage.probability}%</Badge>
-                    <span className="text-xs text-muted-foreground">Orden: {stage.order}</span>
+                    <span className="text-xs text-muted-foreground">{t("settingsPage.order")}: {stage.order}</span>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" onClick={() => openEditStage(stage)}>
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -550,19 +552,19 @@ export default function SettingsPage() {
             <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>{editingStage ? "Editar etapa" : "Nueva etapa"}</DialogTitle>
+                  <DialogTitle>{editingStage ? t("settingsPage.editStage") : t("settingsPage.newStage")}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 py-2">
                   <div className="space-y-2">
-                    <Label>Nombre</Label>
-                    <Input value={stageName} onChange={e => setStageName(e.target.value)} placeholder="Ej: Propuesta enviada" />
+                    <Label>{t("settingsPage.name")}</Label>
+                    <Input value={stageName} onChange={e => setStageName(e.target.value)} placeholder={t("settingsPage.stageNamePlaceholder")} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Probabilidad (%)</Label>
+                    <Label>{t("settingsPage.probability")}</Label>
                     <Input type="number" min={0} max={100} value={stageProbability} onChange={e => setStageProbability(e.target.value)} />
                   </div>
                   <div className="space-y-2">
-                    <Label>Color</Label>
+                    <Label>{t("settingsPage.color")}</Label>
                     <div className="flex flex-wrap gap-2">
                       {stageColorOptions.map(c => (
                         <button
@@ -577,8 +579,8 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setStageDialogOpen(false)}>Cancelar</Button>
-                  <Button onClick={handleSaveStage}>{editingStage ? "Guardar" : "Agregar"}</Button>
+                  <Button variant="outline" onClick={() => setStageDialogOpen(false)}>{t("settingsPage.cancel")}</Button>
+                  <Button onClick={handleSaveStage}>{editingStage ? t("settingsPage.save") : t("settingsPage.add")}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
@@ -591,40 +593,40 @@ export default function SettingsPage() {
             <Card className="border-none shadow-sm">
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle className="text-sm font-semibold">
-                  Miembros del equipo
+                  {t("settingsPage.teamMembers")}
                   {organization && (
                     <span className="ml-2 text-xs font-normal text-muted-foreground">— {organization.name}</span>
                   )}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button size="sm" variant="ghost" onClick={fetchTeam} disabled={teamLoading}>
-                    {teamLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Actualizar"}
+                    {teamLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : t("settingsPage.refresh")}
                   </Button>
                   <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
                     {canEdit && (
                     <DialogTrigger asChild>
                       <Button size="sm" variant="outline" className="gap-1.5">
-                        <Plus className="h-4 w-4" /> Invitar
+                        <Plus className="h-4 w-4" /> {t("settingsPage.invite")}
                       </Button>
                     </DialogTrigger>
                     )}
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Invitar al equipo</DialogTitle>
+                        <DialogTitle>{t("settingsPage.inviteToTeam")}</DialogTitle>
                       </DialogHeader>
                       <div className="space-y-4 py-2">
                         <div className="space-y-2">
-                          <Label>Email</Label>
+                          <Label>{t("settingsPage.email")}</Label>
                           <Input
                             type="email"
                             value={inviteEmail}
                             onChange={e => setInviteEmail(e.target.value)}
-                            placeholder="colaborador@empresa.com"
+                            placeholder={t("settingsPage.inviteEmailPlaceholder")}
                             onKeyDown={e => e.key === "Enter" && handleInvite()}
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label>Rol</Label>
+                          <Label>{t("settingsPage.role")}</Label>
                           <Select value={inviteRole} onValueChange={setInviteRole}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>
@@ -642,11 +644,11 @@ export default function SettingsPage() {
                       </div>
                       <DialogFooter>
                         <DialogClose asChild>
-                          <Button variant="outline">Cancelar</Button>
+                          <Button variant="outline">{t("settingsPage.cancel")}</Button>
                         </DialogClose>
                         <Button onClick={handleInvite} disabled={inviting}>
                           {inviting && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
-                          Enviar invitación
+                          {t("settingsPage.sendInvitation")}
                         </Button>
                       </DialogFooter>
                     </DialogContent>
@@ -660,14 +662,14 @@ export default function SettingsPage() {
                   </div>
                 ) : members.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-6">
-                    {organizationId ? "No se encontraron miembros." : "Sin organización asignada."}
+                    {organizationId ? t("settingsPage.noMembersFound") : t("settingsPage.noOrgAssigned")}
                   </p>
                 ) : members.map(member => {
                   const nameDisplay = member.full_name || member.email;
                   const isOwner = member.role === "owner";
                   const isMe = member.user_id === myUserId;
                   const canEdit = isOwnerOrAdmin && !isOwner && !isMe;
-                  const roleLabel = isOwner ? "Propietario" : member.role === "admin" ? "Admin" : member.role === "vendor" ? "Vendedor" : member.role === "setter" ? "Setter" : member.role === "readonly" ? "Solo lectura" : "Miembro";
+                  const roleLabel = isOwner ? t("settingsPage.roleOwner") : member.role === "admin" ? t("settingsPage.roleAdmin") : member.role === "vendor" ? t("settingsPage.roleVendor") : member.role === "setter" ? t("settingsPage.roleSetter") : member.role === "readonly" ? t("settingsPage.roleReadonly") : t("settingsPage.roleMember");
                   return (
                     <div key={member.id} className="flex items-center gap-3 rounded-lg border p-3">
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-medium shrink-0">
@@ -675,7 +677,7 @@ export default function SettingsPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">
-                          {nameDisplay}{isMe && <span className="ml-1.5 text-xs text-muted-foreground">(tú)</span>}
+                          {nameDisplay}{isMe && <span className="ml-1.5 text-xs text-muted-foreground">{t("settingsPage.youSuffix")}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                       </div>
@@ -708,7 +710,7 @@ export default function SettingsPage() {
                       )}
                       {canEdit && (
                         <button
-                          title="Eliminar del equipo"
+                          title={t("settingsPage.removeFromTeam")}
                           disabled={removingMember === member.user_id}
                           onClick={() => handleRemoveMember(member.user_id)}
                           className="text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
@@ -728,7 +730,7 @@ export default function SettingsPage() {
             {invitations.length > 0 && (
               <Card className="border-none shadow-sm">
                 <CardHeader>
-                  <CardTitle className="text-sm font-semibold">Invitaciones pendientes</CardTitle>
+                  <CardTitle className="text-sm font-semibold">{t("settingsPage.pendingInvitations")}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {invitations.map(inv => (
@@ -741,19 +743,19 @@ export default function SettingsPage() {
                         {inv.expires_at && (
                           <p className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            Expira: {new Date(inv.expires_at).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
+                            {t("settingsPage.expires")}: {new Date(inv.expires_at).toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" })}
                           </p>
                         )}
                       </div>
                       <Badge variant="outline" className="shrink-0">
-                        {inv.role === "admin" ? "Admin" : inv.role === "vendor" ? "Vendedor" : inv.role === "setter" ? "Setter" : inv.role === "readonly" ? "Solo lectura" : "Miembro"}
+                        {inv.role === "admin" ? t("settingsPage.roleAdmin") : inv.role === "vendor" ? t("settingsPage.roleVendor") : inv.role === "setter" ? t("settingsPage.roleSetter") : inv.role === "readonly" ? t("settingsPage.roleReadonly") : t("settingsPage.roleMember")}
                       </Badge>
-                      <Badge variant="secondary" className="text-xs shrink-0">Pendiente</Badge>
+                      <Badge variant="secondary" className="text-xs shrink-0">{t("settingsPage.pending")}</Badge>
                       {isOwnerOrAdmin && (
                         <div className="flex items-center gap-1 shrink-0">
                           {/* Resend */}
                           <button
-                            title="Reenviar invitación"
+                            title={t("settingsPage.resendInvitation")}
                             disabled={resendingInvite === inv.id || cancelingInvite === inv.id}
                             onClick={() => handleResendInvite(inv.id, inv.email)}
                             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors disabled:opacity-50"
@@ -764,7 +766,7 @@ export default function SettingsPage() {
                           </button>
                           {/* Cancel */}
                           <button
-                            title="Cancelar invitación"
+                            title={t("settingsPage.cancelInvitation")}
                             disabled={cancelingInvite === inv.id || resendingInvite === inv.id}
                             onClick={() => handleCancelInvite(inv.id, inv.email)}
                             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
@@ -785,17 +787,17 @@ export default function SettingsPage() {
           <TabsContent value="tags" className="space-y-4">
             <Card className="border-none shadow-sm">
               <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="text-sm font-semibold">Tags</CardTitle>
+                <CardTitle className="text-sm font-semibold">{t("settingsPage.tabTags")}</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder="Nuevo tag..." className="h-9 w-40 text-sm" onKeyDown={e => e.key === "Enter" && handleAddTag()} />
+                  <Input value={newTag} onChange={e => setNewTag(e.target.value)} placeholder={t("settingsPage.newTagPlaceholder")} className="h-9 w-40 text-sm" onKeyDown={e => e.key === "Enter" && handleAddTag()} />
                   <Button size="sm" variant="outline" className="gap-1.5" onClick={handleAddTag}>
-                    <Plus className="h-4 w-4" /> Agregar
+                    <Plus className="h-4 w-4" /> {t("settingsPage.add")}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-2">
                 {tags.length === 0 && (
-                  <p className="text-sm text-muted-foreground">Aún no hay etiquetas. Agrega la primera arriba.</p>
+                  <p className="text-sm text-muted-foreground">{t("settingsPage.noTagsYet")}</p>
                 )}
                 {tags.map(tag => (
                   editingTag === tag ? (
@@ -807,14 +809,14 @@ export default function SettingsPage() {
                         onKeyDown={e => { if (e.key === "Enter") handleRenameTag(); if (e.key === "Escape") { setEditingTag(null); setEditTagValue(""); } }}
                         className="h-8 w-40 text-sm"
                       />
-                      <Button size="sm" variant="outline" className="h-8 px-2" onClick={handleRenameTag}>Guardar</Button>
-                      <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditingTag(null); setEditTagValue(""); }}>Cancelar</Button>
+                      <Button size="sm" variant="outline" className="h-8 px-2" onClick={handleRenameTag}>{t("settingsPage.save")}</Button>
+                      <Button size="sm" variant="ghost" className="h-8 px-2" onClick={() => { setEditingTag(null); setEditTagValue(""); }}>{t("settingsPage.cancel")}</Button>
                     </div>
                   ) : (
                     <Badge key={tag} variant="outline" className="text-sm gap-1.5 pr-1.5 border" style={tagChipStyle(colorOf(tag))}>
                       <Popover>
                         <PopoverTrigger asChild>
-                          <button className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ backgroundColor: colorOf(tag) }} title="Cambiar color" />
+                          <button className="h-3 w-3 rounded-full ring-1 ring-black/10" style={{ backgroundColor: colorOf(tag) }} title={t("settingsPage.changeColor")} />
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-2" align="start">
                           <div className="grid grid-cols-5 gap-1.5">
@@ -831,10 +833,10 @@ export default function SettingsPage() {
                         </PopoverContent>
                       </Popover>
                       {tag}
-                      <button onClick={() => { setEditingTag(tag); setEditTagValue(tag); }} className="ml-0.5 rounded-full hover:bg-black/10 p-0.5" title="Renombrar">
+                      <button onClick={() => { setEditingTag(tag); setEditTagValue(tag); }} className="ml-0.5 rounded-full hover:bg-black/10 p-0.5" title={t("settingsPage.rename")}>
                         <Pencil className="h-3 w-3" />
                       </button>
-                      <button onClick={() => handleRemoveTag(tag)} className="rounded-full hover:bg-black/10 p-0.5" title="Eliminar">
+                      <button onClick={() => handleRemoveTag(tag)} className="rounded-full hover:bg-black/10 p-0.5" title={t("settingsPage.delete")}>
                         <X className="h-3 w-3" />
                       </button>
                     </Badge>
@@ -853,10 +855,10 @@ export default function SettingsPage() {
                 </div>
                 <div className="space-y-1">
                   <p className="text-sm font-semibold text-foreground">
-                    Define la URL de tu espacio de trabajo
+                    {t("settingsPage.setupBannerTitle")}
                   </p>
                   <p className="text-sm text-muted-foreground">
-                    Esta será la dirección única de tu empresa en el CRM. Puedes ajustarla ahora y haz clic en <strong>Guardar</strong> para continuar.
+                    {t("settingsPage.setupBannerDesc")}
                   </p>
                 </div>
               </div>
@@ -867,15 +869,15 @@ export default function SettingsPage() {
               <CardHeader>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <Link2 className="h-4 w-4 text-primary" />
-                  Dirección del espacio de trabajo
+                  {t("settingsPage.workspaceAddress")}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 max-w-md">
                 <p className="text-sm text-muted-foreground">
-                  Esta es la URL única de tu empresa en el CRM. Compártela con tu equipo para que accedan directamente a tu espacio.
+                  {t("settingsPage.workspaceAddressDesc")}
                 </p>
                 <div className="space-y-2">
-                  <Label>Dirección</Label>
+                  <Label>{t("settingsPage.address")}</Label>
                   <div className="flex items-center gap-2">
                     <div className="flex flex-1 items-center rounded-md border bg-muted/40 overflow-hidden">
                       <span className="px-3 py-2 text-sm text-muted-foreground border-r bg-muted whitespace-nowrap">
@@ -884,7 +886,7 @@ export default function SettingsPage() {
                       <Input
                         value={slugInput}
                         onChange={e => setSlugInput(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))}
-                        placeholder="miempresa"
+                        placeholder={t("settingsPage.slugPlaceholder")}
                         className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none text-sm font-mono"
                       />
                     </div>
@@ -894,7 +896,7 @@ export default function SettingsPage() {
                       disabled={slugSaving || !slugValidation.valid || (!isSetupMode && !slugChanged)}
                       className={isSetupMode ? "font-semibold" : ""}
                     >
-                      {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSetupMode ? "Confirmar y entrar →" : "Guardar"}
+                      {slugSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : isSetupMode ? t("settingsPage.confirmAndEnter") : t("settingsPage.save")}
                     </Button>
                   </div>
 
@@ -902,7 +904,7 @@ export default function SettingsPage() {
                   {slugInput.length > 0 && (
                     <div className={`flex items-center gap-1.5 text-xs ${slugValidation.valid ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
                       {slugValidation.valid
-                        ? <><CheckCircle2 className="h-3.5 w-3.5" /> Tu URL: <span className="font-mono">{buildWorkspaceUrl(slugInput)}</span></>
+                        ? <><CheckCircle2 className="h-3.5 w-3.5" /> {t("settingsPage.yourUrl")}: <span className="font-mono">{buildWorkspaceUrl(slugInput)}</span></>
                         : <><AlertCircle className="h-3.5 w-3.5" /> {slugValidation.error}</>
                       }
                     </div>
@@ -912,7 +914,7 @@ export default function SettingsPage() {
                 {/* Current workspace URL */}
                 {orgSlug && (
                   <div className="rounded-lg border bg-muted/30 p-3 space-y-1">
-                    <p className="text-xs text-muted-foreground font-medium">Tu URL actual</p>
+                    <p className="text-xs text-muted-foreground font-medium">{t("settingsPage.currentUrl")}</p>
                     <a
                       href={buildWorkspaceUrl(orgSlug)}
                       target="_blank"
@@ -922,7 +924,7 @@ export default function SettingsPage() {
                       {buildWorkspaceUrl(orgSlug)}
                     </a>
                     <p className="text-xs text-muted-foreground">
-                      Comparte este enlace con tu equipo.
+                      {t("settingsPage.shareLinkWithTeam")}
                     </p>
                   </div>
                 )}
@@ -933,23 +935,23 @@ export default function SettingsPage() {
             {/* Logo Card */}
             <Card className="border-none shadow-sm">
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">Logo de la empresa</CardTitle>
+                <CardTitle className="text-sm font-semibold">{t("settingsPage.companyLogo")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 max-w-md">
                 <div className="flex items-start gap-4">
                   <div className="flex h-20 w-20 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 bg-muted/30 overflow-hidden shrink-0">
                     {logoUrl ? (
-                      <img src={logoUrl} alt="Logo" className="h-full w-full object-contain" />
+                      <img src={logoUrl} alt={t("settingsPage.logoAlt")} className="h-full w-full object-contain" />
                     ) : (
                       <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
                     )}
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      Sube el logo de tu empresa. Se mostrará en el menú lateral del CRM.
+                      {t("settingsPage.logoUploadHint")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      <strong>Tamaño recomendado:</strong> 200×200px o 400×100px (horizontal). Formatos: PNG, JPG, SVG. Máximo 2MB. Fondo transparente recomendado.
+                      <strong>{t("settingsPage.recommendedSize")}:</strong> {t("settingsPage.logoSizeHint")}
                     </p>
                     <div className="flex gap-2">
                       <input
@@ -967,11 +969,11 @@ export default function SettingsPage() {
                         disabled={uploadingLogo}
                       >
                         <Upload className="h-4 w-4" />
-                        {uploadingLogo ? "Subiendo..." : "Subir logo"}
+                        {uploadingLogo ? t("settingsPage.uploading") : t("settingsPage.uploadLogo")}
                       </Button>
                       {logoUrl && (
                         <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={handleRemoveLogo}>
-                          Eliminar
+                          {t("settingsPage.delete")}
                         </Button>
                       )}
                     </div>
@@ -983,24 +985,23 @@ export default function SettingsPage() {
             {/* Email sender card */}
             <Card className="border-none shadow-sm">
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">Remitente de emails</CardTitle>
+                <CardTitle className="text-sm font-semibold">{t("settingsPage.emailSender")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 max-w-md">
                 <p className="text-sm text-muted-foreground">
-                  Nombre y dirección desde los que se envían los emails masivos.
-                  Debe ser un email de un dominio verificado en Resend.
+                  {t("settingsPage.emailSenderDesc")}
                 </p>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>Nombre del remitente</Label>
+                    <Label>{t("settingsPage.senderName")}</Label>
                     <Input
                       value={emailFromName}
                       onChange={e => setEmailFromName(e.target.value)}
-                      placeholder="Ej: Cristhian de Aceleradora"
+                      placeholder={t("settingsPage.senderNamePlaceholder")}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email del remitente</Label>
+                    <Label>{t("settingsPage.senderEmail")}</Label>
                     <Input
                       value={emailFromEmail}
                       onChange={e => setEmailFromEmail(e.target.value)}
@@ -1010,26 +1011,26 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                  ⚠️ El dominio debe estar verificado en tu cuenta de Resend. Emails desde dominios no verificados no se entregarán.
+                  {t("settingsPage.resendDomainWarning")}
                 </div>
                 <Button onClick={handleSaveSender} disabled={senderSaving} size="sm">
                   {senderSaving && <Loader2 className="h-4 w-4 animate-spin mr-1.5" />}
-                  Guardar remitente
+                  {t("settingsPage.saveSender")}
                 </Button>
               </CardContent>
             </Card>
 
             <Card className="border-none shadow-sm">
               <CardHeader>
-                <CardTitle className="text-sm font-semibold">Configuración general</CardTitle>
+                <CardTitle className="text-sm font-semibold">{t("settingsPage.generalSettings")}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 max-w-md">
                 <div className="space-y-2">
-                  <Label>Nombre de la organización</Label>
+                  <Label>{t("settingsPage.organizationName")}</Label>
                   <Input value={orgName} onChange={e => setOrgName(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Moneda por defecto</Label>
+                  <Label>{t("settingsPage.defaultCurrency")}</Label>
                   <Select value={currency} onValueChange={setCurrency}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1038,7 +1039,7 @@ export default function SettingsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Zona horaria</Label>
+                  <Label>{t("settingsPage.timezone")}</Label>
                   <Select value={timezone} onValueChange={setTimezone}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -1047,7 +1048,7 @@ export default function SettingsPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Apariencia</Label>
+                  <Label>{t("settingsPage.appearance")}</Label>
                   <div className="flex gap-2">
                     <Button
                       variant={theme === "light" ? "default" : "outline"}
@@ -1055,7 +1056,7 @@ export default function SettingsPage() {
                       className="gap-2"
                       onClick={() => setTheme("light")}
                     >
-                      <Sun className="h-4 w-4" /> Claro
+                      <Sun className="h-4 w-4" /> {t("settingsPage.themeLight")}
                     </Button>
                     <Button
                       variant={theme === "dark" ? "default" : "outline"}
@@ -1063,7 +1064,7 @@ export default function SettingsPage() {
                       className="gap-2"
                       onClick={() => setTheme("dark")}
                     >
-                      <Moon className="h-4 w-4" /> Oscuro
+                      <Moon className="h-4 w-4" /> {t("settingsPage.themeDark")}
                     </Button>
                     <Button
                       variant={theme === "system" ? "default" : "outline"}
@@ -1071,11 +1072,11 @@ export default function SettingsPage() {
                       className="gap-2"
                       onClick={() => setTheme("system")}
                     >
-                      <Monitor className="h-4 w-4" /> Sistema
+                      <Monitor className="h-4 w-4" /> {t("settingsPage.themeSystem")}
                     </Button>
                   </div>
                 </div>
-                <Button onClick={handleSaveGeneral}>Guardar cambios</Button>
+                <Button onClick={handleSaveGeneral}>{t("settingsPage.saveChanges")}</Button>
               </CardContent>
             </Card>
           </TabsContent>
@@ -1108,6 +1109,7 @@ type ApiKey = {
 };
 
 function ApiKeysSection() {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1160,7 +1162,7 @@ function ApiKeysSection() {
       .insert({ organization_id: organizationId, name: newName.trim(), key_hash: hash, key_prefix: prefix });
 
     setSaving(false);
-    if (error) { toast.error("Error al crear API Key"); return; }
+    if (error) { toast.error(t("settingsPage.apiKeyCreateError")); return; }
     setRevealedKey(rawKey);
     setNewName("");
     load();
@@ -1169,13 +1171,13 @@ function ApiKeysSection() {
   const handleToggle = async (id: string, active: boolean) => {
     await supabase.from("api_keys").update({ is_active: active }).eq("id", id);
     setKeys(prev => prev.map(k => k.id === id ? { ...k, is_active: active } : k));
-    toast.success(active ? "API Key activada" : "API Key desactivada");
+    toast.success(active ? t("settingsPage.apiKeyActivated") : t("settingsPage.apiKeyDeactivated"));
   };
 
   const handleDelete = async (id: string) => {
     await supabase.from("api_keys").delete().eq("id", id);
     setKeys(prev => prev.filter(k => k.id !== id));
-    toast.success("API Key eliminada");
+    toast.success(t("settingsPage.apiKeyDeleted"));
   };
 
   const copy = (text: string, msg: string) => {
@@ -1193,23 +1195,23 @@ function ApiKeysSection() {
               <Key className="h-4 w-4" /> API Keys
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Usa estas keys para enviar datos al CRM desde WordPress, Zapier, n8n, Make u otras fuentes externas.
+              {t("settingsPage.apiKeysDesc")}
             </p>
           </div>
           <Button size="sm" onClick={() => setDialogOpen(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nueva key
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> {t("settingsPage.newKey")}
           </Button>
         </CardHeader>
 
         {/* Endpoint info */}
         <CardContent className="space-y-3">
           <div className="rounded-lg bg-muted/50 border p-3 space-y-2">
-            <p className="text-xs font-medium">Endpoint para crear contactos</p>
+            <p className="text-xs font-medium">{t("settingsPage.endpointCreateContacts")}</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-xs font-mono bg-background border rounded px-2 py-1.5 truncate">
                 POST {API_BASE}/contacts
               </code>
-              <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => copy(`${API_BASE}/contacts`, "URL copiada")}>
+              <Button size="sm" variant="outline" className="h-7 shrink-0" onClick={() => copy(`${API_BASE}/contacts`, t("settingsPage.urlCopied"))}>
                 <Copy className="h-3 w-3" />
               </Button>
             </div>
@@ -1220,7 +1222,7 @@ function ApiKeysSection() {
 
           {/* Example payload */}
           <div className="rounded-lg bg-muted/50 border p-3">
-            <p className="text-xs font-medium mb-1.5">Body de ejemplo (JSON)</p>
+            <p className="text-xs font-medium mb-1.5">{t("settingsPage.exampleBody")}</p>
             <pre className="text-xs font-mono text-muted-foreground leading-relaxed">{`{
   "first_name": "Ana",
   "last_name": "García",
@@ -1243,7 +1245,7 @@ function ApiKeysSection() {
             </div>
           ) : keys.length === 0 ? (
             <div className="text-center py-8 text-sm text-muted-foreground">
-              No tienes API Keys — crea una para empezar.
+              {t("settingsPage.noApiKeys")}
             </div>
           ) : (
             <div className="space-y-2">
@@ -1257,13 +1259,13 @@ function ApiKeysSection() {
                   <div className="text-right shrink-0">
                     {k.last_used_at ? (
                       <p className="text-xs text-muted-foreground">
-                        Último uso: {new Date(k.last_used_at).toLocaleDateString("es")}
+                        {t("settingsPage.lastUsed")}: {new Date(k.last_used_at).toLocaleDateString("es")}
                       </p>
                     ) : (
-                      <p className="text-xs text-muted-foreground">Sin usar</p>
+                      <p className="text-xs text-muted-foreground">{t("settingsPage.neverUsed")}</p>
                     )}
                     <p className="text-xs text-muted-foreground">
-                      Creada: {new Date(k.created_at).toLocaleDateString("es")}
+                      {t("settingsPage.created")}: {new Date(k.created_at).toLocaleDateString("es")}
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
@@ -1271,7 +1273,7 @@ function ApiKeysSection() {
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0"
-                      title={k.is_active ? "Desactivar" : "Activar"}
+                      title={k.is_active ? t("settingsPage.deactivate") : t("settingsPage.activate")}
                       onClick={() => handleToggle(k.id, !k.is_active)}
                     >
                       <Power className={`h-3.5 w-3.5 ${k.is_active ? "text-green-600" : "text-muted-foreground"}`} />
@@ -1280,7 +1282,7 @@ function ApiKeysSection() {
                       size="sm"
                       variant="ghost"
                       className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-                      title="Eliminar"
+                      title={t("settingsPage.delete")}
                       onClick={() => handleDelete(k.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -1298,7 +1300,7 @@ function ApiKeysSection() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Key className="h-4 w-4" /> Nueva API Key
+              <Key className="h-4 w-4" /> {t("settingsPage.newApiKey")}
             </DialogTitle>
           </DialogHeader>
 
@@ -1306,50 +1308,50 @@ function ApiKeysSection() {
             <div className="space-y-4">
               <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3">
                 <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4" /> API Key creada
+                  <CheckCircle2 className="h-4 w-4" /> {t("settingsPage.apiKeyCreated")}
                 </p>
                 <p className="text-xs text-green-700 dark:text-green-400 mt-1">
-                  Copia esta key ahora — no la podrás ver de nuevo.
+                  {t("settingsPage.copyKeyNow")}
                 </p>
               </div>
               <div>
-                <Label className="text-xs">Tu API Key</Label>
+                <Label className="text-xs">{t("settingsPage.yourApiKey")}</Label>
                 <div className="flex items-center gap-1.5 mt-1">
                   <code className="flex-1 text-xs font-mono bg-muted rounded px-2 py-1.5 break-all select-all">
                     {revealedKey}
                   </code>
-                  <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => copy(revealedKey, "API Key copiada")}>
+                  <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => copy(revealedKey, t("settingsPage.apiKeyCopied"))}>
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground">Cómo usarla en Zapier / n8n / Make</p>
-                <p>En el nodo HTTP Request, agrega el header:</p>
+                <p className="font-medium text-foreground">{t("settingsPage.howToUseTitle")}</p>
+                <p>{t("settingsPage.addHeaderHint")}</p>
                 <code className="block font-mono">Authorization: Bearer {revealedKey.slice(0, 24)}…</code>
-                <p className="mt-1">URL del endpoint:</p>
+                <p className="mt-1">{t("settingsPage.endpointUrl")}</p>
                 <code className="block font-mono break-all">{API_BASE}/contacts</code>
               </div>
-              <Button className="w-full" onClick={() => setDialogOpen(false)}>Listo</Button>
+              <Button className="w-full" onClick={() => setDialogOpen(false)}>{t("settingsPage.done")}</Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div>
-                <Label className="text-xs" htmlFor="key-name">Nombre de la key</Label>
+                <Label className="text-xs" htmlFor="key-name">{t("settingsPage.keyName")}</Label>
                 <Input
                   id="key-name"
                   className="mt-1 text-sm"
-                  placeholder="Ej: WordPress sitio principal"
+                  placeholder={t("settingsPage.keyNamePlaceholder")}
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
                 />
-                <p className="text-xs text-muted-foreground mt-1">Ponle un nombre para identificarla después.</p>
+                <p className="text-xs text-muted-foreground mt-1">{t("settingsPage.keyNameHint")}</p>
               </div>
               <div className="flex gap-2 pt-1">
-                <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+                <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>{t("settingsPage.cancel")}</Button>
                 <Button className="flex-1" onClick={handleCreate} disabled={saving || !newName.trim()}>
-                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Creando…</> : "Crear API Key"}
+                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />{t("settingsPage.creating")}</> : t("settingsPage.createApiKey")}
                 </Button>
               </div>
             </div>
@@ -1424,6 +1426,7 @@ function toKey(label: string): string {
 }
 
 function CustomFieldsSection() {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [fields, setFields] = useState<FieldDef[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1481,16 +1484,16 @@ function CustomFieldsSection() {
         .from("custom_field_definitions")
         .update({ label: fLabel.trim(), field_type: fType, options })
         .eq("id", editing.id);
-      toast.success("Campo actualizado");
+      toast.success(t("settingsPage.fieldUpdated"));
     } else {
       const { error } = await supabase
         .from("custom_field_definitions")
         .insert({ organization_id: organizationId, key, label: fLabel.trim(), field_type: fType, options, position: fields.length });
       if (error) {
-        toast.error(error.message.includes("unique") ? "Ya existe un campo con ese nombre" : "Error al crear campo");
+        toast.error(error.message.includes("unique") ? t("settingsPage.fieldNameExists") : t("settingsPage.fieldCreateError"));
         setSaving(false); return;
       }
-      toast.success("Campo creado");
+      toast.success(t("settingsPage.fieldCreated"));
     }
 
     setSaving(false);
@@ -1501,7 +1504,7 @@ function CustomFieldsSection() {
   const handleDelete = async (id: string) => {
     await supabase.from("custom_field_definitions").delete().eq("id", id);
     setFields(prev => prev.filter(f => f.id !== id));
-    toast.success("Campo eliminado");
+    toast.success(t("settingsPage.fieldDeleted"));
   };
 
   const typeLabel = (t: string) => FIELD_TYPES.find(x => x.value === t)?.label ?? t;
@@ -1515,10 +1518,10 @@ function CustomFieldsSection() {
           <div>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <Lock className="h-3.5 w-3.5 text-muted-foreground" />
-              Campos del sistema
+              {t("settingsPage.systemFields")}
             </CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Campos predeterminados del CRM. No se pueden eliminar. Copia su ID para usarlo en Zapier, n8n, Make o tu API Key.
+              {t("settingsPage.systemFieldsDesc")}
             </p>
           </div>
         </CardHeader>
@@ -1533,26 +1536,26 @@ function CustomFieldsSection() {
                       {FIELD_TYPES.find(t => t.value === f.field_type)?.label ?? f.field_type}
                     </span>
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 font-normal">
-                      sistema
+                      {t("settingsPage.systemBadge")}
                     </Badge>
                     {f.note && (
                       <span className="text-[10px] text-muted-foreground italic">{f.note}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ID:</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("settingsPage.idLabel")}</span>
                     <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{f.key}</code>
                     <Button
                       size="sm" variant="ghost"
                       className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                      title="Copiar ID"
-                      onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
+                      title={t("settingsPage.copyId")}
+                      onClick={() => { navigator.clipboard.writeText(f.key); toast.success(t("settingsPage.idCopied", { id: f.key })); }}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
                   </div>
                 </div>
-                <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" title="Campo del sistema — no se puede eliminar" />
+                <Lock className="h-3.5 w-3.5 text-muted-foreground/50 shrink-0" title={t("settingsPage.systemFieldLockTitle")} />
               </div>
             ))}
           </div>
@@ -1563,14 +1566,13 @@ function CustomFieldsSection() {
       <Card className="border-none shadow-sm">
         <CardHeader className="flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-semibold">Campos personalizados</CardTitle>
+            <CardTitle className="text-sm font-semibold">{t("settingsPage.customFields")}</CardTitle>
             <p className="text-xs text-muted-foreground mt-1">
-              Define campos extra que aplican a todos los contactos de tu cuenta.
-              Los valores llegan automáticamente desde formularios, Zapier, n8n, etc.
+              {t("settingsPage.customFieldsDesc")}
             </p>
           </div>
           <Button size="sm" onClick={openCreate}>
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Nuevo campo
+            <Plus className="h-3.5 w-3.5 mr-1.5" /> {t("settingsPage.newField")}
           </Button>
         </CardHeader>
         <CardContent>
@@ -1580,9 +1582,9 @@ function CustomFieldsSection() {
             </div>
           ) : fields.length === 0 ? (
             <div className="text-center py-8 space-y-2">
-              <p className="text-sm text-muted-foreground">No hay campos personalizados todavía.</p>
+              <p className="text-sm text-muted-foreground">{t("settingsPage.noCustomFields")}</p>
               <p className="text-xs text-muted-foreground">
-                Crea campos como "Tipo de proyecto", "Presupuesto", "¿Cómo nos conoció?" y aparecerán en todos tus contactos.
+                {t("settingsPage.noCustomFieldsHint")}
               </p>
             </div>
           ) : (
@@ -1598,13 +1600,13 @@ function CustomFieldsSection() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">ID:</span>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("settingsPage.idLabel")}</span>
                       <code className="text-xs font-mono bg-muted px-1.5 py-0.5 rounded">{f.key}</code>
                       <Button
                         size="sm" variant="ghost"
                         className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground"
-                        title="Copiar ID para Zapier / n8n / Make"
-                        onClick={() => { navigator.clipboard.writeText(f.key); toast.success(`ID copiado: ${f.key}`); }}
+                        title={t("settingsPage.copyIdIntegrations")}
+                        onClick={() => { navigator.clipboard.writeText(f.key); toast.success(t("settingsPage.idCopied", { id: f.key })); }}
                       >
                         <Copy className="h-3 w-3" />
                       </Button>
@@ -1630,27 +1632,27 @@ function CustomFieldsSection() {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-sm font-semibold">
-              {editing ? "Editar campo" : "Nuevo campo personalizado"}
+              {editing ? t("settingsPage.editField") : t("settingsPage.newCustomField")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3 pt-1">
             <div>
-              <Label className="text-xs">Nombre del campo</Label>
+              <Label className="text-xs">{t("settingsPage.fieldName")}</Label>
               <Input
                 className="mt-1 text-sm"
-                placeholder="Ej: Tipo de proyecto"
+                placeholder={t("settingsPage.fieldNamePlaceholder")}
                 value={fLabel}
                 onChange={e => setFLabel(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter") handleSave(); }}
               />
               {!editing && fLabel && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Clave: <code className="font-mono">{toKey(fLabel)}</code>
+                  {t("settingsPage.key")}: <code className="font-mono">{toKey(fLabel)}</code>
                 </p>
               )}
             </div>
             <div>
-              <Label className="text-xs">Tipo</Label>
+              <Label className="text-xs">{t("settingsPage.type")}</Label>
               <Select value={fType} onValueChange={setFType}>
                 <SelectTrigger className="mt-1 text-sm h-9">
                   <SelectValue />
@@ -1664,19 +1666,19 @@ function CustomFieldsSection() {
             </div>
             {fType === "select" && (
               <div>
-                <Label className="text-xs">Opciones (separadas por coma)</Label>
+                <Label className="text-xs">{t("settingsPage.optionsLabel")}</Label>
                 <Input
                   className="mt-1 text-sm"
-                  placeholder="Ej: E-commerce, Landing page, App móvil"
+                  placeholder={t("settingsPage.optionsPlaceholder")}
                   value={fOptions}
                   onChange={e => setFOptions(e.target.value)}
                 />
               </div>
             )}
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>{t("settingsPage.cancel")}</Button>
               <Button className="flex-1" onClick={handleSave} disabled={saving || !fLabel.trim()}>
-                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editing ? "Guardar" : "Crear campo"}
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : editing ? t("settingsPage.save") : t("settingsPage.createField")}
               </Button>
             </div>
           </div>

@@ -9,6 +9,7 @@
  * Heavy aggregation runs server-side in the `dashboard_extra` RPC.
  */
 import { useEffect, useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -117,11 +118,12 @@ function compact(n: number) {
   return `${n}`;
 }
 function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) {
+  const { t } = useTranslation();
   const [hi, setHi] = useState<number | null>(null);
   const top = sources.slice(0, 5);
   const restN = sources.slice(5).reduce((s, x) => s + x.n, 0);
   const segs = top.map((s, i) => ({ label: srcLabel(s.source), n: s.n, color: SRC_COLORS[i] }));
-  if (restN > 0) segs.push({ label: "Otros", n: restN, color: SRC_COLORS[5] });
+  if (restN > 0) segs.push({ label: t("dashboardInsights.others"), n: restN, color: SRC_COLORS[5] });
   const total = segs.reduce((s, x) => s + x.n, 0) || 1;
   const size = 124, stroke = 16, r = (size - stroke) / 2, c = 2 * Math.PI * r;
   let acc = 0;
@@ -155,7 +157,7 @@ function SourceDonut({ sources }: { sources: { source: string; n: number }[] }) 
           ) : (
             <>
               <span className="text-xl font-bold tabular-nums tracking-tight">{compact(total)}</span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Leads</span>
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{t("dashboardInsights.leads")}</span>
             </>
           )}
         </div>
@@ -243,6 +245,7 @@ function Sparkline({ data, dates }: { data: number[]; dates?: string[] }) {
 }
 
 export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, periodLabel = "30 días" }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null; periodStart?: string; periodEnd?: string; periodLabel?: string }) {
+  const { t } = useTranslation();
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const fmtMoney = (n: number) => formatMoney(n, defaultCurrency, { compact: true });
   const [data, setData] = useState<Insights | null>(null);
@@ -268,7 +271,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
       setAdPreview({ loading: true });
       supabase.functions.invoke("meta-ad-preview", { body: { ad_id: row.id } }).then(({ data, error }) => {
         if (data?.preview_html) setAdPreview({ loading: false, html: data.preview_html });
-        else setAdPreview({ loading: false, error: data?.message || data?.error || error?.message || "No disponible" });
+        else setAdPreview({ loading: false, error: data?.message || data?.error || error?.message || t("dashboardInsights.notAvailable") });
       });
     });
   };
@@ -381,11 +384,11 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/25">
             <TrendingUp className="h-4 w-4" />
           </div>
-          <h3 className="text-sm font-bold text-foreground">Adquisición de leads</h3>
+          <h3 className="text-sm font-bold text-foreground">{t("dashboardInsights.leadAcquisition")}</h3>
         </div>
         <div className="space-y-5">
           <div className="grid grid-cols-3 gap-2.5 text-center">
-            {[["Hoy", data.leads.today], [periodLabel, data.leads.period ?? data.leads.month], ["Total", data.leads.total]].map(([l, v], i) => (
+            {[[t("dashboardInsights.today"), data.leads.today], [periodLabel, data.leads.period ?? data.leads.month], [t("dashboardInsights.total"), data.leads.total]].map(([l, v], i) => (
               <div key={i} className={`rounded-xl border py-3 ${i === 1 ? "border-primary/30 bg-primary/[0.06]" : "border-border/50 bg-gradient-to-b from-muted/40 to-transparent"}`}>
                 <p className="text-xl font-bold tabular-nums tracking-tight">{(v as number).toLocaleString()}</p>
                 <p className="text-[11px] font-medium text-muted-foreground mt-0.5 truncate">{l as string}</p>
@@ -393,12 +396,12 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
             ))}
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">Tendencia · {periodLabel}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80 mb-1.5">{t("dashboardInsights.trendLabel", { period: periodLabel })}</p>
             <Sparkline data={series} dates={seriesDates} />
           </div>
           {data.sources.length > 0 && (
             <div className="space-y-2.5 pt-1">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">Por fuente · {periodLabel}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">{t("dashboardInsights.bySourceLabel", { period: periodLabel })}</p>
               <SourceDonut sources={data.sources} />
             </div>
           )}
@@ -409,23 +412,23 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         {/* Agent + conversations */}
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> Agente IA · {periodLabel}</CardTitle>
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-sm shadow-indigo-500/25"><Bot className="h-3.5 w-3.5" /></span> {t("dashboardInsights.aiAgentLabel", { period: periodLabel })}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-lg bg-indigo-50 dark:bg-indigo-950/30 p-3 text-center">
                 <p className="text-2xl font-bold text-indigo-600 dark:text-indigo-400 tabular-nums">{data.agent.sessions_month.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">conversaciones atendidas</p>
+                <p className="text-xs text-muted-foreground">{t("dashboardInsights.conversationsHandled")}</p>
               </div>
               <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 p-3 text-center">
                 <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 tabular-nums">{data.agent.escalations_month.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">escaladas a humano</p>
+                <p className="text-xs text-muted-foreground">{t("dashboardInsights.escalatedToHuman")}</p>
               </div>
             </div>
             <p className="text-[11px] text-muted-foreground mt-3">
               {data.agent.sessions_month > 0
-                ? `El agente resolvió ${Math.round(((data.agent.sessions_month - data.agent.escalations_month) / data.agent.sessions_month) * 100)}% sin intervención humana.`
-                : "Activa el Agente IA para automatizar tus conversaciones."}
+                ? t("dashboardInsights.agentResolvedPct", { pct: Math.round(((data.agent.sessions_month - data.agent.escalations_month) / data.agent.sessions_month) * 100) })
+                : t("dashboardInsights.agentActivatePrompt")}
             </p>
           </CardContent>
         </Card>
@@ -433,21 +436,21 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         {/* Last campaign */}
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-400 to-green-600 text-white shadow-sm shadow-green-500/25"><Send className="h-3.5 w-3.5" /></span> Última campaña</CardTitle>
+            <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-green-400 to-green-600 text-white shadow-sm shadow-green-500/25"><Send className="h-3.5 w-3.5" /></span> {t("dashboardInsights.lastCampaign")}</CardTitle>
           </CardHeader>
           <CardContent>
             {lastCamp ? (
               <>
                 <p className="text-sm font-semibold truncate">{lastCamp.name}</p>
                 <div className="grid grid-cols-4 gap-2 mt-3 text-center">
-                  <div><p className="text-base font-bold tabular-nums">{lastCamp.total_recipients}</p><p className="text-[10px] text-muted-foreground">destinatarios</p></div>
-                  <div><p className="text-base font-bold text-blue-600 tabular-nums">{lastCamp.sent_count}</p><p className="text-[10px] text-muted-foreground">enviados</p></div>
-                  <div><p className="text-base font-bold text-teal-600 tabular-nums">{lastCamp.delivered_count}</p><p className="text-[10px] text-muted-foreground">entregados</p></div>
-                  <div><p className="text-base font-bold text-green-600 tabular-nums">{lastCamp.read_count}</p><p className="text-[10px] text-muted-foreground">leídos</p></div>
+                  <div><p className="text-base font-bold tabular-nums">{lastCamp.total_recipients}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.recipients")}</p></div>
+                  <div><p className="text-base font-bold text-blue-600 tabular-nums">{lastCamp.sent_count}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.sent")}</p></div>
+                  <div><p className="text-base font-bold text-teal-600 tabular-nums">{lastCamp.delivered_count}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.delivered")}</p></div>
+                  <div><p className="text-base font-bold text-green-600 tabular-nums">{lastCamp.read_count}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.read")}</p></div>
                 </div>
               </>
             ) : (
-              <p className="text-sm text-muted-foreground py-4 text-center">Aún no has enviado campañas.</p>
+              <p className="text-sm text-muted-foreground py-4 text-center">{t("dashboardInsights.noCampaignsYet")}</p>
             )}
           </CardContent>
         </Card>
@@ -458,7 +461,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><Filter className="h-3.5 w-3.5" /></span> Conversión del embudo</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-sm shadow-blue-500/25"><Filter className="h-3.5 w-3.5" /></span> {t("dashboardInsights.funnelConversion")}</CardTitle>
               {data.funnels.length > 1 && (
                 <select
                   value={pipelineIdx}
@@ -473,13 +476,13 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
           <CardContent className="space-y-2">
             {(() => {
               const fn = data.funnels[pipelineIdx];
-              if (!fn || fn.stages.length === 0) return <p className="text-sm text-muted-foreground py-4 text-center">Sin etapas en este pipeline.</p>;
+              if (!fn || fn.stages.length === 0) return <p className="text-sm text-muted-foreground py-4 text-center">{t("dashboardInsights.noStagesInPipeline")}</p>;
               const first = fn.stages[0]?.count || 0;
               const last = fn.stages[fn.stages.length - 1]?.count || 0;
               const overall = first > 0 ? (last / first) * 100 : 0;
               return (<>
                 <div className="flex items-center justify-center pb-3">
-                  <RadialGauge value={overall} label="Conversión" sub={`${last} de ${first}`} />
+                  <RadialGauge value={overall} label={t("dashboardInsights.conversion")} sub={t("dashboardInsights.gaugeSub", { last, first })} />
                 </div>
                 {fn.stages.map((s, i) => {
                 const prev = i > 0 ? fn.stages[i - 1].count : null;
@@ -499,7 +502,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               })}
               </>);
             })()}
-            <p className="text-[11px] text-muted-foreground pt-1">El % es la conversión desde la etapa anterior.</p>
+            <p className="text-[11px] text-muted-foreground pt-1">{t("dashboardInsights.funnelHint")}</p>
           </CardContent>
         </Card>
 
@@ -507,24 +510,24 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         {isOwner && (
           <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-sm shadow-violet-500/25"><UserCheck className="h-3.5 w-3.5" /></span> Por vendedor</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-400 to-violet-600 text-white shadow-sm shadow-violet-500/25"><UserCheck className="h-3.5 w-3.5" /></span> {t("dashboardInsights.byAdvisor")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {data.vendors.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">Aún no hay leads asignados a vendedores.</p>
+                <p className="text-sm text-muted-foreground py-4 text-center">{t("dashboardInsights.noLeadsAssignedAdvisors")}</p>
               ) : data.vendors.map(v => (
                 <div key={v.owner_id} className="flex items-center gap-2 rounded-lg border p-2.5">
                   <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-950 flex items-center justify-center text-[11px] font-semibold text-violet-700 dark:text-violet-300 shrink-0">
                     {(vendorNames[v.owner_id] || "?").slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="text-sm flex-1 truncate min-w-0">{vendorNames[v.owner_id] || "Vendedor"}</span>
+                  <span className="text-sm flex-1 truncate min-w-0">{vendorNames[v.owner_id] || t("dashboardInsights.advisor")}</span>
                   <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
-                    <span className="text-center"><b className="block text-foreground text-xs">{v.leads.toLocaleString()}</b>leads</span>
-                    <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>citas</span>
-                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>ganados</span>
-                    <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>perdidos</span>
-                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{v.citas > 0 ? `${Math.round((v.cierres / v.citas) * 100)}%` : "—"}</b>conv.</span>
-                    <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>ventas</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{v.leads.toLocaleString()}</b>{t("dashboardInsights.leadsLower")}</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>{t("dashboardInsights.appointments")}</span>
+                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>{t("dashboardInsights.won")}</span>
+                    <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>{t("dashboardInsights.lost")}</span>
+                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{v.citas > 0 ? `${Math.round((v.cierres / v.citas) * 100)}%` : "—"}</b>{t("dashboardInsights.convAbbr")}</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>{t("dashboardInsights.sales")}</span>
                   </div>
                 </div>
               ))}
@@ -536,7 +539,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         {isOwner && (data.setters?.length ?? 0) > 0 && (
           <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 text-white shadow-sm shadow-cyan-500/25"><CalendarCheck className="h-3.5 w-3.5" /></span> Por setter <span className="text-[11px] font-normal text-muted-foreground">· agendan citas</span></CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-400 to-cyan-600 text-white shadow-sm shadow-cyan-500/25"><CalendarCheck className="h-3.5 w-3.5" /></span> {t("dashboardInsights.bySetter")} <span className="text-[11px] font-normal text-muted-foreground">{t("dashboardInsights.setterSubtitle")}</span></CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               {(data.setters ?? []).map(s => (
@@ -544,12 +547,12 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                   <div className="h-7 w-7 rounded-full bg-cyan-100 dark:bg-cyan-950 flex items-center justify-center text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 shrink-0">
                     {(vendorNames[s.setter_id] || "?").slice(0, 2).toUpperCase()}
                   </div>
-                  <span className="text-sm flex-1 truncate min-w-0">{vendorNames[s.setter_id] || "Setter"}</span>
+                  <span className="text-sm flex-1 truncate min-w-0">{vendorNames[s.setter_id] || t("dashboardInsights.setter")}</span>
                   <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
-                    <span className="text-center"><b className="block text-foreground text-xs">{s.leads.toLocaleString()}</b>leads</span>
-                    <span className="text-center"><b className="block text-foreground text-xs">{s.citas}</b>citas</span>
-                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{s.ganados}</b>ganados</span>
-                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{s.citas > 0 ? `${Math.round((s.ganados / s.citas) * 100)}%` : "—"}</b>conv.</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{s.leads.toLocaleString()}</b>{t("dashboardInsights.leadsLower")}</span>
+                    <span className="text-center"><b className="block text-foreground text-xs">{s.citas}</b>{t("dashboardInsights.appointments")}</span>
+                    <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{s.ganados}</b>{t("dashboardInsights.won")}</span>
+                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{s.citas > 0 ? `${Math.round((s.ganados / s.citas) * 100)}%` : "—"}</b>{t("dashboardInsights.convAbbr")}</span>
                   </div>
                 </div>
               ))}
@@ -563,12 +566,12 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-border shadow-sm"><FacebookIcon size={18} /></span> Rendimiento de anuncios (Meta Ads)</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-border shadow-sm"><FacebookIcon size={18} /></span> {t("dashboardInsights.adsPerformance")}</CardTitle>
               <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-0.5">
                 {(["campaign", "ad"] as const).map(lvl => (
                   <button key={lvl} onClick={() => setRoasLevel(lvl)}
                     className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${roasLevel === lvl ? "bg-background shadow-sm text-foreground" : "text-muted-foreground"}`}>
-                    {lvl === "campaign" ? "Por campaña" : "Por anuncio"}
+                    {lvl === "campaign" ? t("dashboardInsights.byCampaign") : t("dashboardInsights.byAd")}
                   </button>
                 ))}
               </div>
@@ -579,7 +582,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               <div className="flex items-center gap-1 flex-wrap mt-3">
                 <button onClick={() => setAdAccountFilter("all")}
                   className={`px-2.5 py-1 text-[11px] font-medium rounded-full border transition-colors ${adAccountFilter === "all" ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground hover:text-foreground"}`}>
-                  Todas las cuentas
+                  {t("dashboardInsights.allAccounts")}
                 </button>
                 {adAccountIds.map(id => (
                   <button key={id} onClick={() => setAdAccountFilter(id)}
@@ -604,11 +607,11 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                       <span className="text-xs font-semibold truncate" title={acctName(s.account)}>{acctName(s.account)}</span>
                     </div>
                     <div className="grid grid-cols-3 gap-y-2 gap-x-1 text-center">
-                      <div><p className="text-sm font-bold tabular-nums">{s.spend ? fmtMoney(s.spend) : "—"}</p><p className="text-[10px] text-muted-foreground">Inversión</p></div>
-                      <div><p className="text-sm font-bold tabular-nums">{s.leads}</p><p className="text-[10px] text-muted-foreground">Leads</p></div>
-                      <div><p className="text-sm font-bold tabular-nums">{s.citas}</p><p className="text-[10px] text-muted-foreground">Citas</p></div>
-                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.cierres}</p><p className="text-[10px] text-muted-foreground">Ganados</p></div>
-                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.revenue > 0 ? fmtMoney(s.revenue) : "—"}</p><p className="text-[10px] text-muted-foreground">Ventas</p></div>
+                      <div><p className="text-sm font-bold tabular-nums">{s.spend ? fmtMoney(s.spend) : "—"}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.spend")}</p></div>
+                      <div><p className="text-sm font-bold tabular-nums">{s.leads}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.leads")}</p></div>
+                      <div><p className="text-sm font-bold tabular-nums">{s.citas}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.appointmentsCap")}</p></div>
+                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.cierres}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.wonCap")}</p></div>
+                      <div><p className="text-sm font-bold tabular-nums text-emerald-600">{s.revenue > 0 ? fmtMoney(s.revenue) : "—"}</p><p className="text-[10px] text-muted-foreground">{t("dashboardInsights.salesCap")}</p></div>
                       <div><p className={`text-sm font-bold tabular-nums ${s.roas == null ? "text-muted-foreground" : s.roas >= 1 ? "text-emerald-600" : "text-red-500"}`}>{s.roas != null ? `${s.roas}x` : "—"}</p><p className="text-[10px] text-muted-foreground">ROAS</p></div>
                     </div>
                   </button>
@@ -619,16 +622,16 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-muted-foreground border-b">
-                    <th className="text-left font-medium py-2 pr-2">{roasLevel === "ad" ? "Anuncio" : "Campaña"}</th>
+                    <th className="text-left font-medium py-2 pr-2">{roasLevel === "ad" ? t("dashboardInsights.ad") : t("dashboardInsights.campaign")}</th>
                     {adAccountIds.length > 1 && adAccountFilter === "all" && (
-                      <th className="text-left font-medium py-2 px-2">Cuenta</th>
+                      <th className="text-left font-medium py-2 px-2">{t("dashboardInsights.account")}</th>
                     )}
-                    <th className="text-right font-medium py-2 px-2">Inversión</th>
-                    <th className="text-right font-medium py-2 px-2">Leads</th>
+                    <th className="text-right font-medium py-2 px-2">{t("dashboardInsights.spend")}</th>
+                    <th className="text-right font-medium py-2 px-2">{t("dashboardInsights.leads")}</th>
                     <th className="text-right font-medium py-2 px-2">CPL</th>
-                    <th className="text-right font-medium py-2 px-2">Citas</th>
-                    <th className="text-right font-medium py-2 px-2">Ganados</th>
-                    <th className="text-right font-medium py-2 px-2">Ventas</th>
+                    <th className="text-right font-medium py-2 px-2">{t("dashboardInsights.appointmentsCap")}</th>
+                    <th className="text-right font-medium py-2 px-2">{t("dashboardInsights.wonCap")}</th>
+                    <th className="text-right font-medium py-2 px-2">{t("dashboardInsights.salesCap")}</th>
                     <th className="text-right font-medium py-2 pl-2">ROAS</th>
                   </tr>
                 </thead>
@@ -654,7 +657,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               </table>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
-              ROAS = ventas ÷ inversión. Se calcula cuando hay cierres ganados con presupuesto. Inversión y ventas deben estar en la misma moneda.
+              {t("dashboardInsights.roasNote")}
             </p>
           </CardContent>
         </Card>
@@ -670,10 +673,10 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
             <div className="space-y-4">
               {/* Stats */}
               <div className="grid grid-cols-4 gap-2 text-center">
-                {[["Inversión", adModal.spend ? fmtMoney(adModal.spend) : "—"], ["Leads", adModal.leads], ["CPL", adModal.cpl ? fmtMoney(adModal.cpl) : "—"], ["Citas", adModal.citas]].map(([l, v]) => (
+                {[[t("dashboardInsights.spend"), adModal.spend ? fmtMoney(adModal.spend) : "—"], [t("dashboardInsights.leads"), adModal.leads], ["CPL", adModal.cpl ? fmtMoney(adModal.cpl) : "—"], [t("dashboardInsights.appointmentsCap"), adModal.citas]].map(([l, v]) => (
                   <div key={l as string} className="rounded-lg bg-muted/50 py-2"><p className="text-base font-bold tabular-nums">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
                 ))}
-                {[["Ganados", adModal.cierres], ["Perdidos", adModal.perdidos ?? 0], ["Ventas", adModal.revenue > 0 ? fmtMoney(adModal.revenue) : "—"], ["ROAS", adModal.roas != null ? `${adModal.roas}x` : "—"]].map(([l, v]) => (
+                {[[t("dashboardInsights.wonCap"), adModal.cierres], [t("dashboardInsights.lostCap"), adModal.perdidos ?? 0], [t("dashboardInsights.salesCap"), adModal.revenue > 0 ? fmtMoney(adModal.revenue) : "—"], ["ROAS", adModal.roas != null ? `${adModal.roas}x` : "—"]].map(([l, v]) => (
                   <div key={l as string} className="rounded-lg bg-emerald-50 dark:bg-emerald-950/30 py-2"><p className="text-base font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{v as any}</p><p className="text-[10px] text-muted-foreground">{l}</p></div>
                 ))}
               </div>
@@ -681,15 +684,15 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               {/* Creative preview (ad level) */}
               {roasLevel === "ad" && (
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground mb-1">Vista del anuncio</p>
+                  <p className="text-xs font-medium text-muted-foreground mb-1">{t("dashboardInsights.adPreview")}</p>
                   {adPreview.loading ? (
-                    <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">Cargando vista…</div>
+                    <div className="flex items-center justify-center py-10 text-muted-foreground text-sm">{t("dashboardInsights.loadingPreview")}</div>
                   ) : adPreview.html ? (
                     <div className="rounded-lg border overflow-hidden bg-white flex justify-center" dangerouslySetInnerHTML={{ __html: adPreview.html }} />
                   ) : (
                     <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground">
-                      {adPreview.error || "Vista no disponible."}<br />
-                      <a href={`https://business.facebook.com/adsmanager/manage/ads?selected_ad_ids=${adModal.id}`} target="_blank" rel="noopener noreferrer" className="text-primary underline mt-1 inline-block">Ver en Meta Ads Manager →</a>
+                      {adPreview.error || t("dashboardInsights.previewNotAvailable")}<br />
+                      <a href={`https://business.facebook.com/adsmanager/manage/ads?selected_ad_ids=${adModal.id}`} target="_blank" rel="noopener noreferrer" className="text-primary underline mt-1 inline-block">{t("dashboardInsights.viewInMetaAdsManager")}</a>
                     </div>
                   )}
                 </div>
@@ -704,11 +707,11 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         <div className="grid gap-4 md:gap-6 lg:grid-cols-2">
           <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25"><ShieldAlert className="h-3.5 w-3.5" /></span> Objeciones agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-red-600 text-white shadow-sm shadow-red-500/25"><ShieldAlert className="h-3.5 w-3.5" /></span> {t("dashboardInsights.groupedObjections")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedObj.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-3 text-center">Aún no hay objeciones analizadas.</p>
+                <p className="text-sm text-muted-foreground py-3 text-center">{t("dashboardInsights.noObjectionsAnalyzed")}</p>
               ) : groupedObj.map((o) => {
                 const max = groupedObj[0].n;
                 return (
@@ -725,11 +728,11 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
           </Card>
           <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><ThumbsUp className="h-3.5 w-3.5" /></span> Señales positivas agrupadas</CardTitle>
+              <CardTitle className="text-sm font-bold flex items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-400 to-emerald-600 text-white shadow-sm shadow-emerald-500/25"><ThumbsUp className="h-3.5 w-3.5" /></span> {t("dashboardInsights.groupedPositiveSignals")}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-1.5">
               {groupedSig.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-3 text-center">Aún no hay señales analizadas.</p>
+                <p className="text-sm text-muted-foreground py-3 text-center">{t("dashboardInsights.noSignalsAnalyzed")}</p>
               ) : groupedSig.map((sg) => {
                 const max = groupedSig[0].n;
                 return (

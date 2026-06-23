@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -53,6 +54,7 @@ const jobTitles = [
 ];
 
 export function OnboardingModal() {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const navigate = useNavigate();
 
@@ -99,7 +101,7 @@ export function OnboardingModal() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName.trim()) {
-      toast.error("El nombre de la empresa es requerido");
+      toast.error(t("onboardingModal.companyNameRequired"));
       return;
     }
     setLoading(true);
@@ -126,7 +128,7 @@ export function OnboardingModal() {
     });
 
     if (updateErr) {
-      toast.error("Error al guardar perfil: " + updateErr.message);
+      toast.error(t("onboardingModal.saveProfileError", { message: updateErr.message }));
       setLoading(false);
       return;
     }
@@ -149,7 +151,7 @@ export function OnboardingModal() {
       // Non-fatal: profile was saved; slug setup is best-effort
     }
 
-    toast.success("¡Perfecto! Ahora confirma la URL de tu workspace.");
+    toast.success(t("onboardingModal.profileSavedMsg"));
 
     // 3. Navigate to General settings with ?setup=1 so the user reviews
     //    and confirms their workspace URL before accessing the full app.
@@ -166,9 +168,9 @@ export function OnboardingModal() {
           <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary mb-3">
             <Zap className="h-6 w-6 text-primary-foreground" />
           </div>
-          <h2 className="text-xl font-bold">¡Bienvenido a Klosify!</h2>
+          <h2 className="text-xl font-bold">{t("onboardingModal.welcomeTitle")}</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Solo tarda 30 segundos — cuéntanos sobre tu empresa
+            {t("onboardingModal.welcomeSubtitle")}
           </p>
         </div>
 
@@ -176,37 +178,37 @@ export function OnboardingModal() {
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label>Nombre <span className="text-destructive">*</span></Label>
+              <Label>{t("onboardingModal.firstNameLabel")} <span className="text-destructive">*</span></Label>
               <Input
                 value={firstName}
                 onChange={e => setFirstName(e.target.value)}
-                placeholder="Juan"
+                placeholder={t("onboardingModal.firstNamePlaceholder")}
                 required
               />
             </div>
             <div className="space-y-1.5">
-              <Label>Apellido <span className="text-destructive">*</span></Label>
+              <Label>{t("onboardingModal.lastNameLabel")} <span className="text-destructive">*</span></Label>
               <Input
                 value={lastName}
                 onChange={e => setLastName(e.target.value)}
-                placeholder="Pérez"
+                placeholder={t("onboardingModal.lastNamePlaceholder")}
                 required
               />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label>Nombre de la empresa <span className="text-destructive">*</span></Label>
+            <Label>{t("onboardingModal.companyNameLabel")} <span className="text-destructive">*</span></Label>
             <Input
               value={companyName}
               onChange={e => setCompanyName(e.target.value)}
-              placeholder="Ej: Acme Corp"
+              placeholder={t("onboardingModal.companyNamePlaceholder")}
               required
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label>Teléfono</Label>
+            <Label>{t("onboardingModal.phoneLabel")}</Label>
             <CountryPhoneInput
               value={phone}
               onChange={setPhone}
@@ -216,9 +218,9 @@ export function OnboardingModal() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Industria</Label>
+            <Label>{t("onboardingModal.industryLabel")}</Label>
             <Select value={industry} onValueChange={setIndustry}>
-              <SelectTrigger><SelectValue placeholder="Selecciona tu industria" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("onboardingModal.industryPlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {industries.map(i => (
                   <SelectItem key={i} value={i}>{i}</SelectItem>
@@ -228,9 +230,9 @@ export function OnboardingModal() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Tamaño de empresa</Label>
+            <Label>{t("onboardingModal.companySizeLabel")}</Label>
             <Select value={companySize} onValueChange={setCompanySize}>
-              <SelectTrigger><SelectValue placeholder="Número de empleados" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("onboardingModal.companySizePlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {companySizes.map(s => (
                   <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -240,9 +242,9 @@ export function OnboardingModal() {
           </div>
 
           <div className="space-y-1.5">
-            <Label>Rol / Cargo</Label>
+            <Label>{t("onboardingModal.jobTitleLabel")}</Label>
             <Select value={jobTitle} onValueChange={setJobTitle}>
-              <SelectTrigger><SelectValue placeholder="Selecciona tu cargo" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("onboardingModal.jobTitlePlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {jobTitles.map(r => (
                   <SelectItem key={r} value={r}>{r}</SelectItem>
@@ -253,8 +255,8 @@ export function OnboardingModal() {
 
           <Button type="submit" className="w-full mt-2" disabled={loading}>
             {loading
-              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</>
-              : "Continuar →"}
+              ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t("onboardingModal.saving")}</>
+              : t("onboardingModal.continue")}
           </Button>
         </form>
       </div>

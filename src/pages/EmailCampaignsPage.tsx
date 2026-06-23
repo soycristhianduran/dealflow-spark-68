@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface EmailCampaign {
@@ -46,10 +47,15 @@ function fmtDate(d: string | null) {
   try { return format(parseISO(d), "d MMM yyyy, HH:mm", { locale: es }); } catch { return d; }
 }
 
-function statusLabel(s: string) {
+function statusLabel(s: string, t: (key: string) => string) {
   const m: Record<string, string> = {
-    sent: "Enviado", opened: "Abierto", clicked: "Clic", failed: "Fallido",
-    delivered: "Entregado", read: "Leído", pending: "Pendiente",
+    sent: t("emailCampaignsPage.statusSent"),
+    opened: t("emailCampaignsPage.statusOpened"),
+    clicked: t("emailCampaignsPage.statusClicked"),
+    failed: t("emailCampaignsPage.statusFailed"),
+    delivered: t("emailCampaignsPage.statusDelivered"),
+    read: t("emailCampaignsPage.statusRead"),
+    pending: t("emailCampaignsPage.statusPending"),
   };
   return m[s] ?? s;
 }
@@ -63,6 +69,7 @@ function StatusDot({ status }: { status: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const { t } = useTranslation();
   const map: Record<string, string> = {
     sent: "bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300",
     sending: "bg-amber-100 text-amber-700",
@@ -72,7 +79,15 @@ function StatusBadge({ status }: { status: string }) {
     draft: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
     failed: "bg-red-100 text-red-600",
   };
-  const labels: Record<string, string> = { sent: "Enviada", sending: "Enviando…", scheduled: "Programada", queued: "En cola", canceled: "Cancelada", draft: "Borrador", failed: "Error" };
+  const labels: Record<string, string> = {
+    sent: t("emailCampaignsPage.badgeSent"),
+    sending: t("emailCampaignsPage.badgeSending"),
+    scheduled: t("emailCampaignsPage.badgeScheduled"),
+    queued: t("emailCampaignsPage.badgeQueued"),
+    canceled: t("emailCampaignsPage.badgeCanceled"),
+    draft: t("emailCampaignsPage.badgeDraft"),
+    failed: t("emailCampaignsPage.badgeFailed"),
+  };
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${map[status] ?? "bg-muted text-muted-foreground"}`}>
       {labels[status] ?? status}
@@ -114,17 +129,19 @@ function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: strin
 
 // ── Campaign rows ─────────────────────────────────────────────────────────────
 function SalesMetric({ sales }: { sales?: { orders: number; revenue: number; currency: string | null } }) {
+  const { t } = useTranslation();
   if (!sales || sales.orders === 0) return null;
   const fmt = `${sales.currency ? sales.currency + " " : "$"}${Number(sales.revenue).toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
   return (
     <div className="text-center">
       <p className="font-semibold text-emerald-600 dark:text-emerald-400">{fmt}</p>
-      <p className="text-[11px] text-muted-foreground">ventas ({sales.orders})</p>
+      <p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.salesCount", { count: sales.orders })}</p>
     </div>
   );
 }
 
 function EmailCampaignRow({ campaign: c, sales, onClick }: { campaign: EmailCampaign; sales?: { orders: number; revenue: number; currency: string | null }; onClick: () => void }) {
+  const { t } = useTranslation();
   const openRate = c.sent_count > 0 ? Math.round((c.opened_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
@@ -137,10 +154,10 @@ function EmailCampaignRow({ campaign: c, sales, onClick }: { campaign: EmailCamp
         <p className="text-xs text-muted-foreground">{fmtDate(c.sent_at)}</p>
       </div>
       <div className="hidden md:flex items-center gap-5 shrink-0 text-sm">
-        <div className="text-center"><p className="font-semibold">{c.sent_count}</p><p className="text-[11px] text-muted-foreground">enviados</p></div>
-        <div className="text-center"><p className="font-semibold text-green-600">{c.opened_count} <span className="text-xs font-normal text-muted-foreground">({openRate}%)</span></p><p className="text-[11px] text-muted-foreground">abiertos</p></div>
-        <div className="text-center"><p className="font-semibold text-purple-600">{c.clicked_count}</p><p className="text-[11px] text-muted-foreground">clics</p></div>
-        {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">fallidos</p></div>}
+        <div className="text-center"><p className="font-semibold">{c.sent_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.sent")}</p></div>
+        <div className="text-center"><p className="font-semibold text-green-600">{c.opened_count} <span className="text-xs font-normal text-muted-foreground">({openRate}%)</span></p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.opened")}</p></div>
+        <div className="text-center"><p className="font-semibold text-purple-600">{c.clicked_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.clicks")}</p></div>
+        {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.failed")}</p></div>}
         <SalesMetric sales={sales} />
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0 group-hover:text-foreground transition-colors" />
@@ -149,6 +166,7 @@ function EmailCampaignRow({ campaign: c, sales, onClick }: { campaign: EmailCamp
 }
 
 function WaCampaignRow({ campaign: c, sales, onClick }: { campaign: WaCampaign; sales?: { orders: number; revenue: number; currency: string | null }; onClick: () => void }) {
+  const { t } = useTranslation();
   const readRate = c.sent_count > 0 ? Math.round((c.read_count / c.sent_count) * 100) : 0;
   return (
     <button onClick={onClick} className="w-full text-left rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors p-4 flex items-center gap-4 group">
@@ -157,15 +175,15 @@ function WaCampaignRow({ campaign: c, sales, onClick }: { campaign: WaCampaign; 
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap"><p className="font-semibold text-sm truncate">{c.name}</p><StatusBadge status={c.status} /></div>
-        <p className="text-xs text-muted-foreground truncate mt-0.5">Plantilla: {c.template_name || "—"}</p>
+        <p className="text-xs text-muted-foreground truncate mt-0.5">{t("emailCampaignsPage.template")}: {c.template_name || "—"}</p>
         <p className="text-xs text-muted-foreground">{fmtDate(c.sent_at)}</p>
       </div>
       <div className="hidden md:flex items-center gap-5 shrink-0 text-sm">
-        <div className="text-center"><p className="font-semibold text-foreground">{c.total_recipients}</p><p className="text-[11px] text-muted-foreground">destinatarios</p></div>
-        <div className="text-center"><p className="font-semibold">{c.sent_count}</p><p className="text-[11px] text-muted-foreground">enviados</p></div>
-        <div className="text-center"><p className="font-semibold text-teal-600">{c.delivered_count}</p><p className="text-[11px] text-muted-foreground">entregados</p></div>
-        <div className="text-center"><p className="font-semibold text-green-600">{c.read_count} <span className="text-xs font-normal text-muted-foreground">({readRate}%)</span></p><p className="text-[11px] text-muted-foreground">leídos</p></div>
-        {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">fallidos</p></div>}
+        <div className="text-center"><p className="font-semibold text-foreground">{c.total_recipients}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.recipients")}</p></div>
+        <div className="text-center"><p className="font-semibold">{c.sent_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.sent")}</p></div>
+        <div className="text-center"><p className="font-semibold text-teal-600">{c.delivered_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.delivered")}</p></div>
+        <div className="text-center"><p className="font-semibold text-green-600">{c.read_count} <span className="text-xs font-normal text-muted-foreground">({readRate}%)</span></p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.read")}</p></div>
+        {c.failed_count > 0 && <div className="text-center"><p className="font-semibold text-red-500">{c.failed_count}</p><p className="text-[11px] text-muted-foreground">{t("emailCampaignsPage.failed")}</p></div>}
         <SalesMetric sales={sales} />
       </div>
       <ChevronRight className="h-4 w-4 text-muted-foreground/50 shrink-0 group-hover:text-foreground transition-colors" />
@@ -175,6 +193,7 @@ function WaCampaignRow({ campaign: c, sales, onClick }: { campaign: WaCampaign; 
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<TabType>("email");
   const [salesById, setSalesById] = useState<Record<string, { orders: number; revenue: number; currency: string | null }>>({});
   const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([]);
@@ -256,12 +275,12 @@ export default function CampaignsPage() {
 
   // Cancel a scheduled campaign so the cron never sends it.
   const cancelSchedule = async (campaign: WaCampaign | EmailCampaign, type: TabType) => {
-    if (!confirm(`¿Cancelar la programación de "${campaign.name}"? No se enviará.`)) return;
+    if (!confirm(t("emailCampaignsPage.confirmCancelSchedule", { name: campaign.name }))) return;
     const table = type === "email" ? "email_campaigns" : "whatsapp_campaigns";
     const { error } = await supabase.from(table)
       .update({ status: "canceled", scheduled_at: null }).eq("id", campaign.id);
-    if (error) { toast.error("No se pudo cancelar: " + error.message); return; }
-    toast.success("Programación cancelada.");
+    if (error) { toast.error(t("emailCampaignsPage.cancelError", { message: error.message })); return; }
+    toast.success(t("emailCampaignsPage.scheduleCanceled"));
     setDetailCampaign(null);
     load(false);
   };
@@ -269,13 +288,13 @@ export default function CampaignsPage() {
   // Reschedule a scheduled campaign to a new future date/time.
   const reschedule = async (campaign: WaCampaign | EmailCampaign, type: TabType, newWhen: string) => {
     const when = new Date(newWhen);
-    if (isNaN(when.getTime())) { toast.error("Fecha inválida"); return; }
-    if (when.getTime() <= Date.now()) { toast.error("La fecha debe ser futura"); return; }
+    if (isNaN(when.getTime())) { toast.error(t("emailCampaignsPage.invalidDate")); return; }
+    if (when.getTime() <= Date.now()) { toast.error(t("emailCampaignsPage.dateMustBeFuture")); return; }
     const table = type === "email" ? "email_campaigns" : "whatsapp_campaigns";
     const { error } = await supabase.from(table)
       .update({ status: "scheduled", scheduled_at: when.toISOString() }).eq("id", campaign.id);
-    if (error) { toast.error("No se pudo reprogramar: " + error.message); return; }
-    toast.success(`Reprogramada para ${when.toLocaleString()}.`);
+    if (error) { toast.error(t("emailCampaignsPage.rescheduleError", { message: error.message })); return; }
+    toast.success(t("emailCampaignsPage.rescheduledTo", { date: when.toLocaleString() }));
     setRescheduleOpen(false);
     setDetailCampaign(null);
     load(false);
@@ -304,12 +323,12 @@ export default function CampaignsPage() {
   return (
     <AppLayout>
       <AppHeader
-        title="Campañas"
-        subtitle="Estadísticas de todos los envíos masivos"
+        title={t("emailCampaignsPage.pageTitle")}
+        subtitle={t("emailCampaignsPage.pageSubtitle")}
         actions={
           <Button variant="outline" size="sm" onClick={() => load(false)} disabled={refreshing} className="gap-1.5">
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
-            Actualizar
+            {t("emailCampaignsPage.refresh")}
           </Button>
         }
       />
@@ -329,36 +348,36 @@ export default function CampaignsPage() {
         {/* Summary stats */}
         {tab === "email" && emailCampaigns.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            <StatPill icon={<Users className="h-3 w-3" />} label="Enviados" value={emailTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
-            <StatPill icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${emailTotals.opened} (${pct(emailTotals.opened, emailTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
-            <StatPill icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${emailTotals.clicked} (${pct(emailTotals.clicked, emailTotals.sent)})`} color="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300" />
-            <StatPill icon={<XCircle className="h-3 w-3" />} label="Rebotados" value={emailTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
-            {emailSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label="Ventas" value={fmtSales(emailSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
+            <StatPill icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statSent")} value={emailTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
+            <StatPill icon={<Eye className="h-3 w-3" />} label={t("emailCampaignsPage.statOpened")} value={`${emailTotals.opened} (${pct(emailTotals.opened, emailTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
+            <StatPill icon={<MousePointerClick className="h-3 w-3" />} label={t("emailCampaignsPage.statClicks")} value={`${emailTotals.clicked} (${pct(emailTotals.clicked, emailTotals.sent)})`} color="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300" />
+            <StatPill icon={<XCircle className="h-3 w-3" />} label={t("emailCampaignsPage.statBounced")} value={emailTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
+            {emailSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label={t("emailCampaignsPage.statSales")} value={fmtSales(emailSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
           </div>
         )}
         {tab === "whatsapp" && waCampaigns.length > 0 && (
           <div className="flex flex-wrap gap-3">
-            <StatPill icon={<Users className="h-3 w-3" />} label="Destinatarios" value={waTotals.recipients.toLocaleString()} color="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" />
-            <StatPill icon={<Users className="h-3 w-3" />} label="Enviados" value={waTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
-            <StatPill icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${waTotals.delivered} (${pct(waTotals.delivered, waTotals.sent)})`} color="bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300" />
-            <StatPill icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${waTotals.read} (${pct(waTotals.read, waTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
-            <StatPill icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={waTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
-            {waSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label="Ventas" value={fmtSales(waSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
+            <StatPill icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statRecipients")} value={waTotals.recipients.toLocaleString()} color="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" />
+            <StatPill icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statSent")} value={waTotals.sent.toLocaleString()} color="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300" />
+            <StatPill icon={<CheckCircle2 className="h-3 w-3" />} label={t("emailCampaignsPage.statDelivered")} value={`${waTotals.delivered} (${pct(waTotals.delivered, waTotals.sent)})`} color="bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300" />
+            <StatPill icon={<Eye className="h-3 w-3" />} label={t("emailCampaignsPage.statRead")} value={`${waTotals.read} (${pct(waTotals.read, waTotals.sent)})`} color="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300" />
+            <StatPill icon={<XCircle className="h-3 w-3" />} label={t("emailCampaignsPage.statFailed")} value={waTotals.failed} color="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" />
+            {waSales.ord > 0 && <StatPill icon={<ShoppingBag className="h-3 w-3" />} label={t("emailCampaignsPage.statSales")} value={fmtSales(waSales)} color="bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" />}
           </div>
         )}
 
         {/* Campaign list */}
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground gap-2">
-            <Loader2 className="h-5 w-5 animate-spin" /> Cargando campañas…
+            <Loader2 className="h-5 w-5 animate-spin" /> {t("emailCampaignsPage.loadingCampaigns")}
           </div>
         ) : tab === "email" ? (
           emailCampaigns.length === 0
-            ? <EmptyState icon={<Mail className="h-10 w-10 text-muted-foreground/40" />} title="Sin campañas de email" desc="Los envíos masivos desde el pipeline aparecerán aquí con sus estadísticas." />
+            ? <EmptyState icon={<Mail className="h-10 w-10 text-muted-foreground/40" />} title={t("emailCampaignsPage.emptyEmailTitle")} desc={t("emailCampaignsPage.emptyEmailDesc")} />
             : <div className="space-y-2">{emailCampaigns.map(c => <EmailCampaignRow key={c.id} campaign={c} sales={salesById[c.id]} onClick={() => openDetail(c, "email")} />)}</div>
         ) : (
           waCampaigns.length === 0
-            ? <EmptyState icon={<MessageSquare className="h-10 w-10 text-muted-foreground/40" />} title="Sin campañas de WhatsApp" desc="Los envíos masivos de WhatsApp desde el pipeline aparecerán aquí." />
+            ? <EmptyState icon={<MessageSquare className="h-10 w-10 text-muted-foreground/40" />} title={t("emailCampaignsPage.emptyWaTitle")} desc={t("emailCampaignsPage.emptyWaDesc")} />
             : <div className="space-y-2">{waCampaigns.map(c => <WaCampaignRow key={c.id} campaign={c} sales={salesById[c.id]} onClick={() => openDetail(c, "whatsapp")} />)}</div>
         )}
       </div>
@@ -369,10 +388,10 @@ export default function CampaignsPage() {
           <DialogHeader className="px-6 pt-5 pb-3 border-b shrink-0">
             <DialogTitle className="text-base font-semibold truncate">{detailCampaign?.name}</DialogTitle>
             {detailType === "email" && (detailCampaign as EmailCampaign)?.subject && (
-              <p className="text-sm text-muted-foreground">Asunto: {(detailCampaign as EmailCampaign).subject}</p>
+              <p className="text-sm text-muted-foreground">{t("emailCampaignsPage.subject")}: {(detailCampaign as EmailCampaign).subject}</p>
             )}
             <p className="text-xs text-muted-foreground">
-              {fmtDate(detailCampaign?.sent_at ?? null)} · {detailCampaign?.total_recipients ?? 0} destinatarios
+              {fmtDate(detailCampaign?.sent_at ?? null)} · {t("emailCampaignsPage.recipientsCount", { count: detailCampaign?.total_recipients ?? 0 })}
             </p>
           </DialogHeader>
 
@@ -381,7 +400,7 @@ export default function CampaignsPage() {
             <div className="px-6 py-3 border-b shrink-0 bg-indigo-50/60 dark:bg-indigo-950/30">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm">
-                  📅 Programada para <strong>{fmtDate(detailCampaign.scheduled_at)}</strong>
+                  📅 {t("emailCampaignsPage.scheduledFor")} <strong>{fmtDate(detailCampaign.scheduled_at)}</strong>
                 </span>
                 <div className="flex-1" />
                 {!rescheduleOpen ? (
@@ -392,11 +411,11 @@ export default function CampaignsPage() {
                         const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                         setRescheduleValue(local); setRescheduleOpen(true);
                       }}>
-                      Reprogramar
+                      {t("emailCampaignsPage.reschedule")}
                     </Button>
                     <Button size="sm" variant="ghost" className="h-8 text-xs text-destructive hover:text-destructive"
                       onClick={() => cancelSchedule(detailCampaign, detailType)}>
-                      Cancelar programación
+                      {t("emailCampaignsPage.cancelSchedule")}
                     </Button>
                   </>
                 ) : (
@@ -406,11 +425,11 @@ export default function CampaignsPage() {
                       className="h-8 rounded-md border bg-background px-2 text-xs" />
                     <Button size="sm" className="h-8 text-xs"
                       onClick={() => reschedule(detailCampaign, detailType, rescheduleValue)}>
-                      Guardar
+                      {t("emailCampaignsPage.save")}
                     </Button>
                     <Button size="sm" variant="ghost" className="h-8 text-xs"
                       onClick={() => setRescheduleOpen(false)}>
-                      Cancelar
+                      {t("emailCampaignsPage.cancel")}
                     </Button>
                   </div>
                 )}
@@ -428,11 +447,11 @@ export default function CampaignsPage() {
               const clickedN= rows.filter(r => r.clicked_at).length;
               const failedN = rows.filter(r => r.status === "failed").length;
               return <>
-                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
-                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label="Pendientes" value={pendingN} color="purple" />}
-                <MiniStat icon={<Eye className="h-3 w-3" />} label="Abiertos" value={`${openedN} · ${pct(openedN, sentN)}`} color="green" />
-                <MiniStat icon={<MousePointerClick className="h-3 w-3" />} label="Clics" value={`${clickedN} · ${pct(clickedN, sentN)}`} color="purple" />
-                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
+                <MiniStat icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statSent")} value={sentN} color="blue" />
+                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statPending")} value={pendingN} color="purple" />}
+                <MiniStat icon={<Eye className="h-3 w-3" />} label={t("emailCampaignsPage.statOpened")} value={`${openedN} · ${pct(openedN, sentN)}`} color="green" />
+                <MiniStat icon={<MousePointerClick className="h-3 w-3" />} label={t("emailCampaignsPage.statClicks")} value={`${clickedN} · ${pct(clickedN, sentN)}`} color="purple" />
+                <MiniStat icon={<XCircle className="h-3 w-3" />} label={t("emailCampaignsPage.statFailed")} value={failedN} color="red" />
               </>;
             })() : (() => {
               const rows = detailRows as WaSendRow[];
@@ -443,11 +462,11 @@ export default function CampaignsPage() {
               const readN     = rows.filter(r => r.status === "read").length;
               const failedN   = rows.filter(r => r.status === "failed").length;
               return <>
-                <MiniStat icon={<Users className="h-3 w-3" />} label="Enviados" value={sentN} color="blue" />
-                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label="Pendientes" value={pendingN} color="purple" />}
-                <MiniStat icon={<CheckCircle2 className="h-3 w-3" />} label="Entregados" value={`${deliveredN} · ${pct(deliveredN, sentN)}`} color="teal" />
-                <MiniStat icon={<Eye className="h-3 w-3" />} label="Leídos" value={`${readN} · ${pct(readN, sentN)}`} color="green" />
-                <MiniStat icon={<XCircle className="h-3 w-3" />} label="Fallidos" value={failedN} color="red" />
+                <MiniStat icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statSent")} value={sentN} color="blue" />
+                {pendingN > 0 && <MiniStat icon={<Users className="h-3 w-3" />} label={t("emailCampaignsPage.statPending")} value={pendingN} color="purple" />}
+                <MiniStat icon={<CheckCircle2 className="h-3 w-3" />} label={t("emailCampaignsPage.statDelivered")} value={`${deliveredN} · ${pct(deliveredN, sentN)}`} color="teal" />
+                <MiniStat icon={<Eye className="h-3 w-3" />} label={t("emailCampaignsPage.statRead")} value={`${readN} · ${pct(readN, sentN)}`} color="green" />
+                <MiniStat icon={<XCircle className="h-3 w-3" />} label={t("emailCampaignsPage.statFailed")} value={failedN} color="red" />
               </>;
             })()}
           </div>
@@ -456,25 +475,25 @@ export default function CampaignsPage() {
           <div className="flex-1 overflow-auto">
             {detailLoading ? (
               <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" /> Cargando contactos…
+                <Loader2 className="h-4 w-4 animate-spin" /> {t("emailCampaignsPage.loadingContacts")}
               </div>
             ) : detailRows.length === 0 ? (
               <div className="flex items-center justify-center py-16 text-sm text-muted-foreground">
-                No hay registros individuales aún.
+                {t("emailCampaignsPage.noRecords")}
               </div>
             ) : (
               <table className="w-full text-sm">
                 <thead className="sticky top-0 bg-muted/60 backdrop-blur z-10">
                   <tr>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Contacto</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Estado</th>
-                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Enviado</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colContact")}</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colStatus")}</th>
+                    <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colSent")}</th>
                     {detailType === "email" ? <>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Abierto</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Clic</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colOpened")}</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colClicked")}</th>
                     </> : <>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Entregado</th>
-                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">Leído</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colDelivered")}</th>
+                      <th className="text-left px-4 py-2 text-xs font-semibold text-muted-foreground">{t("emailCampaignsPage.colRead")}</th>
                     </>}
                   </tr>
                 </thead>
@@ -486,7 +505,7 @@ export default function CampaignsPage() {
                             <p className="font-medium truncate max-w-[160px]">{row.contacts?.full_name || row.email_address}</p>
                             {row.contacts?.full_name && <p className="text-xs text-muted-foreground truncate max-w-[160px]">{row.email_address}</p>}
                           </td>
-                          <td className="px-4 py-2.5"><span className="flex items-center gap-1.5"><StatusDot status={row.status} /><span className="text-xs capitalize">{statusLabel(row.status)}</span></span></td>
+                          <td className="px-4 py-2.5"><span className="flex items-center gap-1.5"><StatusDot status={row.status} /><span className="text-xs capitalize">{statusLabel(row.status, t)}</span></span></td>
                           <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(row.sent_at)}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{row.opened_at ? <span className="text-green-600 font-medium">{fmtDate(row.opened_at)}</span> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{row.clicked_at ? <span className="text-purple-600 font-medium">{fmtDate(row.clicked_at)}</span> : <span className="text-muted-foreground">—</span>}</td>
@@ -498,7 +517,7 @@ export default function CampaignsPage() {
                             <p className="font-medium truncate max-w-[160px]">{row.contacts?.full_name || row.phone}</p>
                             {row.contacts?.full_name && <p className="text-xs text-muted-foreground">{row.phone}</p>}
                           </td>
-                          <td className="px-4 py-2.5"><span className="flex items-center gap-1.5"><StatusDot status={row.status} /><span className="text-xs capitalize">{statusLabel(row.status)}</span></span></td>
+                          <td className="px-4 py-2.5"><span className="flex items-center gap-1.5"><StatusDot status={row.status} /><span className="text-xs capitalize">{statusLabel(row.status, t)}</span></span></td>
                           <td className="px-4 py-2.5 text-xs text-muted-foreground whitespace-nowrap">{fmtDate(row.sent_at)}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{row.delivered_at ? <span className="text-teal-600 font-medium">{fmtDate(row.delivered_at)}</span> : <span className="text-muted-foreground">—</span>}</td>
                           <td className="px-4 py-2.5 text-xs whitespace-nowrap">{row.read_at ? <span className="text-green-600 font-medium">{fmtDate(row.read_at)}</span> : <span className="text-muted-foreground">—</span>}</td>

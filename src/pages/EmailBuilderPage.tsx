@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { STARTER_TEMPLATES, CATEGORIES, CATEGORY_COLORS } from "@/data/starterEmailTemplates";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { buildProductRows, type ShopProduct } from "@/lib/emailProductBlock";
+import { useTranslation } from "react-i18next";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
 
@@ -30,6 +31,7 @@ interface Template {
 
 export default function EmailBuilderPage() {
   const { organizationId } = useOrganizationContext();
+  const { t } = useTranslation();
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
 
@@ -50,8 +52,8 @@ export default function EmailBuilderPage() {
       if (error || data?.error) {
         setProductsError(
           data?.error === "scope"
-            ? "Falta el permiso read_products en tu app de Shopify. Agrégalo y reconecta la tienda."
-            : (data?.message || data?.error || "No se pudieron cargar los productos. ¿Conectaste Shopify?"),
+            ? t("emailBuilderPage.shopifyScopeError")
+            : (data?.message || data?.error || t("emailBuilderPage.productsLoadError")),
         );
         setProducts([]);
       } else {
@@ -77,9 +79,9 @@ export default function EmailBuilderPage() {
         const rows = buildProductRows(picked);
         design.body.rows = [...(design.body.rows || []), ...rows];
         editorRef.current?.editor?.loadDesign(design);
-        toast.success(`${picked.length} producto(s) insertado(s)`);
+        toast.success(t("emailBuilderPage.productsInserted", { count: picked.length }));
       } catch {
-        toast.error("No se pudieron insertar los productos");
+        toast.error(t("emailBuilderPage.productsInsertError"));
       }
     });
     setProductsOpen(false);
@@ -91,7 +93,7 @@ export default function EmailBuilderPage() {
   const [saving, setSaving] = useState(false);
 
   // Current template metadata
-  const [name, setName] = useState("Nueva plantilla");
+  const [name, setName] = useState(t("emailBuilderPage.newTemplateName"));
   const [subject, setSubject] = useState("");
 
   // Save-as dialog
@@ -146,14 +148,14 @@ export default function EmailBuilderPage() {
             name, subject, design: data.design, html: data.html, updated_at: new Date().toISOString(),
           }).eq("id", selectedId);
           if (error) throw error;
-          toast.success("Plantilla guardada");
+          toast.success(t("emailBuilderPage.templateSaved"));
           fetchTemplates();
         } else {
           setSaveAsOpen(true);
           setNewName(name);
         }
       } catch (e: any) {
-        toast.error("Error al guardar: " + e.message);
+        toast.error(t("emailBuilderPage.saveError") + e.message);
       } finally {
         setSaving(false);
       }
@@ -164,20 +166,20 @@ export default function EmailBuilderPage() {
   const handleSaveAs = useCallback(() => {
     if (!editorReady) return;
     editorRef.current?.editor?.exportHtml(async (data: { design: object; html: string }) => {
-      if (!newName.trim()) { toast.error("El nombre es obligatorio"); return; }
+      if (!newName.trim()) { toast.error(t("emailBuilderPage.nameRequired")); return; }
       setSaving(true);
       try {
         const { data: row, error } = await supabase.from("email_templates").insert({
           name: newName.trim(), subject, design: data.design, html: data.html,
         }).select("id").single();
         if (error) throw error;
-        toast.success("Plantilla creada");
+        toast.success(t("emailBuilderPage.templateCreated"));
         setSelectedId(row.id);
         setName(newName.trim());
         setSaveAsOpen(false);
         fetchTemplates();
       } catch (e: any) {
-        toast.error("Error: " + e.message);
+        toast.error(t("emailBuilderPage.error") + e.message);
       } finally {
         setSaving(false);
       }
@@ -187,7 +189,7 @@ export default function EmailBuilderPage() {
   // ── New blank ───────────────────────────────────────────────────────────
   const handleNew = () => {
     setSelectedId(null);
-    setName("Nueva plantilla");
+    setName(t("emailBuilderPage.newTemplateName"));
     setSubject("");
     editorRef.current?.editor?.loadDesign(null);
   };
@@ -201,7 +203,7 @@ export default function EmailBuilderPage() {
       editorRef.current?.editor?.loadDesign(tpl.design);
     }
     setGalleryOpen(false);
-    toast.success(`Plantilla "${tpl.name}" cargada — personalízala y guarda`);
+    toast.success(t("emailBuilderPage.starterLoaded", { name: tpl.name }));
   };
 
   // ── Delete ──────────────────────────────────────────────────────────────
@@ -214,8 +216,8 @@ export default function EmailBuilderPage() {
     const id = deleteId;
     setDeleteId(null);
     const { error } = await supabase.from("email_templates").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar"); return; }
-    toast.success("Plantilla eliminada");
+    if (error) { toast.error(t("emailBuilderPage.deleteError")); return; }
+    toast.success(t("emailBuilderPage.templateDeleted"));
     if (selectedId === id) handleNew();
     fetchTemplates();
   };
@@ -225,22 +227,22 @@ export default function EmailBuilderPage() {
   return (
     <AppLayout>
       <AppHeader
-        title="Constructor de emails"
-        subtitle="Diseña plantillas con drag & drop"
+        title={t("emailBuilderPage.pageTitle")}
+        subtitle={t("emailBuilderPage.pageSubtitle")}
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setGalleryOpen(true)}>
-              <LayoutTemplate className="h-4 w-4" /> Plantillas
+              <LayoutTemplate className="h-4 w-4" /> {t("emailBuilderPage.templates")}
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={openProducts} disabled={!editorReady}>
-              <ShoppingBag className="h-4 w-4" /> Productos
+              <ShoppingBag className="h-4 w-4" /> {t("emailBuilderPage.products")}
             </Button>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNew}>
-              <Plus className="h-4 w-4" /> Nueva
+              <Plus className="h-4 w-4" /> {t("emailBuilderPage.new")}
             </Button>
             <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving || !editorReady}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              {selectedId ? "Guardar" : "Guardar como…"}
+              {selectedId ? t("emailBuilderPage.save") : t("emailBuilderPage.saveAs")}
             </Button>
           </div>
         }
@@ -250,7 +252,7 @@ export default function EmailBuilderPage() {
         {/* ── LEFT: template list ── */}
         <aside className="w-60 border-r flex flex-col shrink-0 bg-muted/20">
           <div className="p-3 border-b">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Mis plantillas</p>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">{t("emailBuilderPage.myTemplates")}</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             {loadingTemplates ? (
@@ -258,7 +260,7 @@ export default function EmailBuilderPage() {
             ) : templates.length === 0 ? (
               <div className="p-4 text-center text-xs text-muted-foreground">
                 <FileText className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                Aún no tienes plantillas
+                {t("emailBuilderPage.noTemplates")}
               </div>
             ) : templates.map(tpl => (
               <div
@@ -272,7 +274,7 @@ export default function EmailBuilderPage() {
                 <div className="flex items-start justify-between gap-1">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{tpl.name}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{tpl.subject || "Sin asunto"}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{tpl.subject || t("emailBuilderPage.noSubject")}</p>
                     <p className="text-[10px] text-muted-foreground mt-0.5">{fmtDate(tpl.updated_at)}</p>
                   </div>
                   <button
@@ -292,21 +294,21 @@ export default function EmailBuilderPage() {
           {/* Metadata bar */}
           <div className="flex items-center gap-3 px-4 py-2 border-b bg-background shrink-0 flex-wrap">
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <span className="text-xs text-muted-foreground shrink-0">Nombre:</span>
+              <span className="text-xs text-muted-foreground shrink-0">{t("emailBuilderPage.nameLabel")}</span>
               <Input
                 value={name}
                 onChange={e => setName(e.target.value)}
                 className="h-7 text-sm font-medium max-w-[200px]"
-                placeholder="Nombre de la plantilla"
+                placeholder={t("emailBuilderPage.namePlaceholder")}
               />
             </div>
             <div className="flex items-center gap-2 flex-1 min-w-0">
-              <span className="text-xs text-muted-foreground shrink-0">Asunto:</span>
+              <span className="text-xs text-muted-foreground shrink-0">{t("emailBuilderPage.subjectLabel")}</span>
               <Input
                 value={subject}
                 onChange={e => setSubject(e.target.value)}
                 className="h-7 text-sm flex-1"
-                placeholder="Ej: ¡Tenemos algo para ti, {{nombre}}!"
+                placeholder={t("emailBuilderPage.subjectPlaceholder")}
               />
             </div>
           </div>
@@ -330,10 +332,10 @@ export default function EmailBuilderPage() {
                   ],
                 },
                 mergeTags: {
-                  nombre:   { name: "Nombre del lead",   value: "{{nombre}}",   sample: "Juan" },
-                  apellido: { name: "Apellido",           value: "{{apellido}}", sample: "Pérez" },
-                  email:    { name: "Email del lead",     value: "{{email}}",    sample: "juan@ejemplo.com" },
-                  empresa:  { name: "Empresa",            value: "{{empresa}}",  sample: "Acme Corp" },
+                  nombre:   { name: t("emailBuilderPage.mergeTagFirstName"), value: "{{nombre}}",   sample: "Juan" },
+                  apellido: { name: t("emailBuilderPage.mergeTagLastName"),  value: "{{apellido}}", sample: "Pérez" },
+                  email:    { name: t("emailBuilderPage.mergeTagEmail"),     value: "{{email}}",    sample: "juan@ejemplo.com" },
+                  empresa:  { name: t("emailBuilderPage.mergeTagCompany"),   value: "{{empresa}}",  sample: "Acme Corp" },
                 },
               }}
             />
@@ -348,8 +350,8 @@ export default function EmailBuilderPage() {
           <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
             <LayoutTemplate className="h-5 w-5 text-primary shrink-0" />
             <div className="flex-1 min-w-0">
-              <h2 className="text-base font-semibold">Galería de plantillas</h2>
-              <p className="text-xs text-muted-foreground">28 diseños listos para personalizar con tu marca</p>
+              <h2 className="text-base font-semibold">{t("emailBuilderPage.galleryTitle")}</h2>
+              <p className="text-xs text-muted-foreground">{t("emailBuilderPage.gallerySubtitle")}</p>
             </div>
             <button onClick={() => setGalleryOpen(false)} className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none">✕</button>
           </div>
@@ -426,22 +428,22 @@ export default function EmailBuilderPage() {
       {/* Save-as dialog */}
       <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Guardar plantilla</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("emailBuilderPage.saveTemplateTitle")}</DialogTitle></DialogHeader>
           <div>
-            <Label>Nombre de la plantilla</Label>
+            <Label>{t("emailBuilderPage.templateNameLabel")}</Label>
             <Input
               value={newName}
               onChange={e => setNewName(e.target.value)}
-              placeholder="Ej: Seguimiento cita"
+              placeholder={t("emailBuilderPage.saveAsPlaceholder")}
               autoFocus
               onKeyDown={e => e.key === "Enter" && handleSaveAs()}
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSaveAsOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setSaveAsOpen(false)}>{t("emailBuilderPage.cancel")}</Button>
             <Button onClick={handleSaveAs} disabled={saving || !newName.trim()}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
-              Guardar
+              {t("emailBuilderPage.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -451,14 +453,14 @@ export default function EmailBuilderPage() {
       <Dialog open={productsOpen} onOpenChange={setProductsOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-orange-500" /> Insertar productos de Shopify</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><ShoppingBag className="h-5 w-5 text-orange-500" /> {t("emailBuilderPage.insertShopifyProducts")}</DialogTitle>
           </DialogHeader>
           {loadingProducts ? (
-            <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />Cargando productos…</div>
+            <div className="flex h-40 items-center justify-center text-muted-foreground"><Loader2 className="h-5 w-5 animate-spin mr-2" />{t("emailBuilderPage.loadingProducts")}</div>
           ) : productsError ? (
             <div className="rounded-xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-700">{productsError}</div>
           ) : products.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">No se encontraron productos.</p>
+            <p className="text-sm text-muted-foreground py-8 text-center">{t("emailBuilderPage.noProductsFound")}</p>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2">
               {products.map((p) => {
@@ -479,9 +481,9 @@ export default function EmailBuilderPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setProductsOpen(false)}>Cancelar</Button>
+            <Button variant="ghost" onClick={() => setProductsOpen(false)}>{t("emailBuilderPage.cancel")}</Button>
             <Button onClick={insertProducts} disabled={!Object.keys(selectedProducts).length} className="bg-orange-500 hover:bg-orange-600">
-              Insertar {Object.keys(selectedProducts).length || ""} producto(s)
+              {t("emailBuilderPage.insertProductsButton", { count: Object.keys(selectedProducts).length || "" })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -490,13 +492,13 @@ export default function EmailBuilderPage() {
       <AlertDialog open={!!deleteId} onOpenChange={open => { if (!open) setDeleteId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar esta plantilla?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer. La plantilla se eliminará permanentemente.</AlertDialogDescription>
+            <AlertDialogTitle>{t("emailBuilderPage.deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("emailBuilderPage.deleteConfirmDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel>{t("emailBuilderPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("emailBuilderPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

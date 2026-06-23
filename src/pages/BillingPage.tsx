@@ -13,6 +13,7 @@
  */
 
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
@@ -37,6 +38,7 @@ interface UsageRow {
 }
 
 export default function BillingPage() {
+  const { t } = useTranslation();
   const { subscription, daysLeftInTrial, loading: subLoading, refetch } = useSubscription();
   const { organizationId } = useOrganizationContext();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -61,14 +63,14 @@ export default function BillingPage() {
     const checkoutStatus = searchParams.get("checkout_status");
     if (checkoutStatus === "success" && !sessionStorage.getItem("billing_toast_shown")) {
       sessionStorage.setItem("billing_toast_shown", "1");
-      toast.success("¡Pago exitoso! Tu plan está activo.");
+      toast.success(t("billingPage.paymentSuccess"));
       refetch();
       const next = new URLSearchParams(searchParams);
       next.delete("checkout_status");
       setSearchParams(next, { replace: true });
     } else if (checkoutStatus === "canceled" && !sessionStorage.getItem("billing_toast_shown")) {
       sessionStorage.setItem("billing_toast_shown", "1");
-      toast.info("Cancelaste el pago. Puedes intentarlo de nuevo cuando quieras.");
+      toast.info(t("billingPage.paymentCanceled"));
       const next = new URLSearchParams(searchParams);
       next.delete("checkout_status");
       setSearchParams(next, { replace: true });
@@ -152,14 +154,14 @@ export default function BillingPage() {
   }, [organizationId]);
 
   async function buyAddon(price_id: string | null, key: string, label: string) {
-    if (!price_id) { toast.error("Este complemento aún no está disponible."); return; }
+    if (!price_id) { toast.error(t("billingPage.addonNotAvailable")); return; }
     setPurchasingAddon(key);
     try {
       const { data, error } = await supabase.functions.invoke("stripe-create-checkout-session", {
         body: { mode: "subscription", price_id, addon_kind: key, quantity: 1, success_path: "/billing", cancel_path: "/billing", organization_id: organizationId },
       });
       if (error || !data?.url) {
-        toast.error(`No se pudo iniciar la compra de ${label}`);
+        toast.error(t("billingPage.addonPurchaseFailed", { label }));
         return;
       }
       window.location.href = data.url;
@@ -175,7 +177,7 @@ export default function BillingPage() {
         body: { mode: "payment", price_id, success_path: "/billing", cancel_path: "/billing", organization_id: organizationId },
       });
       if (error || !data?.url) {
-        toast.error(`No se pudo iniciar el pago de ${label}`);
+        toast.error(t("billingPage.boostPaymentFailed", { label }));
         return;
       }
       window.location.href = data.url;
@@ -189,7 +191,7 @@ export default function BillingPage() {
     try {
       const { data, error } = await supabase.functions.invoke("stripe-customer-portal", { body: {} });
       if (error || !data?.url) {
-        toast.error("No se pudo abrir el portal de facturación. Intenta de nuevo.");
+        toast.error(t("billingPage.portalFailed"));
         return;
       }
       window.location.href = data.url;
@@ -201,8 +203,8 @@ export default function BillingPage() {
   if (subLoading || !subscription) {
     return (
       <AppLayout>
-        <AppHeader title="Facturación" />
-        <div className="p-6 text-muted-foreground">Cargando información del plan...</div>
+        <AppHeader title={t("billingPage.billing")} />
+        <div className="p-6 text-muted-foreground">{t("billingPage.loadingPlan")}</div>
       </AppLayout>
     );
   }
@@ -210,19 +212,19 @@ export default function BillingPage() {
   // ── Helper: status badge ─────────────────────────────────────────────────────
   const StatusBadge = () => {
     if (subscription.status === "trialing_internal")
-      return <Badge variant="secondary" className="text-xs">Prueba gratis</Badge>;
+      return <Badge variant="secondary" className="text-xs">{t("billingPage.statusFreeTrial")}</Badge>;
     if (subscription.status === "active")
-      return <Badge className="bg-green-600 hover:bg-green-600 text-white text-xs">Activo</Badge>;
+      return <Badge className="bg-green-600 hover:bg-green-600 text-white text-xs">{t("billingPage.statusActive")}</Badge>;
     if (subscription.status === "past_due")
-      return <Badge variant="destructive" className="text-xs">Pago pendiente</Badge>;
+      return <Badge variant="destructive" className="text-xs">{t("billingPage.statusPastDue")}</Badge>;
     if (subscription.status === "canceled")
-      return <Badge variant="outline" className="text-xs">Cancelado</Badge>;
+      return <Badge variant="outline" className="text-xs">{t("billingPage.statusCanceled")}</Badge>;
     return null;
   };
 
   const usageItems = [
     {
-      label: "Análisis IA",
+      label: t("billingPage.usageAiAnalyses"),
       used: usage?.ai_analyses_used ?? 0,
       limit: subscription.monthlyAiAnalyses,
       extra: boostCredits,
@@ -231,7 +233,7 @@ export default function BillingPage() {
       show: true,
     },
     {
-      label: "Msgs automatizados",
+      label: t("billingPage.usageAutomatedMessages"),
       used: usage?.automated_messages_used ?? 0,
       limit: subscription.monthlyAutomatedMessages,
       icon: Zap,
@@ -239,7 +241,7 @@ export default function BillingPage() {
       show: true,
     },
     {
-      label: "Email Campaigns",
+      label: t("billingPage.usageEmailCampaigns"),
       used: usage?.email_sends_used ?? 0,
       limit: subscription.monthlyEmailSends,
       icon: TrendingUp,
@@ -247,7 +249,7 @@ export default function BillingPage() {
       show: subscription.featureEmailCampaigns,
     },
     {
-      label: "Agente de Chat (créditos)",
+      label: t("billingPage.usageChatAgentCredits"),
       used: usage?.ai_agent_credits_used ?? 0,
       limit: subscription.monthlyAiAgentCredits,
       icon: Bot,
@@ -255,7 +257,7 @@ export default function BillingPage() {
       show: subscription.featureAiAgent,
     },
     {
-      label: "Asistente IA",
+      label: t("billingPage.usageAiAssistant"),
       used: usage?.ai_assistant_used ?? 0,
       limit: subscription.monthlyAiAssistant,
       icon: Sparkles,
@@ -266,27 +268,27 @@ export default function BillingPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Facturación" />
+      <AppHeader title={t("billingPage.billing")} />
       <div className="p-4 md:p-6 space-y-6">
 
         {/* ── Plan card ──────────────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-base font-semibold">Plan actual:</span>
+              <span className="text-base font-semibold">{t("billingPage.currentPlan")}</span>
               <span className="text-base font-bold text-primary">{subscription.planName}</span>
               <StatusBadge />
             </div>
             {subscription.status === "trialing_internal" && daysLeftInTrial !== null && (
               <p className="text-sm text-muted-foreground">
                 {daysLeftInTrial > 0
-                  ? `Tu prueba termina en ${daysLeftInTrial} días. Elige un plan para no perder el acceso.`
-                  : "Tu prueba termina hoy."}
+                  ? t("billingPage.trialEndsInDays", { days: daysLeftInTrial })
+                  : t("billingPage.trialEndsToday")}
               </p>
             )}
             {subscription.status === "active" && subscription.currentPeriodEnd && (
               <p className="text-sm text-muted-foreground">
-                {subscription.cancelAtPeriodEnd ? "Cancela el" : "Próxima renovación"}:{" "}
+                {subscription.cancelAtPeriodEnd ? t("billingPage.cancelsOn") : t("billingPage.nextRenewal")}:{" "}
                 {new Date(subscription.currentPeriodEnd).toLocaleDateString("es-CO", { dateStyle: "long" })}
               </p>
             )}
@@ -294,18 +296,18 @@ export default function BillingPage() {
           <div className="flex gap-2 shrink-0">
             {subscription.planId !== "agency" && (
               <Button size="sm" variant="outline" asChild>
-                <Link to="/pricing">Cambiar plan</Link>
+                <Link to="/pricing">{t("billingPage.changePlan")}</Link>
               </Button>
             )}
             {(subscription.status === "active" || subscription.status === "past_due") && (
               <Button size="sm" onClick={openCustomerPortal} disabled={openingPortal}>
                 <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                {openingPortal ? "Abriendo..." : "Administrar"}
+                {openingPortal ? t("billingPage.opening") : t("billingPage.manage")}
               </Button>
             )}
             {subscription.status === "trialing_internal" && (
               <Button size="sm" asChild>
-                <Link to="/pricing">Elegir plan</Link>
+                <Link to="/pricing">{t("billingPage.choosePlan")}</Link>
               </Button>
             )}
           </div>
@@ -314,17 +316,17 @@ export default function BillingPage() {
         {/* ── Uso del mes — grid de métricas ─────────────────────────────────── */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Uso este mes
+            {t("billingPage.usageThisMonth")}
           </h2>
           {usageLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground text-sm py-4">
-              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+              <Loader2 className="h-4 w-4 animate-spin" /> {t("billingPage.loading")}
             </div>
           ) : usageError ? (
             <div className="rounded-xl border border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-800 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-              <p className="font-semibold">No se pudieron cargar los datos de uso.</p>
+              <p className="font-semibold">{t("billingPage.usageLoadError")}</p>
               <p className="text-xs mt-0.5 text-red-500 dark:text-red-500 font-mono">{usageError}</p>
-              <p className="text-xs mt-1 text-red-600 dark:text-red-400">Contacta a soporte — tus datos no se han perdido.</p>
+              <p className="text-xs mt-1 text-red-600 dark:text-red-400">{t("billingPage.contactSupport")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -347,11 +349,11 @@ export default function BillingPage() {
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {isUnlimited
-                          ? "ilimitado"
-                          : `de ${total!.toLocaleString()}`
+                          ? t("billingPage.unlimited")
+                          : t("billingPage.ofTotal", { total: total!.toLocaleString() })
                         }
                         {item.extra && item.extra > 0 && !isUnlimited
-                          ? ` (+${item.extra.toLocaleString()} boost)`
+                          ? t("billingPage.boostExtra", { extra: item.extra.toLocaleString() })
                           : ""}
                       </p>
                     </div>
@@ -362,7 +364,7 @@ export default function BillingPage() {
                       />
                     ) : (
                       <p className="text-xs text-green-600 flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Sin límite
+                        <CheckCircle2 className="h-3 w-3" /> {t("billingPage.noLimit")}
                       </p>
                     )}
                   </div>
@@ -376,7 +378,7 @@ export default function BillingPage() {
         {addonCatalog.length > 0 && (
           <section>
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-              Ampliar capacidad
+              {t("billingPage.expandCapacity")}
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {addonCatalog.map((a) => {
@@ -392,23 +394,25 @@ export default function BillingPage() {
                     </div>
                     <p className="text-xs text-muted-foreground mb-3">
                       {isSeats
-                        ? "Agrega usuarios sin cambiar de plan. Se cobra mensualmente por asiento."
-                        : "Aumenta tu límite de contactos por encima de tu plan. Cobro mensual."}
+                        ? t("billingPage.seatsDescription")
+                        : t("billingPage.contactsDescription")}
                     </p>
                     <div className="mt-auto flex items-end justify-between">
                       <div>
                         <div className="text-xl font-bold">
                           ${a.monthly_price_usd}
-                          <span className="text-xs font-normal text-muted-foreground"> /mes · {a.unit_label}</span>
+                          <span className="text-xs font-normal text-muted-foreground"> {t("billingPage.perMonth")} · {a.unit_label}</span>
                         </div>
                         {current > 0 && (
                           <div className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                            Activos: +{current.toLocaleString()} {isSeats ? "usuarios" : "contactos"}
+                            {isSeats
+                              ? t("billingPage.activeUsers", { count: current.toLocaleString() })
+                              : t("billingPage.activeContacts", { count: current.toLocaleString() })}
                           </div>
                         )}
                       </div>
                       <Button size="sm" disabled={purchasingAddon === a.key} onClick={() => buyAddon(a.stripe_price_id, a.key, a.name)}>
-                        {purchasingAddon === a.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (current > 0 ? "Agregar más" : "Comprar")}
+                        {purchasingAddon === a.key ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : (current > 0 ? t("billingPage.addMore") : t("billingPage.buy"))}
                       </Button>
                     </div>
                   </div>
@@ -416,7 +420,7 @@ export default function BillingPage() {
               })}
             </div>
             <p className="text-[11px] text-muted-foreground mt-2">
-              Para reducir o cancelar complementos, usa “Administrar facturación”.
+              {t("billingPage.addonManageHint")}
             </p>
           </section>
         )}
@@ -424,16 +428,16 @@ export default function BillingPage() {
         {/* ── Paquetes de créditos adicionales ──────────────────────────────── */}
         <section>
           <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
-            Créditos adicionales
+            {t("billingPage.additionalCredits")}
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
 
             {/* IA Boost */}
             <PackCard
               icon={<Sparkles className="h-4 w-4 text-amber-500" />}
-              title="IA Boost — Análisis de leads"
-              creditsLabel={boostCredits > 0 ? `${boostCredits.toLocaleString()} créditos disponibles` : null}
-              emptyText="Añade créditos para analizar más leads con IA cuando se agote el cupo mensual."
+              title={t("billingPage.boostTitle")}
+              creditsLabel={boostCredits > 0 ? t("billingPage.creditsAvailable", { count: boostCredits.toLocaleString() }) : null}
+              emptyText={t("billingPage.boostEmpty")}
               packs={IA_BOOST_PACKS}
               purchasingBoost={purchasingBoost}
               onBuy={buyBoost}
@@ -442,9 +446,9 @@ export default function BillingPage() {
             {/* IA Landings */}
             <PackCard
               icon={<Sparkles className="h-4 w-4 text-orange-500" />}
-              title="IA Landings — Páginas de aterrizaje"
-              creditsLabel={landingCredits > 0 ? `${Math.floor(landingCredits / 1000).toLocaleString()} créditos disponibles` : null}
-              emptyText="Cada generación y refinamiento descuenta créditos según el consumo real de la IA (1 crédito = 1.000 tokens)."
+              title={t("billingPage.landingsTitle")}
+              creditsLabel={landingCredits > 0 ? t("billingPage.creditsAvailable", { count: Math.floor(landingCredits / 1000).toLocaleString() }) : null}
+              emptyText={t("billingPage.landingsEmpty")}
               packs={IA_LANDINGS_PACKS}
               purchasingBoost={purchasingBoost}
               onBuy={buyBoost}
@@ -455,7 +459,7 @@ export default function BillingPage() {
               <div className="rounded-xl border border-border bg-card p-4 space-y-3">
                 <h4 className="text-sm font-semibold flex items-center gap-2">
                   <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                  Historial de consumo — IA Landings
+                  {t("billingPage.landingsUsageHistory")}
                 </h4>
                 <div className="space-y-1">
                   {landingUsageLog.map((entry, i) => (
@@ -466,7 +470,7 @@ export default function BillingPage() {
                             ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                             : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
                         }`}>
-                          {entry.call_type === "generation" ? "Generación" : "Edición"}
+                          {entry.call_type === "generation" ? t("billingPage.generation") : t("billingPage.edition")}
                         </span>
                         <span className="text-muted-foreground">
                           {new Date(entry.created_at).toLocaleDateString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -481,7 +485,7 @@ export default function BillingPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-[11px] text-muted-foreground">Últimas 30 llamadas</p>
+                <p className="text-[11px] text-muted-foreground">{t("billingPage.lastCalls")}</p>
               </div>
             )}
 
@@ -489,9 +493,9 @@ export default function BillingPage() {
             {subscription.featureAiAgent && (
               <PackCard
                 icon={<Bot className="h-4 w-4 text-violet-500" />}
-                title="Agente de Chat — Créditos extra"
-                creditsLabel={agentCredits > 0 ? `${agentCredits.toLocaleString()} créditos disponibles` : null}
-                emptyText="Se consumen al agotar el cupo mensual del plan. El agente descuenta créditos según los tokens reales de cada conversación (1 crédito = 1.000 tokens)."
+                title={t("billingPage.agentTitle")}
+                creditsLabel={agentCredits > 0 ? t("billingPage.creditsAvailable", { count: agentCredits.toLocaleString() }) : null}
+                emptyText={t("billingPage.agentEmpty")}
                 packs={IA_AGENT_PACKS}
                 purchasingBoost={purchasingBoost}
                 onBuy={buyBoost}
@@ -524,6 +528,7 @@ function PackCard({
   purchasingBoost: string | null;
   onBuy: (priceId: string, label: string) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="rounded-xl border bg-card p-4 flex flex-col gap-3">
       {/* Header */}
@@ -551,7 +556,7 @@ function PackCard({
             disabled={purchasingBoost === pack.price_id}
             className="w-full flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            <span>{purchasingBoost === pack.price_id ? "Procesando…" : pack.label}</span>
+            <span>{purchasingBoost === pack.price_id ? t("billingPage.processing") : pack.label}</span>
             <span className="text-muted-foreground font-semibold tabular-nums">${pack.priceUsd}</span>
           </button>
         ))}

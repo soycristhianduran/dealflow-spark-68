@@ -27,6 +27,7 @@ import { CountryPhoneInput, getDialCode, detectCountryByTimezone } from "@/compo
 import { Zap, Loader2, CheckCircle2, Building2, Heart, GraduationCap, Laptop, Megaphone, HardHat, ShoppingBag, Shield, LayoutGrid, Stethoscope } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 
 const industries = [
   "Tecnología", "Finanzas y Banca", "Salud", "Educación", "Retail / Comercio",
@@ -148,6 +149,7 @@ const NICHE_OPTIONS: NicheOption[] = [
 export default function OnboardingPage() {
   const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
@@ -244,7 +246,7 @@ export default function OnboardingPage() {
   const handleStep1 = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!companyName.trim()) {
-      toast.error("El nombre de la empresa es requerido");
+      toast.error(t("onboardingPage.companyNameRequired"));
       return;
     }
     setLoading(true);
@@ -269,7 +271,7 @@ export default function OnboardingPage() {
     });
 
     if (updateErr) {
-      toast.error("Error al guardar perfil: " + updateErr.message);
+      toast.error(t("onboardingPage.saveProfileError", { message: updateErr.message }));
       setLoading(false);
       return;
     }
@@ -323,7 +325,7 @@ export default function OnboardingPage() {
         if (error) console.warn("Pipeline creation error:", error.message);
         if (data?.error) console.warn("Pipeline creation error:", data.error);
         if (data?.success) {
-          toast.success(`Pipeline "${data.pipeline_name}" creado con ${data.stages?.length} etapas 🎉`);
+          toast.success(t("onboardingPage.pipelineCreated", { name: data.pipeline_name, count: data.stages?.length }));
         }
       } catch (e) {
         console.warn("Pipeline creation failed (non-fatal):", e);
@@ -345,16 +347,16 @@ export default function OnboardingPage() {
           </div>
           {step === 1 ? (
             <>
-              <h1 className="text-2xl font-bold">¡Bienvenido a Klosify!</h1>
+              <h1 className="text-2xl font-bold">{t("onboardingPage.welcomeTitle")}</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Solo tarda 30 segundos — cuéntanos sobre tu empresa
+                {t("onboardingPage.welcomeSubtitle")}
               </p>
             </>
           ) : (
             <>
-              <h1 className="text-2xl font-bold">¿Cuál es tu nicho de negocio?</h1>
+              <h1 className="text-2xl font-bold">{t("onboardingPage.nicheTitle")}</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Crearemos tu pipeline de ventas con etapas personalizadas para ti
+                {t("onboardingPage.nicheSubtitle")}
               </p>
             </>
           )}
@@ -370,37 +372,37 @@ export default function OnboardingPage() {
           <form onSubmit={handleStep1} className="space-y-4 bg-card border rounded-2xl p-6 shadow-lg">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Nombre <span className="text-destructive">*</span></Label>
+                <Label>{t("onboardingPage.firstNameLabel")} <span className="text-destructive">*</span></Label>
                 <Input
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
-                  placeholder="Juan"
+                  placeholder={t("onboardingPage.firstNamePlaceholder")}
                   required
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Apellido <span className="text-destructive">*</span></Label>
+                <Label>{t("onboardingPage.lastNameLabel")} <span className="text-destructive">*</span></Label>
                 <Input
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
-                  placeholder="Pérez"
+                  placeholder={t("onboardingPage.lastNamePlaceholder")}
                   required
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label>Nombre de la empresa <span className="text-destructive">*</span></Label>
+              <Label>{t("onboardingPage.companyNameLabel")} <span className="text-destructive">*</span></Label>
               <Input
                 value={companyName}
                 onChange={e => setCompanyName(e.target.value)}
-                placeholder="Ej: Acme Corp"
+                placeholder={t("onboardingPage.companyNamePlaceholder")}
                 required
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label>Teléfono</Label>
+              <Label>{t("onboardingPage.phoneLabel")}</Label>
               <CountryPhoneInput
                 value={phone}
                 onChange={setPhone}
@@ -410,9 +412,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Industria</Label>
+              <Label>{t("onboardingPage.industryLabel")}</Label>
               <Select value={industry} onValueChange={setIndustry}>
-                <SelectTrigger><SelectValue placeholder="Selecciona tu industria" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("onboardingPage.industryPlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {industries.map(i => (
                     <SelectItem key={i} value={i}>{i}</SelectItem>
@@ -422,9 +424,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tamaño de empresa</Label>
+              <Label>{t("onboardingPage.companySizeLabel")}</Label>
               <Select value={companySize} onValueChange={setCompanySize}>
-                <SelectTrigger><SelectValue placeholder="Número de empleados" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("onboardingPage.companySizePlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {companySizes.map(s => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
@@ -434,9 +436,9 @@ export default function OnboardingPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Rol / Cargo</Label>
+              <Label>{t("onboardingPage.jobTitleLabel")}</Label>
               <Select value={jobTitle} onValueChange={setJobTitle}>
-                <SelectTrigger><SelectValue placeholder="Selecciona tu cargo" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("onboardingPage.jobTitlePlaceholder")} /></SelectTrigger>
                 <SelectContent>
                   {jobTitles.map(r => (
                     <SelectItem key={r} value={r}>{r}</SelectItem>
@@ -447,8 +449,8 @@ export default function OnboardingPage() {
 
             <Button type="submit" className="w-full mt-2" disabled={loading}>
               {loading
-                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Guardando...</>
-                : "Continuar →"}
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t("onboardingPage.saving")}</>
+                : t("onboardingPage.continue")}
             </Button>
           </form>
         )}
@@ -493,7 +495,7 @@ export default function OnboardingPage() {
               return (
                 <div className="bg-card border rounded-xl p-4">
                   <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wide">
-                    Tu pipeline tendrá estas etapas:
+                    {t("onboardingPage.stagesPreview")}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {opt.stages.map((stage, idx) => (
@@ -519,7 +521,7 @@ export default function OnboardingPage() {
                 disabled={loading}
                 className="flex-shrink-0"
               >
-                ← Atrás
+                {t("onboardingPage.back")}
               </Button>
               <Button
                 className="flex-1"
@@ -527,16 +529,16 @@ export default function OnboardingPage() {
                 disabled={loading || !selectedNiche}
               >
                 {loading
-                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Creando tu pipeline...</>
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />{t("onboardingPage.creatingPipeline")}</>
                   : selectedNiche
-                    ? `Crear pipeline de ${NICHE_OPTIONS.find(o => o.key === selectedNiche)?.label} →`
-                    : "Selecciona un nicho para continuar"
+                    ? t("onboardingPage.createPipelineFor", { niche: NICHE_OPTIONS.find(o => o.key === selectedNiche)?.label })
+                    : t("onboardingPage.selectNichePrompt")
                 }
               </Button>
             </div>
 
             <p className="text-center text-xs text-muted-foreground">
-              Puedes editar o agregar más etapas después desde Configuración → Pipeline
+              {t("onboardingPage.editStagesHint")}
             </p>
           </div>
         )}

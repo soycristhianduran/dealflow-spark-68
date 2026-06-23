@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X, Webhook, Copy, Eye, EyeOff } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon, GoogleAdsIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
@@ -186,6 +187,10 @@ const WEBHOOK_EVENTS = [
   { value: "form.submitted",            label: "Formulario enviado",        description: "Cuando alguien envía un formulario de landing page" },
 ];
 
+// Maps a webhook event value (e.g. "contact.created") to a stable i18n key segment.
+const webhookEventKey = (value: string) =>
+  value.replace(/[._]([a-z])/g, (_, c) => c.toUpperCase());
+
 type WebhookSub = {
   id: string;
   url: string;
@@ -197,6 +202,7 @@ type WebhookSub = {
 };
 
 function WebhooksSection() {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [subs, setSubs] = useState<WebhookSub[]>([]);
   const [loading, setLoading] = useState(true);
@@ -227,7 +233,7 @@ function WebhooksSection() {
   const handleAdd = async () => {
     if (!newUrl.trim() || !newEvents.length || !organizationId) return;
     try { new URL(newUrl.trim()); } catch {
-      toast.error("URL inválida"); return;
+      toast.error(t("integrationsPage.invalidUrl")); return;
     }
     setSaving(true);
     const { data, error } = await supabase
@@ -236,7 +242,7 @@ function WebhooksSection() {
       .select("secret")
       .single();
     setSaving(false);
-    if (error) { toast.error(`Error al crear webhook: ${error.message}`); console.error("webhook insert error", error); return; }
+    if (error) { toast.error(t("integrationsPage.webhookCreateError", { message: error.message })); console.error("webhook insert error", error); return; }
     setNewSecret(data.secret);
     setNewUrl("");
     setNewEvents(["contact.created"]);
@@ -246,7 +252,7 @@ function WebhooksSection() {
   const handleDelete = async (id: string) => {
     await supabase.from("webhook_subscriptions").delete().eq("id", id);
     setSubs(prev => prev.filter(s => s.id !== id));
-    toast.success("Webhook eliminado");
+    toast.success(t("integrationsPage.webhookDeleted"));
   };
 
   const handleToggle = async (id: string, active: boolean) => {
@@ -254,8 +260,8 @@ function WebhooksSection() {
     setSubs(prev => prev.map(s => s.id === id ? { ...s, is_active: active, failure_count: 0 } : s));
   };
 
-  const copyToClipboard = (text: string, label = "Copiado") => {
-    navigator.clipboard.writeText(text).then(() => toast.success(label));
+  const copyToClipboard = (text: string, label?: string) => {
+    navigator.clipboard.writeText(text).then(() => toast.success(label ?? t("integrationsPage.copied")));
   };
 
   const shortUrl = (url: string) => {
@@ -282,18 +288,18 @@ function WebhooksSection() {
           <div>
             <p className="text-sm font-semibold">Webhooks</p>
             <p className="text-xs text-muted-foreground">
-              {loading ? "Cargando…" : subs.length === 0
-                ? "Sin webhooks configurados"
-                : `${subs.filter(s => s.is_active).length} activo${subs.filter(s => s.is_active).length !== 1 ? "s" : ""} · ${subs.length} en total`}
+              {loading ? t("integrationsPage.loading") : subs.length === 0
+                ? t("integrationsPage.noWebhooks")
+                : t("integrationsPage.webhookSummary", { active: subs.filter(s => s.is_active).length, plural: subs.filter(s => s.is_active).length !== 1 ? "s" : "", total: subs.length })}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {subs.some(s => s.failure_count > 0) && (
-            <Badge variant="destructive" className="text-[10px]">errores</Badge>
+            <Badge variant="destructive" className="text-[10px]">{t("integrationsPage.errors")}</Badge>
           )}
           <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={e => { e.stopPropagation(); setDrawerOpen(true); }}>
-            Gestionar <ArrowRight className="h-3 w-3" />
+            {t("integrationsPage.manage")} <ArrowRight className="h-3 w-3" />
           </Button>
         </div>
       </div>
@@ -308,11 +314,11 @@ function WebhooksSection() {
               <Webhook className="h-4 w-4" /> Webhooks
             </SheetTitle>
             <Button size="sm" className="gap-1.5 h-8 text-xs" onClick={() => { setNewSecret(null); setDialogOpen(true); }}>
-              <Plus className="h-3.5 w-3.5" /> Nuevo webhook
+              <Plus className="h-3.5 w-3.5" /> {t("integrationsPage.newWebhook")}
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            Notifica a n8n, Zapier o Make cuando ocurra un evento en el CRM
+            {t("integrationsPage.webhookDrawerSubtitle")}
           </p>
         </SheetHeader>
 
@@ -320,23 +326,23 @@ function WebhooksSection() {
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-              <Loader2 className="h-4 w-4 animate-spin" /> Cargando…
+              <Loader2 className="h-4 w-4 animate-spin" /> {t("integrationsPage.loading")}
             </div>
           ) : subs.length === 0 ? (
             <div className="rounded-lg border border-dashed p-10 text-center">
               <Webhook className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Sin webhooks configurados</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Crea uno para conectar con n8n, Zapier o Make</p>
+              <p className="text-sm text-muted-foreground">{t("integrationsPage.noWebhooks")}</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">{t("integrationsPage.createOneToConnect")}</p>
             </div>
           ) : (
             <div className="rounded-lg border overflow-hidden">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-xs text-muted-foreground">
-                    <th className="text-left font-medium px-4 py-2.5">Endpoint</th>
-                    <th className="text-left font-medium px-4 py-2.5">Eventos</th>
-                    <th className="text-left font-medium px-4 py-2.5">Último envío</th>
-                    <th className="text-right font-medium px-4 py-2.5">Activo</th>
+                    <th className="text-left font-medium px-4 py-2.5">{t("integrationsPage.endpoint")}</th>
+                    <th className="text-left font-medium px-4 py-2.5">{t("integrationsPage.events")}</th>
+                    <th className="text-left font-medium px-4 py-2.5">{t("integrationsPage.lastSent")}</th>
+                    <th className="text-right font-medium px-4 py-2.5">{t("integrationsPage.active")}</th>
                     <th className="px-3 py-2.5"></th>
                   </tr>
                 </thead>
@@ -352,17 +358,17 @@ function WebhooksSection() {
                           </span>
                           {sub.failure_count > 0 && (
                             <Badge variant="destructive" className="text-[10px] h-4 px-1.5 mt-1">
-                              {sub.failure_count} {sub.failure_count === 1 ? "falla" : "fallas"}
+                              {sub.failure_count} {sub.failure_count === 1 ? t("integrationsPage.failure") : t("integrationsPage.failures")}
                             </Badge>
                           )}
                           <div className="flex items-center gap-1 mt-1">
                             <code className="text-[10px] font-mono text-muted-foreground">
-                              {revealSecrets[sub.id] ? sub.secret : "secret: ••••••••••"}
+                              {revealSecrets[sub.id] ? sub.secret : t("integrationsPage.secretMasked")}
                             </code>
                             <button className="text-muted-foreground hover:text-foreground" onClick={() => setRevealSecrets(prev => ({ ...prev, [sub.id]: !prev[sub.id] }))}>
                               {revealSecrets[sub.id] ? <EyeOff className="h-2.5 w-2.5" /> : <Eye className="h-2.5 w-2.5" />}
                             </button>
-                            <button className="text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(sub.secret, "Secret copiado")}>
+                            <button className="text-muted-foreground hover:text-foreground" onClick={() => copyToClipboard(sub.secret, t("integrationsPage.secretCopied"))}>
                               <Copy className="h-2.5 w-2.5" />
                             </button>
                           </div>
@@ -373,16 +379,16 @@ function WebhooksSection() {
                               const ev = WEBHOOK_EVENTS.find(x => x.value === e);
                               return (
                                 <Badge key={e} variant="secondary" className="text-[10px] h-4 px-1.5 whitespace-nowrap">
-                                  {ev?.label || e}
+                                  {ev ? t(`integrationsPage.webhookEvent.${webhookEventKey(ev.value)}.label`) : e}
                                 </Badge>
                               );
                             })}
                             {extraCount > 0 && (
                               <span
                                 className="text-[10px] text-muted-foreground cursor-default underline decoration-dotted"
-                                title={sub.events.slice(2).map(e => WEBHOOK_EVENTS.find(x => x.value === e)?.label || e).join(", ")}
+                                title={sub.events.slice(2).map(e => { const ev = WEBHOOK_EVENTS.find(x => x.value === e); return ev ? t(`integrationsPage.webhookEvent.${webhookEventKey(ev.value)}.label`) : e; }).join(", ")}
                               >
-                                +{extraCount} más
+                                {t("integrationsPage.moreCount", { count: extraCount })}
                               </span>
                             )}
                           </div>
@@ -418,66 +424,66 @@ function WebhooksSection() {
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Webhook className="h-4 w-4" /> Nuevo webhook
+            <Webhook className="h-4 w-4" /> {t("integrationsPage.newWebhook")}
           </DialogTitle>
         </DialogHeader>
         {newSecret ? (
           <div className="space-y-4">
             <div className="rounded-lg bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 p-3">
               <p className="text-sm font-medium text-green-800 dark:text-green-300 flex items-center gap-1.5">
-                <CheckCircle2 className="h-4 w-4" /> Webhook creado
+                <CheckCircle2 className="h-4 w-4" /> {t("integrationsPage.webhookCreated")}
               </p>
               <p className="text-xs text-green-700 dark:text-green-400 mt-1">
-                Guarda este secret — no lo podrás ver completo de nuevo. Úsalo para verificar
-                la firma <code className="font-mono">X-Webhook-Signature</code> de cada entrega.
+                {t("integrationsPage.saveSecretPart1")}
+                <code className="font-mono">X-Webhook-Signature</code>{t("integrationsPage.saveSecretPart2")}
               </p>
             </div>
             <div>
-              <Label className="text-xs">Secret (HMAC-SHA256)</Label>
+              <Label className="text-xs">{t("integrationsPage.secretLabel")}</Label>
               <div className="flex items-center gap-1.5 mt-1">
                 <code className="flex-1 text-xs font-mono bg-muted rounded px-2 py-1.5 break-all">{newSecret}</code>
-                <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => copyToClipboard(newSecret, "Secret copiado")}>
+                <Button size="sm" variant="outline" className="h-8 shrink-0" onClick={() => copyToClipboard(newSecret, t("integrationsPage.secretCopied"))}>
                   <Copy className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground space-y-1">
-              <p className="font-medium text-foreground">Cómo verificar en n8n / Zapier / Make</p>
-              <p>Cada POST incluye el header:</p>
+              <p className="font-medium text-foreground">{t("integrationsPage.howToVerify")}</p>
+              <p>{t("integrationsPage.eachPostHeader")}</p>
               <code className="block font-mono">X-Webhook-Signature: sha256=…</code>
-              <p>Compútalo con <strong>HMAC-SHA256</strong> sobre el body completo usando este secret.</p>
+              <p>{t("integrationsPage.computeHmacPart1")}<strong>HMAC-SHA256</strong>{t("integrationsPage.computeHmacPart2")}</p>
             </div>
-            <Button className="w-full" onClick={() => { setDialogOpen(false); load(); }}>Listo</Button>
+            <Button className="w-full" onClick={() => { setDialogOpen(false); load(); }}>{t("integrationsPage.done")}</Button>
           </div>
         ) : (
           <div className="space-y-4">
             <div>
-              <Label className="text-xs" htmlFor="wh-url">URL del endpoint</Label>
+              <Label className="text-xs" htmlFor="wh-url">{t("integrationsPage.endpointUrl")}</Label>
               <Input id="wh-url" className="mt-1 text-sm font-mono" placeholder="https://hooks.zapier.com/hooks/catch/…" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} />
             </div>
             <div>
-              <Label className="text-xs">Eventos a escuchar</Label>
+              <Label className="text-xs">{t("integrationsPage.eventsToListen")}</Label>
               <div className="mt-2 space-y-2">
                 {WEBHOOK_EVENTS.map(ev => (
                   <label key={ev.value} className="flex items-start gap-2.5 cursor-pointer">
                     <input type="checkbox" className="mt-0.5 rounded" checked={newEvents.includes(ev.value)}
                       onChange={(e) => setNewEvents(prev => e.target.checked ? [...prev, ev.value] : prev.filter(x => x !== ev.value))} />
                     <div>
-                      <p className="text-sm font-medium leading-none">{ev.label}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{ev.description}</p>
+                      <p className="text-sm font-medium leading-none">{t(`integrationsPage.webhookEvent.${webhookEventKey(ev.value)}.label`)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{t(`integrationsPage.webhookEvent.${webhookEventKey(ev.value)}.description`)}</p>
                     </div>
                   </label>
                 ))}
               </div>
             </div>
             <div className="rounded-lg bg-muted/50 p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground mb-1">Payload de ejemplo</p>
+              <p className="font-medium text-foreground mb-1">{t("integrationsPage.examplePayload")}</p>
               <pre className="font-mono leading-relaxed overflow-x-auto">{`{\n  "event": "contact.created",\n  "timestamp": 1748482800,\n  "organization_id": "...",\n  "data": { "id": "...", "first_name": "Ana", ... }\n}`}</pre>
             </div>
             <div className="flex gap-2 pt-1">
-              <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>Cancelar</Button>
+              <Button variant="outline" className="flex-1" onClick={() => setDialogOpen(false)}>{t("integrationsPage.cancel")}</Button>
               <Button className="flex-1" onClick={handleAdd} disabled={saving || !newUrl.trim() || newEvents.length === 0}>
-                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Creando…</> : "Crear webhook"}
+                {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />{t("integrationsPage.creating")}</> : t("integrationsPage.createWebhook")}
               </Button>
             </div>
           </div>
@@ -492,6 +498,7 @@ function WebhooksSection() {
 // Vapi section (BYOK — per-org API key + phone number)
 // ─────────────────────────────────────────────────────────────────────────────
 function VapiSection() {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [apiKey, setApiKey]               = useState("");
   const [phoneNumberId, setPhoneNumberId] = useState("");
@@ -534,7 +541,7 @@ function VapiSection() {
           .update({ api_key: apiKey.trim(), phone_number_id: phoneNumberId.trim(), updated_at: new Date().toISOString() })
           .eq("id", configId);
         if (error) throw error;
-        toast.success("Configuración de Vapi actualizada");
+        toast.success(t("integrationsPage.vapiUpdated"));
       } else {
         // Insert new
         const { data, error } = await supabase
@@ -544,10 +551,10 @@ function VapiSection() {
           .single();
         if (error) throw error;
         setConfigId(data.id);
-        toast.success("¡Vapi conectado correctamente!");
+        toast.success(t("integrationsPage.vapiConnected"));
       }
     } catch (err: any) {
-      toast.error("Error al guardar: " + (err.message || "desconocido"));
+      toast.error(t("integrationsPage.saveError", { message: err.message || t("integrationsPage.unknown") }));
     } finally {
       setSaving(false);
     }
@@ -557,12 +564,12 @@ function VapiSection() {
     if (!configId) return;
     setSaving(true);
     const { error } = await supabase.from("vapi_configs").delete().eq("id", configId);
-    if (error) { toast.error("Error al desconectar"); setSaving(false); return; }
+    if (error) { toast.error(t("integrationsPage.disconnectError")); setSaving(false); return; }
     setConfigId(null);
     setApiKey("");
     setPhoneNumberId("");
     setSaving(false);
-    toast.success("Vapi desconectado");
+    toast.success(t("integrationsPage.vapiDisconnected"));
   };
 
   const VapiLogo = ({ size = 30 }: { size?: number }) => (
@@ -576,16 +583,16 @@ function VapiSection() {
           <div className="flex items-start justify-between">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-muted/30"><VapiLogo /></div>
             <Badge variant={isConnected ? "default" : "secondary"} className={`text-xs gap-1 ${isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}>
-              {isConnected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
+              {isConnected ? <><CheckCircle2 className="h-3 w-3" /> {t("integrationsPage.connected")}</> : <><Circle className="h-3 w-3" /> {t("integrationsPage.available")}</>}
             </Badge>
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-foreground">Vapi.ai · Agente de Voz</h3>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Agente de llamadas con IA. Conecta tu cuenta de vapi.ai para llamar a tus leads.</p>
+            <h3 className="text-sm font-semibold text-foreground">{t("integrationsPage.vapiTitle")}</h3>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("integrationsPage.vapiDescription")}</p>
           </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5 text-primary" /> Llamadas con IA · BYOK</div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5 text-primary" /> {t("integrationsPage.vapiTagline")}</div>
           <Button variant="outline" size="sm" className="w-full" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
-            {isConnected ? "Gestionar" : "Conectar"} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            {isConnected ? t("integrationsPage.manage") : t("integrationsPage.connect")} <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </CardContent>
       </Card>
@@ -593,10 +600,10 @@ function VapiSection() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><VapiLogo size={22} /> Vapi.ai · Agente de Voz</DialogTitle>
+            <DialogTitle className="flex items-center gap-2"><VapiLogo size={22} /> {t("integrationsPage.vapiTitle")}</DialogTitle>
           </DialogHeader>
           {loading ? (
-            <p className="text-sm text-muted-foreground py-4">Cargando...</p>
+            <p className="text-sm text-muted-foreground py-4">{t("integrationsPage.loadingDots")}</p>
           ) : (
             <div className="space-y-4">
               <div>
@@ -607,28 +614,28 @@ function VapiSection() {
                     {showKey ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">Encuéntrala en <span className="font-medium">vapi.ai → Account → API Keys</span></p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{t("integrationsPage.vapiApiKeyHintPrefix")} <span className="font-medium">vapi.ai → Account → API Keys</span></p>
               </div>
               <div>
                 <Label className="text-xs">Phone Number ID</Label>
                 <Input className="mt-1 font-mono text-xs" value={phoneNumberId} onChange={e => setPhoneNumberId(e.target.value)} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-                <p className="text-[11px] text-muted-foreground mt-0.5">En <span className="font-medium">vapi.ai → Phone Numbers → copia el ID del número</span></p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">{t("integrationsPage.vapiPhoneHintPrefix")} <span className="font-medium">{t("integrationsPage.vapiPhoneHintBold")}</span></p>
               </div>
               <div className="flex gap-2">
                 <Button size="sm" className="flex-1" disabled={saving || !apiKey.trim() || !phoneNumberId.trim()} onClick={handleSave}>
-                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Guardando…</> : isConnected ? "Actualizar" : "Conectar"}
+                  {saving ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> {t("integrationsPage.saving")}</> : isConnected ? t("integrationsPage.update") : t("integrationsPage.connect")}
                 </Button>
                 {isConnected && (
-                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving} onClick={handleDisconnect}>Desconectar</Button>
+                  <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" disabled={saving} onClick={handleDisconnect}>{t("integrationsPage.disconnect")}</Button>
                 )}
               </div>
               {!isConnected && (
                 <div className="rounded-xl bg-muted/50 p-3 text-[11px] text-muted-foreground space-y-1">
-                  <p className="font-medium text-foreground">Cómo obtener tus credenciales</p>
-                  <p>1. Crea una cuenta gratis en <b>vapi.ai</b>.</p>
-                  <p>2. <b>Account → API Keys</b> → copia tu clave secreta.</p>
-                  <p>3. <b>Phone Numbers</b> → compra/importa un número y copia su ID.</p>
-                  <p>4. Pega ambos aquí y haz clic en Conectar.</p>
+                  <p className="font-medium text-foreground">{t("integrationsPage.vapiHowToTitle")}</p>
+                  <p>{t("integrationsPage.vapiStep1Prefix")} <b>vapi.ai</b>.</p>
+                  <p>2. <b>Account → API Keys</b> {t("integrationsPage.vapiStep2Suffix")}</p>
+                  <p>3. <b>Phone Numbers</b> {t("integrationsPage.vapiStep3Suffix")}</p>
+                  <p>{t("integrationsPage.vapiStep4")}</p>
                 </div>
               )}
             </div>
@@ -641,6 +648,7 @@ function VapiSection() {
 
 // Lets the user pick which Google calendar new events land in.
 function GoogleCalendarPicker({ gcal }: { gcal: ReturnType<typeof useGoogleCalendar> }) {
+  const { t } = useTranslation();
   const [cals, setCals] = useState<{ id: string; summary: string; primary: boolean }[]>([]);
   const [selected, setSelected] = useState("primary");
   const [loadingCals, setLoadingCals] = useState(true);
@@ -661,15 +669,15 @@ function GoogleCalendarPicker({ gcal }: { gcal: ReturnType<typeof useGoogleCalen
     setSaving(true);
     const ok = await gcal.setCalendar(id);
     setSaving(false);
-    if (!ok) toast.error("No se pudo guardar el calendario");
-    else toast.success("Calendario actualizado");
+    if (!ok) toast.error(t("integrationsPage.calendarSaveError"));
+    else toast.success(t("integrationsPage.calendarUpdated"));
   };
 
   return (
     <div className="mt-3 space-y-1.5">
-      <label className="text-xs font-medium text-foreground">Calendario donde se crean las citas</label>
+      <label className="text-xs font-medium text-foreground">{t("integrationsPage.calendarPickerLabel")}</label>
       {loadingCals ? (
-        <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Cargando calendarios…</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> {t("integrationsPage.loadingCalendars")}</div>
       ) : (
         <select
           value={selected}
@@ -677,18 +685,19 @@ function GoogleCalendarPicker({ gcal }: { gcal: ReturnType<typeof useGoogleCalen
           onChange={e => onChange(e.target.value)}
           className="w-full rounded-md border bg-background px-3 py-2 text-sm"
         >
-          {cals.length === 0 && <option value="primary">Principal</option>}
+          {cals.length === 0 && <option value="primary">{t("integrationsPage.primary")}</option>}
           {cals.map(c => (
-            <option key={c.id} value={c.id}>{c.summary}{c.primary ? " (Principal)" : ""}</option>
+            <option key={c.id} value={c.id}>{c.summary}{c.primary ? t("integrationsPage.primarySuffix") : ""}</option>
           ))}
         </select>
       )}
-      <p className="text-[11px] text-muted-foreground">Tanto tus reuniones del CRM como las citas que agende el agente IA se crearán en este calendario.</p>
+      <p className="text-[11px] text-muted-foreground">{t("integrationsPage.calendarPickerHint")}</p>
     </div>
   );
 }
 
 export default function IntegrationsPage() {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
@@ -712,7 +721,7 @@ export default function IntegrationsPage() {
       .then(({ data, error }) => {
         if (error || data?.error) return; // non-fatal: don't show warning on network errors
         if (data && !data.is_crm_app) {
-          setWrongAppWarning({ app_name: data.app_name || "otra aplicación" });
+          setWrongAppWarning({ app_name: data.app_name || t("integrationsPage.anotherApp") });
         } else {
           setWrongAppWarning(null);
         }
@@ -732,13 +741,13 @@ export default function IntegrationsPage() {
     };
 
     if (params.get("wa_connected") === "true") {
-      toast.success("¡WhatsApp conectado exitosamente!");
+      toast.success(t("integrationsPage.whatsappConnected"));
       wa.refreshConfig?.();
       clearParam("wa_connected");
     }
 
     if (params.get("wa_token_ready") === "true") {
-      toast.success("Cuenta de Meta conectada. Selecciona tu número de WhatsApp.");
+      toast.success(t("integrationsPage.metaConnectedSelectNumber"));
       clearParam("wa_token_ready");
       setWaWizardStartStep(2);
       setWaWizardOpen(true);
@@ -746,14 +755,14 @@ export default function IntegrationsPage() {
 
     const waError = params.get("wa_error");
     if (waError) {
-      toast.error("Error al conectar WhatsApp: " + decodeURIComponent(waError));
+      toast.error(t("integrationsPage.whatsappConnectError", { error: decodeURIComponent(waError) }));
       clearParam("wa_error");
     }
 
     if (params.get("ig_connected") === "true") {
-      toast.success("¡Instagram conectado exitosamente!");
+      toast.success(t("integrationsPage.instagramConnected"));
       const warn = params.get("ig_warn");
-      if (warn) toast.warning("Conectado, pero la suscripción avisó: " + decodeURIComponent(warn), { duration: 10000 });
+      if (warn) toast.warning(t("integrationsPage.instagramConnectedWarn", { warn: decodeURIComponent(warn) }), { duration: 10000 });
       ig.refresh?.();
       clearParam("ig_connected");
       clearParam("ig_warn");
@@ -761,7 +770,7 @@ export default function IntegrationsPage() {
 
     const igError = params.get("ig_error");
     if (igError) {
-      toast.error("Error al conectar Instagram: " + decodeURIComponent(igError));
+      toast.error(t("integrationsPage.instagramConnectError", { error: decodeURIComponent(igError) }));
       clearParam("ig_error");
     }
 
@@ -834,7 +843,7 @@ export default function IntegrationsPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Integraciones" subtitle="Conecta tus herramientas favoritas" />
+      <AppHeader title={t("integrationsPage.headerTitle")} subtitle={t("integrationsPage.headerSubtitle")} />
       <main className="flex-1 overflow-y-auto p-6 scrollbar-thin">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[...integrations]
@@ -863,13 +872,13 @@ export default function IntegrationsPage() {
                       className={`text-xs gap-1 ${integration.comingSoon ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15" : isConnected ? "bg-green-600 hover:bg-green-600" : ""}`}
                     >
                       {integration.comingSoon
-                        ? <><Circle className="h-3 w-3" /> Muy pronto</>
-                        : isConnected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
+                        ? <><Circle className="h-3 w-3" /> {t("integrationsPage.comingSoon")}</>
+                        : isConnected ? <><CheckCircle2 className="h-3 w-3" /> {t("integrationsPage.connected")}</> : <><Circle className="h-3 w-3" /> {t("integrationsPage.available")}</>}
                     </Badge>
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">{integration.name}</h3>
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{integration.description}</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t(`integrationsPage.integration.${integration.id}.description`)}</p>
                   </div>
 
                   {/* Facebook status summary */}
@@ -883,8 +892,8 @@ export default function IntegrationsPage() {
                           <div className="flex items-start gap-1.5">
                             <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
                             <p className="text-[11px] text-red-800 dark:text-red-300 leading-snug">
-                              <span className="font-semibold">Reconexión necesaria.</span>{" "}
-                              Tu token de Facebook ya no es válido (probablemente revocaste permisos o cambiaste contraseña). Los mensajes y leads dejarán de llegar hasta que reconectes.
+                              <span className="font-semibold">{t("integrationsPage.reconnectNeeded")}</span>{" "}
+                              {t("integrationsPage.fbTokenInvalid")}
                             </p>
                           </div>
                           <Button
@@ -897,14 +906,14 @@ export default function IntegrationsPage() {
                               await fb.connect();
                             }}
                           >
-                            Reconectar Facebook
+                            {t("integrationsPage.reconnectFacebook")}
                           </Button>
                         </div>
                       )}
                       <div className="flex flex-wrap gap-1.5">
-                        <Badge variant="outline" className="text-xs">{fb.status.pages.length} páginas</Badge>
-                        <Badge variant="outline" className="text-xs">{fb.status.forms.length} formularios</Badge>
-                        <Badge variant="outline" className="text-xs">{fb.status.campaigns_count} campañas</Badge>
+                        <Badge variant="outline" className="text-xs">{t("integrationsPage.pagesCount", { count: fb.status.pages.length })}</Badge>
+                        <Badge variant="outline" className="text-xs">{t("integrationsPage.formsCount", { count: fb.status.forms.length })}</Badge>
+                        <Badge variant="outline" className="text-xs">{t("integrationsPage.campaignsCount", { count: fb.status.campaigns_count })}</Badge>
                       </div>
                     </div>
                   )}
@@ -920,7 +929,7 @@ export default function IntegrationsPage() {
                           {/* Primary star */}
                           {wa.configs.length > 1 && (
                             <button
-                              title={cfg.is_primary ? "Número principal" : "Establecer como principal"}
+                              title={cfg.is_primary ? t("integrationsPage.primaryNumber") : t("integrationsPage.setAsPrimary")}
                               onClick={() => wa.setPrimary(cfg.id)}
                               className="shrink-0 text-muted-foreground hover:text-amber-500 transition-colors"
                             >
@@ -944,7 +953,7 @@ export default function IntegrationsPage() {
                                     if (e.key === "Escape") setEditingLabelId(null);
                                   }}
                                   className="h-5 w-full rounded border bg-background px-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                                  placeholder="Ej: Ventas"
+                                  placeholder={t("integrationsPage.labelPlaceholder")}
                                 />
                                 <button onClick={() => { wa.updateLabel(cfg.id, editingLabelValue); setEditingLabelId(null); }}>
                                   <Check className="h-3.5 w-3.5 text-green-600" />
@@ -962,7 +971,7 @@ export default function IntegrationsPage() {
                                   <span className="text-[10px] text-muted-foreground truncate">· {cfg.display_phone}</span>
                                 )}
                                 {cfg.is_primary && wa.configs.length > 1 && (
-                                  <span className="text-[10px] text-amber-600 font-medium shrink-0">Principal</span>
+                                  <span className="text-[10px] text-amber-600 font-medium shrink-0">{t("integrationsPage.primary")}</span>
                                 )}
                                 <button
                                   onClick={() => { setEditingLabelId(cfg.id); setEditingLabelValue(cfg.label || ""); }}
@@ -976,7 +985,7 @@ export default function IntegrationsPage() {
 
                           {/* Disconnect this number */}
                           <button
-                            title="Desconectar este número"
+                            title={t("integrationsPage.disconnectThisNumber")}
                             onClick={() => wa.disconnect(cfg.id)}
                             className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
                           >
@@ -992,7 +1001,7 @@ export default function IntegrationsPage() {
                         className="w-full text-xs gap-1.5 h-7"
                         onClick={() => wa.connect()}
                       >
-                        <Plus className="h-3.5 w-3.5" /> Conectar otro número
+                        <Plus className="h-3.5 w-3.5" /> {t("integrationsPage.connectAnotherNumber")}
                       </Button>
 
                       {/* Wrong-app warning */}
@@ -1001,8 +1010,8 @@ export default function IntegrationsPage() {
                           <div className="flex items-start gap-1.5">
                             <AlertTriangle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
                             <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-snug">
-                              <span className="font-semibold">Los mensajes entrantes no llegarán.</span>{" "}
-                              Tu conexión está vinculada a <span className="font-medium">"{wrongAppWarning.app_name}"</span>, no al CRM.
+                              <span className="font-semibold">{t("integrationsPage.incomingWontArrive")}</span>{" "}
+                              {t("integrationsPage.connectionLinkedToPrefix")} <span className="font-medium">"{wrongAppWarning.app_name}"</span>{t("integrationsPage.connectionLinkedToSuffix")}
                             </p>
                           </div>
                           <Button
@@ -1011,7 +1020,7 @@ export default function IntegrationsPage() {
                             className="w-full text-xs gap-1.5 border-amber-400 text-amber-700 hover:bg-amber-100"
                             onClick={(e) => { e.stopPropagation(); wa.disconnect().then(() => setWaWizardOpen(true)); }}
                           >
-                            Reconectar correctamente
+                            {t("integrationsPage.reconnectProperly")}
                           </Button>
                         </div>
                       )}
@@ -1020,7 +1029,7 @@ export default function IntegrationsPage() {
 
                   <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Zap className="h-3 w-3" />
-                    <span>{integration.features.length} funcionalidades</span>
+                    <span>{t("integrationsPage.featuresCount", { count: integration.features.length })}</span>
                   </div>
                   <Button
                     size="sm"
@@ -1030,13 +1039,13 @@ export default function IntegrationsPage() {
                     onClick={(e) => { e.stopPropagation(); if (!integration.comingSoon) handleCardAction(integration); }}
                   >
                     {integration.comingSoon ? (
-                      <>Muy pronto</>
+                      <>{t("integrationsPage.comingSoon")}</>
                     ) : isLoading ? (
-                      <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> {t("integrationsPage.connecting")}</>
                     ) : isConnected ? (
-                      <>{integration.id === "whatsapp" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : integration.id === "facebook" ? <>Gestionar <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>Ver detalles <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
+                      <>{integration.id === "whatsapp" ? <>{t("integrationsPage.manage")} <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : integration.id === "facebook" ? <>{t("integrationsPage.manage")} <ArrowRight className="h-3.5 w-3.5 ml-1" /></> : <>{t("integrationsPage.viewDetails")} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>}</>
                     ) : (
-                      <>Conectar <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
+                      <>{t("integrationsPage.connect")} <ArrowRight className="h-3.5 w-3.5 ml-1" /></>
                     )}
                   </Button>
                 </CardContent>
@@ -1072,7 +1081,7 @@ export default function IntegrationsPage() {
                 </div>
                 <div>
                   <DialogTitle>{selectedIntegration.name}</DialogTitle>
-                  <p className="text-xs text-muted-foreground mt-0.5">{selectedIntegration.description}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t(`integrationsPage.integration.${selectedIntegration.id}.description`)}</p>
                 </div>
               </div>
             </DialogHeader>
@@ -1082,9 +1091,9 @@ export default function IntegrationsPage() {
               <div className="flex items-center justify-between rounded-lg bg-muted/50 p-3">
                 <div className="flex items-center gap-2 text-sm">
                   {isIntegrationConnected(selectedIntegration.id) ? (
-                    <><CheckCircle2 className="h-4 w-4 text-green-500" /><span className="font-medium text-foreground">Conectado</span></>
+                    <><CheckCircle2 className="h-4 w-4 text-green-500" /><span className="font-medium text-foreground">{t("integrationsPage.connected")}</span></>
                   ) : (
-                    <><Circle className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-foreground">No conectado</span></>
+                    <><Circle className="h-4 w-4 text-muted-foreground" /><span className="font-medium text-foreground">{t("integrationsPage.notConnected")}</span></>
                   )}
                 </div>
                 <Button
@@ -1101,8 +1110,8 @@ export default function IntegrationsPage() {
                   }}
                 >
                   {isIntegrationLoading(selectedIntegration.id) ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> Conectando...</>
-                  ) : isIntegrationConnected(selectedIntegration.id) ? "Desconectar" : "Conectar"}
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> {t("integrationsPage.connecting")}</>
+                  ) : isIntegrationConnected(selectedIntegration.id) ? t("integrationsPage.disconnect") : t("integrationsPage.connect")}
                 </Button>
               </div>
 
@@ -1110,7 +1119,7 @@ export default function IntegrationsPage() {
               {selectedIntegration.id === "google-calendar" && gcal.isConnected && (
                 <div className="rounded-lg border border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30 p-3">
                   <p className="text-sm text-green-700 dark:text-green-400">
-                    ✅ Las reuniones que crees en el CRM se agregarán automáticamente a tu Google Calendar.
+                    {t("integrationsPage.gcalDetailBanner")}
                   </p>
                   <GoogleCalendarPicker gcal={gcal} />
                 </div>
@@ -1119,20 +1128,20 @@ export default function IntegrationsPage() {
               {/* Facebook: open wizard button */}
               {selectedIntegration.id === "facebook" && fb.isConnected && (
                 <Button variant="outline" className="w-full" onClick={() => { setSelectedIntegration(null); setFbWizardOpen(true); }}>
-                  Gestionar páginas, formularios y campañas
+                  {t("integrationsPage.manageFbResources")}
                 </Button>
               )}
 
               {/* Features */}
               <div>
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Zap className="h-3.5 w-3.5" /> Funcionalidades
+                  <Zap className="h-3.5 w-3.5" /> {t("integrationsPage.features")}
                 </h4>
                 <ul className="space-y-1.5">
                   {selectedIntegration.features.map((feature, i) => (
                     <li key={i} className="flex items-start gap-2 text-sm text-foreground">
                       <CheckCircle2 className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                      {feature}
+                      {t(`integrationsPage.integration.${selectedIntegration.id}.features.${i}`)}
                     </li>
                   ))}
                 </ul>
@@ -1141,13 +1150,13 @@ export default function IntegrationsPage() {
               {/* Setup steps */}
               <div>
                 <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5" /> Pasos de configuración
+                  <Shield className="h-3.5 w-3.5" /> {t("integrationsPage.setupSteps")}
                 </h4>
                 <ol className="space-y-2">
                   {selectedIntegration.setupSteps.map((step, i) => (
                     <li key={i} className="flex items-start gap-2.5 text-sm text-foreground">
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-primary text-xs font-semibold shrink-0">{i + 1}</span>
-                      {step}
+                      {t(`integrationsPage.integration.${selectedIntegration.id}.setupSteps.${i}`)}
                     </li>
                   ))}
                 </ol>
@@ -1155,17 +1164,17 @@ export default function IntegrationsPage() {
 
               {/* Requirements */}
               <div>
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Requisitos</h4>
+                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">{t("integrationsPage.requirements")}</h4>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedIntegration.requirements.map((req, i) => (
-                    <Badge key={i} variant="outline" className="text-xs">{req}</Badge>
+                    <Badge key={i} variant="outline" className="text-xs">{t(`integrationsPage.integration.${selectedIntegration.id}.requirements.${i}`)}</Badge>
                   ))}
                 </div>
               </div>
 
               <a href={selectedIntegration.docsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-sm text-primary hover:underline">
                 <ExternalLink className="h-3.5 w-3.5" />
-                Ver documentación oficial
+                {t("integrationsPage.viewOfficialDocs")}
               </a>
             </div>
           </DialogContent>

@@ -13,6 +13,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { ArrowLeft, Building2, Globe, MapPin, Users, DollarSign, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 type Company = {
   id: string;
@@ -46,6 +47,7 @@ export default function CompanyDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { t } = useTranslation();
   const [company, setCompany] = useState<Company | null>(null);
   const [contacts, setContacts] = useState<LinkedContact[]>([]);
   const [deals, setDeals] = useState<LinkedDeal[]>([]);
@@ -92,8 +94,8 @@ export default function CompanyDetailPage() {
       website: editForm.website.trim() || null,
     }).eq("id", id);
     setSaving(false);
-    if (error) { toast.error("Error al guardar"); return; }
-    toast.success("Empresa actualizada");
+    if (error) { toast.error(t("companyDetailPage.saveError")); return; }
+    toast.success(t("companyDetailPage.companyUpdated"));
     setEditOpen(false);
     fetchData();
   };
@@ -101,17 +103,17 @@ export default function CompanyDetailPage() {
   const handleDelete = async () => {
     if (!id) return;
     const { error } = await supabase.from("companies").delete().eq("id", id);
-    if (error) { toast.error("Error al eliminar empresa"); return; }
-    toast.success("Empresa eliminada");
+    if (error) { toast.error(t("companyDetailPage.deleteError")); return; }
+    toast.success(t("companyDetailPage.companyDeleted"));
     navigate(path("/companies"));
   };
 
   if (loading) {
     return (
       <AppLayout>
-        <AppHeader title="Cargando..." />
+        <AppHeader title={t("companyDetailPage.loading")} />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">Cargando empresa...</p>
+          <p className="text-muted-foreground">{t("companyDetailPage.loadingCompany")}</p>
         </main>
       </AppLayout>
     );
@@ -120,9 +122,9 @@ export default function CompanyDetailPage() {
   if (!company) {
     return (
       <AppLayout>
-        <AppHeader title="Empresa no encontrada" />
+        <AppHeader title={t("companyDetailPage.companyNotFound")} />
         <main className="flex-1 flex items-center justify-center">
-          <p className="text-muted-foreground">La empresa no existe.</p>
+          <p className="text-muted-foreground">{t("companyDetailPage.companyDoesNotExist")}</p>
         </main>
       </AppLayout>
     );
@@ -137,7 +139,7 @@ export default function CompanyDetailPage() {
         actions={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setEditOpen(true)} className="gap-1.5">
-              <Pencil className="h-4 w-4" /> Editar
+              <Pencil className="h-4 w-4" /> {t("companyDetailPage.edit")}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -147,17 +149,17 @@ export default function CompanyDetailPage() {
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>¿Eliminar empresa?</AlertDialogTitle>
-                  <AlertDialogDescription>Esta acción no se puede deshacer. Los contactos y leads vinculados no se eliminarán, pero perderán la asociación.</AlertDialogDescription>
+                  <AlertDialogTitle>{t("companyDetailPage.deleteCompanyTitle")}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("companyDetailPage.deleteCompanyDescription")}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Eliminar</AlertDialogAction>
+                  <AlertDialogCancel>{t("companyDetailPage.cancel")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">{t("companyDetailPage.delete")}</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
             <Button variant="ghost" size="sm" onClick={() => navigate(path("/companies"))} className="gap-1.5">
-              <ArrowLeft className="h-4 w-4" /> Volver
+              <ArrowLeft className="h-4 w-4" /> {t("companyDetailPage.back")}
             </Button>
           </div>
         }
@@ -177,7 +179,7 @@ export default function CompanyDetailPage() {
               </div>
               <div className="space-y-2 text-sm">
                 {company.company_size && (
-                  <div><span className="text-muted-foreground">Tamaño: </span><span className="text-foreground">{company.company_size}</span></div>
+                  <div><span className="text-muted-foreground">{t("companyDetailPage.sizeLabel")}</span><span className="text-foreground">{company.company_size}</span></div>
                 )}
                 {(company.city || company.country) && (
                   <div className="flex items-center gap-1.5">
@@ -197,16 +199,16 @@ export default function CompanyDetailPage() {
               <div className="grid grid-cols-2 gap-3 pt-2">
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-2xl font-bold text-foreground">{contacts.length}</p>
-                  <p className="text-xs text-muted-foreground">Leads</p>
+                  <p className="text-xs text-muted-foreground">{t("companyDetailPage.leads")}</p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-3 text-center">
                   <p className="text-2xl font-bold text-foreground">{deals.length}</p>
-                  <p className="text-xs text-muted-foreground">Leads</p>
+                  <p className="text-xs text-muted-foreground">{t("companyDetailPage.leads")}</p>
                 </div>
               </div>
               <div className="rounded-lg bg-muted/50 p-3 text-center">
                 <p className="text-2xl font-bold text-foreground">${totalDealValue.toLocaleString()}</p>
-                <p className="text-xs text-muted-foreground">Valor total en deals</p>
+                <p className="text-xs text-muted-foreground">{t("companyDetailPage.totalDealValue")}</p>
               </div>
             </CardContent>
           </Card>
@@ -215,7 +217,7 @@ export default function CompanyDetailPage() {
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Users className="h-4 w-4" /> Leads vinculados ({contacts.length})
+                  <Users className="h-4 w-4" /> {t("companyDetailPage.linkedLeads")} ({contacts.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -223,19 +225,19 @@ export default function CompanyDetailPage() {
                   <div key={contact.id} className="flex items-center justify-between rounded-lg border bg-card p-3 hover:bg-muted/30 cursor-pointer transition-colors" onClick={() => navigate(path(`/contacts/${contact.id}`))}>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-foreground">{contact.full_name}</p>
-                      <p className="text-xs text-muted-foreground">{contact.primary_email || contact.primary_phone || "Sin datos de contacto"}</p>
+                      <p className="text-xs text-muted-foreground">{contact.primary_email || contact.primary_phone || t("companyDetailPage.noContactData")}</p>
                     </div>
                     <Badge variant="secondary" className="text-xs capitalize">{contact.status}</Badge>
                   </div>
                 ))}
-                {contacts.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin leads vinculados</p>}
+                {contacts.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">{t("companyDetailPage.noLinkedLeads")}</p>}
               </CardContent>
             </Card>
 
             <Card className="border-none shadow-sm">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <DollarSign className="h-4 w-4" /> Deals vinculados ({deals.length})
+                  <DollarSign className="h-4 w-4" /> {t("companyDetailPage.linkedDeals")} ({deals.length})
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
@@ -249,11 +251,11 @@ export default function CompanyDetailPage() {
                       </div>
                     </div>
                     <Badge variant={deal.status === "won" ? "default" : deal.status === "lost" ? "destructive" : "secondary"} className="text-xs">
-                      {deal.status === "won" ? "Ganado" : deal.status === "lost" ? "Perdido" : "Abierto"}
+                      {deal.status === "won" ? t("companyDetailPage.won") : deal.status === "lost" ? t("companyDetailPage.lost") : t("companyDetailPage.open")}
                     </Badge>
                   </div>
                 ))}
-                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">Sin deals vinculados</p>}
+                {deals.length === 0 && <p className="text-sm text-muted-foreground text-center py-6">{t("companyDetailPage.noLinkedDeals")}</p>}
               </CardContent>
             </Card>
           </div>
@@ -263,30 +265,30 @@ export default function CompanyDetailPage() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar empresa</DialogTitle>
+            <DialogTitle>{t("companyDetailPage.editCompany")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <div>
-              <Label>Nombre *</Label>
+              <Label>{t("companyDetailPage.nameLabel")}</Label>
               <Input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Industria</Label>
+                <Label>{t("companyDetailPage.industry")}</Label>
                 <Input value={editForm.industry} onChange={e => setEditForm(f => ({ ...f, industry: e.target.value }))} />
               </div>
               <div>
-                <Label>Tamaño</Label>
+                <Label>{t("companyDetailPage.size")}</Label>
                 <Input value={editForm.company_size} onChange={e => setEditForm(f => ({ ...f, company_size: e.target.value }))} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Ciudad</Label>
+                <Label>{t("companyDetailPage.city")}</Label>
                 <Input value={editForm.city} onChange={e => setEditForm(f => ({ ...f, city: e.target.value }))} />
               </div>
               <div>
-                <Label>País</Label>
+                <Label>{t("companyDetailPage.country")}</Label>
                 <Input value={editForm.country} onChange={e => setEditForm(f => ({ ...f, country: e.target.value }))} />
               </div>
             </div>
@@ -296,8 +298,8 @@ export default function CompanyDetailPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} disabled={saving || !editForm.name.trim()}>{saving ? "Guardando..." : "Guardar"}</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)}>{t("companyDetailPage.cancel")}</Button>
+            <Button onClick={handleSave} disabled={saving || !editForm.name.trim()}>{saving ? t("companyDetailPage.saving") : t("companyDetailPage.save")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

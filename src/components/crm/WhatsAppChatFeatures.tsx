@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import type { WaTemplateButton } from "@/hooks/useWhatsAppTemplates";
 
@@ -178,28 +179,29 @@ export async function uploadTemplateMedia(file: File, orgId?: string | null): Pr
 export function MediaUploadZone({
   headerType, mediaId, onChange,
 }: { headerType: string; mediaId: string; onChange: (id: string) => void }) {
+  const { t } = useTranslation();
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string>("");
   const inputRef = useRef<HTMLInputElement>(null);
   const accept = headerType === "IMAGE" ? "image/jpeg,image/png,image/webp"
                : headerType === "VIDEO" ? "video/mp4,video/3gpp"
                : "application/pdf";
-  const label = headerType === "IMAGE" ? "imagen" : headerType === "VIDEO" ? "video" : "documento";
+  const label = headerType === "IMAGE" ? t("whatsAppChatFeatures.imageLower") : headerType === "VIDEO" ? t("whatsAppChatFeatures.videoLower") : t("whatsAppChatFeatures.documentLower");
   const maxMb = headerType === "VIDEO" ? 16 : 5;
 
   const handleFile = async (file: File) => {
-    if (file.size > maxMb * 1024 * 1024) { toast.error(`Máximo ${maxMb}MB`); return; }
+    if (file.size > maxMb * 1024 * 1024) { toast.error(t("whatsAppChatFeatures.maxSize", { size: maxMb })); return; }
     const localPreview = URL.createObjectURL(file);
     setPreview(localPreview);
     setUploading(true);
     try {
       const id = await uploadTemplateMedia(file);
       onChange(id);
-      toast.success("Listo ✓");
+      toast.success(t("whatsAppChatFeatures.uploadDone"));
     } catch (e: any) {
       setPreview("");
       onChange("");
-      toast.error("Error al subir: " + e.message);
+      toast.error(t("whatsAppChatFeatures.uploadError", { message: e.message }));
     } finally {
       setUploading(false);
     }
@@ -207,7 +209,7 @@ export function MediaUploadZone({
 
   return (
     <div className="space-y-1.5">
-      <Label>{headerType === "IMAGE" ? "Imagen" : headerType === "VIDEO" ? "Video" : "Documento"} <span className="text-red-500">*</span></Label>
+      <Label>{headerType === "IMAGE" ? t("whatsAppChatFeatures.image") : headerType === "VIDEO" ? t("whatsAppChatFeatures.video") : t("whatsAppChatFeatures.document")} <span className="text-red-500">*</span></Label>
       <div
         className={cn(
           "border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors",
@@ -222,7 +224,7 @@ export function MediaUploadZone({
         {uploading ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Subiendo...</p>
+            <p className="text-xs text-muted-foreground">{t("whatsAppChatFeatures.uploading")}</p>
           </div>
         ) : preview && mediaId ? (
           <div className="space-y-1.5">
@@ -232,13 +234,13 @@ export function MediaUploadZone({
               <video src={preview} className="max-h-28 mx-auto rounded" controls />
             )}
             <p className="text-xs text-green-600 font-medium flex items-center justify-center gap-1">
-              <Check className="h-3 w-3" /> Listo — haz clic para cambiar
+              <Check className="h-3 w-3" /> {t("whatsAppChatFeatures.doneClickToChange")}
             </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1.5 py-2">
             <div className="text-2xl">{headerType === "IMAGE" ? "🖼" : headerType === "VIDEO" ? "🎬" : "📄"}</div>
-            <p className="text-sm font-medium">Haz clic o arrastra tu {label} aquí</p>
+            <p className="text-sm font-medium">{t("whatsAppChatFeatures.clickOrDrag", { label })}</p>
             <p className="text-xs text-muted-foreground">
               {headerType === "IMAGE" ? "JPG, PNG, WebP" : headerType === "VIDEO" ? "MP4, 3GPP" : "PDF"} · máx. {maxMb}MB
             </p>
@@ -258,6 +260,7 @@ export function TemplatePicker({
   onSend: (name: string, lang: string, vars: string[], mediaId: string) => void;
   sending: boolean;
 }) {
+  const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
   const approved = templates.filter((t) => t.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
@@ -283,12 +286,12 @@ export function TemplatePicker({
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>Enviar plantilla</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("whatsAppChatFeatures.sendTemplate")}</DialogTitle></DialogHeader>
         <div className="space-y-4 py-1">
           <div className="space-y-1.5">
-            <Label>Plantilla aprobada</Label>
+            <Label>{t("whatsAppChatFeatures.approvedTemplate")}</Label>
             <Select value={selected} onValueChange={setSelected}>
-              <SelectTrigger><SelectValue placeholder="Selecciona una plantilla..." /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("whatsAppChatFeatures.selectTemplatePlaceholder")} /></SelectTrigger>
               <SelectContent>
                 {approved.map((t) => (
                   <SelectItem key={t.name} value={t.name}>
@@ -297,7 +300,7 @@ export function TemplatePicker({
                 ))}
               </SelectContent>
             </Select>
-            {approved.length === 0 && <p className="text-xs text-muted-foreground">No hay plantillas aprobadas.</p>}
+            {approved.length === 0 && <p className="text-xs text-muted-foreground">{t("whatsAppChatFeatures.noApprovedTemplates")}</p>}
           </div>
 
           {needsMedia && (
@@ -306,12 +309,12 @@ export function TemplatePicker({
 
           {tpl && varNums.length > 0 && (
             <div className="space-y-2">
-              <Label>Variables</Label>
+              <Label>{t("whatsAppChatFeatures.variables")}</Label>
               {varNums.map((n, i) => (
                 <div key={n} className="flex items-center gap-2">
                   <span className="font-mono text-xs text-muted-foreground w-8 shrink-0">{`{{${n}}}`}</span>
                   <Input
-                    placeholder={`Valor para {{${n}}}`}
+                    placeholder={t("whatsAppChatFeatures.valueForVariable", { variable: `{{${n}}}` })}
                     value={vars[i] || ""}
                     onChange={(e) => setVars((v) => { const nv = [...v]; nv[i] = e.target.value; return nv; })}
                     className="h-8 text-sm"
@@ -327,7 +330,7 @@ export function TemplatePicker({
                 {tpl.header_text && <p className="font-bold text-xs">{tpl.header_text}</p>}
                 {needsMedia && (
                   <div className="bg-gray-100 rounded p-1.5 text-center text-xs text-muted-foreground">
-                    {tpl.header_type === "IMAGE" ? "🖼 Imagen" : tpl.header_type === "VIDEO" ? "🎬 Video" : "📄 Documento"}
+                    {tpl.header_type === "IMAGE" ? `🖼 ${t("whatsAppChatFeatures.image")}` : tpl.header_type === "VIDEO" ? `🎬 ${t("whatsAppChatFeatures.video")}` : `📄 ${t("whatsAppChatFeatures.document")}`}
                   </div>
                 )}
                 <p className="whitespace-pre-wrap text-sm">{preview}</p>
@@ -342,9 +345,9 @@ export function TemplatePicker({
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancelar</Button>
+          <Button variant="outline" onClick={onClose}>{t("whatsAppChatFeatures.cancel")}</Button>
           <Button disabled={!canSend || sending} onClick={() => tpl && onSend(tpl.name, tpl.language, vars, mediaId)}>
-            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</> : <><Send className="h-4 w-4 mr-1" />Enviar</>}
+            {sending ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppChatFeatures.sending")}</> : <><Send className="h-4 w-4 mr-1" />{t("whatsAppChatFeatures.send")}</>}
           </Button>
         </DialogFooter>
       </DialogContent>

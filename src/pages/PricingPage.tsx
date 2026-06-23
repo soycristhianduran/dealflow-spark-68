@@ -19,6 +19,7 @@ import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTranslation } from "react-i18next";
 
 type Plan = {
   id: "starter" | "pro" | "business" | "agency";
@@ -49,10 +50,11 @@ type Plan = {
   feature_priority_support: boolean;
 };
 
-const formatLimit = (n: number | null) =>
-  n === null ? "Ilimitado" : n.toLocaleString("es-CO");
+const formatLimit = (n: number | null, unlimitedLabel: string) =>
+  n === null ? unlimitedLabel : n.toLocaleString("es-CO");
 
 export default function PricingPage() {
+  const { t } = useTranslation();
   const { session } = useAuth();
   const navigate = useNavigate();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -83,9 +85,7 @@ export default function PricingPage() {
       : plan.stripe_price_id_annual;
 
     if (!priceId) {
-      toast.error(
-        "Este plan aún no está disponible para comprar. Estamos configurando el pago, vuelve en un momento."
-      );
+      toast.error(t("pricingPage.planNotAvailable"));
       return;
     }
 
@@ -100,7 +100,7 @@ export default function PricingPage() {
         },
       });
       if (error || !data?.url) {
-        toast.error("No se pudo iniciar el pago. Intenta de nuevo.");
+        toast.error(t("pricingPage.checkoutFailed"));
         return;
       }
       window.location.href = data.url;
@@ -121,15 +121,15 @@ export default function PricingPage() {
           <div className="flex items-center gap-3">
             {session ? (
               <Button asChild variant="outline" size="sm">
-                <Link to="/">Ir al dashboard</Link>
+                <Link to="/">{t("pricingPage.goToDashboard")}</Link>
               </Button>
             ) : (
               <>
                 <Button asChild variant="ghost" size="sm">
-                  <Link to="/auth">Iniciar sesión</Link>
+                  <Link to="/auth">{t("pricingPage.login")}</Link>
                 </Button>
                 <Button asChild size="sm">
-                  <Link to="/auth">Empezar gratis →</Link>
+                  <Link to="/auth">{t("pricingPage.startFree")}</Link>
                 </Button>
               </>
             )}
@@ -141,10 +141,9 @@ export default function PricingPage() {
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-10 space-y-3">
-          <h1 className="text-4xl font-bold">Precios simples, sin sorpresas</h1>
+          <h1 className="text-4xl font-bold">{t("pricingPage.heading")}</h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Empieza con 7 días gratis del plan Pro. Sin tarjeta de crédito.
-            Cancela cuando quieras.
+            {t("pricingPage.subheading")}
           </p>
 
           {/* Monthly / Annual toggle */}
@@ -155,7 +154,7 @@ export default function PricingPage() {
                 billingInterval === "month" ? "bg-background shadow" : "text-muted-foreground"
               }`}
             >
-              Mensual
+              {t("pricingPage.monthly")}
             </button>
             <button
               onClick={() => setBillingInterval("year")}
@@ -163,13 +162,13 @@ export default function PricingPage() {
                 billingInterval === "year" ? "bg-background shadow" : "text-muted-foreground"
               }`}
             >
-              Anual <Badge variant="secondary" className="ml-1">2 meses gratis</Badge>
+              {t("pricingPage.annual")} <Badge variant="secondary" className="ml-1">{t("pricingPage.twoMonthsFree")}</Badge>
             </button>
           </div>
         </div>
 
         {loading ? (
-          <p className="text-center text-muted-foreground">Cargando planes...</p>
+          <p className="text-center text-muted-foreground">{t("pricingPage.loadingPlans")}</p>
         ) : (
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-5xl mx-auto">
             {plans.map((plan) => {
@@ -202,7 +201,7 @@ export default function PricingPage() {
                               "linear-gradient(90deg, hsl(24 95% 53%), hsl(351 84% 56%))",
                           }}
                         >
-                          ⚡ Más popular
+                          {t("pricingPage.mostPopular")}
                         </div>
                       </div>
                     </>
@@ -214,11 +213,11 @@ export default function PricingPage() {
                         ${price.toFixed(0)}
                       </span>
                       <span className="text-muted-foreground ml-1">
-                        {billingInterval === "month" ? "/mes" : "/año"}
+                        {billingInterval === "month" ? t("pricingPage.perMonth") : t("pricingPage.perYear")}
                       </span>
                       {billingInterval === "year" && (
                         <p className="text-xs text-muted-foreground mt-1">
-                          ≈ ${monthlyEffective.toFixed(0)} USD/mes
+                          {t("pricingPage.approxMonthly", { amount: monthlyEffective.toFixed(0) })}
                         </p>
                       )}
                     </div>
@@ -235,35 +234,35 @@ export default function PricingPage() {
                       } : undefined}
                     >
                       {submitting === plan.id ? (
-                        "Procesando..."
+                        t("pricingPage.processing")
                       ) : !session ? (
-                        <>Empezar prueba gratis <ArrowRight className="h-4 w-4 ml-1" /></>
+                        <>{t("pricingPage.startFreeTrial")} <ArrowRight className="h-4 w-4 ml-1" /></>
                       ) : (
-                        "Elegir este plan"
+                        t("pricingPage.choosePlan")
                       )}
                     </Button>
 
                     <ul className="space-y-2 text-sm pt-2">
                       <FeatureRow ok>
-                        {plan.max_users === null ? "Usuarios ilimitados" : `${plan.max_users} usuario${plan.max_users > 1 ? "s" : ""}`}
+                        {plan.max_users === null ? t("pricingPage.unlimitedUsers") : t("pricingPage.usersCount", { count: plan.max_users })}
                       </FeatureRow>
-                      <FeatureRow ok>{formatLimit(plan.max_contacts)} contactos</FeatureRow>
-                      <FeatureRow ok>{formatLimit(plan.max_active_deals)} deals activos</FeatureRow>
+                      <FeatureRow ok>{t("pricingPage.contactsLine", { count: formatLimit(plan.max_contacts, t("pricingPage.unlimited")) })}</FeatureRow>
+                      <FeatureRow ok>{t("pricingPage.activeDealsLine", { count: formatLimit(plan.max_active_deals, t("pricingPage.unlimited")) })}</FeatureRow>
                       <FeatureRow ok>
                         {plan.max_wa_accounts === null
-                          ? "Cuentas ilimitadas de WhatsApp, Instagram y Meta"
-                          : `${plan.max_wa_accounts} cuenta${plan.max_wa_accounts > 1 ? "s" : ""} por canal: WhatsApp, Instagram y Meta`}
+                          ? t("pricingPage.unlimitedChannelAccounts")
+                          : t("pricingPage.channelAccountsCount", { count: plan.max_wa_accounts })}
                       </FeatureRow>
-                      <FeatureRow ok>{formatLimit(plan.max_published_landings)} landing pages publicadas</FeatureRow>
-                      <FeatureRow ok>{formatLimit(plan.max_automation_flows)} flujos de automatización</FeatureRow>
+                      <FeatureRow ok>{t("pricingPage.landingPagesLine", { count: formatLimit(plan.max_published_landings, t("pricingPage.unlimited")) })}</FeatureRow>
+                      <FeatureRow ok>{t("pricingPage.automationFlowsLine", { count: formatLimit(plan.max_automation_flows, t("pricingPage.unlimited")) })}</FeatureRow>
                       <FeatureRow ok>
-                        WhatsApp ilimitado <span className="text-muted-foreground">(mensajes y automatizaciones)</span>
+                        {t("pricingPage.unlimitedWhatsapp")} <span className="text-muted-foreground">{t("pricingPage.unlimitedWhatsappNote")}</span>
                       </FeatureRow>
 
                       <FeatureRow ok={plan.feature_email_campaigns}>
-                        Email marketing
+                        {t("pricingPage.emailMarketing")}
                         {plan.feature_email_campaigns && plan.monthly_email_sends !== null && (
-                          <span className="text-muted-foreground"> · {formatLimit(plan.monthly_email_sends)} emails/mes</span>
+                          <span className="text-muted-foreground"> {t("pricingPage.emailsPerMonth", { count: formatLimit(plan.monthly_email_sends, t("pricingPage.unlimited")) })}</span>
                         )}
                       </FeatureRow>
 
@@ -271,40 +270,40 @@ export default function PricingPage() {
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_agent_credits === null
-                            ? "Agente de Chat IA"
-                            : `${formatLimit(plan.monthly_ai_agent_credits)} créditos Agente de Chat IA/mes`}
+                            ? t("pricingPage.aiChatAgent")
+                            : t("pricingPage.aiChatAgentCredits", { count: formatLimit(plan.monthly_ai_agent_credits, t("pricingPage.unlimited")) })}
                         </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.monthly_ai_assistant !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_assistant === null
-                            ? "Sin asistente IA"
-                            : `${formatLimit(plan.monthly_ai_assistant)} usos del Asistente IA/mes`}
+                            ? t("pricingPage.noAiAssistant")
+                            : t("pricingPage.aiAssistantUses", { count: formatLimit(plan.monthly_ai_assistant, t("pricingPage.unlimited")) })}
                         </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.monthly_ai_analyses !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_analyses === null
-                            ? "Análisis IA con IA Boost"
-                            : `${formatLimit(plan.monthly_ai_analyses)} análisis de contactos IA/mes`}
+                            ? t("pricingPage.aiAnalysisWithBoost")
+                            : t("pricingPage.aiContactAnalyses", { count: formatLimit(plan.monthly_ai_analyses, t("pricingPage.unlimited")) })}
                         </span>
                       </FeatureRow>
                       <FeatureRow ok={plan.monthly_ai_objections !== null}>
                         <span className="flex items-center gap-1">
                           <Sparkles className="h-3.5 w-3.5 text-amber-500" />
                           {plan.monthly_ai_objections === null
-                            ? "Detección de objeciones con IA Boost"
-                            : `${formatLimit(plan.monthly_ai_objections)} detecciones de objeción/mes`}
+                            ? t("pricingPage.objectionDetectionWithBoost")
+                            : t("pricingPage.objectionDetections", { count: formatLimit(plan.monthly_ai_objections, t("pricingPage.unlimited")) })}
                         </span>
                       </FeatureRow>
 
-                      <FeatureRow ok={plan.feature_ig_automations}>Automatizaciones de Instagram</FeatureRow>
-                      <FeatureRow ok={plan.feature_meta_ads}>Dashboard de Meta Ads</FeatureRow>
-                      <FeatureRow ok={plan.feature_api_access}>Acceso a la API</FeatureRow>
+                      <FeatureRow ok={plan.feature_ig_automations}>{t("pricingPage.instagramAutomations")}</FeatureRow>
+                      <FeatureRow ok={plan.feature_meta_ads}>{t("pricingPage.metaAdsDashboard")}</FeatureRow>
+                      <FeatureRow ok={plan.feature_api_access}>{t("pricingPage.apiAccess")}</FeatureRow>
                       <FeatureRow ok={plan.feature_priority_support}>
-                        Soporte prioritario + onboarding 1-a-1
+                        {t("pricingPage.prioritySupport")}
                       </FeatureRow>
                     </ul>
                   </CardContent>
@@ -316,57 +315,57 @@ export default function PricingPage() {
 
         {/* AI Boost mention */}
         <div className="text-center mt-10 text-sm text-muted-foreground">
-          ¿Necesitas más análisis IA?{" "}
+          {t("pricingPage.needMoreAi")}{" "}
           <button
             onClick={() => session ? navigate("/billing") : navigate("/auth")}
             className="underline hover:text-foreground transition-colors"
           >
-            IA Boost desde $19
+            {t("pricingPage.aiBoostFrom")}
           </button>
-          {" "}— compra paquetes adicionales cuando tu plan llegue al límite.
+          {" "}{t("pricingPage.aiBoostNote")}
         </div>
 
         {/* Comparison to competitors */}
         <Card className="mt-10">
           <CardHeader>
-            <CardTitle>Compáranos con Kommo, Pipedrive y HubSpot</CardTitle>
+            <CardTitle>{t("pricingPage.comparisonTitle")}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    <th className="py-2">CRM</th>
-                    <th className="py-2">Plan equivalente (3 usuarios)</th>
-                    <th className="py-2 text-right">Costo mensual</th>
+                    <th className="py-2">{t("pricingPage.colCrm")}</th>
+                    <th className="py-2">{t("pricingPage.colEquivalentPlan")}</th>
+                    <th className="py-2 text-right">{t("pricingPage.colMonthlyCost")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr className="border-b bg-primary/5">
                     <td className="py-2 font-semibold">Klosify CRM Pro</td>
-                    <td className="py-2">3 usuarios incluidos + IA nativa</td>
+                    <td className="py-2">{t("pricingPage.klosifyEquivalent")}</td>
                     <td className="py-2 text-right font-bold text-primary">$59 USD</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-2">Kommo Advanced</td>
-                    <td className="py-2">$25/usuario × 3 (AI extra)</td>
+                    <td className="py-2">{t("pricingPage.kommoEquivalent")}</td>
                     <td className="py-2 text-right">$75 USD</td>
                   </tr>
                   <tr className="border-b">
                     <td className="py-2">HubSpot Sales Starter</td>
-                    <td className="py-2">$20/usuario × 3 (sin AI)</td>
+                    <td className="py-2">{t("pricingPage.hubspotEquivalent")}</td>
                     <td className="py-2 text-right">$60 USD</td>
                   </tr>
                   <tr>
                     <td className="py-2">Pipedrive Professional</td>
-                    <td className="py-2">$39/usuario × 3 (sin WhatsApp)</td>
+                    <td className="py-2">{t("pricingPage.pipedriveEquivalent")}</td>
                     <td className="py-2 text-right">$117 USD</td>
                   </tr>
                 </tbody>
               </table>
             </div>
             <p className="text-xs text-muted-foreground mt-3">
-              Precios públicos de cada competidor al momento de publicar esta página. Con WhatsApp + IA nativa incluidos, igualas o superas su funcionalidad por menos: hasta $58 USD/mes de ahorro frente a Pipedrive.
+              {t("pricingPage.comparisonFootnote")}
             </p>
           </CardContent>
         </Card>

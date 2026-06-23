@@ -12,22 +12,23 @@ import { Upload, FileSpreadsheet, Loader2, CheckCircle2, ArrowRight, ArrowLeft, 
 import { TagPicker } from "@/components/TagPicker";
 import { Badge } from "@/components/ui/badge";
 import { ImportLoader } from "@/components/crm/ImportLoader";
+import { useTranslation } from "react-i18next";
 
 // CRM fields a CSV column can map to.
-const FIELDS: { value: string; label: string }[] = [
-  { value: "_ignore", label: "— Ignorar —" },
-  { value: "first_name", label: "Nombre" },
-  { value: "last_name", label: "Apellido" },
-  { value: "full_name", label: "Nombre completo" },
-  { value: "primary_email", label: "Email" },
-  { value: "primary_phone", label: "Teléfono / WhatsApp" },
-  { value: "company_name", label: "Empresa" },
-  { value: "city", label: "Ciudad" },
-  { value: "country", label: "País" },
-  { value: "source", label: "Origen" },
-  { value: "notes", label: "Notas" },
-  { value: "birthday", label: "Cumpleaños (AAAA-MM-DD)" },
-  { value: "tags", label: "Etiquetas (separadas por ;)" },
+const FIELDS: { value: string; labelKey: string }[] = [
+  { value: "_ignore", labelKey: "fieldIgnore" },
+  { value: "first_name", labelKey: "fieldFirstName" },
+  { value: "last_name", labelKey: "fieldLastName" },
+  { value: "full_name", labelKey: "fieldFullName" },
+  { value: "primary_email", labelKey: "fieldEmail" },
+  { value: "primary_phone", labelKey: "fieldPhone" },
+  { value: "company_name", labelKey: "fieldCompany" },
+  { value: "city", labelKey: "fieldCity" },
+  { value: "country", labelKey: "fieldCountry" },
+  { value: "source", labelKey: "fieldSource" },
+  { value: "notes", labelKey: "fieldNotes" },
+  { value: "birthday", labelKey: "fieldBirthday" },
+  { value: "tags", labelKey: "fieldTags" },
 ];
 
 const ALIASES: Record<string, string[]> = {
@@ -96,6 +97,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   onOpenChange: (v: boolean) => void;
   onImported?: () => void;
 }) {
+  const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const fileRef = useRef<HTMLInputElement>(null);
   const [step, setStep] = useState<"upload" | "map" | "done">("upload");
@@ -147,7 +149,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const handleFile = async (file: File) => {
     try {
       const parsed = await parseFile(file);
-      if (parsed.length < 2) { toast.error("El archivo no tiene datos suficientes."); return; }
+      if (parsed.length < 2) { toast.error(t("importContactsDialog.errNotEnoughData")); return; }
       const hdr = parsed[0].map(h => h.trim());
       setHeaders(hdr);
       setRows(parsed.slice(1));
@@ -156,7 +158,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       setMapping(m);
       setStep("map");
     } catch (_) {
-      toast.error("No se pudo leer el archivo. Usa un CSV o Excel (.xlsx) válido.");
+      toast.error(t("importContactsDialog.errReadFile"));
     }
   };
 
@@ -164,7 +166,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
   const hasEmailOrPhone = mappedFields.includes("primary_email") || mappedFields.includes("primary_phone");
 
   const handleImport = async () => {
-    if (!organizationId) { toast.error("No se encontró la organización."); return; }
+    if (!organizationId) { toast.error(t("importContactsDialog.errNoOrganization")); return; }
     setImporting(true);
     try {
       // Build contact objects from rows using the column mapping.
@@ -283,7 +285,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       }
 
       setProgress({ done: totalOps, total: totalOps, finished: true, created, updated });
-      toast.success(`Importación completada: ${created} nuevos · ${updated} actualizados`);
+      toast.success(t("importContactsDialog.importCompletedToast", { created, updated }));
 
       setResult({
         created, updated,
@@ -294,7 +296,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       setStep("done");
       onImported?.();
     } catch (e: any) {
-      toast.error(e.message || "Error al importar");
+      toast.error(e.message || t("importContactsDialog.errImport"));
     } finally {
       setImporting(false);
     }
@@ -318,22 +320,21 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" /> Importar contactos
+            <FileSpreadsheet className="h-5 w-5" /> {t("importContactsDialog.title")}
           </DialogTitle>
         </DialogHeader>
 
         {step === "upload" && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Sube un archivo <strong>CSV</strong> o <strong>Excel (.xlsx)</strong> con tus contactos. En el
-              siguiente paso relacionas cada columna con su campo y eliges el pipeline destino.
+              {t("importContactsDialog.uploadIntro")}
             </p>
             <button
               onClick={() => fileRef.current?.click()}
               className="w-full border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-2 hover:border-primary/50 hover:bg-muted/40 transition-colors"
             >
               <Upload className="h-8 w-8 text-muted-foreground" />
-              <span className="text-sm font-medium">Haz clic para subir CSV o Excel</span>
+              <span className="text-sm font-medium">{t("importContactsDialog.uploadButton")}</span>
               <span className="text-xs text-muted-foreground">.csv · .xlsx · .xls</span>
             </button>
             <input
@@ -344,7 +345,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
               onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
             />
             <p className="text-xs text-muted-foreground">
-              Tip: la primera fila debe tener los nombres de las columnas (ej. Nombre, Email, Teléfono).
+              {t("importContactsDialog.uploadTip")}
             </p>
           </div>
         )}
@@ -353,32 +354,32 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           <div className="space-y-4">
             {/* Destination for the imported leads */}
             <div className="rounded-lg border bg-muted/30 p-3 space-y-3">
-              <p className="text-xs font-semibold text-muted-foreground">DESTINO DE LOS LEADS</p>
+              <p className="text-xs font-semibold text-muted-foreground">{t("importContactsDialog.leadsDestination")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <Label className="text-xs">Pipeline</Label>
+                  <Label className="text-xs">{t("importContactsDialog.pipelineLabel")}</Label>
                   <Select value={pipelineId} onValueChange={setPipelineId}>
-                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Elige pipeline" /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder={t("importContactsDialog.pipelinePlaceholder")} /></SelectTrigger>
                     <SelectContent>
                       {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Etapa</Label>
+                  <Label className="text-xs">{t("importContactsDialog.stageLabel")}</Label>
                   <Select value={stageId} onValueChange={setStageId} disabled={!pipelineStages.length}>
-                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Elige etapa" /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder={t("importContactsDialog.stagePlaceholder")} /></SelectTrigger>
                     <SelectContent>
                       {pipelineStages.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-xs">Vendedor (opcional)</Label>
+                  <Label className="text-xs">{t("importContactsDialog.ownerLabel")}</Label>
                   <Select value={ownerId || "_none"} onValueChange={(v) => setOwnerId(v === "_none" ? "" : v)}>
-                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                    <SelectTrigger className="h-9 text-sm mt-1"><SelectValue placeholder={t("importContactsDialog.ownerPlaceholder")} /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="_none">Sin asignar</SelectItem>
+                      <SelectItem value="_none">{t("importContactsDialog.ownerUnassigned")}</SelectItem>
                       {members.map(m => <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -387,7 +388,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
 
               {/* Tags applied to every imported lead */}
               <div>
-                <Label className="text-xs">Etiquetas para todos los leads importados (opcional)</Label>
+                <Label className="text-xs">{t("importContactsDialog.tagsForAllLabel")}</Label>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
                   {importTags.map(t => (
                     <Badge key={t} variant="secondary" className="gap-1 py-1">
@@ -398,33 +399,33 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
                   <div className="w-[200px]">
                     <TagPicker
                       value=""
-                      placeholder="+ Agregar etiqueta"
+                      placeholder={t("importContactsDialog.addTagPlaceholder")}
                       onChange={(t) => { if (t && !importTags.includes(t)) setImportTags([...importTags, t]); }}
                     />
                   </div>
                 </div>
               </div>
 
-              <p className="text-[11px] text-muted-foreground">El pipeline/etapa/vendedor solo aplica a leads NUEVOS (los existentes no se mueven). Las etiquetas se agregan a TODOS (nuevos y existentes).</p>
+              <p className="text-[11px] text-muted-foreground">{t("importContactsDialog.destinationNote")}</p>
             </div>
 
             <p className="text-sm text-muted-foreground">
-              {rows.length} fila(s) detectada(s). Relaciona cada columna de tu archivo con un campo del CRM:
+              {t("importContactsDialog.rowsDetected", { count: rows.length })}
             </p>
             <div className="space-y-2 max-h-[45vh] overflow-y-auto pr-1">
               {headers.map((h, i) => (
                 <div key={i} className="flex items-center gap-3 rounded-lg border p-2.5">
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{h || `Columna ${i + 1}`}</p>
+                    <p className="text-sm font-medium truncate">{h || t("importContactsDialog.columnFallback", { number: i + 1 })}</p>
                     <p className="text-xs text-muted-foreground truncate">
-                      ej. {rows[0]?.[i] || "—"}
+                      {t("importContactsDialog.examplePrefix", { value: rows[0]?.[i] || "—" })}
                     </p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
                   <Select value={mapping[i] ?? "_ignore"} onValueChange={(v) => setMapping(m => ({ ...m, [i]: v }))}>
                     <SelectTrigger className="w-48 shrink-0"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {FIELDS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                      {FIELDS.map(f => <SelectItem key={f.value} value={f.value}>{t(`importContactsDialog.${f.labelKey}`)}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -432,16 +433,16 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
             </div>
             {!hasEmailOrPhone && (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-                Debes mapear al menos <strong>Email</strong> o <strong>Teléfono</strong> para identificar a cada contacto.
+                {t("importContactsDialog.mapEmailOrPhoneWarning")}
               </div>
             )}
             <div className="flex justify-between gap-2 pt-2">
               <Button variant="outline" onClick={() => setStep("upload")} className="gap-2">
-                <ArrowLeft className="h-4 w-4" /> Atrás
+                <ArrowLeft className="h-4 w-4" /> {t("importContactsDialog.back")}
               </Button>
               <Button onClick={handleImport} disabled={importing || !hasEmailOrPhone} className="gap-2">
                 {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                Importar {rows.length} contacto(s)
+                {t("importContactsDialog.importButton", { count: rows.length })}
               </Button>
             </div>
           </div>
@@ -451,23 +452,23 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           <div className="space-y-4 text-center py-4">
             <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
             <div>
-              <p className="text-lg font-semibold">¡Importación completada!</p>
+              <p className="text-lg font-semibold">{t("importContactsDialog.doneTitle")}</p>
               <div className="text-sm text-muted-foreground mt-2 space-y-0.5">
-                <p><strong className="text-foreground">{result.total}</strong> filas leídas del archivo</p>
-                <p><strong className="text-emerald-600">{result.created}</strong> contactos nuevos creados</p>
-                <p><strong className="text-blue-600">{result.updated}</strong> contactos existentes actualizados</p>
-                {result.duplicates > 0 && <p><strong className="text-purple-600">{result.duplicates}</strong> duplicados dentro del archivo (mismo email/teléfono)</p>}
-                {result.skipped > 0 && <p><strong className="text-amber-600">{result.skipped}</strong> filas omitidas (sin email NI teléfono)</p>}
+                <p><strong className="text-foreground">{result.total}</strong> {t("importContactsDialog.resultRowsRead")}</p>
+                <p><strong className="text-emerald-600">{result.created}</strong> {t("importContactsDialog.resultCreated")}</p>
+                <p><strong className="text-blue-600">{result.updated}</strong> {t("importContactsDialog.resultUpdated")}</p>
+                {result.duplicates > 0 && <p><strong className="text-purple-600">{result.duplicates}</strong> {t("importContactsDialog.resultDuplicates")}</p>}
+                {result.skipped > 0 && <p><strong className="text-amber-600">{result.skipped}</strong> {t("importContactsDialog.resultSkipped")}</p>}
               </div>
               {result.skipped > result.created + result.updated && (
                 <div className="mt-3 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 p-2.5 text-[11px] text-amber-800 dark:text-amber-300 text-left">
-                  ⚠️ Se omitieron muchas filas por no tener email ni teléfono. Si tu archivo SÍ tiene teléfonos, vuelve a importar y en el paso de mapeo asegúrate de relacionar la columna del teléfono con <b>"Teléfono"</b> (a veces el encabezado no se detecta solo).
+                  {t("importContactsDialog.manySkippedWarning")}
                 </div>
               )}
             </div>
             <div className="flex justify-center gap-2">
-              <Button variant="outline" onClick={reset}>Importar otro archivo</Button>
-              <Button onClick={() => { onOpenChange(false); reset(); }}>Cerrar</Button>
+              <Button variant="outline" onClick={reset}>{t("importContactsDialog.importAnother")}</Button>
+              <Button onClick={() => { onOpenChange(false); reset(); }}>{t("importContactsDialog.close")}</Button>
             </div>
           </div>
         )}

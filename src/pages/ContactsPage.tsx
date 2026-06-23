@@ -30,6 +30,7 @@ import { ImportContactsDialog } from "@/components/crm/ImportContactsDialog";
 import { TemplatePicker } from "@/components/whatsapp/TemplatePicker";
 import { usePermissions } from "@/hooks/usePermissions";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import type { ContactStatus } from "@/types/crm";
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "outline" | "destructive" }> = {
@@ -40,36 +41,36 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   lost: { label: "Perdido", variant: "destructive" },
 };
 
-const leadStatusFilters: { value: string; label: string; color?: string }[] = [
-  { value: 'all',        label: 'Todos' },
-  { value: 'active',     label: 'Activos',      color: 'text-blue-600' },
-  { value: 'won',        label: 'Ganados',       color: 'text-green-600' },
-  { value: 'lost',       label: 'Perdidos',      color: 'text-red-500' },
-  { value: 'unassigned', label: 'Sin asignar',   color: 'text-muted-foreground' },
+const leadStatusFilters: { value: string; labelKey: string; color?: string }[] = [
+  { value: 'all',        labelKey: 'filterAll' },
+  { value: 'active',     labelKey: 'filterActive',      color: 'text-blue-600' },
+  { value: 'won',        labelKey: 'filterWon',       color: 'text-green-600' },
+  { value: 'lost',       labelKey: 'filterLost',      color: 'text-red-500' },
+  { value: 'unassigned', labelKey: 'filterUnassigned',   color: 'text-muted-foreground' },
 ];
 
 
 const FIELD_OPTIONS = [
-  { value: "source", label: "Origen" },
-  { value: "city", label: "Ciudad" },
-  { value: "country", label: "País" },
-  { value: "preferred_channel", label: "Canal preferido" },
-  { value: "score", label: "Actividad CRM" },
+  { value: "source", labelKey: "fieldSource" },
+  { value: "city", labelKey: "fieldCity" },
+  { value: "country", labelKey: "fieldCountry" },
+  { value: "preferred_channel", labelKey: "fieldPreferredChannel" },
+  { value: "score", labelKey: "fieldCrmActivity" },
 ];
 
 const CHANNEL_OPTIONS = ["whatsapp", "email", "phone", "sms"];
 const SOURCE_OPTIONS = ["Facebook Ads", "Google Ads", "WhatsApp", "Referral", "Landing Page", "Instagram", "Otro"];
 
 const COLUMN_DEFS = [
-  { key: "phone",       label: "Teléfono",  defaultWidth: 155, defaultVisible: true,  adminOnly: false },
-  { key: "email",       label: "Email",     defaultWidth: 200, defaultVisible: false, adminOnly: false },
-  { key: "company",     label: "Empresa",   defaultWidth: 160, defaultVisible: false, adminOnly: false },
-  { key: "source",      label: "Origen",    defaultWidth: 150, defaultVisible: true,  adminOnly: false },
-  { key: "stage",       label: "Etapa",     defaultWidth: 155, defaultVisible: true,  adminOnly: false },
-  { key: "activity",    label: "Actividad", defaultWidth: 90,  defaultVisible: true,  adminOnly: false },
-  { key: "lead_status", label: "Estado",    defaultWidth: 115, defaultVisible: false, adminOnly: false },
-  { key: "vendor",      label: "Vendedor",  defaultWidth: 155, defaultVisible: true,  adminOnly: true  },
-  { key: "tags",        label: "Tags",      defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+  { key: "phone",       labelKey: "colPhone",    defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+  { key: "email",       labelKey: "colEmail",    defaultWidth: 200, defaultVisible: false, adminOnly: false },
+  { key: "company",     labelKey: "colCompany",  defaultWidth: 160, defaultVisible: false, adminOnly: false },
+  { key: "source",      labelKey: "colSource",   defaultWidth: 150, defaultVisible: true,  adminOnly: false },
+  { key: "stage",       labelKey: "colStage",    defaultWidth: 155, defaultVisible: true,  adminOnly: false },
+  { key: "activity",    labelKey: "colActivity", defaultWidth: 90,  defaultVisible: true,  adminOnly: false },
+  { key: "lead_status", labelKey: "colStatus",   defaultWidth: 115, defaultVisible: false, adminOnly: false },
+  { key: "vendor",      labelKey: "colVendor",   defaultWidth: 155, defaultVisible: true,  adminOnly: true  },
+  { key: "tags",        labelKey: "colTags",     defaultWidth: 155, defaultVisible: true,  adminOnly: false },
 ] as const;
 type ColKey = typeof COLUMN_DEFS[number]["key"];
 
@@ -104,6 +105,7 @@ const PAGE_SIZE_OPTIONS = [25, 50, 100, 200] as const;
 const SELECT_ALL_CAP = 50000; // safety cap for "select all across pages"
 
 export default function ContactsPage() {
+  const { t } = useTranslation();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all"); // lead_status filter
   const [scoreFilter, setScoreFilter] = useState("all");   // hot / warm / cold / all
@@ -515,16 +517,16 @@ export default function ContactsPage() {
     setBulkWorking(true);
     for (const part of chunkIds([...selected])) {
       const { error } = await supabase.from("contacts").delete().in("id", part);
-      if (error) { toast.error("Error al eliminar: " + error.message); setBulkWorking(false); return; }
+      if (error) { toast.error(t("contactsPage.deleteError", { message: error.message })); setBulkWorking(false); return; }
     }
-    done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} eliminado${selected.size !== 1 ? "s" : ""}`);
+    done(t("contactsPage.leadsDeleted", { count: selected.size }));
   };
 
   const handleBulkStatus = async () => {
     if (!bulkStatus) return;
     // "Ganado" requires a closing budget per lead — block bulk and direct to the lead.
     if (bulkStatus === "won") {
-      toast.error("Marcar como “Ganado” requiere registrar el presupuesto de cierre de cada lead. Hazlo desde la ficha del lead o el pipeline.");
+      toast.error(t("contactsPage.wonRequiresBudget"));
       return;
     }
     setBulkWorking(true);
@@ -532,12 +534,12 @@ export default function ContactsPage() {
       const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", part);
       if (error) {
         const won = error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
-        toast.error(won ? "Marcar como “Ganado” requiere el presupuesto de cierre de cada lead (hazlo desde la ficha)." : "Error: " + error.message);
+        toast.error(won ? t("contactsPage.wonRequiresBudgetShort") : t("contactsPage.genericError", { message: error.message }));
         setBulkWorking(false); return;
       }
     }
     setStatusOpen(false);
-    done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} actualizado${selected.size !== 1 ? "s" : ""}`);
+    done(t("contactsPage.leadsUpdated", { count: selected.size }));
   };
 
   // Load stages whenever the chosen pipeline changes (bulk move dialog)
@@ -552,17 +554,17 @@ export default function ContactsPage() {
   }, [bulkPipelineId]);
 
   const handleBulkPipelineMove = async () => {
-    if (!bulkPipelineId || !bulkStageId) { toast.error("Elige pipeline y etapa"); return; }
+    if (!bulkPipelineId || !bulkStageId) { toast.error(t("contactsPage.choosePipelineAndStage")); return; }
     setBulkWorking(true);
     for (const part of chunkIds([...selected])) {
       const { error } = await supabase.from("contacts")
         .update({ pipeline_id: bulkPipelineId, stage_id: bulkStageId })
         .in("id", part);
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
     }
     setPipelineMoveOpen(false);
-    const pname = pipelines.find(p => p.id === bulkPipelineId)?.name || "pipeline";
-    done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} movido${selected.size !== 1 ? "s" : ""} a ${pname}`);
+    const pname = pipelines.find(p => p.id === bulkPipelineId)?.name || t("contactsPage.pipelineFallback");
+    done(t("contactsPage.leadsMovedTo", { count: selected.size, pipeline: pname }));
   };
 
   const handleBulkReassign = async () => {
@@ -573,7 +575,7 @@ export default function ContactsPage() {
     for (const part of batches) {
       // 1. Update contact owner
       const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", part);
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
       // 2. Migrate WhatsApp message history to the new owner
       await supabase.from("whatsapp_messages").update({ user_id: selectedOwner }).in("contact_id", part);
       // 3. Migrate Instagram conversations + their messages
@@ -589,11 +591,11 @@ export default function ContactsPage() {
 
     setReassignOpen(false);
     setSelectedOwner("");
-    done(`${selected.size} lead${selected.size !== 1 ? "s" : ""} reasignado${selected.size !== 1 ? "s" : ""}`);
+    done(t("contactsPage.leadsReassigned", { count: selected.size }));
   };
 
   const handleBulkAddTask = async () => {
-    if (!taskForm.title.trim()) { toast.error("El título es requerido"); return; }
+    if (!taskForm.title.trim()) { toast.error(t("contactsPage.titleRequired")); return; }
     setBulkWorking(true);
     const rows = [...selected].map(contactId => ({
       title: taskForm.title.trim(),
@@ -606,11 +608,11 @@ export default function ContactsPage() {
     }));
     for (let i = 0; i < rows.length; i += 200) {
       const { error } = await supabase.from("tasks").insert(rows.slice(i, i + 200));
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
     }
     setTaskOpen(false);
     setTaskForm({ title: "", task_type: "call", priority: "medium", due_date: "", due_time: "" });
-    done(`${rows.length} tarea${rows.length !== 1 ? "s" : ""} creada${rows.length !== 1 ? "s" : ""}`);
+    done(t("contactsPage.tasksCreated", { count: rows.length }));
   };
 
   // Fetch the FULL set of selected contacts (across all pages), not just the page
@@ -627,7 +629,7 @@ export default function ContactsPage() {
       const { data, error } = await supabase.from("contacts")
         .select("id, full_name, primary_phone, primary_email, company_name, wa_undeliverable")
         .in("id", ids.slice(i, i + 200));
-      if (error) throw new Error(`No se pudieron cargar los contactos seleccionados: ${error.message}`);
+      if (error) throw new Error(t("contactsPage.couldNotLoadSelected", { message: error.message }));
       if (data) out.push(...(data as unknown as ContactRow[]));
     }
     return out;
@@ -636,7 +638,7 @@ export default function ContactsPage() {
   // ── Bulk WhatsApp template blast ──────────────────────────────────────────
   const handleWaBlast = async (templateName: string, language: string, vars: string[], mediaId: string, campaignName?: string, scheduledAt?: string) => {
     const campName = (campaignName || waCampaignName || "").trim();
-    if (!campName) { toast.error("El nombre de la campaña es obligatorio"); return; }
+    if (!campName) { toast.error(t("contactsPage.campaignNameRequired")); return; }
 
     setWaBlastSending(true);
     // NOTE: do NOT show the send loader here. For a SCHEDULED campaign nothing is
@@ -656,11 +658,11 @@ export default function ContactsPage() {
         return true;
       });
       if (targets.length === 0) {
-        toast.error("Ningún lead seleccionado tiene un número de WhatsApp válido");
+        toast.error(t("contactsPage.noValidWhatsApp"));
         setWaBlastSending(false); return;
       }
       if (badFormat + knownBad > 0) {
-        toast.info(`Se excluyeron ${badFormat + knownBad} números: ${badFormat} con formato inválido, ${knownBad} sin WhatsApp (ya fallaron antes).`, { duration: 6000 });
+        toast.info(t("contactsPage.numbersExcluded", { total: badFormat + knownBad, badFormat, knownBad }), { duration: 6000 });
       }
 
       const { data: { user: waAuthUser } } = await supabase.auth.getUser();
@@ -679,7 +681,7 @@ export default function ContactsPage() {
         user_id: waUserId,
         organization_id: organizationId ?? null,
       }).select("id").single();
-      if (campErr || !campData) throw new Error(campErr?.message || "No se pudo crear la campaña");
+      if (campErr || !campData) throw new Error(campErr?.message || t("contactsPage.couldNotCreateCampaign"));
       const campaignId = campData.id;
 
       // One 'pending' send row per recipient (chunked for large lists).
@@ -698,7 +700,7 @@ export default function ContactsPage() {
       setWaBlastSending(false);
 
       if (scheduledAt) {
-        toast.success(`Campaña "${campName}" programada para ${new Date(scheduledAt).toLocaleString()} · ${targets.length} destinatarios.`);
+        toast.success(t("contactsPage.campaignScheduled", { name: campName, date: new Date(scheduledAt).toLocaleString(), count: targets.length }));
         return;
       }
 
@@ -724,7 +726,7 @@ export default function ContactsPage() {
     } catch (e: any) {
       setWaBlastSending(false);
       closeWaLoader();
-      toast.error(e?.message || "No se pudo iniciar la campaña");
+      toast.error(e?.message || t("contactsPage.couldNotStartCampaign"));
     }
   };
 
@@ -733,15 +735,15 @@ export default function ContactsPage() {
     const usingTemplate = emailMode === "template" && selectedEmailTpl;
     let htmlSource = usingTemplate ? selectedEmailTpl!.html : emailBody;
     const subjectSource = emailSubject.trim();
-    if (!emailCampaignName.trim()) { toast.error("El nombre de la campaña es obligatorio"); return; }
-    if (!subjectSource) { toast.error("El asunto es obligatorio"); return; }
-    if (!htmlSource?.trim()) { toast.error(usingTemplate ? "La plantilla no tiene HTML" : "El cuerpo es obligatorio"); return; }
-    if (!fromEmail.trim()) { toast.error("El email del remitente es obligatorio. Configúralo en Ajustes → Remitente de emails."); return; }
+    if (!emailCampaignName.trim()) { toast.error(t("contactsPage.campaignNameRequired")); return; }
+    if (!subjectSource) { toast.error(t("contactsPage.subjectRequired")); return; }
+    if (!htmlSource?.trim()) { toast.error(usingTemplate ? t("contactsPage.templateNoHtml") : t("contactsPage.bodyRequired")); return; }
+    if (!fromEmail.trim()) { toast.error(t("contactsPage.senderEmailRequired")); return; }
     if (!usingTemplate) htmlSource = htmlSource.replace(/\n/g, "<br>"); // plain body → html
     setEmailBlastSending(true);
     try {
       const targets = (await fetchSelectedContacts()).filter(c => c.primary_email);
-      if (targets.length === 0) { toast.error("Ningún lead seleccionado tiene email"); setEmailBlastSending(false); return; }
+      if (targets.length === 0) { toast.error(t("contactsPage.noSelectedEmail")); setEmailBlastSending(false); return; }
 
       const { data: { user: authUser } } = await supabase.auth.getUser();
       const userId = authUser?.id ?? myUserId;
@@ -761,7 +763,7 @@ export default function ContactsPage() {
         user_id: userId,
         organization_id: organizationId ?? null,
       }).select("id").single();
-      if (campErr || !campData) throw new Error(campErr?.message || "No se pudo crear la campaña");
+      if (campErr || !campData) throw new Error(campErr?.message || t("contactsPage.couldNotCreateCampaign"));
 
       // Flip queued → sending; a DB trigger fires send-email server-side. Scheduled
       // ones stay 'scheduled' and the cron flips them at their time.
@@ -775,22 +777,22 @@ export default function ContactsPage() {
       setSelectedEmailTpl(null); setPreviewHtml(null);
       setSelected(new Set());
       if (scheduledAt) {
-        toast.success(`Campaña de email programada para ${new Date(scheduledAt).toLocaleString()} · ${targets.length} destinatarios.`);
+        toast.success(t("contactsPage.emailCampaignScheduled", { date: new Date(scheduledAt).toLocaleString(), count: targets.length }));
       } else {
-        toast.success(`Campaña de email enviándose a ${targets.length} destinatarios. Mira el progreso en Campañas.`);
+        toast.success(t("contactsPage.emailCampaignSending", { count: targets.length }));
       }
     } catch (e: any) {
       setEmailBlastSending(false);
-      toast.error(e?.message || "No se pudo iniciar la campaña");
+      toast.error(e?.message || t("contactsPage.couldNotStartCampaign"));
     }
   };
 
   // ── Voice campaign (Llamada IA) ───────────────────────────────────────────
   const handleVoiceCampaign = async () => {
-    if (!voiceCampaignAgentId) { toast.error("Selecciona un agente de voz"); return; }
-    if (!voiceCampaignName.trim()) { toast.error("El nombre de la campaña es obligatorio"); return; }
+    if (!voiceCampaignAgentId) { toast.error(t("contactsPage.selectVoiceAgent")); return; }
+    if (!voiceCampaignName.trim()) { toast.error(t("contactsPage.campaignNameRequired")); return; }
     const contactIds = [...selected];
-    if (contactIds.length === 0) { toast.error("Selecciona al menos un lead"); return; }
+    if (contactIds.length === 0) { toast.error(t("contactsPage.selectAtLeastOne")); return; }
 
     setVoiceCampaignLoading(true);
     try {
@@ -810,7 +812,7 @@ export default function ContactsPage() {
         total_contacts: contactIds.length,
       }).select("id").single();
 
-      if (campErr || !camp) throw new Error(campErr?.message || "Error al crear campaña");
+      if (campErr || !camp) throw new Error(campErr?.message || t("contactsPage.errorCreatingCampaign"));
 
       // Trigger calls via edge function
       const { error: callErr } = await supabase.functions.invoke("call-outbound", {
@@ -819,9 +821,9 @@ export default function ContactsPage() {
 
       if (callErr) {
         // Campaign created but calls failed to start — still show campaign link
-        toast.warning(`Campaña creada pero hubo un error al iniciar llamadas: ${callErr.message}`);
+        toast.warning(t("contactsPage.campaignCreatedCallError", { message: callErr.message }));
       } else {
-        toast.success(`Campaña "${voiceCampaignName.trim()}" iniciada — ${contactIds.length} llamada${contactIds.length !== 1 ? "s" : ""} en cola`);
+        toast.success(t("contactsPage.voiceCampaignStarted", { name: voiceCampaignName.trim(), count: contactIds.length }));
       }
 
       setVoiceCampaignOpen(false);
@@ -829,35 +831,35 @@ export default function ContactsPage() {
       setVoiceCampaignAgentId("");
       setSelected(new Set());
     } catch (e: any) {
-      toast.error("Error: " + e.message);
+      toast.error(t("contactsPage.genericError", { message: e.message }));
     } finally {
       setVoiceCampaignLoading(false);
     }
   };
 
   const handleBulkFieldChange = async () => {
-    if (!fieldName || !fieldValue.trim()) { toast.error("Selecciona un campo y escribe un valor"); return; }
+    if (!fieldName || !fieldValue.trim()) { toast.error(t("contactsPage.selectFieldAndValue")); return; }
     setBulkWorking(true);
     const value = fieldName === "score" ? Number(fieldValue) : fieldValue.trim();
     for (const part of chunkIds([...selected])) {
       const { error } = await supabase.from("contacts").update({ [fieldName]: value }).in("id", part);
-      if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+      if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
     }
     setFieldOpen(false);
     setFieldName("");
     setFieldValue("");
-    done(`Campo actualizado en ${selected.size} lead${selected.size !== 1 ? "s" : ""}`);
+    done(t("contactsPage.fieldUpdated", { count: selected.size }));
   };
 
   const handleBulkEditTags = async () => {
-    if (pendingTags.length === 0) { toast.error("Agrega al menos una etiqueta"); return; }
+    if (pendingTags.length === 0) { toast.error(t("contactsPage.addAtLeastOneTag")); return; }
     setBulkWorking(true);
     const ids = [...selected];
 
     if (tagsMode === "replace") {
       for (const part of chunkIds(ids)) {
         const { error } = await supabase.from("contacts").update({ tags: pendingTags }).in("id", part);
-        if (error) { toast.error("Error: " + error.message); setBulkWorking(false); return; }
+        if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
       }
     } else {
       // Add mode: merge with existing tags per contact
@@ -888,7 +890,7 @@ export default function ContactsPage() {
     setTagsOpen(false);
     setPendingTags([]);
     setTagInput("");
-    done(`Etiquetas actualizadas en ${ids.length} lead${ids.length !== 1 ? "s" : ""}`);
+    done(t("contactsPage.tagsUpdated", { count: ids.length }));
   };
 
   const handleBulkAIAnalysis = async () => {
@@ -906,7 +908,7 @@ export default function ContactsPage() {
     setAiAnalysisOpen(false);
     setAiProgress(null);
     setBulkWorking(false);
-    toast.success(`Score IA actualizado en ${succeeded} lead${succeeded !== 1 ? "s" : ""}`);
+    toast.success(t("contactsPage.aiScoreUpdated", { count: succeeded }));
     fetchContacts();
   };
 
@@ -922,12 +924,12 @@ export default function ContactsPage() {
         p_org_id: organizationId,
       });
       if (error) throw error;
-      toast.success("Contactos fusionados correctamente");
+      toast.success(t("contactsPage.contactsMerged"));
       setMergeOpen(false);
       setSelected(new Set());
       fetchContacts();
     } catch (err: any) {
-      toast.error("Error al fusionar: " + (err.message || String(err)));
+      toast.error(t("contactsPage.mergeError", { message: err.message || String(err) }));
     } finally {
       setMergeWorking(false);
     }
@@ -1015,7 +1017,7 @@ export default function ContactsPage() {
       else if (isOwnerOrAdmin && ownerFilter !== "all") query = query.eq("owner_id", ownerFilter);
 
       const { data, error } = await query;
-      if (error || !data) { toast.error("Error al exportar: " + (error?.message ?? "sin datos")); return; }
+      if (error || !data) { toast.error(t("contactsPage.exportError", { message: error?.message ?? t("contactsPage.noData") })); return; }
 
       // Collect all custom field keys across all contacts
       const customKeys = new Set<string>();
@@ -1038,15 +1040,15 @@ export default function ContactsPage() {
       };
 
       const leadStatusLabel: Record<string, string> = {
-        active: "Activo", won: "Ganado", lost: "Perdido", new: "Nuevo",
+        active: t("contactsPage.statusActive"), won: t("contactsPage.statusWon"), lost: t("contactsPage.statusLost"), new: t("contactsPage.statusNew"),
       };
 
       const headers = [
-        "Nombre", "Teléfono", "Email", "Empresa", "Ciudad", "País",
-        "Estado", "Fuente", "Etapa", "Puntuación CRM",
-        "Presupuesto", "Moneda", "Notas",
-        "UTM Fuente", "UTM Medio", "UTM Campaña", "UTM Contenido", "UTM Término",
-        "Fecha de ingreso",
+        t("contactsPage.csvName"), t("contactsPage.csvPhone"), t("contactsPage.csvEmail"), t("contactsPage.csvCompany"), t("contactsPage.csvCity"), t("contactsPage.csvCountry"),
+        t("contactsPage.csvStatus"), t("contactsPage.csvSource"), t("contactsPage.csvStage"), t("contactsPage.csvCrmScore"),
+        t("contactsPage.csvBudget"), t("contactsPage.csvCurrency"), t("contactsPage.csvNotes"),
+        t("contactsPage.csvUtmSource"), t("contactsPage.csvUtmMedium"), t("contactsPage.csvUtmCampaign"), t("contactsPage.csvUtmContent"), t("contactsPage.csvUtmTerm"),
+        t("contactsPage.csvCreatedAt"),
         ...customKeyList.map(k => `CF: ${k}`),
       ];
 
@@ -1085,33 +1087,33 @@ export default function ContactsPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      toast.success(`${data.length} leads exportados correctamente`);
+      toast.success(t("contactsPage.leadsExported", { count: data.length }));
     } finally {
       setExportLoading(false);
     }
   }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter,
       utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue,
-      dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId]);
+      dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId, t]);
 
   return (
     <AppLayout>
-      <AppHeader title="Leads" subtitle={`${totalCount} leads`} actions={
+      <AppHeader title={t("contactsPage.leads")} subtitle={t("contactsPage.leadsCount", { count: totalCount })} actions={
         <div className="flex items-center gap-1.5 md:gap-2">
           {canEditContacts && (
             <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" />
-              <span className="hidden md:inline">Importar CSV</span>
+              <span className="hidden md:inline">{t("contactsPage.importCsv")}</span>
             </Button>
           )}
           {canExportData && (
             <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={exportToCSV} disabled={exportLoading}>
               {exportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-              <span className="hidden md:inline">Exportar CSV</span>
+              <span className="hidden md:inline">{t("contactsPage.exportCsv")}</span>
             </Button>
           )}
           {canEditContacts && (
             <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Nuevo lead</span>
+              <Plus className="h-4 w-4" /> <span className="hidden sm:inline">{t("contactsPage.newLead")}</span>
             </Button>
           )}
         </div>
@@ -1120,7 +1122,7 @@ export default function ContactsPage() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:flex-wrap">
           <div className="relative w-full sm:flex-1 sm:max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input placeholder="Buscar leads..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 w-full" />
+            <Input placeholder={t("contactsPage.searchPlaceholder")} value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-9 w-full" />
           </div>
           <div className="flex gap-1.5 flex-wrap items-center overflow-x-auto pb-1 sm:pb-0">
             {leadStatusFilters.map(f => (
@@ -1131,7 +1133,7 @@ export default function ContactsPage() {
                 className={`text-xs h-8 ${statusFilter !== f.value && f.color ? f.color : ""}`}
                 onClick={() => setStatusFilter(f.value)}
               >
-                {f.label}
+                {t(`contactsPage.${f.labelKey}`)}
               </Button>
             ))}
 
@@ -1139,13 +1141,13 @@ export default function ContactsPage() {
             <Select value={scoreFilter} onValueChange={setScoreFilter}>
               <SelectTrigger className="h-8 w-44 text-xs gap-1.5">
                 <BarChart2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                <SelectValue placeholder="Actividad" />
+                <SelectValue placeholder={t("contactsPage.activity")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Toda la actividad</SelectItem>
-                <SelectItem value="hot">Alta (61–100)</SelectItem>
-                <SelectItem value="warm">Media (31–60)</SelectItem>
-                <SelectItem value="cold">Baja (0–30)</SelectItem>
+                <SelectItem value="all">{t("contactsPage.allActivity")}</SelectItem>
+                <SelectItem value="hot">{t("contactsPage.activityHigh")}</SelectItem>
+                <SelectItem value="warm">{t("contactsPage.activityMedium")}</SelectItem>
+                <SelectItem value="cold">{t("contactsPage.activityLow")}</SelectItem>
               </SelectContent>
             </Select>
 
@@ -1153,10 +1155,10 @@ export default function ContactsPage() {
               <Select value={ownerFilter} onValueChange={setOwnerFilter}>
                 <SelectTrigger className="h-8 w-44 text-xs gap-1.5">
                   <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Vendedor" />
+                  <SelectValue placeholder={t("contactsPage.vendor")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los vendedores</SelectItem>
+                  <SelectItem value="all">{t("contactsPage.allVendors")}</SelectItem>
                   {profiles.map(p => (
                     <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>
                   ))}
@@ -1167,10 +1169,10 @@ export default function ContactsPage() {
               <Select value={pipelineFilter} onValueChange={setPipelineFilter}>
                 <SelectTrigger className="h-8 w-40 text-xs gap-1.5">
                   <KanbanSquare className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                  <SelectValue placeholder="Pipeline" />
+                  <SelectValue placeholder={t("contactsPage.pipeline")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todos los pipelines</SelectItem>
+                  <SelectItem value="all">{t("contactsPage.allPipelines")}</SelectItem>
                   {pipelines.map(p => (
                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                   ))}
@@ -1180,10 +1182,10 @@ export default function ContactsPage() {
             {pipelineFilter !== "all" && stagesForFilter.length > 0 && (
               <Select value={stageFilter} onValueChange={setStageFilter}>
                 <SelectTrigger className="h-8 w-40 text-xs gap-1.5">
-                  <SelectValue placeholder="Etapa" />
+                  <SelectValue placeholder={t("contactsPage.stage")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Todas las etapas</SelectItem>
+                  <SelectItem value="all">{t("contactsPage.allStages")}</SelectItem>
                   {stagesForFilter.map(s => (
                     <SelectItem key={s.id} value={s.id}>
                       <span className="flex items-center gap-1.5">
@@ -1199,15 +1201,15 @@ export default function ContactsPage() {
             <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5">
-                  <Columns2 className="h-3.5 w-3.5" /> Columnas
+                  <Columns2 className="h-3.5 w-3.5" /> {t("contactsPage.columns")}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-52 p-2" align="end">
-                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">Columnas visibles</p>
+                <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-1">{t("contactsPage.visibleColumns")}</p>
                 {COLUMN_DEFS.filter(c => !c.adminOnly || isOwnerOrAdmin).map(col => (
                   <label key={col.key} className="flex items-center gap-2 px-1 py-1.5 rounded hover:bg-muted cursor-pointer">
                     <Checkbox checked={visibleCols.has(col.key)} onCheckedChange={() => toggleCol(col.key)} />
-                    <span className="text-sm">{col.label}</span>
+                    <span className="text-sm">{t(`contactsPage.${col.labelKey}`)}</span>
                   </label>
                 ))}
               </PopoverContent>
@@ -1221,7 +1223,7 @@ export default function ContactsPage() {
               onClick={() => setAdvancedOpen(prev => !prev)}
             >
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Más filtros
+              {t("contactsPage.moreFilters")}
               {advancedFilterCount > 0 && (
                 <span className="ml-0.5 rounded-full bg-white/20 px-1.5 text-[10px] font-semibold">{advancedFilterCount}</span>
               )}
@@ -1233,23 +1235,23 @@ export default function ContactsPage() {
         {advancedOpen && (
           <div className="rounded-lg border bg-card p-3 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros avanzados</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("contactsPage.advancedFilters")}</p>
               {advancedFilterCount > 0 && (
                 <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={clearAdvancedFilters}>
-                  <X className="h-3 w-3 mr-1" /> Limpiar filtros
+                  <X className="h-3 w-3 mr-1" /> {t("contactsPage.clearFilters")}
                 </Button>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
               {/* Source */}
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Fuente de origen</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("contactsPage.leadSource")}</Label>
                 <Select value={sourceFilter} onValueChange={setSourceFilter}>
                   <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Todos" />
+                    <SelectValue placeholder={t("contactsPage.all")} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Todas las fuentes</SelectItem>
+                    <SelectItem value="all">{t("contactsPage.allSources")}</SelectItem>
                     {SOURCE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -1258,13 +1260,13 @@ export default function ContactsPage() {
               {/* UTM Source */}
               {utmSources.length > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">UTM Fuente</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("contactsPage.utmSource")}</Label>
                   <Select value={utmSourceFilter} onValueChange={setUtmSourceFilter}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todos" />
+                      <SelectValue placeholder={t("contactsPage.all")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="all">{t("contactsPage.allFeminine")}</SelectItem>
                       {utmSources.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1274,13 +1276,13 @@ export default function ContactsPage() {
               {/* UTM Medium */}
               {utmMediums.length > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">UTM Medio</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("contactsPage.utmMedium")}</Label>
                   <Select value={utmMediumFilter} onValueChange={setUtmMediumFilter}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todos" />
+                      <SelectValue placeholder={t("contactsPage.all")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
+                      <SelectItem value="all">{t("contactsPage.all")}</SelectItem>
                       {utmMediums.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1290,13 +1292,13 @@ export default function ContactsPage() {
               {/* UTM Campaign */}
               {utmCampaigns.length > 0 && (
                 <div className="space-y-1">
-                  <Label className="text-[11px] text-muted-foreground">UTM Campaña</Label>
+                  <Label className="text-[11px] text-muted-foreground">{t("contactsPage.utmCampaign")}</Label>
                   <Select value={utmCampaignFilter} onValueChange={setUtmCampaignFilter}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todas" />
+                      <SelectValue placeholder={t("contactsPage.allFeminine")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
+                      <SelectItem value="all">{t("contactsPage.allFeminine")}</SelectItem>
                       {utmCampaigns.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -1305,21 +1307,21 @@ export default function ContactsPage() {
 
               {/* Tag filter */}
               <div className="space-y-1">
-                <Label className="text-[11px] text-muted-foreground">Etiqueta (tag)</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("contactsPage.tagLabel")}</Label>
                 {allTags.length > 0 ? (
                   <Select value={tagFilter || "all"} onValueChange={v => setTagFilter(v === "all" ? "" : v)}>
                     <SelectTrigger className="h-8 text-xs">
-                      <SelectValue placeholder="Todas" />
+                      <SelectValue placeholder={t("contactsPage.allFeminine")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">Todas las etiquetas</SelectItem>
+                      <SelectItem value="all">{t("contactsPage.allTags")}</SelectItem>
                       {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : (
                   <Input
                     className="h-8 text-xs"
-                    placeholder="Ej: vip"
+                    placeholder={t("contactsPage.tagExample")}
                     value={tagFilter}
                     onChange={e => setTagFilter(e.target.value)}
                   />
@@ -1328,17 +1330,17 @@ export default function ContactsPage() {
 
               {/* Custom field key/value */}
               <div className="space-y-1 col-span-2">
-                <Label className="text-[11px] text-muted-foreground">Campo personalizado</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("contactsPage.customField")}</Label>
                 <div className="flex gap-1.5">
                   <Input
                     className="h-8 text-xs flex-1"
-                    placeholder="Clave (ej: empresa)"
+                    placeholder={t("contactsPage.customFieldKeyPlaceholder")}
                     value={customFieldKey}
                     onChange={e => setCustomFieldKey(e.target.value)}
                   />
                   <Input
                     className="h-8 text-xs flex-1"
-                    placeholder="Valor (ej: Acme)"
+                    placeholder={t("contactsPage.customFieldValuePlaceholder")}
                     value={customFieldValue}
                     onChange={e => setCustomFieldValue(e.target.value)}
                   />
@@ -1347,10 +1349,10 @@ export default function ContactsPage() {
 
               {/* Date range */}
               <div className="space-y-1 col-span-2">
-                <Label className="text-[11px] text-muted-foreground">Fecha de ingreso</Label>
+                <Label className="text-[11px] text-muted-foreground">{t("contactsPage.entryDate")}</Label>
                 <div className="flex gap-1.5 items-center">
                   <Input type="date" className="h-8 text-xs flex-1" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-                  <span className="text-xs text-muted-foreground shrink-0">hasta</span>
+                  <span className="text-xs text-muted-foreground shrink-0">{t("contactsPage.until")}</span>
                   <Input type="date" className="h-8 text-xs flex-1" value={dateTo} onChange={e => setDateTo(e.target.value)} />
                 </div>
               </div>
@@ -1365,7 +1367,7 @@ export default function ContactsPage() {
                 {utmCampaignFilter !== "all" && <Badge variant="secondary" className="text-xs gap-1">utm_campaign: {utmCampaignFilter}<button onClick={() => setUtmCampaignFilter("all")}><X className="h-3 w-3" /></button></Badge>}
                 {tagFilter && <Badge variant="secondary" className="text-xs gap-1">tag: {tagFilter}<button onClick={() => setTagFilter("")}><X className="h-3 w-3" /></button></Badge>}
                 {customFieldKey && customFieldValue && <Badge variant="secondary" className="text-xs gap-1">{customFieldKey}: {customFieldValue}<button onClick={() => { setCustomFieldKey(""); setCustomFieldValue(""); }}><X className="h-3 w-3" /></button></Badge>}
-                {(dateFrom || dateTo) && <Badge variant="secondary" className="text-xs gap-1">Ingresó: {dateFrom || "…"} – {dateTo || "…"}<button onClick={() => { setDateFrom(""); setDateTo(""); }}><X className="h-3 w-3" /></button></Badge>}
+                {(dateFrom || dateTo) && <Badge variant="secondary" className="text-xs gap-1">{t("contactsPage.enteredChip")}: {dateFrom || "…"} – {dateTo || "…"}<button onClick={() => { setDateFrom(""); setDateTo(""); }}><X className="h-3 w-3" /></button></Badge>}
               </div>
             )}
           </div>
@@ -1375,7 +1377,7 @@ export default function ContactsPage() {
         {someChecked && canEditContacts && (
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 rounded-lg border bg-card px-3 py-2 md:px-4 md:py-2.5 shadow-sm min-h-[44px]">
             <span className="text-sm font-semibold text-foreground mr-1">
-              {selected.size} seleccionado{selected.size !== 1 ? "s" : ""}
+              {t("contactsPage.selectedCount", { count: selected.size })}
             </span>
             <div className="h-4 w-px bg-border" />
 
@@ -1388,41 +1390,41 @@ export default function ContactsPage() {
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-orange-600 dark:text-orange-400 hover:text-orange-600" onClick={() => { setVoiceCampaignName(""); setVoiceCampaignAgentId(callingAgents[0]?.id ?? ""); setVoiceCampaignOpen(true); }} disabled={bulkWorking}>
-              <CallIcon3D size={16} className="shrink-0" /> Llamada IA
+              <CallIcon3D size={16} className="shrink-0" /> {t("contactsPage.aiCall")}
             </Button>
 
             <div className="h-4 w-px bg-border" />
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setSelectedOwner(""); setReassignOpen(true); }} disabled={bulkWorking}>
-              <UserCheck className="h-3.5 w-3.5" /> Reasignar
+              <UserCheck className="h-3.5 w-3.5" /> {t("contactsPage.reassign")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => setTaskOpen(true)} disabled={bulkWorking}>
-              <CheckSquare className="h-3.5 w-3.5" /> Añadir tarea
+              <CheckSquare className="h-3.5 w-3.5" /> {t("contactsPage.addTask")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setFieldName(""); setFieldValue(""); setFieldOpen(true); }} disabled={bulkWorking}>
-              <Pencil className="h-3.5 w-3.5" /> Cambio de campo
+              <Pencil className="h-3.5 w-3.5" /> {t("contactsPage.fieldChange")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setPendingTags([]); setTagInput(""); setTagsMode("add"); setTagsOpen(true); }} disabled={bulkWorking}>
-              <Tags className="h-3.5 w-3.5" /> Editar etiquetas
+              <Tags className="h-3.5 w-3.5" /> {t("contactsPage.editTags")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setBulkStatus(""); setStatusOpen(true); }} disabled={bulkWorking}>
-              <Tag className="h-3.5 w-3.5" /> Cambiar estado
+              <Tag className="h-3.5 w-3.5" /> {t("contactsPage.changeStatus")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs" onClick={() => { setBulkPipelineId(""); setBulkStageId(""); setPipelineMoveOpen(true); }} disabled={bulkWorking}>
-              <KanbanSquare className="h-3.5 w-3.5" /> Asignar a pipeline
+              <KanbanSquare className="h-3.5 w-3.5" /> {t("contactsPage.assignToPipeline")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive" onClick={handleBulkDelete} disabled={bulkWorking}>
-              <Trash2 className="h-3.5 w-3.5" /> Eliminar
+              <Trash2 className="h-3.5 w-3.5" /> {t("contactsPage.delete")}
             </Button>
 
             <Button size="sm" variant="ghost" className="h-8 gap-1.5 text-xs text-primary hover:text-primary" onClick={() => setAiAnalysisOpen(true)} disabled={bulkWorking}>
-              <Sparkles className="h-3.5 w-3.5" /> Score IA
+              <Sparkles className="h-3.5 w-3.5" /> {t("contactsPage.aiScore")}
             </Button>
 
             {selected.size === 2 && (
@@ -1436,13 +1438,13 @@ export default function ContactsPage() {
                   setMergeOpen(true);
                 }}
               >
-                <GitMerge className="h-3.5 w-3.5" /> Fusionar
+                <GitMerge className="h-3.5 w-3.5" /> {t("contactsPage.merge")}
               </Button>
             )}
 
             <div className="h-4 w-px bg-border" />
             <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setSelected(new Set()); setAllMatchingSelected(false); }}>
-              Cancelar
+              {t("contactsPage.cancel")}
             </Button>
           </div>
         )}
@@ -1452,16 +1454,16 @@ export default function ContactsPage() {
           <div className="flex flex-wrap items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-xs text-center">
             {allMatchingSelected ? (
               <>
-                <span className="font-medium">Se seleccionaron los {totalCount.toLocaleString()} leads de todas las páginas.</span>
+                <span className="font-medium">{t("contactsPage.allLeadsSelected", { count: totalCount.toLocaleString() })}</span>
                 <button className="font-semibold text-primary underline underline-offset-2" onClick={() => { setSelected(new Set()); setAllMatchingSelected(false); }}>
-                  Limpiar selección
+                  {t("contactsPage.clearSelection")}
                 </button>
               </>
             ) : allChecked ? (
               <>
-                <span>Seleccionaste los {visibleIds.length} de esta página.</span>
+                <span>{t("contactsPage.selectedThisPage", { count: visibleIds.length })}</span>
                 <button className="font-semibold text-primary underline underline-offset-2" onClick={selectAllAcrossPages}>
-                  Seleccionar los {totalCount.toLocaleString()} de todas las páginas
+                  {t("contactsPage.selectAllPages", { count: totalCount.toLocaleString() })}
                 </button>
               </>
             ) : null}
@@ -1484,11 +1486,11 @@ export default function ContactsPage() {
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="px-4 py-3 w-10 border-r-2 border-border/60">
-                      <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label="Seleccionar todos" />
+                      <Checkbox checked={allChecked} onCheckedChange={toggleAll} aria-label={t("contactsPage.selectAll")} />
                     </th>
                     {/* Lead column — resizable */}
                     <th className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r-2 border-border/60">
-                      <span className="truncate block pr-3">Lead</span>
+                      <span className="truncate block pr-3">{t("contactsPage.lead")}</span>
                       <div
                         className="absolute right-0 top-0 h-full w-3 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-10"
                         onMouseDown={e => startColResize("lead", e)}
@@ -1496,7 +1498,7 @@ export default function ContactsPage() {
                     </th>
                     {activeCols.map(col => (
                       <th key={col.key} className="relative px-4 py-3 text-left font-medium text-muted-foreground select-none overflow-hidden border-r-2 border-border/60">
-                        <span className="truncate block pr-3">{col.label}</span>
+                        <span className="truncate block pr-3">{t(`contactsPage.${col.labelKey}`)}</span>
                         <div
                           className="absolute right-0 top-0 h-full w-3 cursor-col-resize hover:bg-primary/20 active:bg-primary/40 transition-colors z-10"
                           onMouseDown={e => startColResize(col.key, e)}
@@ -1524,16 +1526,16 @@ export default function ContactsPage() {
                     <tr><td colSpan={totalCols} className="px-0 py-0">
                       <EmptyState
                         variant={search || statusFilter !== "all" ? "search" : "contacts"}
-                        title={search || statusFilter !== "all" ? "Sin resultados" : "Aún no tienes leads"}
+                        title={search || statusFilter !== "all" ? t("contactsPage.noResults") : t("contactsPage.noLeadsYet")}
                         description={
                           search || statusFilter !== "all"
-                            ? "Prueba con otro filtro o término de búsqueda"
-                            : "Importa tus leads desde Excel/CSV o crea el primero manualmente. También llegarán automáticamente si tienes Facebook Lead Ads conectado."
+                            ? t("contactsPage.noResultsDescription")
+                            : t("contactsPage.noLeadsDescription")
                         }
                         action={
                           !search && statusFilter === "all" && canEditContacts && (
                             <Button onClick={() => setCreateOpen(true)} className="gap-1.5">
-                              <Plus className="h-4 w-4" /> Crear mi primer lead
+                              <Plus className="h-4 w-4" /> {t("contactsPage.createFirstLead")}
                             </Button>
                           )
                         }
@@ -1546,7 +1548,7 @@ export default function ContactsPage() {
                     return (
                       <tr key={contact.id} className={`border-b last:border-0 hover:bg-muted/30 transition-colors ${isSelected ? "bg-primary/5" : ""}`}>
                         <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-                          <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(contact.id)} aria-label={`Seleccionar ${contact.full_name}`} />
+                          <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(contact.id)} aria-label={t("contactsPage.selectContact", { name: contact.full_name })} />
                         </td>
                         <td className="px-4 py-3 cursor-pointer overflow-hidden" onClick={nav}>
                           <div className="flex items-center gap-3">
@@ -1594,9 +1596,9 @@ export default function ContactsPage() {
                                     {stage.name}
                                   </Badge>
                                 ) : contact.lead_status === "won" ? (
-                                  <Badge className="bg-green-500 text-white border-0 text-xs">Ganado</Badge>
+                                  <Badge className="bg-green-500 text-white border-0 text-xs">{t("contactsPage.statusWon")}</Badge>
                                 ) : contact.lead_status === "lost" ? (
-                                  <Badge variant="destructive" className="text-xs">Perdido</Badge>
+                                  <Badge variant="destructive" className="text-xs">{t("contactsPage.statusLost")}</Badge>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">—</span>
                                 )}
@@ -1645,10 +1647,10 @@ export default function ContactsPage() {
           <div className="flex flex-wrap items-center justify-between gap-2 px-1 py-1">
             <div className="flex items-center gap-3">
               <p className="text-xs text-muted-foreground">
-                Mostrando {currentPage * pageSize + 1}–{Math.min((currentPage + 1) * pageSize, totalCount)} de {totalCount} leads
+                {t("contactsPage.showingRange", { from: currentPage * pageSize + 1, to: Math.min((currentPage + 1) * pageSize, totalCount), total: totalCount })}
               </p>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">Por página:</span>
+                <span className="text-xs text-muted-foreground">{t("contactsPage.perPage")}</span>
                 <Select value={String(pageSize)} onValueChange={v => setPageSize(Number(v))}>
                   <SelectTrigger className="h-8 w-[72px] text-xs">
                     <SelectValue />
@@ -1672,7 +1674,7 @@ export default function ContactsPage() {
                 <ChevronLeft className="h-4 w-4" />
               </Button>
               <span className="text-xs text-muted-foreground px-2">
-                Página {currentPage + 1} de {Math.max(1, Math.ceil(totalCount / pageSize))}
+                {t("contactsPage.pageOf", { current: currentPage + 1, total: Math.max(1, Math.ceil(totalCount / pageSize)) })}
               </span>
               <Button
                 variant="outline"
@@ -1695,23 +1697,23 @@ export default function ContactsPage() {
       {/* ── Reasignar ─────────────────────────────────────────────────── */}
       <Dialog open={reassignOpen} onOpenChange={setReassignOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Reasignar {selected.size} lead{selected.size !== 1 ? "s" : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.reassignTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <Label>Asignar a</Label>
+            <Label>{t("contactsPage.assignTo")}</Label>
             <Select value={selectedOwner} onValueChange={setSelectedOwner}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar usuario" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("contactsPage.selectUser")} /></SelectTrigger>
               <SelectContent>
                 {profiles.length === 0
-                  ? <SelectItem value="__none__" disabled>Sin usuarios disponibles</SelectItem>
+                  ? <SelectItem value="__none__" disabled>{t("contactsPage.noUsersAvailable")}</SelectItem>
                   : profiles.map(p => <SelectItem key={p.user_id} value={p.user_id}>{p.full_name}</SelectItem>)
                 }
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReassignOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setReassignOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkReassign} disabled={!selectedOwner || bulkWorking}>
-              {bulkWorking ? "Reasignando..." : "Reasignar"}
+              {bulkWorking ? t("contactsPage.reassigning") : t("contactsPage.reassign")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1720,55 +1722,55 @@ export default function ContactsPage() {
       {/* ── Añadir tarea ──────────────────────────────────────────────── */}
       <Dialog open={taskOpen} onOpenChange={setTaskOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Añadir tarea a {selected.size} lead{selected.size !== 1 ? "s" : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.addTaskTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>Título *</Label>
-              <Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder="Ej: Llamar al lead" className="mt-1" />
+              <Label>{t("contactsPage.titleField")}</Label>
+              <Input value={taskForm.title} onChange={e => setTaskForm(f => ({ ...f, title: e.target.value }))} placeholder={t("contactsPage.callLeadExample")} className="mt-1" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Tipo</Label>
+                <Label>{t("contactsPage.type")}</Label>
                 <Select value={taskForm.task_type} onValueChange={v => setTaskForm(f => ({ ...f, task_type: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="call">Llamada</SelectItem>
-                    <SelectItem value="meeting">Reunión</SelectItem>
-                    <SelectItem value="follow_up">Seguimiento</SelectItem>
+                    <SelectItem value="call">{t("contactsPage.taskTypeCall")}</SelectItem>
+                    <SelectItem value="meeting">{t("contactsPage.taskTypeMeeting")}</SelectItem>
+                    <SelectItem value="follow_up">{t("contactsPage.taskTypeFollowUp")}</SelectItem>
                     <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="other">Otro</SelectItem>
+                    <SelectItem value="other">{t("contactsPage.taskTypeOther")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label>Prioridad</Label>
+                <Label>{t("contactsPage.priority")}</Label>
                 <Select value={taskForm.priority} onValueChange={v => setTaskForm(f => ({ ...f, priority: v }))}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Baja</SelectItem>
-                    <SelectItem value="medium">Media</SelectItem>
-                    <SelectItem value="high">Alta</SelectItem>
-                    <SelectItem value="urgent">Urgente</SelectItem>
+                    <SelectItem value="low">{t("contactsPage.priorityLow")}</SelectItem>
+                    <SelectItem value="medium">{t("contactsPage.priorityMedium")}</SelectItem>
+                    <SelectItem value="high">{t("contactsPage.priorityHigh")}</SelectItem>
+                    <SelectItem value="urgent">{t("contactsPage.priorityUrgent")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label>Fecha límite</Label>
+                <Label>{t("contactsPage.dueDate")}</Label>
                 <Input type="date" value={taskForm.due_date} onChange={e => setTaskForm(f => ({ ...f, due_date: e.target.value }))} className="mt-1" />
               </div>
               <div>
-                <Label>Hora</Label>
+                <Label>{t("contactsPage.time")}</Label>
                 <Input type="time" value={taskForm.due_time} onChange={e => setTaskForm(f => ({ ...f, due_time: e.target.value }))} className="mt-1" />
               </div>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTaskOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setTaskOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkAddTask} disabled={!taskForm.title.trim() || bulkWorking}>
-              {bulkWorking ? "Creando..." : `Crear ${selected.size} tarea${selected.size !== 1 ? "s" : ""}`}
+              {bulkWorking ? t("contactsPage.creating") : t("contactsPage.createTasks", { count: selected.size })}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1777,30 +1779,30 @@ export default function ContactsPage() {
       {/* ── Cambio de campo ───────────────────────────────────────────── */}
       <Dialog open={fieldOpen} onOpenChange={setFieldOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Cambio de campo en {selected.size} lead{selected.size !== 1 ? "s" : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.fieldChangeTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div>
-              <Label>Campo a modificar</Label>
+              <Label>{t("contactsPage.fieldToModify")}</Label>
               <Select value={fieldName} onValueChange={v => { setFieldName(v); setFieldValue(""); }}>
-                <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar campo" /></SelectTrigger>
+                <SelectTrigger className="mt-1"><SelectValue placeholder={t("contactsPage.selectField")} /></SelectTrigger>
                 <SelectContent>
-                  {FIELD_OPTIONS.map(f => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}
+                  {FIELD_OPTIONS.map(f => <SelectItem key={f.value} value={f.value}>{t(`contactsPage.${f.labelKey}`)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             {fieldName && (
               <div>
-                <Label>Nuevo valor</Label>
+                <Label>{t("contactsPage.newValue")}</Label>
                 {fieldName === "source" ? (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar origen" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder={t("contactsPage.selectSource")} /></SelectTrigger>
                     <SelectContent>
                       {SOURCE_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : fieldName === "preferred_channel" ? (
                   <Select value={fieldValue} onValueChange={setFieldValue}>
-                    <SelectTrigger className="mt-1"><SelectValue placeholder="Seleccionar canal" /></SelectTrigger>
+                    <SelectTrigger className="mt-1"><SelectValue placeholder={t("contactsPage.selectChannel")} /></SelectTrigger>
                     <SelectContent>
                       {CHANNEL_OPTIONS.map(c => <SelectItem key={c} value={c} className="capitalize">{c}</SelectItem>)}
                     </SelectContent>
@@ -1812,7 +1814,7 @@ export default function ContactsPage() {
                     max={fieldName === "score" ? 100 : undefined}
                     value={fieldValue}
                     onChange={e => setFieldValue(e.target.value)}
-                    placeholder={fieldName === "score" ? "0 – 100" : "Nuevo valor"}
+                    placeholder={fieldName === "score" ? "0 – 100" : t("contactsPage.newValue")}
                     className="mt-1"
                   />
                 )}
@@ -1820,9 +1822,9 @@ export default function ContactsPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setFieldOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setFieldOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkFieldChange} disabled={!fieldName || !fieldValue || bulkWorking}>
-              {bulkWorking ? "Aplicando..." : "Aplicar"}
+              {bulkWorking ? t("contactsPage.applying") : t("contactsPage.apply")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1831,28 +1833,28 @@ export default function ContactsPage() {
       {/* ── Editar etiquetas ──────────────────────────────────────────── */}
       <Dialog open={tagsOpen} onOpenChange={setTagsOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Editar etiquetas en {selected.size} lead{selected.size !== 1 ? "s" : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.editTagsTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-2">
             <div className="flex gap-2">
               <Button size="sm" variant={tagsMode === "add" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setTagsMode("add")}>
-                Agregar a existentes
+                {t("contactsPage.addToExisting")}
               </Button>
               <Button size="sm" variant={tagsMode === "replace" ? "default" : "outline"} className="flex-1 text-xs" onClick={() => setTagsMode("replace")}>
-                Reemplazar todo
+                {t("contactsPage.replaceAll")}
               </Button>
             </div>
             <div>
-              <Label>Etiquetas</Label>
+              <Label>{t("contactsPage.tags")}</Label>
               <div className="flex gap-2 mt-1 items-start">
                 <div className="flex-1">
                   <TagPicker
                     value={tagInput}
                     onChange={setTagInput}
-                    placeholder="Elige una etiqueta..."
+                    placeholder={t("contactsPage.chooseTag")}
                     allowCreate={false}
                   />
                 </div>
-                <Button type="button" variant="outline" size="sm" onClick={addPendingTag}>Agregar</Button>
+                <Button type="button" variant="outline" size="sm" onClick={addPendingTag}>{t("contactsPage.add")}</Button>
               </div>
               {pendingTags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
@@ -1869,14 +1871,14 @@ export default function ContactsPage() {
             </div>
             <p className="text-xs text-muted-foreground">
               {tagsMode === "add"
-                ? "Las etiquetas se añadirán a las que ya tiene cada lead."
-                : "Se reemplazarán todas las etiquetas existentes de los leads seleccionados."}
+                ? t("contactsPage.tagsAddHint")
+                : t("contactsPage.tagsReplaceHint")}
             </p>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTagsOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setTagsOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkEditTags} disabled={pendingTags.length === 0 || bulkWorking}>
-              {bulkWorking ? "Aplicando..." : "Aplicar etiquetas"}
+              {bulkWorking ? t("contactsPage.applying") : t("contactsPage.applyTags")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1885,10 +1887,10 @@ export default function ContactsPage() {
       {/* ── Score IA masivo ───────────────────────────────────────────── */}
       <Dialog open={aiAnalysisOpen} onOpenChange={v => { if (!bulkWorking) setAiAnalysisOpen(v); }}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Analizar score IA</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> {t("contactsPage.analyzeAiScore")}</DialogTitle></DialogHeader>
           {aiProgress ? (
             <div className="space-y-3 py-2">
-              <p className="text-sm text-muted-foreground">Analizando leads...</p>
+              <p className="text-sm text-muted-foreground">{t("contactsPage.analyzingLeads")}</p>
               <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
                 <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${(aiProgress.done / aiProgress.total) * 100}%` }} />
               </div>
@@ -1897,24 +1899,24 @@ export default function ContactsPage() {
           ) : (
             <div className="space-y-3 py-2">
               <p className="text-sm text-foreground">
-                Se analizarán <strong>{selected.size} lead{selected.size !== 1 ? "s" : ""}</strong> con inteligencia artificial para calcular su score de compra.
+                {t("contactsPage.aiWillAnalyzePrefix")} <strong>{t("contactsPage.leadsBold", { count: selected.size })}</strong> {t("contactsPage.aiWillAnalyzeSuffix")}
               </p>
               <div className="rounded-lg border border-warning/40 bg-warning/5 p-3 space-y-1">
-                <p className="text-xs font-semibold text-warning">Aviso de costo</p>
+                <p className="text-xs font-semibold text-warning">{t("contactsPage.costNotice")}</p>
                 <p className="text-xs text-muted-foreground">
-                  Cada análisis consume créditos IA de tu plan. Costo estimado de esta operación: <strong>~${(selected.size * 0.0004).toFixed(3)} USD</strong>.
+                  {t("contactsPage.aiCostPrefix")} <strong>~${(selected.size * 0.0004).toFixed(3)} USD</strong>.
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Leads sin conversaciones recientes pueden generar un score menos preciso.
+                  {t("contactsPage.aiLessAccurateNote")}
                 </p>
               </div>
             </div>
           )}
           {!aiProgress && (
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAiAnalysisOpen(false)}>Cancelar</Button>
+              <Button variant="outline" onClick={() => setAiAnalysisOpen(false)}>{t("contactsPage.cancel")}</Button>
               <Button onClick={handleBulkAIAnalysis} disabled={bulkWorking} className="gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" /> Analizar {selected.size} lead{selected.size !== 1 ? "s" : ""}
+                <Sparkles className="h-3.5 w-3.5" /> {t("contactsPage.analyzeLeads", { count: selected.size })}
               </Button>
             </DialogFooter>
           )}
@@ -1926,12 +1928,12 @@ export default function ContactsPage() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <GitMerge className="h-4 w-4 text-amber-600" /> Fusionar contactos duplicados
+              <GitMerge className="h-4 w-4 text-amber-600" /> {t("contactsPage.mergeDuplicates")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <p className="text-sm text-muted-foreground">
-              Elige cuál es el contacto <strong>principal</strong>. El otro se eliminará y toda su actividad, mensajes y llamadas se transferirán al principal.
+              {t("contactsPage.mergePrefix")} <strong>{t("contactsPage.primaryWord")}</strong>{t("contactsPage.mergeSuffix")}
             </p>
             <div className="grid grid-cols-2 gap-3">
               {[...selected].map(cid => {
@@ -1950,30 +1952,30 @@ export default function ContactsPage() {
                           {c.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                         </AvatarFallback>
                       </Avatar>
-                      {isPrimary && <Badge className="text-[10px] h-5">Principal</Badge>}
+                      {isPrimary && <Badge className="text-[10px] h-5">{t("contactsPage.primary")}</Badge>}
                     </div>
                     <p className="text-sm font-medium truncate">{c.full_name}</p>
                     <p className="text-xs text-muted-foreground truncate">{c.primary_phone || c.primary_email || "—"}</p>
-                    <p className="text-xs text-muted-foreground mt-1">Origen: <span className="font-medium">{c.source || "—"}</span></p>
+                    <p className="text-xs text-muted-foreground mt-1">{t("contactsPage.sourceLabel")}: <span className="font-medium">{c.source || "—"}</span></p>
                   </button>
                 );
               })}
             </div>
             <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
               <p className="text-xs text-destructive">
-                Esta acción es <strong>irreversible</strong>. El contacto secundario se eliminará permanentemente.
+                {t("contactsPage.mergeIrreversiblePrefix")} <strong>{t("contactsPage.irreversibleWord")}</strong>{t("contactsPage.mergeIrreversibleSuffix")}
               </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMergeOpen(false)} disabled={mergeWorking}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setMergeOpen(false)} disabled={mergeWorking}>{t("contactsPage.cancel")}</Button>
             <Button
               onClick={handleMergeContacts}
               disabled={!mergePrimaryId || mergeWorking}
               className="gap-1.5 bg-amber-600 hover:bg-amber-700 text-white border-0"
             >
               {mergeWorking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitMerge className="h-3.5 w-3.5" />}
-              Fusionar
+              {t("contactsPage.merge")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1982,23 +1984,23 @@ export default function ContactsPage() {
       {/* ── Cambiar estado ────────────────────────────────────────────── */}
       <Dialog open={statusOpen} onOpenChange={setStatusOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Cambiar estado de {selected.size} lead{selected.size !== 1 ? "s" : ""}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.changeStatusTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
-            <Label>Nuevo estado</Label>
+            <Label>{t("contactsPage.newStatus")}</Label>
             <Select value={bulkStatus} onValueChange={setBulkStatus}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar estado" /></SelectTrigger>
+              <SelectTrigger><SelectValue placeholder={t("contactsPage.selectStatus")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="active">Activo</SelectItem>
-                <SelectItem value="won">Ganado</SelectItem>
-                <SelectItem value="lost">Perdido</SelectItem>
-                <SelectItem value="disqualified">Descalificado</SelectItem>
+                <SelectItem value="active">{t("contactsPage.statusActive")}</SelectItem>
+                <SelectItem value="won">{t("contactsPage.statusWon")}</SelectItem>
+                <SelectItem value="lost">{t("contactsPage.statusLost")}</SelectItem>
+                <SelectItem value="disqualified">{t("contactsPage.statusDisqualified")}</SelectItem>
               </SelectContent>
             </Select>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setStatusOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkStatus} disabled={!bulkStatus || bulkWorking}>
-              {bulkWorking ? "Actualizando..." : "Aplicar"}
+              {bulkWorking ? t("contactsPage.updating") : t("contactsPage.apply")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2007,21 +2009,21 @@ export default function ContactsPage() {
       {/* ── Bulk move to pipeline + stage ──────────────────────────────── */}
       <Dialog open={pipelineMoveOpen} onOpenChange={setPipelineMoveOpen}>
         <DialogContent className="max-w-sm">
-          <DialogHeader><DialogTitle>Asignar {selected.size} lead{selected.size !== 1 ? "s" : ""} a un pipeline</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{t("contactsPage.assignToPipelineTitle", { count: selected.size })}</DialogTitle></DialogHeader>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
-              <Label>Pipeline</Label>
+              <Label>{t("contactsPage.pipeline")}</Label>
               <Select value={bulkPipelineId} onValueChange={setBulkPipelineId}>
-                <SelectTrigger><SelectValue placeholder="Selecciona un pipeline" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("contactsPage.selectPipeline")} /></SelectTrigger>
                 <SelectContent>
                   {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Etapa</Label>
+              <Label>{t("contactsPage.stage")}</Label>
               <Select value={bulkStageId} onValueChange={setBulkStageId} disabled={!bulkPipelineId}>
-                <SelectTrigger><SelectValue placeholder={bulkPipelineId ? "Selecciona una etapa" : "Elige un pipeline primero"} /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={bulkPipelineId ? t("contactsPage.selectStage") : t("contactsPage.choosePipelineFirst")} /></SelectTrigger>
                 <SelectContent>
                   {bulkMoveStages.map(s => (
                     <SelectItem key={s.id} value={s.id}>
@@ -2035,9 +2037,9 @@ export default function ContactsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setPipelineMoveOpen(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setPipelineMoveOpen(false)}>{t("contactsPage.cancel")}</Button>
             <Button onClick={handleBulkPipelineMove} disabled={!bulkPipelineId || !bulkStageId || bulkWorking}>
-              {bulkWorking ? "Moviendo..." : "Asignar"}
+              {bulkWorking ? t("contactsPage.moving") : t("contactsPage.assign")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2066,9 +2068,9 @@ export default function ContactsPage() {
           <div className="flex items-center gap-2 px-6 pt-5 pb-3 border-b shrink-0">
             <Mail className="h-5 w-5 text-blue-600 shrink-0" />
             <div className="flex-1">
-              <h2 className="text-base font-semibold">Enviar email a {selected.size} leads seleccionados</h2>
+              <h2 className="text-base font-semibold">{t("contactsPage.sendEmailTitle", { count: selected.size })}</h2>
               <p className="text-xs text-muted-foreground">
-                Usa <code className="bg-muted px-1 rounded">{"{{nombre}}"}</code> para personalizar automáticamente
+                {t("contactsPage.useVarPrefix")} <code className="bg-muted px-1 rounded">{"{{nombre}}"}</code> {t("contactsPage.useVarSuffix")}
               </p>
             </div>
           </div>
@@ -2079,13 +2081,13 @@ export default function ContactsPage() {
               onClick={() => setEmailMode("template")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${emailMode === "template" ? "bg-white shadow text-foreground border" : "text-muted-foreground hover:text-foreground"}`}
             >
-              <LayoutTemplate className="h-3.5 w-3.5" /> Usar plantilla guardada
+              <LayoutTemplate className="h-3.5 w-3.5" /> {t("contactsPage.useSavedTemplate")}
             </button>
             <button
               onClick={() => setEmailMode("custom")}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${emailMode === "custom" ? "bg-white shadow text-foreground border" : "text-muted-foreground hover:text-foreground"}`}
             >
-              <FileText className="h-3.5 w-3.5" /> Escribir email nuevo
+              <FileText className="h-3.5 w-3.5" /> {t("contactsPage.writeNewEmail")}
             </button>
           </div>
 
@@ -2098,8 +2100,8 @@ export default function ContactsPage() {
                 ) : savedTemplates.length === 0 ? (
                   <div className="text-center py-8 space-y-2">
                     <LayoutTemplate className="h-10 w-10 mx-auto text-muted-foreground/40" />
-                    <p className="text-sm font-medium">No tienes plantillas guardadas</p>
-                    <p className="text-xs text-muted-foreground">Ve a <strong>Email Builder</strong> en el sidebar para crear y guardar plantillas de diseño.</p>
+                    <p className="text-sm font-medium">{t("contactsPage.noSavedTemplates")}</p>
+                    <p className="text-xs text-muted-foreground">{t("contactsPage.noTemplatesPrefix")} <strong>Email Builder</strong> {t("contactsPage.noTemplatesSuffix")}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-2">
@@ -2112,14 +2114,14 @@ export default function ContactsPage() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
                             <p className="text-sm font-semibold truncate">{tpl.name}</p>
-                            <p className="text-xs text-muted-foreground truncate mt-0.5">{tpl.subject || "Sin asunto"}</p>
+                            <p className="text-xs text-muted-foreground truncate mt-0.5">{tpl.subject || t("contactsPage.noSubject")}</p>
                           </div>
                           <div className="flex items-center gap-1 shrink-0">
                             {selectedEmailTpl?.id === tpl.id && <span className="text-blue-600 text-xs font-bold">✓</span>}
                             <button
                               onClick={e => { e.stopPropagation(); setPreviewHtml(tpl.html); }}
                               className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
-                              title="Previsualizar"
+                              title={t("contactsPage.preview")}
                             >
                               <Eye className="h-3.5 w-3.5" />
                             </button>
@@ -2135,7 +2137,7 @@ export default function ContactsPage() {
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="bg-white rounded-xl shadow-2xl w-[660px] max-h-[80vh] flex flex-col overflow-hidden">
                       <div className="flex items-center justify-between px-4 py-3 border-b">
-                        <p className="font-semibold text-sm">Vista previa</p>
+                        <p className="font-semibold text-sm">{t("contactsPage.previewTitle")}</p>
                         <button onClick={() => setPreviewHtml(null)} className="text-muted-foreground hover:text-foreground text-lg leading-none">✕</button>
                       </div>
                       <div className="flex-1 overflow-auto p-2">
@@ -2156,15 +2158,15 @@ export default function ContactsPage() {
             {emailMode === "custom" && (
               <div className="space-y-3">
                 <div>
-                  <Label className="text-xs font-semibold mb-1 block">Cuerpo del email</Label>
+                  <Label className="text-xs font-semibold mb-1 block">{t("contactsPage.emailBody")}</Label>
                   <Textarea
                     value={emailBody}
                     onChange={e => setEmailBody(e.target.value)}
-                    placeholder={"Hola {{nombre}},\n\nEscribo para..."}
+                    placeholder={t("contactsPage.emailBodyPlaceholder")}
                     rows={9}
                     className="text-sm"
                   />
-                  <p className="text-xs text-muted-foreground mt-1">El texto se envía tal cual con saltos de línea respetados.</p>
+                  <p className="text-xs text-muted-foreground mt-1">{t("contactsPage.emailBodyHint")}</p>
                 </div>
               </div>
             )}
@@ -2172,45 +2174,45 @@ export default function ContactsPage() {
             {/* ── Campaign name (required) ── */}
             <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 space-y-2">
               <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                🏷️ Nombre de la campaña <span className="text-red-500">*</span>
+                🏷️ {t("contactsPage.campaignName")} <span className="text-red-500">*</span>
               </p>
               <Input
                 value={emailCampaignName}
                 onChange={e => setEmailCampaignName(e.target.value)}
-                placeholder="Ej: Promo Mayo 2026, Seguimiento leads fríos…"
+                placeholder={t("contactsPage.emailCampaignNamePlaceholder")}
                 className="h-8 text-sm"
               />
-              <p className="text-[11px] text-muted-foreground">Aparecerá en Campañas para identificar y ver las estadísticas de este envío.</p>
+              <p className="text-[11px] text-muted-foreground">{t("contactsPage.emailCampaignNameHint")}</p>
             </div>
 
             {/* ── Sender config ── */}
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-2">
               <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                📤 Remitente
+                📤 {t("contactsPage.sender")}
                 {!fromEmail.trim() && (
-                  <span className="text-amber-600 font-normal ml-1">⚠ Configura un email verificado en Resend para que llegue</span>
+                  <span className="text-amber-600 font-normal ml-1">{t("contactsPage.senderWarning")}</span>
                 )}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <Label className="text-xs mb-1 block">Nombre del remitente</Label>
-                  <Input value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Ej: Cristhian de Aceleradora" className="h-8 text-sm" />
+                  <Label className="text-xs mb-1 block">{t("contactsPage.senderName")}</Label>
+                  <Input value={fromName} onChange={e => setFromName(e.target.value)} placeholder={t("contactsPage.senderNamePlaceholder")} className="h-8 text-sm" />
                 </div>
                 <div>
-                  <Label className="text-xs mb-1 block">Email del remitente <span className="text-red-500">*</span></Label>
-                  <Input value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder="Ej: hola@tudominio.com" type="email" className="h-8 text-sm" />
+                  <Label className="text-xs mb-1 block">{t("contactsPage.senderEmail")} <span className="text-red-500">*</span></Label>
+                  <Input value={fromEmail} onChange={e => setFromEmail(e.target.value)} placeholder={t("contactsPage.senderEmailPlaceholder")} type="email" className="h-8 text-sm" />
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">Debe ser un email de un dominio verificado en <strong>resend.com → Domains</strong></p>
+              <p className="text-[11px] text-muted-foreground">{t("contactsPage.senderDomainHintPrefix")} <strong>resend.com → Domains</strong></p>
             </div>
 
             {/* ── Subject (always visible) ── */}
             <div>
-              <Label className="text-xs font-semibold mb-1 block">Asunto del email</Label>
+              <Label className="text-xs font-semibold mb-1 block">{t("contactsPage.emailSubject")}</Label>
               <Input
                 value={emailSubject}
                 onChange={e => setEmailSubject(e.target.value)}
-                placeholder="Ej: Tenemos algo para ti, {{nombre}}"
+                placeholder={t("contactsPage.emailSubjectPlaceholder")}
               />
             </div>
 
@@ -2218,7 +2220,7 @@ export default function ContactsPage() {
             {emailBlastProgress && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg px-3 py-2">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Enviando {emailBlastProgress.done}/{emailBlastProgress.total}…
+                {t("contactsPage.sendingProgress", { done: emailBlastProgress.done, total: emailBlastProgress.total })}
               </div>
             )}
           </div>
@@ -2227,21 +2229,21 @@ export default function ContactsPage() {
           <div className="border-t px-6 py-4 flex items-center justify-between shrink-0 bg-background">
             <p className="text-xs text-muted-foreground">
               {emailMode === "template" && selectedEmailTpl
-                ? <>Plantilla: <strong>{selectedEmailTpl.name}</strong></>
+                ? <>{t("contactsPage.templateLabel")}: <strong>{selectedEmailTpl.name}</strong></>
                 : emailMode === "template"
-                ? "Selecciona una plantilla arriba"
-                : "Email personalizado"}
+                ? t("contactsPage.selectTemplateAbove")
+                : t("contactsPage.customEmail")}
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-md border overflow-hidden">
-                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "now" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("now")}>Ahora</button>
-                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "schedule" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("schedule")}>Programar</button>
+                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "now" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("now")}>{t("contactsPage.now")}</button>
+                <button type="button" className={`px-2.5 py-1.5 text-xs ${emailScheduleMode === "schedule" ? "bg-primary text-primary-foreground" : "bg-background"}`} onClick={() => setEmailScheduleMode("schedule")}>{t("contactsPage.schedule")}</button>
               </div>
               {emailScheduleMode === "schedule" && (
                 <Input type="datetime-local" value={emailScheduleAt} onChange={(e) => setEmailScheduleAt(e.target.value)}
                   min={new Date(Date.now() + 60000).toISOString().slice(0, 16)} className="h-9 w-44 text-xs" />
               )}
-              <Button variant="outline" size="sm" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>Cancelar</Button>
+              <Button variant="outline" size="sm" onClick={() => setEmailBlastOpen(false)} disabled={emailBlastSending}>{t("contactsPage.cancel")}</Button>
               <Button
                 size="sm"
                 onClick={() => handleEmailBlast(emailScheduleMode === "schedule" && emailScheduleAt ? new Date(emailScheduleAt).toISOString() : undefined)}
@@ -2249,8 +2251,8 @@ export default function ContactsPage() {
                 className="bg-blue-600 hover:bg-blue-700"
               >
                 {emailBlastSending
-                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Procesando…</>
-                  : <><Mail className="h-4 w-4 mr-1" /> {emailScheduleMode === "schedule" ? "Programar" : "Enviar email"}</>}
+                  ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> {t("contactsPage.processing")}</>
+                  : <><Mail className="h-4 w-4 mr-1" /> {emailScheduleMode === "schedule" ? t("contactsPage.schedule") : t("contactsPage.sendEmail")}</>}
               </Button>
             </div>
           </div>
@@ -2263,7 +2265,7 @@ export default function ContactsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <PhoneCall className="h-5 w-5 text-orange-500" />
-              Campaña de llamadas IA
+              {t("contactsPage.aiCallCampaign")}
             </DialogTitle>
           </DialogHeader>
 
@@ -2271,25 +2273,25 @@ export default function ContactsPage() {
             {/* Summary */}
             <div className="rounded-lg border border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-900/10 px-4 py-3">
               <p className="text-sm font-semibold text-orange-700 dark:text-orange-400">
-                {selected.size} lead{selected.size !== 1 ? "s" : ""} seleccionado{selected.size !== 1 ? "s" : ""}
+                {t("contactsPage.selectedLeadsCount", { count: selected.size })}
               </p>
               <p className="text-xs text-orange-600/80 dark:text-orange-400/70 mt-0.5">
-                El agente de voz llamará a cada lead de forma automática.
+                {t("contactsPage.voiceAgentWillCall")}
               </p>
             </div>
 
             {/* Agent selector */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Agente de voz <span className="text-red-500">*</span></Label>
+              <Label className="text-xs font-semibold">{t("contactsPage.voiceAgent")} <span className="text-red-500">*</span></Label>
               {callingAgents.length === 0 ? (
                 <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-2.5">
-                  No tienes agentes de voz configurados.{" "}
-                  <a href="/calling-agent" className="text-primary underline underline-offset-2">Crear un agente →</a>
+                  {t("contactsPage.noVoiceAgents")}{" "}
+                  <a href="/calling-agent" className="text-primary underline underline-offset-2">{t("contactsPage.createAgent")}</a>
                 </p>
               ) : (
                 <Select value={voiceCampaignAgentId} onValueChange={setVoiceCampaignAgentId}>
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="Selecciona un agente…" />
+                    <SelectValue placeholder={t("contactsPage.selectAgent")} />
                   </SelectTrigger>
                   <SelectContent>
                     {callingAgents.map(a => (
@@ -2304,20 +2306,20 @@ export default function ContactsPage() {
 
             {/* Campaign name */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Nombre de la campaña <span className="text-red-500">*</span></Label>
+              <Label className="text-xs font-semibold">{t("contactsPage.campaignName")} <span className="text-red-500">*</span></Label>
               <Input
                 value={voiceCampaignName}
                 onChange={e => setVoiceCampaignName(e.target.value)}
-                placeholder="Ej: Seguimiento mayo, Leads fríos Q2…"
+                placeholder={t("contactsPage.voiceCampaignNamePlaceholder")}
                 className="h-9 text-sm"
               />
-              <p className="text-[11px] text-muted-foreground">Aparecerá en Agente de Voz → Campañas para ver el progreso.</p>
+              <p className="text-[11px] text-muted-foreground">{t("contactsPage.voiceCampaignNameHint")}</p>
             </div>
           </div>
 
           <DialogFooter className="gap-2">
             <Button variant="outline" size="sm" onClick={() => setVoiceCampaignOpen(false)} disabled={voiceCampaignLoading}>
-              Cancelar
+              {t("contactsPage.cancel")}
             </Button>
             <Button
               size="sm"
@@ -2326,8 +2328,8 @@ export default function ContactsPage() {
               className="bg-orange-600 hover:bg-orange-700 text-white"
             >
               {voiceCampaignLoading
-                ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> Iniciando…</>
-                : <><PhoneCall className="h-4 w-4 mr-1" /> Iniciar campaña</>}
+                ? <><Loader2 className="h-4 w-4 animate-spin mr-1" /> {t("contactsPage.starting")}</>
+                : <><PhoneCall className="h-4 w-4 mr-1" /> {t("contactsPage.startCampaign")}</>}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2337,13 +2339,13 @@ export default function ContactsPage() {
       <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar {selected.size} lead{selected.size !== 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Esta acción no se puede deshacer. Los leads se eliminarán permanentemente.</AlertDialogDescription>
+            <AlertDialogTitle>{t("contactsPage.deleteConfirmTitle", { count: selected.size })}</AlertDialogTitle>
+            <AlertDialogDescription>{t("contactsPage.deleteConfirmDescription")}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={bulkWorking}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={bulkWorking}>{t("contactsPage.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={executeBulkDelete} disabled={bulkWorking} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Eliminar
+              {t("contactsPage.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

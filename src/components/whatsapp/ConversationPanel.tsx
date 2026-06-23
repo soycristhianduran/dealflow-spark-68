@@ -27,6 +27,7 @@ import {
   Send, LayoutTemplate, Paperclip, Mic, X, Loader2, MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import { useWhatsAppInbox, type WaMessage } from "@/hooks/useWhatsAppInbox";
 import { MsgBubble } from "./MsgBubble";
 import { WindowBanner } from "./WindowBanner";
@@ -62,6 +63,8 @@ export function WhatsAppConversationPanel({
     fetchMedia,
     sendTemplate,
   } = useWhatsAppInbox();
+
+  const { t } = useTranslation();
 
   // Local UI state
   const [draft, setDraft] = useState("");
@@ -151,7 +154,7 @@ export function WhatsAppConversationPanel({
       setRecSeconds(0);
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
-      toast.error("Micrófono no disponible: " + e.message);
+      toast.error(t("conversationPanel.micUnavailable", { error: e.message }));
     }
   }, [windowClosed]);
 
@@ -180,7 +183,7 @@ export function WhatsAppConversationPanel({
           const fname = `voice-${Date.now()}.${ext}`;
           await sendMedia(phoneDigits, base64, baseMime, fname, contactId);
         } catch (e: any) {
-          toast.error("Error al enviar audio: " + e.message);
+          toast.error(t("conversationPanel.sendAudioError", { error: e.message }));
         }
         resolve();
       };
@@ -205,7 +208,7 @@ export function WhatsAppConversationPanel({
       if (!phoneDigits) return;
       const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
       if (file.size > MAX_MB * 1024 * 1024) {
-        toast.error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`);
+        toast.error(t("conversationPanel.fileTooLarge", { max: MAX_MB }));
         return;
       }
       setUploadingMedia(true);
@@ -218,7 +221,7 @@ export function WhatsAppConversationPanel({
         });
         await sendMedia(phoneDigits, base64, file.type, file.name, contactId);
       } catch (e: any) {
-        toast.error("Error al enviar archivo: " + e.message);
+        toast.error(t("conversationPanel.sendFileError", { error: e.message }));
       } finally {
         setUploadingMedia(false);
       }
@@ -258,11 +261,11 @@ export function WhatsAppConversationPanel({
         ) : messageItems.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-2 text-center">
             <MessageCircle className="h-10 w-10 text-muted-foreground/40" />
-            <p className="text-sm text-muted-foreground">Sin mensajes aún</p>
+            <p className="text-sm text-muted-foreground">{t("conversationPanel.noMessagesYet")}</p>
             <p className="text-xs text-muted-foreground">
               {windowClosed
-                ? "Envía una plantilla para iniciar la conversación"
-                : "Escribe el primer mensaje abajo"}
+                ? t("conversationPanel.sendTemplateToStart")
+                : t("conversationPanel.writeFirstMessage")}
             </p>
           </div>
         ) : (
@@ -302,7 +305,7 @@ export function WhatsAppConversationPanel({
               variant="outline"
               size="icon"
               className="h-9 w-9 shrink-0"
-              title="Enviar plantilla aprobada"
+              title={t("conversationPanel.sendApprovedTemplate")}
               onClick={() => setShowTemplatePicker(true)}
             >
               <LayoutTemplate className="h-4 w-4" />
@@ -311,7 +314,7 @@ export function WhatsAppConversationPanel({
               variant="outline"
               size="icon"
               className="h-9 w-9 shrink-0"
-              title="Adjuntar imagen, video, audio o documento"
+              title={t("conversationPanel.attachMedia")}
               disabled={uploadingMedia || sending || windowClosed}
               onClick={() => mediaInputRef.current?.click()}
             >
@@ -329,13 +332,13 @@ export function WhatsAppConversationPanel({
           <div className="flex-1 flex items-center gap-3 h-9 px-3 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
             <span className="h-2.5 w-2.5 rounded-full bg-red-500 animate-pulse shrink-0" />
             <span className="text-sm font-medium text-red-600 dark:text-red-400 flex-1 tabular-nums">
-              Grabando — {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:
+              {t("conversationPanel.recording")} — {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:
               {String(recSeconds % 60).padStart(2, "0")}
             </span>
             <button
               onClick={cancelRecording}
               className="text-red-400 hover:text-red-600 transition-colors"
-              title="Cancelar"
+              title={t("conversationPanel.cancel")}
             >
               <X className="h-4 w-4" />
             </button>
@@ -345,8 +348,8 @@ export function WhatsAppConversationPanel({
             ref={textareaRef}
             placeholder={
               windowClosed
-                ? "Ventana cerrada — usa el botón 📋 para enviar una plantilla"
-                : "Escribe un mensaje..."
+                ? t("conversationPanel.windowClosedPlaceholder")
+                : t("conversationPanel.messagePlaceholder")
             }
             value={draft}
             onChange={(e) => !windowClosed && setDraft(e.target.value)}
@@ -369,7 +372,7 @@ export function WhatsAppConversationPanel({
           <Button
             size="icon"
             className="h-9 w-9 shrink-0 bg-green-600 hover:bg-green-700"
-            title="Enviar audio"
+            title={t("conversationPanel.sendAudio")}
             disabled={sending}
             onClick={stopAndSendRecording}
           >
@@ -380,7 +383,7 @@ export function WhatsAppConversationPanel({
             size="icon"
             variant="outline"
             className="h-9 w-9 shrink-0"
-            title="Grabar audio"
+            title={t("conversationPanel.recordAudio")}
             disabled={windowClosed || sending || uploadingMedia}
             onClick={startRecording}
           >

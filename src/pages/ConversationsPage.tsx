@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -98,6 +99,7 @@ interface IgMessageRow {
 }
 
 export default function ConversationsPage() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const { canEditContacts: canEditConversations } = usePermissions();
@@ -132,11 +134,11 @@ export default function ConversationsPage() {
         ops.push(igU);
       }
       await Promise.all(ops);
-      const scope = channelFilter === "whatsapp" ? "de WhatsApp" : channelFilter === "instagram" ? "de Instagram" : "";
-      toast.success(`Conversaciones ${scope} marcadas como leídas`.replace("  ", " "));
+      const scope = channelFilter === "whatsapp" ? t("conversationsPage.scopeWhatsApp") : channelFilter === "instagram" ? t("conversationsPage.scopeInstagram") : "";
+      toast.success(t("conversationsPage.markedReadMsg", { scope }).replace("  ", " "));
       wa.fetchConversations(); loadIgConversations();
     } catch (e: any) {
-      toast.error("No se pudo marcar como leído: " + (e?.message || ""));
+      toast.error(t("conversationsPage.markReadError") + (e?.message || ""));
     } finally {
       setMarkingAll(false);
     }
@@ -291,7 +293,7 @@ export default function ConversationsPage() {
       }
       if (selected?.channel === conv.channel && selected?.id === conv.id) setSelected(null);
     } catch (e: any) {
-      toast.error("Error al marcar como no leído: " + (e?.message || "desconocido"));
+      toast.error(t("conversationsPage.markUnreadError") + (e?.message || t("conversationsPage.unknown")));
     }
   }, [wa, selected, loadIgConversations]);
 
@@ -386,7 +388,7 @@ export default function ConversationsPage() {
           .eq("channel", selected.channel)
           .eq("session_key", sessionKey);
         setAgentPaused(false);
-        toast.success("Agente IA reactivado para esta conversación");
+        toast.success(t("conversationsPage.agentResumedMsg"));
       } else {
         // Pause AI agent — human taking over
         await supabase
@@ -394,10 +396,10 @@ export default function ConversationsPage() {
           .upsert({ channel: selected.channel, session_key: sessionKey, paused_at: new Date().toISOString() },
             { onConflict: "organization_id,channel,session_key" });
         setAgentPaused(true);
-        toast.success("Agente IA pausado — puedes responder tú");
+        toast.success(t("conversationsPage.agentPausedMsg"));
       }
     } catch (e) {
-      toast.error("Error al cambiar estado del agente");
+      toast.error(t("conversationsPage.agentToggleError"));
     } finally {
       setTogglingAgent(false);
     }
@@ -417,7 +419,7 @@ export default function ConversationsPage() {
         await wa.sendMessage(selected.id, text, selected.contact_id, waConv?.from_phone_number_id);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
-        if (!igConv) throw new Error("Conversación no encontrada");
+        if (!igConv) throw new Error(t("conversationsPage.conversationNotFound"));
         await ig.sendDm({ recipient_id: igConv.participant_id, text, conversation_id: igConv.id });
         const { data } = await supabase
           .from("instagram_messages")
@@ -427,7 +429,7 @@ export default function ConversationsPage() {
         setIgMessages((data || []) as IgMessageRow[]);
       }
     } catch (e: any) {
-      toast.error("Error: " + e.message);
+      toast.error(t("conversationsPage.errorPrefix") + e.message);
       setDraft(text);
     } finally {
       setSending(false);
@@ -467,7 +469,7 @@ export default function ConversationsPage() {
       recTimerRef.current = setInterval(() => setRecSeconds((s) => s + 1), 1000);
     } catch (e: any) {
       console.warn("recorder start failed:", e);
-      toast.error("Micrófono no disponible: " + (e?.message || e));
+      toast.error(t("conversationsPage.micUnavailable") + (e?.message || e));
     }
   }, [selected]);
 
@@ -529,7 +531,7 @@ export default function ConversationsPage() {
         await wa.sendMedia(selected.id, base64, mime, fname, selected.contact_id);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
-        if (!igConv) throw new Error("Conversación de Instagram no encontrada");
+        if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
         await ig.sendDmMedia({
           recipient_id: igConv.participant_id,
           file_base64: base64,
@@ -546,7 +548,7 @@ export default function ConversationsPage() {
         setIgMessages((data || []) as IgMessageRow[]);
       }
     } catch (e: any) {
-      toast.error("Error al enviar audio: " + e.message);
+      toast.error(t("conversationsPage.audioSendError") + e.message);
     }
   }, [selected, wa, ig, igConversations, teardownRecorder]);
 
@@ -588,16 +590,16 @@ export default function ConversationsPage() {
         try {
           file = await ensureWhatsAppCompatibleImage(rawFile);
           if (file !== rawFile) {
-            toast.info(`Imagen convertida de ${rawFile.type} a JPEG`);
+            toast.info(t("conversationsPage.imageConverted", { type: rawFile.type }));
           }
         } catch (e: any) {
-          throw new Error("No se pudo convertir la imagen: " + e.message);
+          throw new Error(t("conversationsPage.imageConvertError") + e.message);
         }
       }
 
       const MAX_MB = file.type.startsWith("video/") ? 16 : 10;
       if (file.size > MAX_MB * 1024 * 1024) {
-        throw new Error(`Archivo demasiado grande (máx. ${MAX_MB}MB)`);
+        throw new Error(t("conversationsPage.fileTooLarge", { max: MAX_MB }));
       }
       const base64 = await new Promise<string>((res, rej) => {
         const reader = new FileReader();
@@ -610,7 +612,7 @@ export default function ConversationsPage() {
         await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
-        if (!igConv) throw new Error("Conversación de Instagram no encontrada");
+        if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
         await ig.sendDmMedia({
           recipient_id: igConv.participant_id,
           file_base64: base64,
@@ -627,7 +629,7 @@ export default function ConversationsPage() {
         setIgMessages((data || []) as IgMessageRow[]);
       }
     } catch (e: any) {
-      toast.error("Error al enviar archivo: " + e.message);
+      toast.error(t("conversationsPage.fileSendError") + e.message);
     } finally {
       setUploadingMedia(false);
     }
@@ -642,7 +644,7 @@ export default function ConversationsPage() {
       await wa.sendTemplate(selected.id, name, lang, vars, selected.contact_id, mediaId || undefined);
       setShowTemplatePicker(false);
     } catch (e: any) {
-      toast.error("Error al enviar plantilla: " + e.message);
+      toast.error(t("conversationsPage.templateSendError") + e.message);
     } finally {
       setSending(false);
     }
@@ -657,15 +659,15 @@ export default function ConversationsPage() {
         <aside className={`${selected ? "hidden md:flex" : "flex"} w-full md:w-96 border-r flex-col`}>
           <div className="p-4 border-b space-y-3">
             <div className="flex items-center justify-between">
-              <h1 className="font-bold text-base">Conversaciones</h1>
+              <h1 className="font-bold text-base">{t("conversationsPage.title")}</h1>
               <div className="flex items-center gap-1">
                 {canEditConversations && counts.unread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
                     onClick={markAllRead} disabled={markingAll}
-                    title={channelFilter === "whatsapp" ? "Marcar WhatsApp como leído" : channelFilter === "instagram" ? "Marcar Instagram como leído" : "Marcar todo como leído"}>
+                    title={channelFilter === "whatsapp" ? t("conversationsPage.markWhatsAppReadTitle") : channelFilter === "instagram" ? t("conversationsPage.markInstagramReadTitle") : t("conversationsPage.markAllReadTitle")}>
                     {markingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MailOpen className="h-3.5 w-3.5" />}
                     <span className="hidden sm:inline">
-                      {channelFilter === "whatsapp" ? "Marcar WA leído" : channelFilter === "instagram" ? "Marcar IG leído" : "Marcar leído"}
+                      {channelFilter === "whatsapp" ? t("conversationsPage.markWAReadShort") : channelFilter === "instagram" ? t("conversationsPage.markIGReadShort") : t("conversationsPage.markReadShort")}
                     </span>
                   </Button>
                 )}
@@ -677,7 +679,7 @@ export default function ConversationsPage() {
             </div>
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               <FilterTab active={channelFilter === "all"} onClick={() => setChannelFilter("all")}>
-                Todos ({counts.total})
+                {t("conversationsPage.filterAll")} ({counts.total})
               </FilterTab>
               <FilterTab active={channelFilter === "whatsapp"} onClick={() => setChannelFilter("whatsapp")}>
                 <span className="inline-flex items-center gap-1"><WhatsAppIcon size={14} /> WA ({counts.wa})</span>
@@ -687,7 +689,7 @@ export default function ConversationsPage() {
               </FilterTab>
               <FilterTab active={readFilter === "unread"} onClick={() => setReadFilter(readFilter === "unread" ? "all" : "unread")}>
                 <span className="inline-flex items-center gap-1">
-                  No leídos
+                  {t("conversationsPage.filterUnread")}
                   {counts.unread > 0 && (
                     <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{counts.unread}</span>
                   )}
@@ -696,7 +698,7 @@ export default function ConversationsPage() {
             </div>
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input placeholder="Buscar..." value={search} onChange={(e) => setSearch(e.target.value)}
+              <Input placeholder={t("conversationsPage.searchPlaceholder")} value={search} onChange={(e) => setSearch(e.target.value)}
                 className="pl-8 h-9 text-sm" />
             </div>
           </div>
@@ -707,7 +709,7 @@ export default function ConversationsPage() {
             ) : filtered.length === 0 ? (
               <div className="p-8 text-center space-y-2">
                 <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{search ? "Sin resultados" : "No hay conversaciones"}</p>
+                <p className="text-sm text-muted-foreground">{search ? t("conversationsPage.noResults") : t("conversationsPage.noConversations")}</p>
               </div>
             ) : filtered.map((conv) => (
               <ConvItem
@@ -727,7 +729,7 @@ export default function ConversationsPage() {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2 max-w-sm">
                 <MessageCircle className="h-12 w-12 mx-auto text-muted-foreground/40" />
-                <p className="text-sm text-muted-foreground">Selecciona una conversación</p>
+                <p className="text-sm text-muted-foreground">{t("conversationsPage.selectConversation")}</p>
               </div>
             </div>
           ) : (
@@ -738,7 +740,7 @@ export default function ConversationsPage() {
                 <button
                   className="md:hidden mr-1 text-muted-foreground hover:text-foreground"
                   onClick={() => setSelected(null)}
-                  aria-label="Volver"
+                  aria-label={t("conversationsPage.back")}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
                 </button>
@@ -748,7 +750,7 @@ export default function ConversationsPage() {
                     <button
                       onClick={() => navigate(path(`/contacts/${selected.contact_id}`))}
                       className="group flex items-center gap-1 text-sm font-semibold truncate hover:text-primary transition-colors"
-                      title="Abrir contacto"
+                      title={t("conversationsPage.openContact")}
                     >
                       <span className="truncate">{selected.display_name}</span>
                       <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-0 group-hover:opacity-100" />
@@ -766,16 +768,16 @@ export default function ConversationsPage() {
                 {!agentGloballyActive ? (
                   <button
                     onClick={() => navigate(path("/ai-agent"))}
-                    title="El agente IA está apagado. Actívalo en su configuración."
+                    title={t("conversationsPage.agentOffTitle")}
                     className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border bg-muted text-muted-foreground border-border hover:bg-muted/80"
                   >
-                    <BotOff className="h-3 w-3" /> IA apagada
+                    <BotOff className="h-3 w-3" /> {t("conversationsPage.aiOff")}
                   </button>
                 ) : (
                   <button
                     onClick={toggleAgentPause}
                     disabled={togglingAgent}
-                    title={agentPaused ? "Reactivar agente IA" : "Pausar agente IA (tomar control)"}
+                    title={agentPaused ? t("conversationsPage.resumeAgentTitle") : t("conversationsPage.pauseAgentTitle")}
                     className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors border ${
                       agentPaused
                         ? "bg-muted text-muted-foreground border-border hover:bg-muted/80"
@@ -789,7 +791,7 @@ export default function ConversationsPage() {
                     ) : (
                       <Bot className="h-3 w-3" />
                     )}
-                    {agentPaused ? "IA pausada" : "IA activa"}
+                    {agentPaused ? t("conversationsPage.aiPaused") : t("conversationsPage.aiActive")}
                   </button>
                 )}
               </div>
@@ -799,7 +801,7 @@ export default function ConversationsPage() {
                 {(isWA && wa.loadingMessages) ? (
                   <div className="text-center py-8"><Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" /></div>
                 ) : activeMessages.length === 0 ? (
-                  <div className="text-center py-12 text-sm text-muted-foreground">Sin mensajes todavía.</div>
+                  <div className="text-center py-12 text-sm text-muted-foreground">{t("conversationsPage.noMessagesYet")}</div>
                 ) : (
                   <div className="space-y-3 max-w-3xl mx-auto">
                     {activeMessages.map((msg) => (
@@ -819,7 +821,7 @@ export default function ConversationsPage() {
               <div className="border-t p-3">
                 {!canEditConversations ? (
                   <div className="flex items-center justify-center gap-2 py-2 text-xs text-muted-foreground">
-                    <Eye className="h-3.5 w-3.5" /> Modo solo lectura — no puedes enviar mensajes.
+                    <Eye className="h-3.5 w-3.5" /> {t("conversationsPage.readOnlyMode")}
                   </div>
                 ) : recording ? (
                   /* Recording indicator (WA only) */
@@ -827,13 +829,13 @@ export default function ConversationsPage() {
                     <div className="flex-1 flex items-center gap-2 bg-red-500/10 rounded-lg px-3 py-2">
                       <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                       <span className="text-sm font-mono">{Math.floor(recSeconds / 60)}:{(recSeconds % 60).toString().padStart(2, "0")}</span>
-                      <span className="text-xs text-muted-foreground">Grabando audio...</span>
+                      <span className="text-xs text-muted-foreground">{t("conversationsPage.recordingAudio")}</span>
                     </div>
                     <Button variant="outline" size="sm" onClick={cancelRecording} className="gap-1">
-                      <X className="h-3.5 w-3.5" /> Cancelar
+                      <X className="h-3.5 w-3.5" /> {t("conversationsPage.cancel")}
                     </Button>
                     <Button size="sm" onClick={stopAndSendRecording} className="gap-1 bg-green-600 hover:bg-green-700">
-                      <Send className="h-3.5 w-3.5" /> Enviar
+                      <Send className="h-3.5 w-3.5" /> {t("conversationsPage.send")}
                     </Button>
                   </div>
                 ) : (
@@ -858,7 +860,7 @@ export default function ConversationsPage() {
                         variant="outline"
                         className="h-10 w-10 p-0 shrink-0"
                         onClick={() => setShowTemplatePicker(true)}
-                        title="Enviar plantilla"
+                        title={t("conversationsPage.sendTemplate")}
                         disabled={sending}
                       >
                         <FileText className="h-4 w-4" />
@@ -871,14 +873,14 @@ export default function ConversationsPage() {
                       variant="outline"
                       className="h-10 w-10 p-0 shrink-0"
                       onClick={() => mediaInputRef.current?.click()}
-                      title="Adjuntar archivo"
+                      title={t("conversationsPage.attachFile")}
                       disabled={sending || uploadingMedia}
                     >
                       {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
 
                     <Input
-                      placeholder={`Mensaje de ${isWA ? "WhatsApp" : "Instagram"}...`}
+                      placeholder={t("conversationsPage.messagePlaceholder", { channel: isWA ? "WhatsApp" : "Instagram" })}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
@@ -902,7 +904,7 @@ export default function ConversationsPage() {
                         onClick={startRecording}
                         variant="outline"
                         className="h-10 w-10 p-0 shrink-0"
-                        title="Grabar audio"
+                        title={t("conversationsPage.recordAudio")}
                       >
                         <Mic className="h-4 w-4" />
                       </Button>
@@ -955,6 +957,7 @@ function ConvItem({
   onClick: () => void;
   onMarkUnread: () => void;
 }) {
+  const { t } = useTranslation();
   const initials = conv.display_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
   const isUnread = conv.unread_count > 0;
@@ -994,8 +997,8 @@ function ConvItem({
         </div>
         <div className="flex items-center justify-between gap-2 mt-0.5">
           <p className={cn("text-xs truncate", isUnread ? "text-foreground font-medium" : "text-muted-foreground")}>
-            {conv.last_direction === "outgoing" && <span className="text-primary/60">Tú: </span>}
-            {conv.last_message || <span className="italic">Sin mensajes</span>}
+            {conv.last_direction === "outgoing" && <span className="text-primary/60">{t("conversationsPage.youPrefix")} </span>}
+            {conv.last_message || <span className="italic">{t("conversationsPage.noMessages")}</span>}
           </p>
           {isUnread && (
             <Badge className="h-4 min-w-[1rem] px-1 text-[10px] bg-red-500 text-white rounded-full shrink-0">
@@ -1018,18 +1021,18 @@ function ConvItem({
             ? "bg-emerald-500 text-white hover:bg-emerald-600"
             : "bg-slate-100 text-slate-700 border border-slate-300 hover:bg-emerald-50 hover:border-emerald-400 hover:text-emerald-700",
         )}
-        aria-label={isUnread ? "Marcar como leído" : "Marcar como no leído"}
-        title={isUnread ? "Marcar como leído" : "Marcar como no leído"}
+        aria-label={isUnread ? t("conversationsPage.markAsRead") : t("conversationsPage.markAsUnread")}
+        title={isUnread ? t("conversationsPage.markAsRead") : t("conversationsPage.markAsUnread")}
       >
         {isUnread ? (
           <>
             <MailOpen className="h-3.5 w-3.5" />
-            <span>Leer</span>
+            <span>{t("conversationsPage.read")}</span>
           </>
         ) : (
           <>
             <MessageCircle className="h-3.5 w-3.5" />
-            <span>No leído</span>
+            <span>{t("conversationsPage.unread")}</span>
           </>
         )}
       </button>
@@ -1044,6 +1047,7 @@ function MessageBubble({
   channel: Channel;
   onFetchMedia?: (messageId: string, waMediaId: string) => void;
 }) {
+  const { t } = useTranslation();
   const out = msg.direction === "outgoing";
   // Format as HH:MM (exact time, same as Kommo)
   const timeLabel = (() => {
@@ -1076,7 +1080,7 @@ function MessageBubble({
       onClick={() => onFetchMedia && metaMediaId && onFetchMedia(msg.id, metaMediaId)}
       className="flex items-center gap-1.5 text-sm text-primary underline py-1 hover:opacity-80 transition-opacity"
     >
-      {icon} {label} — toca para cargar
+      {icon} {label} {t("conversationsPage.tapToLoad")}
     </button>
   );
 
@@ -1087,27 +1091,27 @@ function MessageBubble({
           <a href={realUrl} target="_blank" rel="noopener noreferrer">
             <img
               src={realUrl}
-              alt="imagen"
+              alt={t("conversationsPage.imageAlt")}
               className="max-w-full rounded-lg max-h-64 object-contain mb-1 cursor-pointer hover:opacity-90 transition-opacity"
             />
           </a>
         );
       return isMetaRef
-        ? <LoadBtn icon="🖼" label="Imagen" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🖼 Imagen no disponible</div>;
+        ? <LoadBtn icon="🖼" label={t("conversationsPage.image")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🖼 {t("conversationsPage.imageUnavailable")}</div>;
     }
     if (isVideo) {
       if (realUrl)
         return <video src={realUrl} controls className="max-w-full rounded-lg max-h-48 mb-1" />;
       return isMetaRef
-        ? <LoadBtn icon="🎬" label="Video" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎬 Video no disponible</div>;
+        ? <LoadBtn icon="🎬" label={t("conversationsPage.video")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎬 {t("conversationsPage.videoUnavailable")}</div>;
     }
     if (isAudio) {
       if (realUrl) return <AudioPlayer src={realUrl} outgoing={out} />;
       return isMetaRef
-        ? <LoadBtn icon="🎤" label="Audio" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎤 Audio no disponible</div>;
+        ? <LoadBtn icon="🎤" label={t("conversationsPage.audio")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">🎤 {t("conversationsPage.audioUnavailable")}</div>;
     }
     if (isDocument) {
       if (realUrl)
@@ -1118,12 +1122,12 @@ function MessageBubble({
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm underline py-1"
           >
-            📄 Ver documento
+            📄 {t("conversationsPage.viewDocument")}
           </a>
         );
       return isMetaRef
-        ? <LoadBtn icon="📄" label="Documento" />
-        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">📄 Documento no disponible</div>;
+        ? <LoadBtn icon="📄" label={t("conversationsPage.document")} />
+        : <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">📄 {t("conversationsPage.documentUnavailable")}</div>;
     }
     return null;
   };
@@ -1169,6 +1173,7 @@ function fmtConvTime(iso: string): string {
 
 // ── Quick pipeline + stage changer for the conversation header ────────────────
 function StagePipelinePicker({ contactId }: { contactId: string }) {
+  const { t } = useTranslation();
   const { canEditContacts } = usePermissions();
   const { defaultCurrency } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
@@ -1203,7 +1208,7 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     const firstStage = stages.find(s => s.pipeline_id === pid)?.id || null;
     setPipelineId(pid); setStageId(firstStage || "");
     const { error } = await supabase.from("contacts").update({ pipeline_id: pid, stage_id: firstStage }).eq("id", contactId);
-    if (error) toast.error("No se pudo cambiar el pipeline"); else toast.success("Pipeline actualizado");
+    if (error) toast.error(t("conversationsPage.pipelineChangeError")); else toast.success(t("conversationsPage.pipelineUpdated"));
   };
   const changeStage = async (sid: string) => {
     const stageName = stages.find(s => s.id === sid)?.name || "";
@@ -1213,10 +1218,10 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     if (isWon) {
       const { data: c } = await supabase.from("contacts").select("budget, budget_currency").eq("id", contactId).maybeSingle();
       if (!c?.budget || Number(c.budget) <= 0) {
-        const raw = window.prompt(`Para marcar como ganado en "${stageName}", ingresa el presupuesto de cierre (valor de la venta):`, "");
+        const raw = window.prompt(t("conversationsPage.closingBudgetPrompt", { stageName }), "");
         if (raw === null) return; // cancelled
         const amount = Number(raw.replace(/[^\d.]/g, ""));
-        if (!(amount > 0)) { toast.error("Presupuesto inválido. Debe ser mayor a 0."); return; }
+        if (!(amount > 0)) { toast.error(t("conversationsPage.invalidBudget")); return; }
         update.budget = amount;
         update.budget_currency = c?.budget_currency || defaultCurrency;
       }
@@ -1226,8 +1231,8 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     const { error } = await supabase.from("contacts").update(update).eq("id", contactId);
     if (error) {
       const won = error.message?.includes("BUDGET") || error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
-      toast.error(won ? "Registra el presupuesto de cierre para marcar como ganado." : "No se pudo cambiar la etapa");
-    } else toast.success("Etapa actualizada");
+      toast.error(won ? t("conversationsPage.budgetRequiredForWon") : t("conversationsPage.stageChangeError"));
+    } else toast.success(t("conversationsPage.stageUpdated"));
   };
 
   if (!loaded) return null;
@@ -1247,14 +1252,14 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     <div className="hidden md:flex items-center gap-1.5">
       {pipelines.length > 1 && (
         <Select value={pipelineId} onValueChange={changePipeline}>
-          <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder="Pipeline" /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder={t("conversationsPage.pipelinePlaceholder")} /></SelectTrigger>
           <SelectContent>
             {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
       )}
       <Select value={stageId} onValueChange={changeStage}>
-        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder="Etapa" /></SelectTrigger>
+        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder={t("conversationsPage.stagePlaceholder")} /></SelectTrigger>
         <SelectContent>
           {stagesForPipeline.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
         </SelectContent>

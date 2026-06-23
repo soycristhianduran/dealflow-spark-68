@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { WhatsAppIcon } from "@/components/icons/BrandIcons";
+import { useTranslation } from "react-i18next";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ElementType }> = {
   APPROVED: { label: "Aprobada", color: "bg-green-100 text-green-700 border-green-200", icon: CheckCircle2 },
@@ -67,6 +68,7 @@ function VariableInserter({
   onChange: (v: string) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement>;
 }) {
+  const { t } = useTranslation();
   const usedNums = [...new Set(
     (value.match(/\{\{(\d+)\}\}/g) || []).map(m => parseInt(m.replace(/[{}]/g, "")))
   )].sort((a, b) => a - b);
@@ -88,12 +90,12 @@ function VariableInserter({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 pt-1">
-      <span className="text-xs text-muted-foreground font-medium">Variables:</span>
+      <span className="text-xs text-muted-foreground font-medium">{t("whatsAppTemplatesPage.variablesLabel")}</span>
       {usedNums.map(n => (
         <button
           key={n}
           type="button"
-          title={`Insertar {{${n}}} en la posición del cursor`}
+          title={t("whatsAppTemplatesPage.insertVarAtCursor", { var: `{{${n}}}` })}
           onClick={() => insert(`{{${n}}}`)}
           className="font-mono text-xs bg-blue-50 border border-blue-200 text-blue-700 rounded-md px-2 py-0.5 hover:bg-blue-100 transition-colors"
         >
@@ -102,7 +104,7 @@ function VariableInserter({
       ))}
       <button
         type="button"
-        title={`Insertar nueva variable {{${nextNum}}}`}
+        title={t("whatsAppTemplatesPage.insertNewVar", { var: `{{${nextNum}}}` })}
         onClick={() => insert(`{{${nextNum}}}`)}
         className="text-xs bg-primary/10 border border-primary/20 text-primary rounded-md px-2 py-0.5 hover:bg-primary/20 transition-colors font-medium flex items-center gap-1"
       >
@@ -111,7 +113,9 @@ function VariableInserter({
       </button>
       {usedNums.length > 0 && (
         <span className="text-xs text-muted-foreground ml-1">
-          · {usedNums.length} variable{usedNums.length > 1 ? "s" : ""} en uso
+          · {usedNums.length > 1
+            ? t("whatsAppTemplatesPage.varsInUsePlural", { count: usedNums.length })
+            : t("whatsAppTemplatesPage.varsInUseSingular", { count: usedNums.length })}
         </span>
       )}
     </div>
@@ -142,13 +146,18 @@ function MediaUploader({
   onUpload: (file: File) => void;
   onClear: () => void;
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const maxMb = headerType === "VIDEO" ? MAX_VIDEO_MB : MAX_IMAGE_MB;
-  const label = headerType === "IMAGE" ? "imagen" : headerType === "VIDEO" ? "video" : "documento";
+  const label = headerType === "IMAGE"
+    ? t("whatsAppTemplatesPage.mediaImage")
+    : headerType === "VIDEO"
+      ? t("whatsAppTemplatesPage.mediaVideo")
+      : t("whatsAppTemplatesPage.mediaDocument");
 
   const handleFile = (file: File) => {
     if (file.size > maxMb * 1024 * 1024) {
-      toast.error(`El archivo no puede superar ${maxMb}MB`);
+      toast.error(t("whatsAppTemplatesPage.fileTooLarge", { maxMb }));
       return;
     }
     onUpload(file);
@@ -179,7 +188,7 @@ function MediaUploader({
         {uploading ? (
           <div className="flex flex-col items-center gap-2 py-2">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <p className="text-xs text-muted-foreground">Subiendo a Meta...</p>
+            <p className="text-xs text-muted-foreground">{t("whatsAppTemplatesPage.uploadingToMeta")}</p>
           </div>
         ) : preview ? (
           <div className="relative">
@@ -188,14 +197,14 @@ function MediaUploader({
             ) : (
               <video src={preview} className="max-h-32 mx-auto rounded" controls />
             )}
-            <p className="text-xs text-green-600 mt-1 font-medium">✓ Archivo subido correctamente</p>
+            <p className="text-xs text-green-600 mt-1 font-medium">{t("whatsAppTemplatesPage.fileUploadedCheck")}</p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-1.5 py-2">
             <Upload className="h-6 w-6 text-muted-foreground" />
-            <p className="text-sm font-medium">Haz clic o arrastra tu {label} aquí</p>
+            <p className="text-sm font-medium">{t("whatsAppTemplatesPage.dropFileHere", { label })}</p>
             <p className="text-xs text-muted-foreground">
-              {headerType === "IMAGE" ? "JPG, PNG, WebP" : headerType === "VIDEO" ? "MP4, 3GPP" : "PDF"} · máx. {maxMb}MB
+              {headerType === "IMAGE" ? "JPG, PNG, WebP" : headerType === "VIDEO" ? "MP4, 3GPP" : "PDF"} · {t("whatsAppTemplatesPage.maxSize", { maxMb })}
             </p>
           </div>
         )}
@@ -206,7 +215,7 @@ function MediaUploader({
           onClick={onClear}
           className="text-xs text-destructive hover:underline flex items-center gap-1"
         >
-          <X className="h-3 w-3" /> Eliminar archivo
+          <X className="h-3 w-3" /> {t("whatsAppTemplatesPage.removeFile")}
         </button>
       )}
     </div>
@@ -283,6 +292,8 @@ function templateToForm(t: WhatsAppTemplate): FormState {
 }
 
 export default function WhatsAppTemplatesPage() {
+  const { t } = useTranslation();
+  const translate = t; // alias for use inside closures that shadow `t`
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { organizationId } = useOrganizationContext();
@@ -325,12 +336,12 @@ export default function WhatsAppTemplatesPage() {
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       formSetter(f => ({ ...f, headerMediaId: data.media_id, headerUploading: false }));
-      toast.success("Archivo subido correctamente");
+      toast.success(t("whatsAppTemplatesPage.fileUploadedSuccess"));
     } catch (e: any) {
       formSetter(f => ({ ...f, headerUploading: false, headerPreview: "", headerMediaId: "" }));
-      toast.error("Error al subir archivo: " + e.message);
+      toast.error(t("whatsAppTemplatesPage.fileUploadError", { message: e.message }));
     }
-  }, []);
+  }, [organizationId, t]);
 
   useEffect(() => {
     if (isConnected) fetchTemplates();
@@ -344,12 +355,17 @@ export default function WhatsAppTemplatesPage() {
   };
 
   const handleCreate = async () => {
-    if (!form.name.trim()) { toast.error("El nombre es obligatorio"); return; }
-    if (!form.bodyText.trim()) { toast.error("El cuerpo del mensaje es obligatorio"); return; }
+    if (!form.name.trim()) { toast.error(t("whatsAppTemplatesPage.nameRequired")); return; }
+    if (!form.bodyText.trim()) { toast.error(t("whatsAppTemplatesPage.bodyRequired")); return; }
     const varError = validateVars(form.bodyText);
     if (varError) { toast.error(varError); return; }
     if (["IMAGE", "VIDEO", "DOCUMENT"].includes(form.headerType) && !form.headerMediaId) {
-      toast.error(`Debes subir un archivo de ${form.headerType === "IMAGE" ? "imagen" : form.headerType === "VIDEO" ? "video" : "documento"} antes de enviar la plantilla`);
+      const fileLabel = form.headerType === "IMAGE"
+        ? t("whatsAppTemplatesPage.mediaImage")
+        : form.headerType === "VIDEO"
+          ? t("whatsAppTemplatesPage.mediaVideo")
+          : t("whatsAppTemplatesPage.mediaDocument");
+      toast.error(t("whatsAppTemplatesPage.uploadFileBeforeCreate", { label: fileLabel }));
       return;
     }
     const nameClean = form.name.toLowerCase().replace(/[^a-z0-9_]/g, "_");
@@ -380,11 +396,11 @@ export default function WhatsAppTemplatesPage() {
 
   const handleUpdate = async () => {
     if (!editTemplate) return;
-    if (!editForm.bodyText.trim()) { toast.error("El cuerpo del mensaje es obligatorio"); return; }
+    if (!editForm.bodyText.trim()) { toast.error(t("whatsAppTemplatesPage.bodyRequired")); return; }
     const varError = validateVars(editForm.bodyText);
     if (varError) { toast.error(varError); return; }
     if (["IMAGE", "VIDEO", "DOCUMENT"].includes(editForm.headerType) && !editForm.headerMediaId) {
-      toast.error(`Debes subir un archivo de muestra para el encabezado de tipo ${editForm.headerType}`);
+      toast.error(t("whatsAppTemplatesPage.uploadSampleForHeader", { type: editForm.headerType }));
       return;
     }
     setSaving(true);
@@ -429,7 +445,7 @@ export default function WhatsAppTemplatesPage() {
 
   const addButton = (formSetter: React.Dispatch<React.SetStateAction<FormState>>) => {
     formSetter(f => {
-      if (f.buttons.length >= 3) { toast.error("Máximo 3 botones"); return f; }
+      if (f.buttons.length >= 3) { toast.error(t("whatsAppTemplatesPage.maxButtons")); return f; }
       return { ...f, buttons: [...f.buttons, { type: "QUICK_REPLY", text: "" }] };
     });
   };
@@ -445,7 +461,7 @@ export default function WhatsAppTemplatesPage() {
   if (waLoading) {
     return (
       <AppLayout>
-        <AppHeader title="Plantillas WhatsApp" />
+        <AppHeader title={t("whatsAppTemplatesPage.pageTitle")} />
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -456,17 +472,17 @@ export default function WhatsAppTemplatesPage() {
   if (!isConnected) {
     return (
       <AppLayout>
-        <AppHeader title="Plantillas WhatsApp" />
+        <AppHeader title={t("whatsAppTemplatesPage.pageTitle")} />
         <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8">
           <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
             <WhatsAppIcon className="h-11 w-11" />
           </div>
-          <h2 className="text-xl font-semibold">WhatsApp no conectado</h2>
+          <h2 className="text-xl font-semibold">{t("whatsAppTemplatesPage.notConnectedTitle")}</h2>
           <p className="text-muted-foreground text-center max-w-md">
-            Para gestionar plantillas necesitas conectar tu cuenta de WhatsApp Business primero.
+            {t("whatsAppTemplatesPage.notConnectedDesc")}
           </p>
           <Button onClick={() => navigate(path("/integrations"))}>
-            Ir a Integraciones <ChevronRight className="h-4 w-4 ml-1" />
+            {t("whatsAppTemplatesPage.goToIntegrations")} <ChevronRight className="h-4 w-4 ml-1" />
           </Button>
         </div>
       </AppLayout>
@@ -475,7 +491,7 @@ export default function WhatsAppTemplatesPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Plantillas WhatsApp" />
+      <AppHeader title={t("whatsAppTemplatesPage.pageTitle")} />
 
       <div className="flex-1 overflow-auto p-4 md:p-6 space-y-6">
         {/* Hero header */}
@@ -488,20 +504,20 @@ export default function WhatsAppTemplatesPage() {
                 <WhatsAppIcon className="h-9 w-9" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight">Plantillas de mensajes</h1>
+                <h1 className="text-2xl font-bold tracking-tight">{t("whatsAppTemplatesPage.heroTitle")}</h1>
                 <p className="text-muted-foreground text-sm mt-1 max-w-md">
-                  Crea y gestiona plantillas aprobadas por Meta para iniciar conversaciones de WhatsApp.
+                  {t("whatsAppTemplatesPage.heroSubtitle")}
                 </p>
               </div>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={syncFromMeta} disabled={loading} className="bg-background/60 backdrop-blur">
                 <RefreshCw className={cn("h-4 w-4 mr-1", loading && "animate-spin")} />
-                Sincronizar
+                {t("whatsAppTemplatesPage.sync")}
               </Button>
               <Button size="sm" onClick={() => setShowCreate(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                 <Plus className="h-4 w-4 mr-1" />
-                Nueva plantilla
+                {t("whatsAppTemplatesPage.newTemplate")}
               </Button>
             </div>
           </div>
@@ -510,10 +526,10 @@ export default function WhatsAppTemplatesPage() {
           {templates.length > 0 && (
             <div className="relative mt-5 flex flex-wrap gap-2">
               {[
-                { label: "Total", value: templates.length, cls: "bg-background/70 text-foreground ring-border" },
-                { label: "Aprobadas", value: templates.filter(t => t.status === "APPROVED").length, cls: "bg-green-100 text-green-700 ring-green-200" },
-                { label: "Pendientes", value: templates.filter(t => t.status === "PENDING" || t.status === "IN_APPEAL").length, cls: "bg-yellow-100 text-yellow-700 ring-yellow-200" },
-                { label: "Rechazadas", value: templates.filter(t => t.status === "REJECTED").length, cls: "bg-red-100 text-red-700 ring-red-200" },
+                { label: t("whatsAppTemplatesPage.statTotal"), value: templates.length, cls: "bg-background/70 text-foreground ring-border" },
+                { label: t("whatsAppTemplatesPage.statApproved"), value: templates.filter(t => t.status === "APPROVED").length, cls: "bg-green-100 text-green-700 ring-green-200" },
+                { label: t("whatsAppTemplatesPage.statPending"), value: templates.filter(t => t.status === "PENDING" || t.status === "IN_APPEAL").length, cls: "bg-yellow-100 text-yellow-700 ring-yellow-200" },
+                { label: t("whatsAppTemplatesPage.statRejected"), value: templates.filter(t => t.status === "REJECTED").length, cls: "bg-red-100 text-red-700 ring-red-200" },
               ].map(s => (
                 <div key={s.label} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1", s.cls)}>
                   <span className="font-bold tabular-nums">{s.value}</span>
@@ -528,9 +544,8 @@ export default function WhatsAppTemplatesPage() {
         <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-300 flex gap-3">
           <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
           <div>
-            <strong>¿Cómo funcionan las plantillas?</strong> Meta revisa cada plantilla antes de aprobarla (24-48h).
-            Solo puedes usar plantillas <strong>Aprobadas</strong> para iniciar conversaciones.
-            Una vez que el cliente responde, puedes escribir libremente por 24 horas.
+            <strong>{t("whatsAppTemplatesPage.howTemplatesWorkTitle")}</strong> {t("whatsAppTemplatesPage.howTemplatesWorkPart1")}{" "}
+            <strong>{t("whatsAppTemplatesPage.approvedWord")}</strong> {t("whatsAppTemplatesPage.howTemplatesWorkPart2")}
           </div>
         </div>
 
@@ -545,12 +560,12 @@ export default function WhatsAppTemplatesPage() {
               <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 ring-1 ring-emerald-500/20">
                 <WhatsAppIcon className="h-9 w-9" />
               </div>
-              <p className="text-muted-foreground font-medium">No tienes plantillas todavía</p>
+              <p className="text-muted-foreground font-medium">{t("whatsAppTemplatesPage.noTemplatesYet")}</p>
               <p className="text-sm text-muted-foreground text-center max-w-sm">
-                Crea tu primera plantilla para poder iniciar conversaciones de WhatsApp con tus contactos.
+                {t("whatsAppTemplatesPage.noTemplatesDesc")}
               </p>
               <Button onClick={() => setShowCreate(true)}>
-                <Plus className="h-4 w-4 mr-1" /> Crear primera plantilla
+                <Plus className="h-4 w-4 mr-1" /> {t("whatsAppTemplatesPage.createFirstTemplate")}
               </Button>
             </CardContent>
           </Card>
@@ -558,9 +573,9 @@ export default function WhatsAppTemplatesPage() {
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {templates.map((t) => {
               const mediaChip = t.header_type && t.header_type !== "TEXT" && t.header_type !== "NONE"
-                ? (t.header_type === "IMAGE" ? { icon: "🖼", label: "Imagen" }
-                  : t.header_type === "VIDEO" ? { icon: "🎬", label: "Video" }
-                  : t.header_type === "DOCUMENT" ? { icon: "📄", label: "Documento" } : null)
+                ? (t.header_type === "IMAGE" ? { icon: "🖼", label: translate("whatsAppTemplatesPage.mediaImageCap") }
+                  : t.header_type === "VIDEO" ? { icon: "🎬", label: translate("whatsAppTemplatesPage.mediaVideoCap") }
+                  : t.header_type === "DOCUMENT" ? { icon: "📄", label: translate("whatsAppTemplatesPage.mediaDocumentCap") } : null)
                 : null;
               return (
               <Card
@@ -652,8 +667,8 @@ export default function WhatsAppTemplatesPage() {
           {viewTemplate && (
             <div className="space-y-4">
               <div className="flex gap-4 text-sm">
-                <div><span className="text-muted-foreground">Categoría: </span><strong>{viewTemplate.category}</strong></div>
-                <div><span className="text-muted-foreground">Idioma: </span><strong>{viewTemplate.language}</strong></div>
+                <div><span className="text-muted-foreground">{t("whatsAppTemplatesPage.categoryLabel")} </span><strong>{viewTemplate.category}</strong></div>
+                <div><span className="text-muted-foreground">{t("whatsAppTemplatesPage.languageLabel")} </span><strong>{viewTemplate.language}</strong></div>
               </div>
 
               {/* WhatsApp preview */}
@@ -664,7 +679,7 @@ export default function WhatsAppTemplatesPage() {
                   )}
                   {viewTemplate.header_type && !["TEXT", "NONE", null].includes(viewTemplate.header_type) && (
                     <div className="bg-gray-100 rounded p-2 text-center text-xs text-muted-foreground">
-                      {viewTemplate.header_type === "IMAGE" ? "🖼 Imagen" : viewTemplate.header_type === "VIDEO" ? "🎬 Video" : "📄 Documento"}
+                      {viewTemplate.header_type === "IMAGE" ? `🖼 ${t("whatsAppTemplatesPage.mediaImageCap")}` : viewTemplate.header_type === "VIDEO" ? `🎬 ${t("whatsAppTemplatesPage.mediaVideoCap")}` : `📄 ${t("whatsAppTemplatesPage.mediaDocumentCap")}`}
                     </div>
                   )}
                   <p className="text-sm whitespace-pre-wrap">{viewTemplate.body_text}</p>
@@ -687,9 +702,9 @@ export default function WhatsAppTemplatesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setViewTemplate(null)}>Cerrar</Button>
+            <Button variant="outline" onClick={() => setViewTemplate(null)}>{t("whatsAppTemplatesPage.close")}</Button>
             <Button onClick={() => viewTemplate && openEdit(viewTemplate)}>
-              <Pencil className="h-4 w-4 mr-1" /> Editar plantilla
+              <Pencil className="h-4 w-4 mr-1" /> {t("whatsAppTemplatesPage.editTemplate")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -699,31 +714,31 @@ export default function WhatsAppTemplatesPage() {
       <Dialog open={!!editTemplate} onOpenChange={() => setEditTemplate(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Editar plantilla: {editTemplate?.name}</DialogTitle>
+            <DialogTitle>{t("whatsAppTemplatesPage.editDialogTitle", { name: editTemplate?.name })}</DialogTitle>
           </DialogHeader>
           {editTemplate && (
             <div className="space-y-4 py-2">
               {/* Warning for approved templates */}
               {editTemplate.status === "APPROVED" && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-700">
-                  ⚠️ Al editar una plantilla aprobada, Meta la enviará a revisión nuevamente (24-48h). Durante ese tiempo no podrás usarla.
+                  {t("whatsAppTemplatesPage.editApprovedWarning")}
                 </div>
               )}
               {/* Info for DRAFT templates */}
               {(!editTemplate.template_id || editTemplate.status === "DRAFT") && (
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">
-                  ℹ️ Esta plantilla no llegó a Meta (quedó como borrador). Corrige los datos y haz clic en <strong>Reenviar a Meta</strong> para someterla a revisión.
+                  {t("whatsAppTemplatesPage.draftInfoPart1")} <strong>{t("whatsAppTemplatesPage.resubmitToMeta")}</strong> {t("whatsAppTemplatesPage.draftInfoPart2")}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Categoría:</span> <strong>{editTemplate.category}</strong></div>
-                <div><span className="text-muted-foreground">Idioma:</span> <strong>{editTemplate.language}</strong></div>
+                <div><span className="text-muted-foreground">{t("whatsAppTemplatesPage.categoryLabel")}</span> <strong>{editTemplate.category}</strong></div>
+                <div><span className="text-muted-foreground">{t("whatsAppTemplatesPage.languageLabel")}</span> <strong>{editTemplate.language}</strong></div>
               </div>
 
               {/* Header type */}
               <div className="space-y-1.5">
-                <Label>Tipo de encabezado</Label>
+                <Label>{t("whatsAppTemplatesPage.headerTypeLabel")}</Label>
                 <div className="grid grid-cols-4 gap-2">
                   {HEADER_OPTIONS.map(opt => (
                     <button
@@ -744,7 +759,7 @@ export default function WhatsAppTemplatesPage() {
                 </div>
                 {editForm.headerType === "TEXT" && (
                   <Input
-                    placeholder="Texto del encabezado (máx. 60 caracteres)"
+                    placeholder={t("whatsAppTemplatesPage.headerTextPlaceholder")}
                     value={editForm.headerText}
                     onChange={e => setEditForm(f => ({ ...f, headerText: e.target.value }))}
                     maxLength={60}
@@ -754,8 +769,8 @@ export default function WhatsAppTemplatesPage() {
                 {(editForm.headerType === "IMAGE" || editForm.headerType === "VIDEO" || editForm.headerType === "DOCUMENT") && (
                   <div className="mt-2 space-y-1">
                     <p className="text-xs text-muted-foreground">
-                      <span className="text-red-500 font-semibold">Obligatorio: </span>
-                      Sube una muestra para que Meta pueda validar la plantilla. El archivo final se adjunta al <strong>enviar</strong>.
+                      <span className="text-red-500 font-semibold">{t("whatsAppTemplatesPage.requiredLabel")} </span>
+                      {t("whatsAppTemplatesPage.uploadSampleHintEditPart1")} <strong>{t("whatsAppTemplatesPage.sendWord")}</strong>.
                     </p>
                     <MediaUploader
                       headerType={editForm.headerType}
@@ -767,7 +782,7 @@ export default function WhatsAppTemplatesPage() {
                     />
                     {!editForm.headerMediaId && !editForm.headerUploading && (
                       <p className="text-xs text-amber-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" /> Sin archivo no se puede guardar cambios
+                        <AlertCircle className="h-3 w-3" /> {t("whatsAppTemplatesPage.noFileNoSave")}
                       </p>
                     )}
                   </div>
@@ -776,7 +791,7 @@ export default function WhatsAppTemplatesPage() {
 
               {/* Body */}
               <div className="space-y-1.5">
-                <Label>Cuerpo del mensaje <span className="text-red-500">*</span></Label>
+                <Label>{t("whatsAppTemplatesPage.bodyLabel")} <span className="text-red-500">*</span></Label>
                 <Textarea
                   ref={editBodyRef}
                   value={editForm.bodyText}
@@ -796,13 +811,17 @@ export default function WhatsAppTemplatesPage() {
               {extractVarNums(editForm.bodyText).length > 0 && (
                 <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
                   <p className="text-xs font-medium text-blue-800">
-                    Ejemplos para Meta <span className="font-normal text-blue-600">(ayudan a que Meta apruebe más rápido)</span>
+                    {t("whatsAppTemplatesPage.examplesForMeta")} <span className="font-normal text-blue-600">{t("whatsAppTemplatesPage.examplesHintEdit")}</span>
                   </p>
                   {extractVarNums(editForm.bodyText).map((n, i) => (
                     <div key={n} className="flex items-center gap-2">
                       <span className="font-mono text-xs text-blue-700 w-10 shrink-0">{`{{${n}}}`}</span>
                       <Input
-                        placeholder={`ej: ${n === 1 ? "Juan García" : n === 2 ? "nuestro producto" : `valor ${n}`}`}
+                        placeholder={n === 1
+                          ? t("whatsAppTemplatesPage.exampleName")
+                          : n === 2
+                            ? t("whatsAppTemplatesPage.exampleProduct")
+                            : t("whatsAppTemplatesPage.exampleValue", { n })}
                         value={editForm.variableExamples[i] || ""}
                         onChange={e => setEditForm(f => {
                           const ex = [...f.variableExamples];
@@ -818,9 +837,9 @@ export default function WhatsAppTemplatesPage() {
 
               {/* Footer */}
               <div className="space-y-1.5">
-                <Label>Pie de página <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+                <Label>{t("whatsAppTemplatesPage.footerLabel")} <span className="text-muted-foreground text-xs">{t("whatsAppTemplatesPage.optional")}</span></Label>
                 <Input
-                  placeholder="Texto del pie"
+                  placeholder={t("whatsAppTemplatesPage.footerPlaceholder")}
                   value={editForm.footerText}
                   onChange={e => setEditForm(f => ({ ...f, footerText: e.target.value }))}
                   maxLength={60}
@@ -830,9 +849,9 @@ export default function WhatsAppTemplatesPage() {
               {/* Buttons */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>Botones <span className="text-muted-foreground text-xs">(máx. 3)</span></Label>
+                  <Label>{t("whatsAppTemplatesPage.buttonsLabel")} <span className="text-muted-foreground text-xs">{t("whatsAppTemplatesPage.max3")}</span></Label>
                   <Button type="button" variant="outline" size="sm" onClick={() => addButton(setEditForm)}>
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+                    <Plus className="h-3.5 w-3.5 mr-1" /> {t("whatsAppTemplatesPage.add")}
                   </Button>
                 </div>
                 {editForm.buttons.map((btn, i) => (
@@ -840,13 +859,13 @@ export default function WhatsAppTemplatesPage() {
                     <Select value={btn.type} onValueChange={v => updateButton(i, "type", v, setEditForm)}>
                       <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="QUICK_REPLY">Respuesta rápida</SelectItem>
+                        <SelectItem value="QUICK_REPLY">{t("whatsAppTemplatesPage.quickReply")}</SelectItem>
                         <SelectItem value="URL">URL</SelectItem>
-                        <SelectItem value="PHONE_NUMBER">Teléfono</SelectItem>
+                        <SelectItem value="PHONE_NUMBER">{t("whatsAppTemplatesPage.phone")}</SelectItem>
                       </SelectContent>
                     </Select>
                     <Input
-                      placeholder="Texto del botón"
+                      placeholder={t("whatsAppTemplatesPage.buttonTextPlaceholder")}
                       value={btn.text}
                       onChange={e => updateButton(i, "text", e.target.value, setEditForm)}
                       maxLength={25}
@@ -878,14 +897,14 @@ export default function WhatsAppTemplatesPage() {
               {/* Preview */}
               {editForm.bodyText && (
                 <div className="bg-[#dcf8c6] rounded-lg p-3 space-y-1 border">
-                  <p className="text-xs text-muted-foreground font-medium mb-1">Vista previa</p>
+                  <p className="text-xs text-muted-foreground font-medium mb-1">{t("whatsAppTemplatesPage.preview")}</p>
                   {editForm.headerText && <p className="text-sm font-bold">{editForm.headerText}</p>}
                   <p className="text-sm whitespace-pre-wrap">{editForm.bodyText}</p>
                   {editForm.footerText && <p className="text-xs text-gray-500 italic">{editForm.footerText}</p>}
                   {editForm.buttons.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1 border-t border-green-200 mt-1">
                       {editForm.buttons.map((b, i) => (
-                        <span key={i} className="text-xs text-blue-600 font-medium">{b.text || "(botón)"}</span>
+                        <span key={i} className="text-xs text-blue-600 font-medium">{b.text || t("whatsAppTemplatesPage.buttonFallback")}</span>
                       ))}
                     </div>
                   )}
@@ -894,13 +913,13 @@ export default function WhatsAppTemplatesPage() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditTemplate(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setEditTemplate(null)}>{t("whatsAppTemplatesPage.cancel")}</Button>
             <Button onClick={handleUpdate} disabled={saving}>
               {saving
-                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</>
+                ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppTemplatesPage.sending")}</>
                 : (!editTemplate?.template_id || editTemplate?.status === "DRAFT")
-                  ? "Reenviar a Meta"
-                  : "Guardar cambios"}
+                  ? t("whatsAppTemplatesPage.resubmitToMeta")
+                  : t("whatsAppTemplatesPage.saveChanges")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -910,21 +929,21 @@ export default function WhatsAppTemplatesPage() {
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nueva plantilla de WhatsApp</DialogTitle>
+            <DialogTitle>{t("whatsAppTemplatesPage.createDialogTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Nombre <span className="text-red-500">*</span></Label>
+                <Label>{t("whatsAppTemplatesPage.nameLabel")} <span className="text-red-500">*</span></Label>
                 <Input
-                  placeholder="ej: bienvenida_lead"
+                  placeholder={t("whatsAppTemplatesPage.namePlaceholder")}
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") }))}
                 />
-                <p className="text-xs text-muted-foreground">Solo minúsculas, números y guión bajo</p>
+                <p className="text-xs text-muted-foreground">{t("whatsAppTemplatesPage.nameHint")}</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Idioma <span className="text-red-500">*</span></Label>
+                <Label>{t("whatsAppTemplatesPage.languageLabelReq")} <span className="text-red-500">*</span></Label>
                 <Select value={form.language} onValueChange={v => setForm(f => ({ ...f, language: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -935,7 +954,7 @@ export default function WhatsAppTemplatesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Categoría <span className="text-red-500">*</span></Label>
+              <Label>{t("whatsAppTemplatesPage.categoryLabelReq")} <span className="text-red-500">*</span></Label>
               <div className="grid grid-cols-3 gap-2">
                 {CATEGORIES.map(c => (
                   <button
@@ -956,7 +975,7 @@ export default function WhatsAppTemplatesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Tipo de encabezado <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Label>{t("whatsAppTemplatesPage.headerTypeLabel")} <span className="text-muted-foreground text-xs">{t("whatsAppTemplatesPage.optional")}</span></Label>
               <div className="grid grid-cols-4 gap-2">
                 {HEADER_OPTIONS.map(opt => (
                   <button
@@ -977,7 +996,7 @@ export default function WhatsAppTemplatesPage() {
               </div>
               {form.headerType === "TEXT" && (
                 <Input
-                  placeholder="Texto del encabezado (máx. 60 caracteres)"
+                  placeholder={t("whatsAppTemplatesPage.headerTextPlaceholder")}
                   value={form.headerText}
                   onChange={e => setForm(f => ({ ...f, headerText: e.target.value }))}
                   maxLength={60}
@@ -987,8 +1006,8 @@ export default function WhatsAppTemplatesPage() {
               {(form.headerType === "IMAGE" || form.headerType === "VIDEO" || form.headerType === "DOCUMENT") && (
                 <div className="mt-2 space-y-1">
                   <p className="text-xs text-muted-foreground">
-                    <span className="text-red-500 font-semibold">Obligatorio: </span>
-                    Sube una muestra para que Meta pueda validar la plantilla. El archivo final se adjunta al <strong>enviar</strong> el mensaje.
+                    <span className="text-red-500 font-semibold">{t("whatsAppTemplatesPage.requiredLabel")} </span>
+                    {t("whatsAppTemplatesPage.uploadSampleHintCreatePart1")} <strong>{t("whatsAppTemplatesPage.sendWord")}</strong> {t("whatsAppTemplatesPage.uploadSampleHintCreatePart2")}
                   </p>
                   <MediaUploader
                     headerType={form.headerType}
@@ -1000,7 +1019,7 @@ export default function WhatsAppTemplatesPage() {
                   />
                   {!form.headerMediaId && !form.headerUploading && (
                     <p className="text-xs text-amber-600 flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" /> Sin archivo no se puede enviar a Meta
+                      <AlertCircle className="h-3 w-3" /> {t("whatsAppTemplatesPage.noFileNoSend")}
                     </p>
                   )}
                 </div>
@@ -1008,10 +1027,10 @@ export default function WhatsAppTemplatesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label>Cuerpo del mensaje <span className="text-red-500">*</span></Label>
+              <Label>{t("whatsAppTemplatesPage.bodyLabel")} <span className="text-red-500">*</span></Label>
               <Textarea
                 ref={createBodyRef}
-                placeholder={`Hola {{1}}, gracias por tu interés en {{2}}. Te contactamos para darte más información.`}
+                placeholder={t("whatsAppTemplatesPage.bodyPlaceholder", { v1: "{{1}}", v2: "{{2}}" })}
                 value={form.bodyText}
                 onChange={e => setForm(f => ({ ...f, bodyText: e.target.value }))}
                 rows={4}
@@ -1029,13 +1048,17 @@ export default function WhatsAppTemplatesPage() {
             {extractVarNums(form.bodyText).length > 0 && (
               <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
                 <p className="text-xs font-medium text-blue-800">
-                  Ejemplos para Meta <span className="font-normal text-blue-600">(ayudan a que Meta entienda el contexto y apruebe más rápido)</span>
+                  {t("whatsAppTemplatesPage.examplesForMeta")} <span className="font-normal text-blue-600">{t("whatsAppTemplatesPage.examplesHintCreate")}</span>
                 </p>
                 {extractVarNums(form.bodyText).map((n, i) => (
                   <div key={n} className="flex items-center gap-2">
                     <span className="font-mono text-xs text-blue-700 w-10 shrink-0">{`{{${n}}}`}</span>
                     <Input
-                      placeholder={`ej: ${n === 1 ? "Juan García" : n === 2 ? "nuestro producto" : `valor ${n}`}`}
+                      placeholder={n === 1
+                        ? t("whatsAppTemplatesPage.exampleName")
+                        : n === 2
+                          ? t("whatsAppTemplatesPage.exampleProduct")
+                          : t("whatsAppTemplatesPage.exampleValue", { n })}
                       value={form.variableExamples[i] || ""}
                       onChange={e => setForm(f => {
                         const ex = [...f.variableExamples];
@@ -1050,9 +1073,9 @@ export default function WhatsAppTemplatesPage() {
             )}
 
             <div className="space-y-1.5">
-              <Label>Pie de página <span className="text-muted-foreground text-xs">(opcional)</span></Label>
+              <Label>{t("whatsAppTemplatesPage.footerLabel")} <span className="text-muted-foreground text-xs">{t("whatsAppTemplatesPage.optional")}</span></Label>
               <Input
-                placeholder="Texto del pie"
+                placeholder={t("whatsAppTemplatesPage.footerPlaceholder")}
                 value={form.footerText}
                 onChange={e => setForm(f => ({ ...f, footerText: e.target.value }))}
                 maxLength={60}
@@ -1061,9 +1084,9 @@ export default function WhatsAppTemplatesPage() {
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label>Botones <span className="text-muted-foreground text-xs">(máx. 3, opcionales)</span></Label>
+                <Label>{t("whatsAppTemplatesPage.buttonsLabel")} <span className="text-muted-foreground text-xs">{t("whatsAppTemplatesPage.max3Optional")}</span></Label>
                 <Button type="button" variant="outline" size="sm" onClick={() => addButton(setForm)}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Agregar
+                  <Plus className="h-3.5 w-3.5 mr-1" /> {t("whatsAppTemplatesPage.add")}
                 </Button>
               </div>
               {form.buttons.map((btn, i) => (
@@ -1071,13 +1094,13 @@ export default function WhatsAppTemplatesPage() {
                   <Select value={btn.type} onValueChange={v => updateButton(i, "type", v, setForm)}>
                     <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="QUICK_REPLY">Respuesta rápida</SelectItem>
+                      <SelectItem value="QUICK_REPLY">{t("whatsAppTemplatesPage.quickReply")}</SelectItem>
                       <SelectItem value="URL">URL</SelectItem>
-                      <SelectItem value="PHONE_NUMBER">Teléfono</SelectItem>
+                      <SelectItem value="PHONE_NUMBER">{t("whatsAppTemplatesPage.phone")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <Input
-                    placeholder="Texto del botón"
+                    placeholder={t("whatsAppTemplatesPage.buttonTextPlaceholder")}
                     value={btn.text}
                     onChange={e => updateButton(i, "text", e.target.value, setForm)}
                     maxLength={25}
@@ -1109,14 +1132,14 @@ export default function WhatsAppTemplatesPage() {
             {/* Preview */}
             {form.bodyText && (
               <div className="bg-[#dcf8c6] rounded-lg p-3 space-y-1 border">
-                <p className="text-xs text-muted-foreground font-medium mb-1">Vista previa</p>
+                <p className="text-xs text-muted-foreground font-medium mb-1">{t("whatsAppTemplatesPage.preview")}</p>
                 {form.headerText && <p className="text-sm font-bold">{form.headerText}</p>}
                 <p className="text-sm whitespace-pre-wrap">{form.bodyText}</p>
                 {form.footerText && <p className="text-xs text-gray-500 italic">{form.footerText}</p>}
                 {form.buttons.length > 0 && (
                   <div className="flex flex-wrap gap-1 pt-1 border-t border-green-200 mt-1">
                     {form.buttons.map((b, i) => (
-                      <span key={i} className="text-xs text-blue-600 font-medium">{b.text || "(botón)"}</span>
+                      <span key={i} className="text-xs text-blue-600 font-medium">{b.text || t("whatsAppTemplatesPage.buttonFallback")}</span>
                     ))}
                   </div>
                 )}
@@ -1124,9 +1147,9 @@ export default function WhatsAppTemplatesPage() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreate(false)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setShowCreate(false)}>{t("whatsAppTemplatesPage.cancel")}</Button>
             <Button onClick={handleCreate} disabled={creating}>
-              {creating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />Enviando...</> : "Enviar a revisión"}
+              {creating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppTemplatesPage.sending")}</> : t("whatsAppTemplatesPage.submitForReview")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1136,15 +1159,15 @@ export default function WhatsAppTemplatesPage() {
       <Dialog open={!!confirmDelete} onOpenChange={() => setConfirmDelete(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>¿Eliminar plantilla?</DialogTitle>
+            <DialogTitle>{t("whatsAppTemplatesPage.deleteDialogTitle")}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Se eliminará <strong>{confirmDelete}</strong> de Meta y del CRM. Esta acción no se puede deshacer.
+            {t("whatsAppTemplatesPage.deleteConfirmPart1")} <strong>{confirmDelete}</strong> {t("whatsAppTemplatesPage.deleteConfirmPart2")}
           </p>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)}>Cancelar</Button>
+            <Button variant="outline" onClick={() => setConfirmDelete(null)}>{t("whatsAppTemplatesPage.cancel")}</Button>
             <Button variant="destructive" onClick={() => { deleteTemplate(confirmDelete!); setConfirmDelete(null); }}>
-              Eliminar
+              {t("whatsAppTemplatesPage.delete")}
             </Button>
           </DialogFooter>
         </DialogContent>

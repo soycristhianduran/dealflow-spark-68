@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
+import { useTranslation } from "react-i18next";
 
 // Reminder offset (minutes) ↔ human label helpers
 const OFFSET_PRESETS: { value: number; label: string }[] = [
@@ -140,6 +141,7 @@ export default function AIAgentPage() {
   const [newMediaDesc, setNewMediaDesc] = useState("");
   const { templates: waTemplates, fetchTemplates } = useWhatsAppTemplates();
   const [newOffset, setNewOffset] = useState("60");
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!organizationId) { setLoading(false); return; }
@@ -233,8 +235,8 @@ export default function AIAgentPage() {
 
   async function handleUploadMedia(file: File) {
     if (!organizationId) return;
-    if (!newMediaName.trim()) { toast.error("Ponle un nombre al archivo primero"); return; }
-    if (file.size > 16 * 1024 * 1024) { toast.error("El archivo supera 16 MB (límite de WhatsApp)"); return; }
+    if (!newMediaName.trim()) { toast.error(t("aIAgentPage.nameFileFirst")); return; }
+    if (file.size > 16 * 1024 * 1024) { toast.error(t("aIAgentPage.fileExceeds16mb")); return; }
     setUploading(true);
     try {
       const ext = file.name.split(".").pop() || "bin";
@@ -252,11 +254,11 @@ export default function AIAgentPage() {
         mime: file.type || null,
       });
       if (insErr) throw insErr;
-      toast.success("Archivo agregado a la biblioteca");
+      toast.success(t("aIAgentPage.fileAddedToLibrary"));
       setNewMediaName(""); setNewMediaDesc("");
       loadMedia();
     } catch (err: any) {
-      toast.error("Error al subir: " + (err?.message || "intenta de nuevo"));
+      toast.error(t("aIAgentPage.uploadError") + (err?.message || t("aIAgentPage.tryAgain")));
     } finally {
       setUploading(false);
     }
@@ -264,7 +266,7 @@ export default function AIAgentPage() {
 
   async function handleDeleteMedia(id: string) {
     const { error } = await supabase.from("agent_media").update({ is_active: false }).eq("id", id);
-    if (error) { toast.error("No se pudo eliminar"); return; }
+    if (error) { toast.error(t("aIAgentPage.couldNotDelete")); return; }
     setMedia(prev => prev.filter(m => m.id !== id));
   }
 
@@ -304,10 +306,10 @@ export default function AIAgentPage() {
         .upsert(payload, { onConflict: "organization_id" });
 
       if (error) throw error;
-      toast.success("Configuración del agente guardada");
+      toast.success(t("aIAgentPage.configSaved"));
     } catch (err: any) {
       console.warn("Error saving agent config:", err);
-      toast.error("Error al guardar la configuración");
+      toast.error(t("aIAgentPage.configSaveError"));
     } finally {
       setSaving(false);
     }
@@ -320,9 +322,9 @@ export default function AIAgentPage() {
   if (loading) {
     return (
       <AppLayout>
-        <AppHeader title="Agente IA" subtitle="Atención 24/7 automática" />
+        <AppHeader title={t("aIAgentPage.aiAgent")} subtitle={t("aIAgentPage.automatic247")} />
         <div className="p-6 flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> Cargando configuración...
+          <Loader2 className="h-4 w-4 animate-spin" /> {t("aIAgentPage.loadingConfig")}
         </div>
       </AppLayout>
     );
@@ -330,7 +332,7 @@ export default function AIAgentPage() {
 
   return (
     <AppLayout>
-      <AppHeader title="Agente IA" subtitle="Atención 24/7 automática en WhatsApp e Instagram" />
+      <AppHeader title={t("aIAgentPage.aiAgent")} subtitle={t("aIAgentPage.automatic247Channels")} />
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
@@ -340,8 +342,8 @@ export default function AIAgentPage() {
             <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
               <span className="text-lg leading-none mt-0.5">⚠️</span>
               <div>
-                <p className="font-semibold mb-1">No tienes WhatsApp conectado</p>
-                <p className="text-amber-700">El agente no puede responder sin un número de WhatsApp activo. Ve a <a href="../integraciones" className="underline font-medium">Integraciones → WhatsApp Business</a> para conectar tu número primero.</p>
+                <p className="font-semibold mb-1">{t("aIAgentPage.noWhatsAppConnected")}</p>
+                <p className="text-amber-700">{t("aIAgentPage.noWhatsAppDesc1")}<a href="../integraciones" className="underline font-medium">{t("aIAgentPage.integrationsWhatsAppLink")}</a>{t("aIAgentPage.noWhatsAppDesc2")}</p>
               </div>
             </div>
           )}
@@ -356,12 +358,12 @@ export default function AIAgentPage() {
                   </div>
                   <div>
                     <p className="font-medium text-sm">
-                      {config.is_active ? "Agente activo" : "Agente inactivo"}
+                      {config.is_active ? t("aIAgentPage.agentActive") : t("aIAgentPage.agentInactive")}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {config.is_active
-                        ? "Respondiendo conversaciones automáticamente"
-                        : "Actívalo para que empiece a atender"}
+                        ? t("aIAgentPage.agentRespondingDesc")
+                        : t("aIAgentPage.agentActivateDesc")}
                     </p>
                   </div>
                 </div>
@@ -374,7 +376,7 @@ export default function AIAgentPage() {
               <Separator className="my-4" />
 
               <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground">Créditos usados este mes</span>
+                <span className="text-muted-foreground">{t("aIAgentPage.creditsUsedThisMonth")}</span>
                 <span className="font-semibold tabular-nums">
                   {conversationsThisMonth.toLocaleString()}
                   {subscription?.monthlyAiAgentCredits != null && (
@@ -390,8 +392,8 @@ export default function AIAgentPage() {
           {/* Channels */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Canales activos</CardTitle>
-              <CardDescription>El agente solo responde en los canales que actives.</CardDescription>
+              <CardTitle className="text-base">{t("aIAgentPage.activeChannels")}</CardTitle>
+              <CardDescription>{t("aIAgentPage.activeChannelsDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center justify-between rounded-lg border p-3">
@@ -420,24 +422,24 @@ export default function AIAgentPage() {
           {/* Identity */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Identidad del agente</CardTitle>
-              <CardDescription>Cómo se presenta el agente y cuál es el tono de respuesta.</CardDescription>
+              <CardTitle className="text-base">{t("aIAgentPage.agentIdentity")}</CardTitle>
+              <CardDescription>{t("aIAgentPage.agentIdentityDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Nombre del agente</Label>
+                  <Label>{t("aIAgentPage.agentName")}</Label>
                   <Input
-                    placeholder="Asistente"
+                    placeholder={t("aIAgentPage.agentNamePlaceholder")}
                     value={config.agent_name}
                     onChange={e => set("agent_name", e.target.value)}
                     maxLength={40}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Nombre de tu negocio</Label>
+                  <Label>{t("aIAgentPage.businessName")}</Label>
                   <Input
-                    placeholder="Ej: Tienda Moderna"
+                    placeholder={t("aIAgentPage.businessNamePlaceholder")}
                     value={config.business_name}
                     onChange={e => set("business_name", e.target.value)}
                     maxLength={80}
@@ -445,15 +447,15 @@ export default function AIAgentPage() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Tono de respuesta</Label>
+                <Label>{t("aIAgentPage.responseTone")}</Label>
                 <Select value={config.tone} onValueChange={v => set("tone", v)}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="amigable">Amigable y cercano</SelectItem>
-                    <SelectItem value="formal">Formal y profesional</SelectItem>
-                    <SelectItem value="casual">Casual y relajado</SelectItem>
+                    <SelectItem value="amigable">{t("aIAgentPage.toneFriendly")}</SelectItem>
+                    <SelectItem value="formal">{t("aIAgentPage.toneFormal")}</SelectItem>
+                    <SelectItem value="casual">{t("aIAgentPage.toneCasual")}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -463,16 +465,16 @@ export default function AIAgentPage() {
           {/* Knowledge base */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Base de conocimiento</CardTitle>
+              <CardTitle className="text-base">{t("aIAgentPage.knowledgeBase")}</CardTitle>
               <CardDescription>
-                Cuéntale al agente sobre tu negocio. Mientras más detallado, mejores respuestas.
+                {t("aIAgentPage.knowledgeBaseDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Descripción del negocio</Label>
+                <Label>{t("aIAgentPage.businessDescription")}</Label>
                 <Textarea
-                  placeholder="Ej: Somos una tienda de ropa para mujer ubicada en Bogotá. Vendemos ropa casual y de oficina. Hacemos envíos a todo Colombia."
+                  placeholder={t("aIAgentPage.businessDescriptionPlaceholder")}
                   value={config.business_description}
                   onChange={e => set("business_description", e.target.value)}
                   rows={3}
@@ -480,9 +482,9 @@ export default function AIAgentPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Productos y servicios</Label>
+                <Label>{t("aIAgentPage.productsServices")}</Label>
                 <Textarea
-                  placeholder={"Ej:\n- Vestidos casuales: $80.000 - $150.000\n- Blusas: $45.000 - $90.000\n- Jeans: $120.000 - $200.000\nEnvío gratis en compras mayores a $200.000"}
+                  placeholder={t("aIAgentPage.productsServicesPlaceholder")}
                   value={config.products}
                   onChange={e => set("products", e.target.value)}
                   rows={4}
@@ -490,9 +492,9 @@ export default function AIAgentPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label>Preguntas frecuentes</Label>
+                <Label>{t("aIAgentPage.faqs")}</Label>
                 <Textarea
-                  placeholder={"Ej:\nP: ¿Cuánto demora el envío?\nR: 2-3 días hábiles a todo Colombia.\n\nP: ¿Hacen cambios?\nR: Sí, tienes 30 días para cambiar tu producto."}
+                  placeholder={t("aIAgentPage.faqsPlaceholder")}
                   value={config.faqs}
                   onChange={e => set("faqs", e.target.value)}
                   rows={5}
@@ -505,14 +507,14 @@ export default function AIAgentPage() {
           {/* Responses */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Respuestas automáticas</CardTitle>
-              <CardDescription>Texto que usa el agente en situaciones específicas.</CardDescription>
+              <CardTitle className="text-base">{t("aIAgentPage.autoResponses")}</CardTitle>
+              <CardDescription>{t("aIAgentPage.autoResponsesDesc")}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <Label className="flex items-center gap-2">
                   <Zap className="h-3.5 w-3.5 text-amber-500" />
-                  Cuando escala al humano
+                  {t("aIAgentPage.whenEscalates")}
                 </Label>
                 <Textarea
                   value={config.escalation_response}
@@ -522,11 +524,11 @@ export default function AIAgentPage() {
                 />
                 <p className="text-xs text-muted-foreground flex items-start gap-1">
                   <Info className="h-3 w-3 mt-0.5 shrink-0" />
-                  Se envía cuando el lead quiere hablar con una persona o muestra intención de compra.
+                  {t("aIAgentPage.escalationHint")}
                 </p>
               </div>
               <div className="space-y-2">
-                <Label>Cuando no sabe la respuesta</Label>
+                <Label>{t("aIAgentPage.whenDoesntKnow")}</Label>
                 <Textarea
                   value={config.off_topic_response}
                   onChange={e => set("off_topic_response", e.target.value)}
@@ -541,17 +543,17 @@ export default function AIAgentPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <CalendarClock className="h-4 w-4 text-indigo-500" /> Agendamiento de citas
+                <CalendarClock className="h-4 w-4 text-indigo-500" /> {t("aIAgentPage.appointmentScheduling")}
               </CardTitle>
               <CardDescription>
-                Deja que el agente agende citas en Google Calendar cuando el cliente lo pida. La cita se crea en el CRM y en el calendario del vendedor asignado (o el dueño).
+                {t("aIAgentPage.appointmentSchedulingDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between rounded-lg border p-3">
                 <div>
-                  <p className="text-sm font-medium">Permitir que el agente agende citas</p>
-                  <p className="text-xs text-muted-foreground">Requiere que el vendedor/dueño haya conectado Google Calendar en Integraciones.</p>
+                  <p className="text-sm font-medium">{t("aIAgentPage.allowAgentSchedule")}</p>
+                  <p className="text-xs text-muted-foreground">{t("aIAgentPage.allowAgentScheduleDesc")}</p>
                 </div>
                 <Switch checked={config.appointments_enabled} onCheckedChange={v => set("appointments_enabled", v)} />
               </div>
@@ -561,8 +563,8 @@ export default function AIAgentPage() {
                   <div className="rounded-lg border p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium">Enviar recordatorios por WhatsApp</p>
-                        <p className="text-xs text-muted-foreground">El agente le recuerda la cita al cliente en los momentos que elijas.</p>
+                        <p className="text-sm font-medium">{t("aIAgentPage.sendWhatsAppReminders")}</p>
+                        <p className="text-xs text-muted-foreground">{t("aIAgentPage.sendWhatsAppRemindersDesc")}</p>
                       </div>
                       <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
                     </div>
@@ -590,9 +592,9 @@ export default function AIAgentPage() {
                                     const t = approved.find(x => x.name === v);
                                     updateAt(r.minutes, { template: v, lang: t?.language || "es" });
                                   }}>
-                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Plantilla…" /></SelectTrigger>
+                                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t("aIAgentPage.templatePlaceholder")} /></SelectTrigger>
                                   <SelectContent>
-                                    <SelectItem value="__none__">Ninguna (solo dentro de 24h)</SelectItem>
+                                    <SelectItem value="__none__">{t("aIAgentPage.templateNone")}</SelectItem>
                                     {approved.map(t => (
                                       <SelectItem key={t.id} value={t.name}>{t.name} ({t.language})</SelectItem>
                                     ))}
@@ -605,13 +607,13 @@ export default function AIAgentPage() {
                               </Button>
                             </div>
                           ))}
-                          {config.reminders.length === 0 && <p className="text-xs text-muted-foreground">Sin recordatorios — agrega al menos uno.</p>}
+                          {config.reminders.length === 0 && <p className="text-xs text-muted-foreground">{t("aIAgentPage.noRemindersAddOne")}</p>}
                         </div>
 
                         {/* Add a new reminder moment */}
                         <div className="flex items-center gap-2">
                           <Select value={newOffset} onValueChange={setNewOffset}>
-                            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder="Momento…" /></SelectTrigger>
+                            <SelectTrigger className="h-8 w-[200px] text-xs"><SelectValue placeholder={t("aIAgentPage.momentPlaceholder")} /></SelectTrigger>
                             <SelectContent>
                               {OFFSET_PRESETS.filter(o => !config.reminders.some(r => r.minutes === o.value)).map(o => (
                                 <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
@@ -623,7 +625,7 @@ export default function AIAgentPage() {
                               const v = Number(newOffset);
                               if (v && !config.reminders.some(r => r.minutes === v)) set("reminders", [...config.reminders, { minutes: v, template: null, lang: "es" }]);
                             }}>
-                            + Agregar recordatorio
+                            {t("aIAgentPage.addReminder")}
                           </Button>
                         </div>
                         <p className="text-[11px] text-muted-foreground">¿No aparece tu plantilla? Créala y sincronízala en <b>WA Plantillas</b>; debe estar <b>aprobada</b>.</p>
@@ -634,25 +636,25 @@ export default function AIAgentPage() {
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
-                      <Label>Duración de cada cita</Label>
+                      <Label>{t("aIAgentPage.appointmentDuration")}</Label>
                       <Select value={String(config.appointment_duration_min)} onValueChange={v => set("appointment_duration_min", Number(v))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="15">15 minutos</SelectItem>
-                          <SelectItem value="30">30 minutos</SelectItem>
-                          <SelectItem value="45">45 minutos</SelectItem>
-                          <SelectItem value="60">1 hora</SelectItem>
+                          <SelectItem value="15">{t("aIAgentPage.duration15min")}</SelectItem>
+                          <SelectItem value="30">{t("aIAgentPage.duration30min")}</SelectItem>
+                          <SelectItem value="45">{t("aIAgentPage.duration45min")}</SelectItem>
+                          <SelectItem value="60">{t("aIAgentPage.duration1hour")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label>Modalidad de las citas</Label>
+                      <Label>{t("aIAgentPage.appointmentModality")}</Label>
                       <Select value={config.appointment_modality} onValueChange={v => set("appointment_modality", v as AgentConfig["appointment_modality"])}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="both">Ambas (el agente pregunta)</SelectItem>
-                          <SelectItem value="virtual">Solo virtuales (Meet)</SelectItem>
-                          <SelectItem value="presencial">Solo presenciales</SelectItem>
+                          <SelectItem value="both">{t("aIAgentPage.modalityBoth")}</SelectItem>
+                          <SelectItem value="virtual">{t("aIAgentPage.modalityVirtual")}</SelectItem>
+                          <SelectItem value="presencial">{t("aIAgentPage.modalityInPerson")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -661,31 +663,31 @@ export default function AIAgentPage() {
                   {config.appointment_modality !== "virtual" && (
                     <div className="space-y-2">
                       <Label>
-                        Dirección para citas presenciales
+                        {t("aIAgentPage.inPersonAddress")}
                         {config.appointment_modality === "presencial" && <span className="text-destructive"> *</span>}
                       </Label>
                       <Input
-                        placeholder="Ej: Calle 10 #43-20, Oficina 501, Medellín"
+                        placeholder={t("aIAgentPage.inPersonAddressPlaceholder")}
                         value={config.meeting_address}
                         onChange={e => set("meeting_address", e.target.value)}
                         maxLength={200}
                       />
                       <p className="text-xs text-muted-foreground">
                         {config.appointment_modality === "presencial"
-                          ? "Todas las citas se agendarán en esta dirección."
-                          : "Si el cliente elige presencial, el agente usará esta dirección automáticamente."}
+                          ? t("aIAgentPage.addressAllHere")
+                          : t("aIAgentPage.addressIfInPerson")}
                       </p>
                     </div>
                   )}
                   {config.appointment_modality === "virtual" && (
                     <p className="text-xs text-muted-foreground -mt-1">
-                      🎥 Todas las citas serán virtuales — el agente generará un enlace de Google Meet automáticamente.
+                      {t("aIAgentPage.allVirtualMeet")}
                     </p>
                   )}
 
                   <div className="space-y-2">
-                    <Label>Horario de atención</Label>
-                    <p className="text-xs text-muted-foreground">El agente solo ofrecerá y agendará dentro de estas horas.</p>
+                    <Label>{t("aIAgentPage.businessHours")}</Label>
+                    <p className="text-xs text-muted-foreground">{t("aIAgentPage.businessHoursDesc")}</p>
                     <div className="space-y-2 mt-2">
                       {DAY_LABELS.map(({ key, label }) => {
                         const d = config.working_hours[key];
@@ -700,12 +702,12 @@ export default function AIAgentPage() {
                               <div className="flex items-center gap-2">
                                 <Input type="time" value={d.start} className="h-8 w-28"
                                   onChange={e => set("working_hours", { ...config.working_hours, [key]: { ...d, start: e.target.value } })} />
-                                <span className="text-muted-foreground text-sm">a</span>
+                                <span className="text-muted-foreground text-sm">{t("aIAgentPage.timeTo")}</span>
                                 <Input type="time" value={d.end} className="h-8 w-28"
                                   onChange={e => set("working_hours", { ...config.working_hours, [key]: { ...d, end: e.target.value } })} />
                               </div>
                             ) : (
-                              <span className="text-xs text-muted-foreground">Cerrado</span>
+                              <span className="text-xs text-muted-foreground">{t("aIAgentPage.closed")}</span>
                             )}
                           </div>
                         );
@@ -717,54 +719,54 @@ export default function AIAgentPage() {
                   <div className="rounded-lg border p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-sm font-medium">Las citas requieren pago previo</p>
-                        <p className="text-xs text-muted-foreground">El agente enviará el link de pago y solo agendará cuando el cliente confirme que pagó.</p>
+                        <p className="text-sm font-medium">{t("aIAgentPage.appointmentsRequirePayment")}</p>
+                        <p className="text-xs text-muted-foreground">{t("aIAgentPage.appointmentsRequirePaymentDesc")}</p>
                       </div>
                       <Switch checked={config.appointments_paid} onCheckedChange={v => set("appointments_paid", v)} />
                     </div>
                     {config.appointments_paid && (
                       <div className="space-y-3 pt-1">
                         <div className="space-y-1.5">
-                          <Label className="text-xs">Links de pago</Label>
+                          <Label className="text-xs">{t("aIAgentPage.paymentLinks")}</Label>
                           <Textarea
-                            placeholder={"Uno o varios. Ponle una etiqueta a cada uno para que el agente sepa cuál usar. Ej:\nConsulta inicial: https://checkout.wompi.co/l/abc\nSeguimiento: https://mpago.la/xyz\nNequi/Transferencia: 300 123 4567"}
+                            placeholder={t("aIAgentPage.paymentLinksPlaceholder")}
                             value={config.payment_link}
                             onChange={e => set("payment_link", e.target.value)}
                             rows={4}
                             maxLength={1500}
                           />
-                          <p className="text-[11px] text-muted-foreground">Puedes poner varios links (por servicio o método). El agente enviará el que corresponda según lo que pida el cliente.</p>
+                          <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.paymentLinksHint")}</p>
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-xs">Precios / servicios</Label>
+                          <Label className="text-xs">{t("aIAgentPage.pricesServices")}</Label>
                           <Textarea
-                            placeholder={"Ej:\nConsulta inicial: $50.000\nSesión de seguimiento: $30.000"}
+                            placeholder={t("aIAgentPage.pricesServicesPlaceholder")}
                             value={config.payment_info}
                             onChange={e => set("payment_info", e.target.value)}
                             rows={3}
                             maxLength={1000}
                           />
-                          <p className="text-[11px] text-muted-foreground">El agente le dirá al cliente el precio según el servicio y le enviará el link.</p>
+                          <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.pricesServicesHint")}</p>
                         </div>
 
                         <div className="flex items-center justify-between rounded-md border p-2.5">
                           <div>
-                            <p className="text-sm font-medium">Pedir comprobante de pago (validar imagen)</p>
-                            <p className="text-xs text-muted-foreground">El agente pide la captura del pago y verifica con IA que el monto coincida antes de agendar.</p>
+                            <p className="text-sm font-medium">{t("aIAgentPage.requestPaymentProof")}</p>
+                            <p className="text-xs text-muted-foreground">{t("aIAgentPage.requestPaymentProofDesc")}</p>
                           </div>
                           <Switch checked={config.require_payment_proof} onCheckedChange={v => set("require_payment_proof", v)} />
                         </div>
 
                         {config.require_payment_proof && (
                           <div className="space-y-1.5">
-                            <Label className="text-xs">Datos de la cuenta que recibe el pago (para validar el comprobante)</Label>
+                            <Label className="text-xs">{t("aIAgentPage.paymentAccountInfo")}</Label>
                             <Input
-                              placeholder="Ej: Nequi 300 123 4567 a nombre de Juan Pérez / Bancolombia ahorros 123-456789-00"
+                              placeholder={t("aIAgentPage.paymentAccountInfoPlaceholder")}
                               value={config.payment_account_info}
                               onChange={e => set("payment_account_info", e.target.value)}
                               maxLength={200}
                             />
-                            <p className="text-[11px] text-muted-foreground">El agente verificará que el comprobante sea a esta cuenta y por el valor correcto.</p>
+                            <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.paymentAccountInfoHint")}</p>
                           </div>
                         )}
                       </div>
@@ -779,10 +781,10 @@ export default function AIAgentPage() {
           <Card>
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-pink-500" /> Biblioteca de archivos
+                <ImageIcon className="h-4 w-4 text-pink-500" /> {t("aIAgentPage.fileLibrary")}
               </CardTitle>
               <CardDescription>
-                Sube imágenes o PDF (catálogo, lista de precios, fotos). El agente los enviará automáticamente cuando ayuden a la conversación, según la descripción.
+                {t("aIAgentPage.fileLibraryDesc")}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -790,12 +792,12 @@ export default function AIAgentPage() {
               <div className="rounded-lg border border-dashed p-4 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Nombre del archivo</Label>
-                    <Input placeholder="Ej: Catálogo 2026" value={newMediaName} onChange={e => setNewMediaName(e.target.value)} maxLength={80} />
+                    <Label className="text-xs">{t("aIAgentPage.fileName")}</Label>
+                    <Input placeholder={t("aIAgentPage.fileNamePlaceholder")} value={newMediaName} onChange={e => setNewMediaName(e.target.value)} maxLength={80} />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">¿Cuándo enviarlo?</Label>
-                    <Input placeholder="Ej: cuando pidan el catálogo o precios" value={newMediaDesc} onChange={e => setNewMediaDesc(e.target.value)} maxLength={200} />
+                    <Label className="text-xs">{t("aIAgentPage.whenToSend")}</Label>
+                    <Input placeholder={t("aIAgentPage.whenToSendPlaceholder")} value={newMediaDesc} onChange={e => setNewMediaDesc(e.target.value)} maxLength={200} />
                   </div>
                 </div>
                 <div>
@@ -807,14 +809,14 @@ export default function AIAgentPage() {
                   <Button variant="outline" size="sm" disabled={uploading}
                     onClick={() => document.getElementById("agent-media-file")?.click()}>
                     {uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />}
-                    Subir archivo (imagen o PDF, máx 16 MB)
+                    {t("aIAgentPage.uploadFileButton")}
                   </Button>
                 </div>
               </div>
 
               {/* Existing media */}
               {media.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-4">Aún no has subido archivos.</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t("aIAgentPage.noFilesYet")}</p>
               ) : (
                 <div className="space-y-2">
                   {media.map(m => (
@@ -841,13 +843,13 @@ export default function AIAgentPage() {
             <div className="flex justify-end pb-6">
               <Button onClick={handleSave} disabled={saving} size="lg">
                 {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                Guardar configuración
+                {t("aIAgentPage.saveConfig")}
               </Button>
             </div>
           )}
           {!canEditAgent && (
             <div className="flex items-center justify-center gap-2 pb-6 text-xs text-muted-foreground">
-              <Eye className="h-3.5 w-3.5" /> Modo solo lectura — no puedes modificar la configuración del agente.
+              <Eye className="h-3.5 w-3.5" /> {t("aIAgentPage.readOnlyMode")}
             </div>
           )}
 
