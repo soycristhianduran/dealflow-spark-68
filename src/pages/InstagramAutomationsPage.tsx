@@ -217,8 +217,7 @@ export default function InstagramAutomationsPage() {
     setName("");
     setKeywordsInput("");
     setMatchMode("any");
-    setMediaId("");
-    setMediaPreview(null);
+    setMediaIds([]);
     setTriggerTypes(["comment"]);
     setRequireFollower(false);
     setDmText("");
