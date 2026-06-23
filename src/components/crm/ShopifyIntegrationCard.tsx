@@ -16,6 +16,7 @@ import { Loader2, CheckCircle2, Circle, ArrowRight, Zap, RefreshCw, AlertTriangl
 import { ShopifyIcon } from "@/components/icons/PlatformBrandIcons";
 import { AUTOMATION_TEMPLATES, templateToAutomation } from "@/lib/automationTemplates";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const money = (n: number, c?: string | null) =>
   `${c ? c + " " : "$"}${Number(n ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -32,6 +33,7 @@ export function ShopifyIntegrationCard() {
   const [activating, setActivating] = useState(false);
   const [hasVerifiedDomain, setHasVerifiedDomain] = useState(true); // assume ok until checked
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   async function refresh() {
     if (!organizationId) return;
@@ -59,7 +61,7 @@ export function ShopifyIntegrationCard() {
     setActivating(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { toast.error("Inicia sesión de nuevo"); return; }
+      if (!user) { toast.error(t("shopifyIntegrationCard.loginAgain")); return; }
       const tpl = AUTOMATION_TEMPLATES.find(t => t.key === "abandoned_cart")!;
       const a = templateToAutomation(tpl);
       const { data, error } = await supabase.from("automations").insert({
@@ -69,22 +71,22 @@ export function ShopifyIntegrationCard() {
         steps: a.steps, user_id: user.id, organization_id: organizationId,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).select("id").single();
-      if (error) { toast.error("No se pudo activar: " + error.message); return; }
+      if (error) { toast.error(t("shopifyIntegrationCard.activateError", { message: error.message })); return; }
       setCartAutomationId(data.id);
-      toast.success("¡Recuperación de carritos activada! 🛒 Ya está corriendo.");
+      toast.success(t("shopifyIntegrationCard.cartRecoveryActivated"));
     } finally { setActivating(false); }
   }
   useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [organizationId]);
 
   async function connect() {
-    if (!domain.trim() || !token.trim()) { toast.error("Ingresa el dominio y el token"); return; }
+    if (!domain.trim() || !token.trim()) { toast.error(t("shopifyIntegrationCard.enterDomainAndToken")); return; }
     setConnecting(true);
     try {
       const { data, error } = await supabase.functions.invoke("shopify-connect", {
         body: { shop_domain: domain.trim(), access_token: token.trim(), organization_id: organizationId },
       });
-      if (error || data?.error) { toast.error(data?.error || "No se pudo conectar. Revisa el token y el dominio."); return; }
-      toast.success(`Conectado a ${data.shop_name} · ${data.orders_imported} pedidos importados`);
+      if (error || data?.error) { toast.error(data?.error || t("shopifyIntegrationCard.connectError")); return; }
+      toast.success(t("shopifyIntegrationCard.connectedToast", { shopName: data.shop_name, count: data.orders_imported }));
       setToken(""); setDomain(""); await refresh(); setOpen(false);
     } finally { setConnecting(false); }
   }
@@ -92,7 +94,7 @@ export function ShopifyIntegrationCard() {
   async function disconnect() {
     if (!config) return;
     await supabase.from("shopify_configs").update({ is_active: false }).eq("id", config.id);
-    setConfig(null); setOpen(false); toast.success("Tienda desconectada");
+    setConfig(null); setOpen(false); toast.success(t("shopifyIntegrationCard.storeDisconnected"));
   }
 
   const connected = !!config;
@@ -106,24 +108,24 @@ export function ShopifyIntegrationCard() {
               <ShopifyIcon size={30} />
             </div>
             <Badge variant={connected ? "default" : "secondary"} className={`text-xs gap-1 ${connected ? "bg-green-600 hover:bg-green-600" : ""}`}>
-              {connected ? <><CheckCircle2 className="h-3 w-3" /> Conectado</> : <><Circle className="h-3 w-3" /> Disponible</>}
+              {connected ? <><CheckCircle2 className="h-3 w-3" /> {t("shopifyIntegrationCard.connected")}</> : <><Circle className="h-3 w-3" /> {t("shopifyIntegrationCard.available")}</>}
             </Badge>
           </div>
           <div>
             <h3 className="text-sm font-semibold text-foreground">Shopify</h3>
-            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">Mide las ventas que generan tus campañas de email y WhatsApp.</p>
+            <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{t("shopifyIntegrationCard.cardDescription")}</p>
           </div>
 
           {connected ? (
             <div className="text-xs text-muted-foreground">
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{money(stats.revenue, stats.currency)}</span> · {stats.orders} pedidos atribuidos
+              <span className="font-semibold text-emerald-600 dark:text-emerald-400">{money(stats.revenue, stats.currency)}</span> · {t("shopifyIntegrationCard.attributedOrders", { count: stats.orders })}
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5 text-primary" /> Atribución de ventas por campaña</div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Zap className="h-3.5 w-3.5 text-primary" /> {t("shopifyIntegrationCard.salesAttributionByCampaign")}</div>
           )}
 
           <Button variant="outline" size="sm" className="w-full" onClick={(e) => { e.stopPropagation(); setOpen(true); }}>
-            {connected ? "Gestionar" : "Conectar"} <ArrowRight className="h-3.5 w-3.5 ml-1" />
+            {connected ? t("shopifyIntegrationCard.manage") : t("shopifyIntegrationCard.connect")} <ArrowRight className="h-3.5 w-3.5 ml-1" />
           </Button>
         </CardContent>
       </Card>
@@ -132,7 +134,7 @@ export function ShopifyIntegrationCard() {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <ShopifyIcon size={22} /> Shopify · Atribución de ventas
+              <ShopifyIcon size={22} /> {t("shopifyIntegrationCard.dialogTitle")}
             </DialogTitle>
           </DialogHeader>
 
@@ -140,72 +142,72 @@ export function ShopifyIntegrationCard() {
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-border/60 p-3">
-                  <div className="text-[11px] text-muted-foreground">Tienda</div>
+                  <div className="text-[11px] text-muted-foreground">{t("shopifyIntegrationCard.store")}</div>
                   <div className="text-sm font-semibold truncate">{config.shop_name || config.shop_domain}</div>
                 </div>
                 <div className="rounded-xl border border-border/60 p-3">
-                  <div className="text-[11px] text-muted-foreground">Pedidos</div>
+                  <div className="text-[11px] text-muted-foreground">{t("shopifyIntegrationCard.orders")}</div>
                   <div className="text-lg font-bold tabular-nums">{stats.orders}</div>
                 </div>
                 <div className="rounded-xl border border-border/60 p-3">
-                  <div className="text-[11px] text-muted-foreground">Ventas atribuidas</div>
+                  <div className="text-[11px] text-muted-foreground">{t("shopifyIntegrationCard.attributedSales")}</div>
                   <div className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{money(stats.revenue, stats.currency)}</div>
                 </div>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Última sincronización: {config.last_synced_at ? new Date(config.last_synced_at).toLocaleString("es") : "—"} · se actualiza cada 30 min automáticamente.
+                {t("shopifyIntegrationCard.lastSync")}: {config.last_synced_at ? new Date(config.last_synced_at).toLocaleString("es") : "—"} · {t("shopifyIntegrationCard.autoSyncNote")}
               </p>
 
               {/* ── Abandoned cart recovery (one-click + scope health) ── */}
               <div className="rounded-xl border border-orange-200/60 dark:border-orange-900/40 bg-orange-50/40 dark:bg-orange-950/10 p-3 space-y-2.5">
                 <div className="flex items-center gap-2 text-sm font-semibold">
-                  <ShoppingCart className="h-4 w-4 text-orange-500" /> Recuperación de carritos abandonados
+                  <ShoppingCart className="h-4 w-4 text-orange-500" /> {t("shopifyIntegrationCard.abandonedCartRecovery")}
                 </div>
                 <div className="space-y-1 text-[11px]">
                   <div className="flex items-start gap-1.5">
                     {config.scope_checkouts === true
-                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>Detección de carritos: <b>activa</b></span></>
+                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>{t("shopifyIntegrationCard.cartDetectionActive")} <b>{t("shopifyIntegrationCard.active")}</b></span></>
                       : config.scope_checkouts === false
-                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>Falta el permiso <b>read_checkouts</b> — no podrá detectar carritos.</span></>
-                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>Reconecta para verificar permisos.</span></>}
+                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>{t("shopifyIntegrationCard.missingPermissionPrefix")} <b>read_checkouts</b> {t("shopifyIntegrationCard.missingCheckoutsSuffix")}</span></>
+                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>{t("shopifyIntegrationCard.reconnectToVerify")}</span></>}
                   </div>
                   <div className="flex items-start gap-1.5">
                     {config.scope_products === true
-                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>Imágenes de productos: <b>disponibles</b></span></>
+                      ? <><CheckCircle2 className="h-3.5 w-3.5 text-green-600 mt-px shrink-0" /><span>{t("shopifyIntegrationCard.productImages")} <b>{t("shopifyIntegrationCard.availableLower")}</b></span></>
                       : config.scope_products === false
-                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>Falta <b>read_products</b> — los emails saldrán sin imágenes.</span></>
-                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>Imágenes de productos: sin verificar.</span></>}
+                      ? <><AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-px shrink-0" /><span>{t("shopifyIntegrationCard.missingShort")} <b>read_products</b> {t("shopifyIntegrationCard.missingProductsSuffix")}</span></>
+                      : <><Circle className="h-3.5 w-3.5 text-muted-foreground mt-px shrink-0" /><span>{t("shopifyIntegrationCard.productImagesUnverified")}</span></>}
                   </div>
                 </div>
                 {(config.scope_checkouts === false || config.scope_products === false) && (
-                  <p className="text-[10px] text-amber-600">Agrega los permisos en tu app de Shopify y vuelve a conectar para habilitarlos.</p>
+                  <p className="text-[10px] text-amber-600">{t("shopifyIntegrationCard.addPermissionsNote")}</p>
                 )}
                 {cartAutomationId ? (
                   <Button variant="outline" size="sm" className="w-full" onClick={() => navigate(`/automations?open=${cartAutomationId}`)}>
-                    Ya está activa · Editar flujo →
+                    {t("shopifyIntegrationCard.alreadyActiveEditFlow")}
                   </Button>
                 ) : (
                   <Button size="sm" className="w-full bg-orange-500 hover:bg-orange-600" disabled={activating || config.scope_checkouts === false} onClick={activateAbandonedCart}>
-                    {activating ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Activando...</> : "Activar recuperación de carritos (1 clic)"}
+                    {activating ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{t("shopifyIntegrationCard.activating")}</> : t("shopifyIntegrationCard.activateCartRecovery")}
                   </Button>
                 )}
                 {!hasVerifiedDomain && (
                   <p className="text-[10px] text-muted-foreground">
-                    💡 Los emails saldrán desde nuestro remitente compartido (funciona). Para mejor entregabilidad y marca,{" "}
-                    <button className="underline hover:text-foreground" onClick={() => navigate("/settings?tab=email")}>verifica tu dominio</button> (opcional).
+                    {t("shopifyIntegrationCard.sharedSenderNote")}{" "}
+                    <button className="underline hover:text-foreground" onClick={() => navigate("/settings?tab=email")}>{t("shopifyIntegrationCard.verifyYourDomain")}</button> {t("shopifyIntegrationCard.optionalSuffix")}
                   </p>
                 )}
               </div>
 
               <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Actualizar</Button>
-                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={disconnect}>Desconectar</Button>
+                <Button variant="outline" size="sm" onClick={refresh}><RefreshCw className="h-3.5 w-3.5 mr-1.5" />{t("shopifyIntegrationCard.refresh")}</Button>
+                <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={disconnect}>{t("shopifyIntegrationCard.disconnect")}</Button>
               </div>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">Dominio de la tienda</Label>
+                <Label className="text-xs">{t("shopifyIntegrationCard.storeDomain")}</Label>
                 <Input placeholder="mitienda.myshopify.com" value={domain} onChange={(e) => setDomain(e.target.value)} />
               </div>
               <div className="space-y-1.5">
@@ -213,14 +215,14 @@ export function ShopifyIntegrationCard() {
                 <Input placeholder="shpat_..." value={token} onChange={(e) => setToken(e.target.value)} type="password" />
               </div>
               <Button onClick={connect} disabled={connecting} className="w-full">
-                {connecting ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />Conectando...</> : "Conectar tienda"}
+                {connecting ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" />{t("shopifyIntegrationCard.connecting")}</> : t("shopifyIntegrationCard.connectStore")}
               </Button>
               <div className="rounded-xl bg-muted/50 p-3 text-[11px] text-muted-foreground space-y-1">
-                <p className="font-medium text-foreground">En tu Shopify (una sola vez):</p>
-                <p>1. Configuración → <b>Apps y canales de venta</b> → <b>Desarrollar apps</b> → <b>Crear una app</b>.</p>
-                <p>2. Permisos Admin API: <b>read_orders</b>, <b>read_customers</b>, <b>read_checkouts</b> y <b>read_products</b>.</p>
-                <p className="text-[10px] text-muted-foreground/80 pl-3">· <b>read_checkouts</b> activa la recuperación de carritos abandonados · <b>read_products</b> muestra las imágenes de los productos en los emails.</p>
-                <p>3. <b>Instalar</b> → copia el <b>Admin API access token</b> (<code>shpat_…</code>).</p>
+                <p className="font-medium text-foreground">{t("shopifyIntegrationCard.setupHeading")}</p>
+                <p>{t("shopifyIntegrationCard.step1Prefix")} <b>{t("shopifyIntegrationCard.step1AppsChannels")}</b> → <b>{t("shopifyIntegrationCard.step1DevelopApps")}</b> → <b>{t("shopifyIntegrationCard.step1CreateApp")}</b>.</p>
+                <p>{t("shopifyIntegrationCard.step2Prefix")} <b>read_orders</b>, <b>read_customers</b>, <b>read_checkouts</b> {t("shopifyIntegrationCard.and")} <b>read_products</b>.</p>
+                <p className="text-[10px] text-muted-foreground/80 pl-3">· <b>read_checkouts</b> {t("shopifyIntegrationCard.checkoutsHelp")} · <b>read_products</b> {t("shopifyIntegrationCard.productsHelp")}</p>
+                <p>3. <b>{t("shopifyIntegrationCard.install")}</b> → {t("shopifyIntegrationCard.step3Copy")} <b>Admin API access token</b> (<code>shpat_…</code>).</p>
               </div>
             </div>
           )}

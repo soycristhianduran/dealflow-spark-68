@@ -5,6 +5,7 @@
  * appears everywhere (Settings, automations, Leads).
  */
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +24,7 @@ interface TagPickerProps {
 }
 
 export function TagPicker({ value, onChange, placeholder, allowCreate = true }: TagPickerProps) {
+  const { t } = useTranslation();
   const { tags, addTag, colorOf } = useOrgTags();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -49,17 +51,17 @@ export function TagPicker({ value, onChange, placeholder, allowCreate = true }: 
         >
           <span className={cn("flex items-center gap-2 truncate", !value && "text-muted-foreground")}>
             {value && <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: colorOf(value) }} />}
-            {value || placeholder || "Elige una etiqueta"}
+            {value || placeholder || t("tagPicker.placeholder")}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Buscar o crear..." value={search} onValueChange={setSearch} />
+          <CommandInput placeholder={t("tagPicker.searchPlaceholder")} value={search} onValueChange={setSearch} />
           <CommandList>
             {tags.length === 0 && !term && (
-              <CommandEmpty>No hay etiquetas. Escribe para crear una.</CommandEmpty>
+              <CommandEmpty>{t("tagPicker.emptyState")}</CommandEmpty>
             )}
             <CommandGroup>
               {tags.map(tag => (
@@ -74,7 +76,7 @@ export function TagPicker({ value, onChange, placeholder, allowCreate = true }: 
               <CommandGroup>
                 <CommandItem value={`__create__${term}`} onSelect={create}>
                   <Plus className="mr-2 h-4 w-4" />
-                  Crear "{term}"
+                  {t("tagPicker.createTag", { term })}
                 </CommandItem>
               </CommandGroup>
             )}

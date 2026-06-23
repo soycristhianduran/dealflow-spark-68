@@ -5,6 +5,7 @@ import { Phone, MessageCircle, Mail, Calendar, FileText, ArrowRightLeft, Handsha
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 const eventIcons: Record<string, React.ReactNode> = {
   call: <Phone className="h-3.5 w-3.5" />,
@@ -36,6 +37,7 @@ interface ActivityTimelineProps {
 }
 
 export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProps) {
+  const { t } = useTranslation();
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -60,7 +62,7 @@ export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProp
       {/* ── Note input — stays fixed at the top, never scrolls away ── */}
       <div className="space-y-2 shrink-0">
         <Textarea
-          placeholder="Agregar una nota..."
+          placeholder={t("activityTimeline.notePlaceholder")}
           value={note}
           onChange={e => setNote(e.target.value)}
           className="min-h-[60px] resize-none"
@@ -73,10 +75,10 @@ export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProp
         />
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] text-muted-foreground">
-            Tip: <kbd className="px-1 py-0.5 rounded border bg-muted">⌘</kbd>+<kbd className="px-1 py-0.5 rounded border bg-muted">Enter</kbd> para guardar
+            {t("activityTimeline.tipLabel")} <kbd className="px-1 py-0.5 rounded border bg-muted">⌘</kbd>+<kbd className="px-1 py-0.5 rounded border bg-muted">Enter</kbd> {t("activityTimeline.toSave")}
           </p>
           <Button size="sm" disabled={!note.trim() || saving} onClick={handleAdd}>
-            {saving ? "Guardando..." : "Agregar nota"}
+            {saving ? t("activityTimeline.saving") : t("activityTimeline.addNote")}
           </Button>
         </div>
       </div>
@@ -102,7 +104,7 @@ export function ActivityTimeline({ activities, onAddNote }: ActivityTimelineProp
             </div>
           ))}
           {sorted.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Sin actividad registrada</p>
+            <p className="text-sm text-muted-foreground text-center py-8">{t("activityTimeline.noActivity")}</p>
           )}
         </div>
       </div>

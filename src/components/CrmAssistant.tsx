@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: any }
 
@@ -21,11 +22,12 @@ export function CrmAssistant() {
   const { organizationId } = useOrganizationContext();
   const { path } = useWorkspace();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
-    { role: "assistant", content: "¡Hola! Soy tu asistente de Klosify. Pídeme cosas como \"muéstrame los leads más calientes\", \"¿cómo va mi pipeline?\" o \"busca a Juan Pérez\"." },
+    { role: "assistant", content: t("crmAssistant.welcomeMessage") },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -64,9 +66,9 @@ export function CrmAssistant() {
         },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
-      setMessages(prev => [...prev, { role: "assistant", content: data.reply || "Listo.", action: data.action }]);
+      setMessages(prev => [...prev, { role: "assistant", content: data.reply || t("crmAssistant.done"), action: data.action }]);
     } catch (e: any) {
-      setMessages(prev => [...prev, { role: "assistant", content: "Ups, no pude procesar eso. Intenta de nuevo." }]);
+      setMessages(prev => [...prev, { role: "assistant", content: t("crmAssistant.errorMessage") }]);
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export function CrmAssistant() {
       <button
         onClick={() => setOpen(true)}
         className="group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 text-white shadow-lg shadow-primary/30 ring-1 ring-white/25 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-primary/50"
-        title="Asistente Klosify"
+        title={t("crmAssistant.assistantTitle")}
       >
         {/* soft pulsing halo */}
         <span className="absolute inset-0 -z-10 rounded-2xl bg-primary/40 blur-md animate-pulse" />
@@ -96,8 +98,8 @@ export function CrmAssistant() {
             <BotMessageSquare className="h-4 w-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold leading-none">Asistente Klosify</p>
-            <p className="text-[11px] text-muted-foreground">Pregúntame sobre tus leads</p>
+            <p className="text-sm font-semibold leading-none">{t("crmAssistant.assistantTitle")}</p>
+            <p className="text-[11px] text-muted-foreground">{t("crmAssistant.askAboutLeads")}</p>
           </div>
         </div>
         <button onClick={() => setOpen(false)} className="rounded-md p-1 hover:bg-muted"><X className="h-4 w-4" /></button>
@@ -110,19 +112,19 @@ export function CrmAssistant() {
               <p className="whitespace-pre-wrap">{m.content}</p>
               {m.action?.type === "navigate_leads" && (
                 <button onClick={() => applyAction(m.action)} className="mt-2 inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
-                  Ver leads <ArrowRight className="h-3 w-3" />
+                  {t("crmAssistant.viewLeads")} <ArrowRight className="h-3 w-3" />
                 </button>
               )}
               {m.action?.type === "open_automation" && (
                 <button onClick={() => openAutomation(m.action.id)} className="mt-2 inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
-                  Ver flujo <ArrowRight className="h-3 w-3" />
+                  {t("crmAssistant.viewFlow")} <ArrowRight className="h-3 w-3" />
                 </button>
               )}
               {m.action?.type === "open_contact" && (
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {(m.action.matches || []).slice(0, 5).map((c: any) => (
                     <button key={c.id} onClick={() => openContact(c.id)} className="inline-flex items-center gap-1 rounded-lg bg-background/80 px-2.5 py-1 text-xs font-medium text-primary hover:bg-background">
-                      Abrir {c.name} <ArrowRight className="h-3 w-3" />
+                      {t("crmAssistant.open", { name: c.name })} <ArrowRight className="h-3 w-3" />
                     </button>
                   ))}
                 </div>
@@ -141,7 +143,7 @@ export function CrmAssistant() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") send(); }}
-            placeholder="Escribe tu pregunta..."
+            placeholder={t("crmAssistant.inputPlaceholder")}
             disabled={loading}
             className="flex-1"
           />

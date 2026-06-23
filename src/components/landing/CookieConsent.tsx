@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { Shield } from "lucide-react";
 
@@ -21,6 +22,7 @@ function getStored(): ConsentState | null {
 }
 
 export function CookieConsent() {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [preferences, setPreferences] = useState(false);
   const [analytics, setAnalytics] = useState(false);
@@ -65,20 +67,19 @@ export function CookieConsent() {
             </div>
             <div className="flex items-center gap-1.5 text-xs text-slate-400">
               <Shield className="w-3.5 h-3.5" />
-              Privacidad
+              {t("cookieConsent.privacy")}
             </div>
           </div>
 
           {/* Body */}
           <div className="px-5 py-4">
             <p className="text-sm text-slate-300 leading-relaxed">
-              Usamos cookies para mejorar tu experiencia, medir el rendimiento y
-              personalizar el contenido. Puedes elegir qué aceptar.{" "}
+              {t("cookieConsent.description")}{" "}
               <a
                 href="/privacidad"
                 className="text-orange-400 underline underline-offset-2 hover:text-orange-300"
               >
-                Política de privacidad
+                {t("cookieConsent.privacyPolicy")}
               </a>
               .
             </p>
@@ -86,20 +87,20 @@ export function CookieConsent() {
             {/* Toggles */}
             <div className="mt-4 space-y-3">
               <Toggle
-                label="Necesarias"
-                description="Sesión, autenticación y seguridad."
+                label={t("cookieConsent.necessaryLabel")}
+                description={t("cookieConsent.necessaryDescription")}
                 checked={true}
                 disabled
               />
               <Toggle
-                label="Preferencias"
-                description="Recordar idioma y configuración de UI."
+                label={t("cookieConsent.preferencesLabel")}
+                description={t("cookieConsent.preferencesDescription")}
                 checked={preferences}
                 onChange={setPreferences}
               />
               <Toggle
-                label="Analítica"
-                description="Estadísticas anónimas de uso (sin datos personales)."
+                label={t("cookieConsent.analyticsLabel")}
+                description={t("cookieConsent.analyticsDescription")}
                 checked={analytics}
                 onChange={setAnalytics}
               />
@@ -115,19 +116,19 @@ export function CookieConsent() {
                 background: "linear-gradient(90deg, #FF8C00, #E8460E)",
               }}
             >
-              Aceptar todo
+              {t("cookieConsent.acceptAll")}
             </button>
             <button
               onClick={() => save(preferences, analytics)}
               className="w-full py-2.5 rounded-xl text-sm font-semibold text-white bg-white/10 hover:bg-white/15 transition-colors"
             >
-              Guardar selección
+              {t("cookieConsent.saveSelection")}
             </button>
             <button
               onClick={() => save(false, false)}
               className="w-full py-2.5 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 transition-colors"
             >
-              Rechazar
+              {t("cookieConsent.reject")}
             </button>
           </div>
         </div>

@@ -18,8 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Zap } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 export default function ResetPasswordPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -44,11 +46,11 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirm) {
-      toast.error("Las contraseñas no coinciden");
+      toast.error(t("resetPasswordPage.passwordsDoNotMatch"));
       return;
     }
     if (password.length < 6) {
-      toast.error("La contraseña debe tener al menos 6 caracteres");
+      toast.error(t("resetPasswordPage.passwordTooShort"));
       return;
     }
     setLoading(true);
@@ -56,7 +58,7 @@ export default function ResetPasswordPage() {
     if (error) {
       toast.error(error.message);
     } else {
-      toast.success("Contraseña actualizada. Ya puedes iniciar sesión.");
+      toast.success(t("resetPasswordPage.passwordUpdated"));
       await supabase.auth.signOut();
       navigate("/auth", { replace: true });
     }
@@ -72,17 +74,17 @@ export default function ResetPasswordPage() {
               <Zap className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Nueva contraseña</CardTitle>
+          <CardTitle className="text-2xl font-bold">{t("resetPasswordPage.title")}</CardTitle>
           <p className="text-sm text-muted-foreground mt-1">Klosify CRM</p>
         </CardHeader>
         <CardContent>
           {!ready ? (
             <div className="text-center py-6 space-y-3">
-              <p className="text-muted-foreground text-sm">Verificando enlace...</p>
+              <p className="text-muted-foreground text-sm">{t("resetPasswordPage.verifyingLink")}</p>
               <p className="text-xs text-muted-foreground">
-                Si esto tarda mucho,{" "}
+                {t("resetPasswordPage.takingTooLong")}{" "}
                 <button onClick={() => navigate("/auth")} className="underline hover:text-foreground">
-                  vuelve al inicio de sesión
+                  {t("resetPasswordPage.backToLogin")}
                 </button>
                 .
               </p>
@@ -90,29 +92,29 @@ export default function ResetPasswordPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label>Nueva contraseña</Label>
+                <Label>{t("resetPasswordPage.newPasswordLabel")}</Label>
                 <Input
                   type="password"
                   value={password}
                   onChange={e => setPassword(e.target.value)}
-                  placeholder="Mínimo 6 caracteres"
+                  placeholder={t("resetPasswordPage.minCharsPlaceholder")}
                   minLength={6}
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label>Confirmar contraseña</Label>
+                <Label>{t("resetPasswordPage.confirmPasswordLabel")}</Label>
                 <Input
                   type="password"
                   value={confirm}
                   onChange={e => setConfirm(e.target.value)}
-                  placeholder="Repite la contraseña"
+                  placeholder={t("resetPasswordPage.repeatPasswordPlaceholder")}
                   minLength={6}
                   required
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Guardando..." : "Guardar contraseña"}
+                {loading ? t("resetPasswordPage.saving") : t("resetPasswordPage.savePassword")}
               </Button>
             </form>
           )}

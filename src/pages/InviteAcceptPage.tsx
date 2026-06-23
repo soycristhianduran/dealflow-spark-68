@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 
 type Status = "idle" | "loading" | "success" | "error" | "needs_auth";
 
@@ -13,6 +14,7 @@ export default function InviteAcceptPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { session, loading: authLoading } = useAuth();
+  const { t } = useTranslation();
   const token = searchParams.get("token");
 
   const [status, setStatus] = useState<Status>("idle");
@@ -22,7 +24,7 @@ export default function InviteAcceptPage() {
     if (authLoading) return;
     if (!token) {
       setStatus("error");
-      setMessage("Enlace de invitación inválido. No se encontró el token.");
+      setMessage(t("inviteAcceptPage.invalidLink"));
       return;
     }
     if (!session) {
@@ -44,11 +46,11 @@ export default function InviteAcceptPage() {
         }
 
         setStatus("success");
-        toast.success("Te has unido a la organización exitosamente");
+        toast.success(t("inviteAcceptPage.joinSuccess"));
         setTimeout(() => navigate("/"), 2000);
       } catch (err: any) {
         setStatus("error");
-        setMessage(err.message ?? "Error al aceptar la invitación");
+        setMessage(err.message ?? t("inviteAcceptPage.acceptError"));
       }
     };
 
@@ -68,20 +70,20 @@ export default function InviteAcceptPage() {
       <div className="flex min-h-screen items-center justify-center p-4">
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle>Invitación al equipo</CardTitle>
+            <CardTitle>{t("inviteAcceptPage.teamInviteTitle")}</CardTitle>
             <CardDescription>
-              Debes iniciar sesión o registrarte para aceptar esta invitación.
+              {t("inviteAcceptPage.needsAuthDescription")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              Tu invitación está lista. Inicia sesión con tu cuenta para unirte a la organización.
+              {t("inviteAcceptPage.needsAuthBody")}
             </p>
             <Button
               className="w-full"
               onClick={() => navigate(`/auth?redirect=/invite?token=${token}`)}
             >
-              Iniciar sesión / Registrarse
+              {t("inviteAcceptPage.signInRegister")}
             </Button>
           </CardContent>
         </Card>
@@ -95,7 +97,7 @@ export default function InviteAcceptPage() {
         <Card className="max-w-md w-full">
           <CardContent className="flex flex-col items-center gap-4 py-10">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Aceptando invitación...</p>
+            <p className="text-sm text-muted-foreground">{t("inviteAcceptPage.accepting")}</p>
           </CardContent>
         </Card>
       </div>
@@ -108,9 +110,9 @@ export default function InviteAcceptPage() {
         <Card className="max-w-md w-full">
           <CardContent className="flex flex-col items-center gap-4 py-10">
             <CheckCircle2 className="h-10 w-10 text-green-500" />
-            <p className="text-lg font-semibold">Bienvenido al equipo</p>
+            <p className="text-lg font-semibold">{t("inviteAcceptPage.welcomeTeam")}</p>
             <p className="text-sm text-muted-foreground text-center">
-              Te has unido a la organización exitosamente. Redirigiendo...
+              {t("inviteAcceptPage.joinSuccessRedirect")}
             </p>
           </CardContent>
         </Card>
@@ -123,10 +125,10 @@ export default function InviteAcceptPage() {
       <Card className="max-w-md w-full">
         <CardContent className="flex flex-col items-center gap-4 py-10">
           <XCircle className="h-10 w-10 text-destructive" />
-          <p className="text-lg font-semibold">Error al aceptar invitación</p>
+          <p className="text-lg font-semibold">{t("inviteAcceptPage.acceptErrorTitle")}</p>
           <p className="text-sm text-muted-foreground text-center">{message}</p>
           <Button variant="outline" onClick={() => navigate("/")}>
-            Ir al inicio
+            {t("inviteAcceptPage.goHome")}
           </Button>
         </CardContent>
       </Card>

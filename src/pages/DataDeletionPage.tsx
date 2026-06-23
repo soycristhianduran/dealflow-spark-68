@@ -11,66 +11,55 @@
  * Webhook, we process it server-side.  This page is what the user sees if
  * they navigate here directly.
  */
+import { useTranslation } from "react-i18next";
+
 const DataDeletionPage = () => {
+  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-background py-12 px-6">
       <article className="max-w-3xl mx-auto prose prose-slate dark:prose-invert">
-        <h1>Eliminación de Datos Personales</h1>
+        <h1>{t("dataDeletionPage.title")}</h1>
         <p className="text-sm text-muted-foreground">
-          Última actualización: 14 de mayo de 2026
+          {t("dataDeletionPage.lastUpdated")}
         </p>
 
-        <h2>Tu derecho a la eliminación</h2>
+        <h2>{t("dataDeletionPage.rightToDeletionHeading")}</h2>
         <p>
-          De acuerdo con la Ley 1581 de 2012 (Colombia), el GDPR (Unión
-          Europea) y las políticas de plataforma de Meta, cualquier persona
-          cuyos datos sean tratados por <strong>Klosify CRM</strong>
-          (operado por CRISTHIAN DURAN, NIT 1094270110-2) tiene derecho a
-          solicitar su eliminación.
+          {t("dataDeletionPage.rightToDeletionIntro1")}{" "}
+          <strong>Klosify CRM</strong>
+          {t("dataDeletionPage.rightToDeletionIntro2")}
         </p>
-        <p>Esto incluye:</p>
+        <p>{t("dataDeletionPage.includesLabel")}</p>
         <ul>
-          <li>Usuarios de Instagram cuyas conversaciones (DMs) o comentarios
-            están almacenados en nuestra base de datos.</li>
-          <li>Contactos de WhatsApp del cliente que usa Klosify CRM.</li>
-          <li>Leads generados a través de Facebook Lead Ads.</li>
-          <li>Cualquier persona cuyos datos hayan sido almacenados por
-            nuestros Clientes en el CRM.</li>
+          <li>{t("dataDeletionPage.includesInstagram")}</li>
+          <li>{t("dataDeletionPage.includesWhatsApp")}</li>
+          <li>{t("dataDeletionPage.includesLeads")}</li>
+          <li>{t("dataDeletionPage.includesClientStored")}</li>
         </ul>
 
-        <h2>Cómo solicitar la eliminación</h2>
+        <h2>{t("dataDeletionPage.howToRequestHeading")}</h2>
 
-        <h3>Opción 1 — Eliminación directa por el cliente del CRM</h3>
-        <p>
-          Si tus datos están en la cuenta de un Cliente de Klosify CRM,
-          contacta directamente con esa empresa o profesional. Ellos pueden
-          eliminar tus datos inmediatamente desde su panel.
-        </p>
+        <h3>{t("dataDeletionPage.option1Heading")}</h3>
+        <p>{t("dataDeletionPage.option1Body")}</p>
 
-        <h3>Opción 2 — Solicitud directa a Klosify CRM</h3>
+        <h3>{t("dataDeletionPage.option2Heading")}</h3>
         <p>
-          Envía un correo a{" "}
+          {t("dataDeletionPage.option2Intro")}{" "}
           <a href="mailto:hola@klosify.com" className="text-primary underline">
             hola@klosify.com
           </a>{" "}
-          con:
+          {t("dataDeletionPage.option2With")}
         </p>
         <ul>
-          <li><strong>Asunto:</strong> "Solicitud de eliminación de datos"</li>
-          <li><strong>Cuerpo:</strong> Tu nombre completo, identificador
-            público (por ejemplo, tu @username de Instagram, número de
-            teléfono o correo) y la razón de la solicitud.</li>
-          <li>Opcionalmente, indica de qué empresa cliente proviene la
-            recolección de tus datos (si lo sabes).</li>
+          <li><strong>{t("dataDeletionPage.option2SubjectLabel")}</strong> {t("dataDeletionPage.option2SubjectValue")}</li>
+          <li><strong>{t("dataDeletionPage.option2BodyLabel")}</strong> {t("dataDeletionPage.option2BodyValue")}</li>
+          <li>{t("dataDeletionPage.option2Optional")}</li>
         </ul>
 
-        <h3>Opción 3 — Solicitud automatizada a través de Meta</h3>
-        <p>
-          Si previamente conectaste tu cuenta de Instagram o Facebook a
-          Klosify CRM y deseas revocar el acceso completo:
-        </p>
+        <h3>{t("dataDeletionPage.option3Heading")}</h3>
+        <p>{t("dataDeletionPage.option3Intro")}</p>
         <ol>
-          <li>Abre Instagram → Configuración → <strong>Apps y sitios web</strong>{" "}
+          <li>{t("dataDeletionPage.option3Step1")} <strong>{t("dataDeletionPage.option3Step1AppsSites")}</strong>{" "}
             (<a
               href="https://www.instagram.com/accounts/manage_access/"
               target="_blank"
@@ -80,49 +69,37 @@ const DataDeletionPage = () => {
               instagram.com/accounts/manage_access
             </a>)
           </li>
-          <li>Busca <strong>"CRM ADV Messages"</strong> o
+          <li>{t("dataDeletionPage.option3Step2")} <strong>"CRM ADV Messages"</strong> {t("dataDeletionPage.option3Or")}
             <strong> "Klosify CRM"</strong></li>
-          <li>Click en <strong>"Eliminar"</strong> — esto revoca todos los
-            permisos otorgados y dispara automáticamente una notificación a
-            Klosify CRM para eliminar tus datos.</li>
+          <li>{t("dataDeletionPage.option3Step3a")} <strong>{t("dataDeletionPage.option3Step3Remove")}</strong> {t("dataDeletionPage.option3Step3b")}</li>
         </ol>
 
-        <h2>Tiempo de procesamiento</h2>
+        <h2>{t("dataDeletionPage.processingTimeHeading")}</h2>
         <p>
-          Eliminaremos los datos en un plazo máximo de{" "}
-          <strong>30 días hábiles</strong> desde la recepción de la solicitud.
-          Te enviaremos confirmación por correo electrónico cuando la
-          eliminación se haya completado.
+          {t("dataDeletionPage.processingTime1")}{" "}
+          <strong>{t("dataDeletionPage.processingTime30Days")}</strong> {t("dataDeletionPage.processingTime2")}
         </p>
 
-        <h2>Qué se elimina</h2>
+        <h2>{t("dataDeletionPage.whatIsDeletedHeading")}</h2>
         <ul>
-          <li>Tu identificador en Meta (IGSID, PSID, número de WhatsApp).</li>
-          <li>Contenido de mensajes y comentarios asociados a tu identidad.</li>
-          <li>Archivos multimedia (imágenes, audio, video) enviados desde o
-            recibidos por tu cuenta.</li>
-          <li>Tu nombre, foto de perfil y datos derivados.</li>
-          <li>Cualquier análisis de IA (puntuación, sentimiento) generado a
-            partir de tus interacciones.</li>
+          <li>{t("dataDeletionPage.deletedIdentifier")}</li>
+          <li>{t("dataDeletionPage.deletedMessages")}</li>
+          <li>{t("dataDeletionPage.deletedMedia")}</li>
+          <li>{t("dataDeletionPage.deletedProfile")}</li>
+          <li>{t("dataDeletionPage.deletedAi")}</li>
         </ul>
 
-        <h2>Excepciones</h2>
-        <p>
-          Algunos datos pueden conservarse por obligación legal (por ejemplo,
-          registros tributarios o de facturación de los Clientes), pero
-          anonimizados — sin posibilidad de relacionarlos contigo.
-        </p>
+        <h2>{t("dataDeletionPage.exceptionsHeading")}</h2>
+        <p>{t("dataDeletionPage.exceptionsBody")}</p>
 
-        <h2>Contacto</h2>
-        <p>
-          Cualquier duda sobre el proceso de eliminación:
-        </p>
+        <h2>{t("dataDeletionPage.contactHeading")}</h2>
+        <p>{t("dataDeletionPage.contactIntro")}</p>
         <ul>
-          <li>Email:{" "}
+          <li>{t("dataDeletionPage.contactEmailLabel")}{" "}
             <a href="mailto:hola@klosify.com" className="text-primary underline">
               hola@klosify.com
             </a></li>
-          <li>Responsable: CRISTHIAN DURAN — NIT 1094270110-2</li>
+          <li>{t("dataDeletionPage.contactResponsible")}</li>
         </ul>
       </article>
     </div>

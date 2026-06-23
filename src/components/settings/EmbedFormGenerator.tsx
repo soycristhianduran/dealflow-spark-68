@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Code2, Copy, Loader2, Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 const ALL_FIELDS: { name: string; label: string; type: string }[] = [
   { name: "first_name", label: "Nombre", type: "text" },
@@ -18,6 +19,7 @@ const ALL_FIELDS: { name: string; label: string; type: string }[] = [
 ];
 
 export function EmbedFormGenerator() {
+  const { t } = useTranslation();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Record<string, boolean>>({
@@ -26,8 +28,8 @@ export function EmbedFormGenerator() {
   const [required, setRequired] = useState<Record<string, boolean>>({
     primary_email: true,
   });
-  const [button, setButton] = useState("Enviar");
-  const [success, setSuccess] = useState("¡Gracias! Te contactaremos pronto.");
+  const [button, setButton] = useState(t("embedFormGenerator.defaultButton"));
+  const [success, setSuccess] = useState(t("embedFormGenerator.defaultSuccess"));
   const [redirect, setRedirect] = useState("");
   const [copied, setCopied] = useState(false);
 
@@ -47,7 +49,7 @@ export function EmbedFormGenerator() {
   const copy = () => {
     navigator.clipboard.writeText(snippet);
     setCopied(true);
-    toast.success("Código copiado");
+    toast.success(t("embedFormGenerator.copiedToast"));
     setTimeout(() => setCopied(false), 1500);
   };
 
@@ -55,36 +57,35 @@ export function EmbedFormGenerator() {
     <Card className="border-none shadow-sm">
       <CardHeader>
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
-          <Code2 className="h-4 w-4" /> Formulario para tu sitio web (embed)
+          <Code2 className="h-4 w-4" /> {t("embedFormGenerator.title")}
         </CardTitle>
         <p className="text-xs text-muted-foreground mt-1">
-          Copia este código y pégalo en CUALQUIER sitio o constructor (Webflow, WordPress, Framer, HTML…).
-          Captura los leads en tu CRM <strong>con las UTMs de la URL automáticamente</strong>.
+          {t("embedFormGenerator.description")} <strong>{t("embedFormGenerator.descriptionEmphasis")}</strong>.
         </p>
       </CardHeader>
       <CardContent className="space-y-5">
         {loading ? (
           <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
         ) : !token ? (
-          <p className="text-sm text-muted-foreground">No se pudo cargar el token de tu organización.</p>
+          <p className="text-sm text-muted-foreground">{t("embedFormGenerator.tokenError")}</p>
         ) : (
           <>
             {/* Field selection */}
             <div>
-              <Label className="text-xs">Campos del formulario</Label>
+              <Label className="text-xs">{t("embedFormGenerator.formFields")}</Label>
               <div className="grid grid-cols-2 gap-2 mt-2">
                 {ALL_FIELDS.map(f => (
                   <div key={f.name} className="flex items-center justify-between rounded-lg border px-3 py-2">
                     <label className="flex items-center gap-2 text-sm cursor-pointer">
                       <input type="checkbox" checked={!!selected[f.name]}
                         onChange={e => setSelected(s => ({ ...s, [f.name]: e.target.checked }))} />
-                      {f.label}
+                      {t(`embedFormGenerator.field_${f.name}`)}
                     </label>
                     {selected[f.name] && (
                       <label className="flex items-center gap-1 text-[11px] text-muted-foreground cursor-pointer">
                         <input type="checkbox" checked={!!required[f.name]}
                           onChange={e => setRequired(r => ({ ...r, [f.name]: e.target.checked }))} />
-                        oblig.
+                        {t("embedFormGenerator.requiredShort")}
                       </label>
                     )}
                   </div>
@@ -94,26 +95,26 @@ export function EmbedFormGenerator() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="text-xs">Texto del botón</Label>
+                <Label className="text-xs">{t("embedFormGenerator.buttonText")}</Label>
                 <Input className="mt-1" value={button} onChange={e => setButton(e.target.value)} />
               </div>
               <div>
-                <Label className="text-xs">Redirección al enviar (opcional)</Label>
-                <Input className="mt-1" placeholder="https://...gracias" value={redirect} onChange={e => setRedirect(e.target.value)} />
+                <Label className="text-xs">{t("embedFormGenerator.redirectLabel")}</Label>
+                <Input className="mt-1" placeholder={t("embedFormGenerator.redirectPlaceholder")} value={redirect} onChange={e => setRedirect(e.target.value)} />
               </div>
             </div>
             <div>
-              <Label className="text-xs">Mensaje de éxito</Label>
+              <Label className="text-xs">{t("embedFormGenerator.successMessageLabel")}</Label>
               <Input className="mt-1" value={success} onChange={e => setSuccess(e.target.value)} />
             </div>
 
             {/* Snippet */}
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <Label className="text-xs">Código para pegar</Label>
+                <Label className="text-xs">{t("embedFormGenerator.snippetLabel")}</Label>
                 <Button size="sm" variant="outline" className="h-7 gap-1.5 text-xs" onClick={copy}>
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                  {copied ? "Copiado" : "Copiar"}
+                  {copied ? t("embedFormGenerator.copied") : t("embedFormGenerator.copy")}
                 </Button>
               </div>
               <textarea
@@ -125,8 +126,7 @@ export function EmbedFormGenerator() {
             </div>
 
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-              ⚠️ Este código incluye un token público de captura de leads (solo permite crear contactos en tu
-              organización). No expone tus datos ni tu API key.
+              ⚠️ {t("embedFormGenerator.securityNote")}
             </div>
           </>
         )}

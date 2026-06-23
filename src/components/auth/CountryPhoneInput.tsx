@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Country {
   code: string;
@@ -53,6 +54,7 @@ interface CountryPhoneInputProps {
 }
 
 export function CountryPhoneInput({ value, onChange, countryCode, onCountryChange }: CountryPhoneInputProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
 
   const selected = countries.find(c => c.code === countryCode) || countries[0];
@@ -75,9 +77,9 @@ export function CountryPhoneInput({ value, onChange, countryCode, onCountryChang
         </PopoverTrigger>
         <PopoverContent className="w-[250px] p-0" align="start">
           <Command>
-            <CommandInput placeholder="Buscar país..." />
+            <CommandInput placeholder={t("countryPhoneInput.searchPlaceholder")} />
             <CommandList>
-              <CommandEmpty>No encontrado</CommandEmpty>
+              <CommandEmpty>{t("countryPhoneInput.notFound")}</CommandEmpty>
               <CommandGroup>
                 {countries.map(c => (
                   <CommandItem

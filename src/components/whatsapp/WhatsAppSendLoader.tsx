@@ -6,6 +6,7 @@
  * keeps sending; the overlay only closes when the user closes it.
  */
 import { Check, X } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   done: number;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function WhatsAppSendLoader({ done, total, finished, onClose }: Props) {
+  const { t } = useTranslation();
   // Clamp so the counter never shows more than the total (e.g. "51 de 50 · 102%").
   // Upstream `done` can tick one past `total` on the final status callback.
   const shownDone = total > 0 ? Math.min(done, total) : done;
@@ -76,7 +78,7 @@ export function WhatsAppSendLoader({ done, total, finished, onClose }: Props) {
       `}</style>
 
       <div className="relative w-full max-w-sm rounded-2xl border bg-card p-6 shadow-2xl">
-        <button onClick={onClose} className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Cerrar">
+        <button onClick={onClose} className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label={t("whatsAppSendLoader.close")}>
           <X className="h-4 w-4" />
         </button>
 
@@ -119,18 +121,18 @@ export function WhatsAppSendLoader({ done, total, finished, onClose }: Props) {
 
         <div className="space-y-3 text-center">
           <p className="text-sm font-semibold">
-            {finished ? "¡Envío completado!" : "Enviando mensajes de WhatsApp…"}
+            {finished ? t("whatsAppSendLoader.sendCompleted") : t("whatsAppSendLoader.sendingMessages")}
           </p>
           <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted shadow-inner">
             <div className="h-full rounded-full transition-all duration-300"
               style={{ width: `${pct}%`, background: "linear-gradient(90deg,#25D366,#128C7E)", boxShadow: "0 0 10px rgba(37,211,102,.6)" }} />
           </div>
-          <p className="text-xs text-muted-foreground">{shownDone} de {total} · {pct}%</p>
+          <p className="text-xs text-muted-foreground">{t("whatsAppSendLoader.progress", { done: shownDone, total, pct })}</p>
           <p className="text-[11px] text-muted-foreground">
-            {finished ? "Puedes cerrar esta ventana." : "Se envía en segundo plano — puedes cerrar y seguir trabajando."}
+            {finished ? t("whatsAppSendLoader.canCloseWindow") : t("whatsAppSendLoader.sendsInBackground")}
           </p>
           <button onClick={onClose} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
-            {finished ? "Cerrar" : "Cerrar (seguir en segundo plano)"}
+            {finished ? t("whatsAppSendLoader.close") : t("whatsAppSendLoader.closeKeepBackground")}
           </button>
         </div>
       </div>

@@ -17,11 +17,13 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, Zap } from "lucide-react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { useTranslation } from "react-i18next";
 
 export function TrialBanner() {
   const { subscription, daysLeftInTrial, locked, loading } = useSubscription();
   const { path } = useWorkspace();
   const location = useLocation();
+  const { t } = useTranslation();
 
   // Don't show anything while loading, when locked (LockoutScreen takes
   // over), on the /billing page itself, or when not in trial at all.
@@ -49,10 +51,10 @@ export function TrialBanner() {
         )}
         <span>
           {days === 0
-            ? "Tu prueba gratuita termina hoy. Elige un plan para continuar."
+            ? t("trialBanner.endsToday")
             : days === 1
-            ? "Tu prueba gratuita termina mañana."
-            : `Tu prueba gratuita en Pro termina en ${days} días.`}
+            ? t("trialBanner.endsTomorrow")
+            : t("trialBanner.endsInDays", { days })}
         </span>
       </div>
       <Button
@@ -61,7 +63,7 @@ export function TrialBanner() {
         variant={urgent ? "destructive" : "default"}
         className="shrink-0"
       >
-        <Link to={`${path}/billing`}>Elegir plan</Link>
+        <Link to={`${path}/billing`}>{t("trialBanner.choosePlan")}</Link>
       </Button>
     </div>
   );

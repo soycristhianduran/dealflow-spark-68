@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { WaMessage } from "@/hooks/useWhatsAppInbox";
 import { AudioPlayer } from "./AudioPlayer";
@@ -17,6 +18,7 @@ export function MsgBubble({
   msg: WaMessage;
   onFetchMedia?: (id: string, mediaId: string) => void;
 }) {
+  const { t } = useTranslation();
   const out = msg.direction === "outgoing";
   const isMedia = MEDIA_MSG_TYPES.includes(msg.message_type);
 
@@ -28,14 +30,14 @@ export function MsgBubble({
     if (msg.message_text) return null;
     if (isMedia || msg.message_type === "text") return null;
     switch (msg.message_type) {
-      case "button":            return "👆 Botón presionado (sin texto)";
-      case "interactive":       return "👆 Respuesta interactiva (sin texto)";
-      case "reaction":          return "❤️ Reacción";
-      case "order":             return "🛒 Pedido";
-      case "location":          return "📍 Ubicación compartida";
-      case "contacts":          return "👤 Contacto compartido";
-      case "system":            return "ℹ️ Mensaje del sistema";
-      case "unsupported":       return "⚠️ Mensaje no soportado";
+      case "button":            return `👆 ${t("msgBubble.buttonPressed")}`;
+      case "interactive":       return `👆 ${t("msgBubble.interactiveReply")}`;
+      case "reaction":          return `❤️ ${t("msgBubble.reaction")}`;
+      case "order":             return `🛒 ${t("msgBubble.order")}`;
+      case "location":          return `📍 ${t("msgBubble.locationShared")}`;
+      case "contacts":          return `👤 ${t("msgBubble.contactShared")}`;
+      case "system":            return `ℹ️ ${t("msgBubble.systemMessage")}`;
+      case "unsupported":       return `⚠️ ${t("msgBubble.unsupportedMessage")}`;
       default:                  return `[${msg.message_type}]`;
     }
   })();
@@ -54,7 +56,7 @@ export function MsgBubble({
       }
       className="flex items-center gap-1.5 text-sm text-primary underline py-1 hover:opacity-80 transition-opacity"
     >
-      {icon} {label} — toca para cargar
+      {icon} {label} — {t("msgBubble.tapToLoad")}
     </button>
   );
 
@@ -68,17 +70,17 @@ export function MsgBubble({
           <a href={realUrl} target="_blank" rel="noopener noreferrer">
             <img
               src={realUrl}
-              alt="imagen"
+              alt={t("msgBubble.imageAlt")}
               className="max-w-full rounded-lg max-h-64 object-contain mb-1 cursor-pointer hover:opacity-90 transition-opacity"
             />
           </a>
         );
       }
       return isMetaRef ? (
-        <LoadBtn icon="🖼" label="Imagen" />
+        <LoadBtn icon="🖼" label={t("msgBubble.image")} />
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">
-          🖼 Imagen no disponible
+          🖼 {t("msgBubble.imageUnavailable")}
         </div>
       );
     }
@@ -93,20 +95,20 @@ export function MsgBubble({
         );
       }
       return isMetaRef ? (
-        <LoadBtn icon="🎬" label="Video" />
+        <LoadBtn icon="🎬" label={t("msgBubble.video")} />
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">
-          🎬 Video no disponible
+          🎬 {t("msgBubble.videoUnavailable")}
         </div>
       );
     }
     if (type === "audio" || type === "voice") {
       if (realUrl) return <AudioPlayer src={realUrl} outgoing={out} />;
       return isMetaRef ? (
-        <LoadBtn icon="🎤" label="Audio" />
+        <LoadBtn icon="🎤" label={t("msgBubble.audio")} />
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">
-          🎤 Audio no disponible
+          🎤 {t("msgBubble.audioUnavailable")}
         </div>
       );
     }
@@ -119,15 +121,15 @@ export function MsgBubble({
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm underline py-1"
           >
-            📄 Ver documento
+            📄 {t("msgBubble.viewDocument")}
           </a>
         );
       }
       return isMetaRef ? (
-        <LoadBtn icon="📄" label="Documento" />
+        <LoadBtn icon="📄" label={t("msgBubble.document")} />
       ) : (
         <div className="flex items-center gap-1.5 text-sm text-muted-foreground py-1">
-          📄 Documento no disponible
+          📄 {t("msgBubble.documentUnavailable")}
         </div>
       );
     }

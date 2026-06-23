@@ -6,6 +6,7 @@
  * when it finishes.
  */
 import { Check, X, Users, Upload } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   done: number;
@@ -17,6 +18,7 @@ interface Props {
 }
 
 export function ImportLoader({ done, total, finished, created, updated, onClose }: Props) {
+  const { t } = useTranslation();
   const pct = total > 0 ? Math.round((done / total) * 100) : (finished ? 100 : 0);
 
   return (
@@ -44,7 +46,7 @@ export function ImportLoader({ done, total, finished, created, updated, onClose 
       `}</style>
 
       <div className="relative w-full max-w-sm rounded-2xl border bg-card p-6 shadow-2xl">
-        <button onClick={onClose} className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label="Cerrar">
+        <button onClick={onClose} className="absolute right-3 top-3 rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label={t("importLoader.close")}>
           <X className="h-4 w-4" />
         </button>
 
@@ -72,7 +74,7 @@ export function ImportLoader({ done, total, finished, created, updated, onClose 
 
         <div className="space-y-3 text-center">
           <p className="text-sm font-semibold">
-            {finished ? "¡Importación completada!" : "Importando contactos…"}
+            {finished ? t("importLoader.importComplete") : t("importLoader.importingContacts")}
           </p>
           <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted shadow-inner">
             <div className="h-full rounded-full transition-all duration-300"
@@ -80,16 +82,16 @@ export function ImportLoader({ done, total, finished, created, updated, onClose 
           </div>
           {finished ? (
             <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-emerald-600">{created ?? 0}</span> nuevos · <span className="font-semibold text-blue-600">{updated ?? 0}</span> actualizados
+              <span className="font-semibold text-emerald-600">{created ?? 0}</span> {t("importLoader.new")} · <span className="font-semibold text-blue-600">{updated ?? 0}</span> {t("importLoader.updated")}
             </p>
           ) : (
-            <p className="text-xs text-muted-foreground">{done} de {total} · {pct}%</p>
+            <p className="text-xs text-muted-foreground">{t("importLoader.progress", { done, total, pct })}</p>
           )}
           <p className="text-[11px] text-muted-foreground">
-            {finished ? "Listo. Tus leads ya están en el CRM." : "Se importa en segundo plano — puedes cerrar y seguir trabajando."}
+            {finished ? t("importLoader.doneMsg") : t("importLoader.backgroundMsg")}
           </p>
           <button onClick={onClose} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm font-medium hover:bg-muted">
-            {finished ? "Cerrar" : "Cerrar (seguir en segundo plano)"}
+            {finished ? t("importLoader.close") : t("importLoader.closeBackground")}
           </button>
         </div>
       </div>

@@ -11,6 +11,7 @@
  */
 
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Lock, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,21 +23,22 @@ export function LockoutScreen() {
   const { subscription } = useSubscription();
   const { path } = useWorkspace();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const status = subscription?.status;
   const headline =
     status === "canceled"
-      ? "Tu suscripción fue cancelada"
+      ? t("lockoutScreen.headlineCanceled")
       : status === "unpaid" || status === "past_due"
-      ? "Tu pago no se procesó"
-      : "Tu prueba gratuita terminó";
+      ? t("lockoutScreen.headlinePaymentFailed")
+      : t("lockoutScreen.headlineTrialEnded");
 
   const description =
     status === "canceled"
-      ? "Tu acceso al CRM está pausado. Reactiva tu suscripción para continuar trabajando con tus datos."
+      ? t("lockoutScreen.descriptionCanceled")
       : status === "unpaid" || status === "past_due"
-      ? "Actualiza tu método de pago para reanudar tu acceso al CRM."
-      : "Para seguir usando Klosify CRM, elige un plan que se ajuste a tu equipo.";
+      ? t("lockoutScreen.descriptionPaymentFailed")
+      : t("lockoutScreen.descriptionTrialEnded");
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6">
@@ -56,7 +58,7 @@ export function LockoutScreen() {
             size="lg"
             onClick={() => navigate(path("/billing"))}
           >
-            Elegir un plan
+            {t("lockoutScreen.choosePlan")}
           </Button>
           <Button
             variant="ghost"
@@ -64,12 +66,12 @@ export function LockoutScreen() {
             onClick={async () => { await signOut(); }}
           >
             <LogOut className="h-4 w-4 mr-2" />
-            Cerrar sesión
+            {t("lockoutScreen.signOut")}
           </Button>
         </div>
 
         <p className="text-xs text-muted-foreground">
-          ¿Dudas? Escríbenos a{" "}
+          {t("lockoutScreen.questions")}{" "}
           <a
             href="mailto:hola@klosify.com"
             className="underline hover:text-foreground"

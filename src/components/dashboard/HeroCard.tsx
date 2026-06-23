@@ -14,6 +14,7 @@
  */
 
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -29,11 +30,11 @@ interface Props {
   newLeadsThisWeek: number;
 }
 
-function greetingForTime(): string {
+function greetingKeyForTime(): string {
   const h = new Date().getHours();
-  if (h < 12) return "Buenos días";
-  if (h < 19) return "Buenas tardes";
-  return "Buenas noches";
+  if (h < 12) return "goodMorning";
+  if (h < 19) return "goodAfternoon";
+  return "goodEvening";
 }
 
 function formatCurrency(value: number, currency: string) {
@@ -49,6 +50,7 @@ export function HeroCard({
   tasksPending,
   newLeadsThisWeek,
 }: Props) {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { path } = useWorkspace();
 
@@ -62,27 +64,27 @@ export function HeroCard({
   let cta: { label: string; to: string; subtitle: string };
   if (tasksPending > 0) {
     cta = {
-      label: `Atender ${tasksPending} tarea${tasksPending === 1 ? "" : "s"} pendiente${tasksPending === 1 ? "" : "s"}`,
+      label: t("heroCard.ctaTasksLabel", { count: tasksPending }),
       to: path("/tasks"),
-      subtitle: "Mantén tu pipeline activo cerrando los pendientes de hoy.",
+      subtitle: t("heroCard.ctaTasksSubtitle"),
     };
   } else if (dealsOpen > 0) {
     cta = {
-      label: `Ver pipeline (${dealsOpen} deals abiertos)`,
+      label: t("heroCard.ctaDealsLabel", { count: dealsOpen }),
       to: path("/pipeline"),
-      subtitle: "Empuja tus deals abiertos a la siguiente etapa.",
+      subtitle: t("heroCard.ctaDealsSubtitle"),
     };
   } else if (newLeadsThisWeek > 0) {
     cta = {
-      label: "Revisar leads nuevos",
+      label: t("heroCard.ctaLeadsLabel"),
       to: path("/leads"),
-      subtitle: `Tienes ${newLeadsThisWeek} lead${newLeadsThisWeek === 1 ? "" : "s"} de esta semana sin contactar.`,
+      subtitle: t("heroCard.ctaLeadsSubtitle", { count: newLeadsThisWeek }),
     };
   } else {
     cta = {
-      label: "Crear tu primer lead",
+      label: t("heroCard.ctaFirstLeadLabel"),
       to: path("/leads"),
-      subtitle: "Empieza a llenar tu pipeline para ver métricas aquí.",
+      subtitle: t("heroCard.ctaFirstLeadSubtitle"),
     };
   }
 
@@ -114,7 +116,7 @@ export function HeroCard({
               {format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
             </p>
             <h1 className="mt-1 text-3xl font-bold tracking-tight md:text-4xl">
-              {greetingForTime()}{firstName ? `, ${firstName}` : ""} 👋
+              {t(`heroCard.${greetingKeyForTime()}`)}{firstName ? `, ${firstName}` : ""} 👋
             </h1>
           </div>
 
@@ -137,12 +139,12 @@ export function HeroCard({
         {/* Right: hero metrics */}
         <div className="grid grid-cols-2 gap-3 self-end md:self-center">
           <MetricTile
-            label="Valor en pipeline"
+            label={t("heroCard.pipelineValue")}
             value={formatCurrency(pipelineValue, pipelineCurrency)}
             icon={<TrendingUp className="h-4 w-4" />}
           />
           <MetricTile
-            label="Deals abiertos"
+            label={t("heroCard.dealsOpen")}
             value={String(dealsOpen)}
             icon={<Sparkles className="h-4 w-4" />}
           />
