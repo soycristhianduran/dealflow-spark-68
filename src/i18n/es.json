@@ -2201,7 +2201,161 @@
     "integration.google-ads.setupSteps.2": "Autoriza el acceso a la API de Google Ads",
     "integration.google-ads.setupSteps.3": "Conecta tu cuenta en Klosify",
     "integration.google-ads.requirements.0": "Cuenta de Google Ads activa",
-    "integration.google-ads.requirements.1": "Acceso a Google Ads API"
+    "integration.google-ads.requirements.1": "Acceso a Google Ads API",
+    "integration": {
+      "google-calendar": {
+        "description": "Sincroniza tus citas y reuniones automáticamente con Google Calendar.",
+        "features": [
+          "Creación automática de eventos al agendar reuniones",
+          "Sincronización directa con tu calendario principal",
+          "Notificaciones y recordatorios de Google"
+        ],
+        "setupSteps": [
+          "Haz clic en 'Conectar' para iniciar sesión con tu cuenta de Google",
+          "Autoriza el acceso a Google Calendar",
+          "¡Listo! Tus citas se crearán automáticamente en Google Calendar"
+        ],
+        "requirements": [
+          "Cuenta de Google activa"
+        ]
+      },
+      "facebook": {
+        "description": "Conecta tus páginas, formularios de leads, Messenger y campañas de Meta Ads.",
+        "features": [
+          "Selecciona tus páginas de Facebook",
+          "Sincroniza formularios nativos de Lead Ads",
+          "Captura mensajes de Messenger automáticamente",
+          "Importa historial completo de campañas de Meta Ads"
+        ],
+        "setupSteps": [
+          "Haz clic en 'Conectar' para autorizar con tu cuenta de Facebook",
+          "Selecciona las páginas que quieres conectar",
+          "Elige los formularios de leads a sincronizar",
+          "Importa tus campañas de Meta Ads"
+        ],
+        "requirements": [
+          "Cuenta de Facebook Business",
+          "Página de Facebook activa"
+        ]
+      },
+      "whatsapp": {
+        "description": "Envía y recibe mensajes de WhatsApp directamente desde tu CRM.",
+        "features": [
+          "Envío de mensajes desde el CRM",
+          "Recepción de mensajes entrantes",
+          "Plantillas de mensajes aprobadas",
+          "Historial de conversaciones por lead"
+        ],
+        "setupSteps": [
+          "Crea una cuenta en Meta Business Suite",
+          "Configura WhatsApp Business API",
+          "Obtén tu Token de acceso y Phone Number ID",
+          "Ingresa las credenciales en el formulario de conexión"
+        ],
+        "requirements": [
+          "Cuenta de Meta Business",
+          "WhatsApp Business API aprobada",
+          "Número de teléfono verificado"
+        ]
+      },
+      "instagram": {
+        "description": "Recibe mensajes de Instagram Direct y gestiona leads desde la plataforma.",
+        "features": [
+          "Recepción de mensajes de Instagram Direct",
+          "Respuestas automáticas a comentarios",
+          "Captura de leads desde formularios",
+          "Seguimiento de interacciones por lead"
+        ],
+        "setupSteps": [
+          "Conecta tu cuenta de Instagram Business via Meta",
+          "Vincula tu página de Facebook asociada",
+          "Autoriza permisos de mensajería",
+          "Configura respuestas automáticas si lo deseas"
+        ],
+        "requirements": [
+          "Cuenta de Instagram Business/Creator",
+          "Página de Facebook vinculada",
+          "Acceso a Meta Business Suite"
+        ]
+      },
+      "tiktok": {
+        "description": "Integra TikTok Ads para capturar leads de tus campañas de video.",
+        "features": [
+          "Captura de leads desde TikTok Lead Gen",
+          "Sincronización de formularios de TikTok",
+          "Tracking de conversiones",
+          "Audiencias personalizadas desde el CRM"
+        ],
+        "setupSteps": [
+          "Crea una cuenta en TikTok for Business",
+          "Accede al TikTok Ads Manager",
+          "Genera un token de acceso en la sección de desarrolladores",
+          "Ingresa las credenciales en el formulario de conexión"
+        ],
+        "requirements": [
+          "Cuenta de TikTok for Business",
+          "TikTok Ads Manager activo",
+          "Acceso a TikTok Marketing API"
+        ]
+      },
+      "google-ads": {
+        "description": "Importa leads y mide conversiones de tus campañas de Google Ads.",
+        "features": [
+          "Captura de leads desde Google Lead Form Ads",
+          "Sincronización de campañas y conversiones",
+          "Atribución de ventas por campaña",
+          "Audiencias personalizadas desde el CRM"
+        ],
+        "setupSteps": [
+          "Crea una cuenta en Google Ads",
+          "Accede al administrador de Google Ads",
+          "Autoriza el acceso a la API de Google Ads",
+          "Conecta tu cuenta en Klosify"
+        ],
+        "requirements": [
+          "Cuenta de Google Ads activa",
+          "Acceso a Google Ads API"
+        ]
+      }
+    },
+    "webhookEvent": {
+      "contactCreated": {
+        "label": "Contacto creado",
+        "description": "Cuando se crea un nuevo contacto"
+      },
+      "contactUpdated": {
+        "label": "Contacto actualizado",
+        "description": "Cuando cambia estado, dueño, email, teléfono, tags o score"
+      },
+      "dealStageChanged": {
+        "label": "Etapa de pipeline cambiada",
+        "description": "Cuando un lead se mueve a otra etapa del pipeline"
+      },
+      "dealWon": {
+        "label": "Deal ganado",
+        "description": "Cuando un lead es marcado como ganado"
+      },
+      "dealLost": {
+        "label": "Deal perdido",
+        "description": "Cuando un lead es marcado como perdido"
+      },
+      "taskCompleted": {
+        "label": "Tarea completada",
+        "description": "Cuando una tarea es marcada como completada"
+      },
+      "meetingScheduled": {
+        "label": "Reunión agendada",
+        "description": "Cuando se crea una nueva reunión"
+      },
+      "whatsappMessageReceived": {
+        "label": "WhatsApp: mensaje recibido",
+        "description": "Cuando se recibe un mensaje de WhatsApp"
+      },
+      "formSubmitted": {
+        "label": "Formulario enviado",
+        "description": "Cuando alguien envía un formulario de landing page"
+      }
+    }
   },
   "whatsAppTemplatesPage": {
     "variablesLabel": "Variables:",

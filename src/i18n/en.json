@@ -2201,7 +2201,161 @@
     "integration.google-ads.setupSteps.2": "Authorize access to the Google Ads API",
     "integration.google-ads.setupSteps.3": "Connect your account in Klosify",
     "integration.google-ads.requirements.0": "Active Google Ads account",
-    "integration.google-ads.requirements.1": "Access to Google Ads API"
+    "integration.google-ads.requirements.1": "Access to Google Ads API",
+    "integration": {
+      "google-calendar": {
+        "description": "Automatically sync your appointments and meetings with Google Calendar.",
+        "features": [
+          "Automatic event creation when scheduling meetings",
+          "Direct sync with your main calendar",
+          "Google notifications and reminders"
+        ],
+        "setupSteps": [
+          "Click 'Connect' to sign in with your Google account",
+          "Authorize access to Google Calendar",
+          "Done! Your appointments will be created automatically in Google Calendar"
+        ],
+        "requirements": [
+          "Active Google account"
+        ]
+      },
+      "facebook": {
+        "description": "Connect your pages, lead forms, Messenger and Meta Ads campaigns.",
+        "features": [
+          "Select your Facebook pages",
+          "Sync native Lead Ads forms",
+          "Capture Messenger messages automatically",
+          "Import your full Meta Ads campaign history"
+        ],
+        "setupSteps": [
+          "Click 'Connect' to authorize with your Facebook account",
+          "Select the pages you want to connect",
+          "Choose the lead forms to sync",
+          "Import your Meta Ads campaigns"
+        ],
+        "requirements": [
+          "Facebook Business account",
+          "Active Facebook page"
+        ]
+      },
+      "whatsapp": {
+        "description": "Send and receive WhatsApp messages directly from your CRM.",
+        "features": [
+          "Send messages from the CRM",
+          "Receive incoming messages",
+          "Approved message templates",
+          "Conversation history per lead"
+        ],
+        "setupSteps": [
+          "Create a Meta Business Suite account",
+          "Set up the WhatsApp Business API",
+          "Get your access token and Phone Number ID",
+          "Enter the credentials in the connection form"
+        ],
+        "requirements": [
+          "Meta Business account",
+          "Approved WhatsApp Business API",
+          "Verified phone number"
+        ]
+      },
+      "instagram": {
+        "description": "Receive Instagram Direct messages and manage leads from the platform.",
+        "features": [
+          "Receive Instagram Direct messages",
+          "Automatic replies to comments",
+          "Capture leads from forms",
+          "Track interactions per lead"
+        ],
+        "setupSteps": [
+          "Connect your Instagram Business account via Meta",
+          "Link your associated Facebook page",
+          "Authorize messaging permissions",
+          "Set up automatic replies if you want"
+        ],
+        "requirements": [
+          "Instagram Business/Creator account",
+          "Linked Facebook page",
+          "Access to Meta Business Suite"
+        ]
+      },
+      "tiktok": {
+        "description": "Integrate TikTok Ads to capture leads from your video campaigns.",
+        "features": [
+          "Capture leads from TikTok Lead Gen",
+          "Sync TikTok forms",
+          "Conversion tracking",
+          "Custom audiences from the CRM"
+        ],
+        "setupSteps": [
+          "Create a TikTok for Business account",
+          "Go to TikTok Ads Manager",
+          "Generate an access token in the developers section",
+          "Enter the credentials in the connection form"
+        ],
+        "requirements": [
+          "TikTok for Business account",
+          "Active TikTok Ads Manager",
+          "Access to TikTok Marketing API"
+        ]
+      },
+      "google-ads": {
+        "description": "Import leads and measure conversions from your Google Ads campaigns.",
+        "features": [
+          "Capture leads from Google Lead Form Ads",
+          "Sync campaigns and conversions",
+          "Sales attribution per campaign",
+          "Custom audiences from the CRM"
+        ],
+        "setupSteps": [
+          "Create a Google Ads account",
+          "Go to Google Ads manager",
+          "Authorize access to the Google Ads API",
+          "Connect your account in Klosify"
+        ],
+        "requirements": [
+          "Active Google Ads account",
+          "Access to Google Ads API"
+        ]
+      }
+    },
+    "webhookEvent": {
+      "contactCreated": {
+        "label": "Contact created",
+        "description": "When a new contact is created"
+      },
+      "contactUpdated": {
+        "label": "Contact updated",
+        "description": "When status, owner, email, phone, tags or score changes"
+      },
+      "dealStageChanged": {
+        "label": "Pipeline stage changed",
+        "description": "When a lead moves to another pipeline stage"
+      },
+      "dealWon": {
+        "label": "Deal won",
+        "description": "When a lead is marked as won"
+      },
+      "dealLost": {
+        "label": "Deal lost",
+        "description": "When a lead is marked as lost"
+      },
+      "taskCompleted": {
+        "label": "Task completed",
+        "description": "When a task is marked as completed"
+      },
+      "meetingScheduled": {
+        "label": "Meeting scheduled",
+        "description": "When a new meeting is created"
+      },
+      "whatsappMessageReceived": {
+        "label": "WhatsApp: message received",
+        "description": "When a WhatsApp message is received"
+      },
+      "formSubmitted": {
+        "label": "Form submitted",
+        "description": "When someone submits a landing page form"
+      }
+    }
   },
   "whatsAppTemplatesPage": {
     "variablesLabel": "Variables:",
