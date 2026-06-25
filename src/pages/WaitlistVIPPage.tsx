@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Lock, Sparkles, Check, Loader2, Users, Gift, Zap, ArrowRight, Bot, PhoneCall, Inbox, GitBranch, Rocket, Layout, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
+import { trackEvent } from "@/lib/metaPixel";
 
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 
@@ -82,8 +83,23 @@ export default function WaitlistVIPPage() {
         setError("No pudimos guardarte. Revisa tus datos e inténtalo de nuevo.");
         return;
       }
-      setAlready(!!(data as any)?.already);
+      const isAlready = !!(data as any)?.already;
+      setAlready(isAlready);
       setStatus("done");
+
+      // Fire the Meta Pixel + CAPI conversion (same pixel as the sales page).
+      // Only count genuinely new sign-ups as a Lead — skip duplicates.
+      if (!isAlready) {
+        trackEvent(
+          "Lead",
+          { content_name: "Lista VIP", content_category: "waitlist" },
+          {
+            email: email.trim(),
+            phone: whatsapp.trim() ? `${dialCode}${whatsapp.trim()}` : undefined,
+            firstName: name.trim().split(/\s+/)[0],
+          },
+        );
+      }
     } catch {
       setStatus("idle");
       setError("Algo salió mal. Inténtalo de nuevo.");
