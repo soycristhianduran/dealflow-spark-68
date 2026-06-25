@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Sparkles, Check, Loader2, Users, Gift, Zap, ArrowRight } from "lucide-react";
+import { Lock, Sparkles, Check, Loader2, Users, Gift, Zap, ArrowRight, Bot, MessageCircle, GitBranch, Mail, Calendar, BarChart3 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 
@@ -29,6 +29,18 @@ const DIAL_CODES = [
   { c: "NI", flag: "🇳🇮", code: "+505", name: "Nicaragua" },
   { c: "US", flag: "🇺🇸", code: "+1", name: "Estados Unidos" },
   { c: "ES", flag: "🇪🇸", code: "+34", name: "España" },
+];
+
+// Core product pillars shown on the waitlist page.
+const FEATURES = [
+  { icon: Bot, title: "Agente de IA que vende", desc: "Responde, califica y cierra ventas por ti en WhatsApp, Instagram y Facebook, 24/7." },
+  { icon: MessageCircle, title: "Bandeja única", desc: "WhatsApp, Instagram y Messenger en un solo inbox. Nunca pierdas un mensaje." },
+  { icon: GitBranch, title: "CRM y pipelines", desc: "Organiza tus leads por etapas y mira en qué punto está cada venta." },
+  { icon: Zap, title: "Automatizaciones", desc: "Comentarios, DMs y seguimientos automáticos sin mover un dedo." },
+  { icon: Mail, title: "Email marketing", desc: "Campañas y secuencias para nutrir y reactivar a tus contactos." },
+  { icon: Calendar, title: "Agendamiento", desc: "Tus leads reservan citas solos y se sincronizan con tu calendario." },
+  { icon: BarChart3, title: "Reportes en vivo", desc: "Mide conversaciones, leads y ventas en tiempo real." },
+  { icon: Sparkles, title: "Anuncios conectados", desc: "Tus leads de Facebook e Instagram Ads entran directo al CRM." },
 ];
 
 /**
@@ -127,7 +139,11 @@ export default function WaitlistVIPPage() {
               en conocer Klosify
             </h1>
 
-            <p className="mt-5 max-w-md text-base leading-relaxed text-slate-300/90">
+            <p className="mt-4 max-w-md text-lg font-semibold text-white/90">
+              Todo tu stack de marketing y ventas, en un solo lugar.
+            </p>
+
+            <p className="mt-3 max-w-md text-base leading-relaxed text-slate-300/90">
               Estamos abriendo el acceso poco a poco, <b className="text-white">solo para un grupo cercano</b>.
               Únete a la lista de espera exclusiva y sé el primero en probar el CRM con IA que cierra
               ventas por WhatsApp, Instagram y Facebook por ti.
@@ -273,6 +289,55 @@ export default function WaitlistVIPPage() {
           </div>
         </div>
       </main>
+
+      {/* ── Features ── */}
+      <section className="relative z-10 mx-auto max-w-6xl px-6 pb-24">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
+            Todo tu stack de marketing y ventas,{" "}
+            <span className="bg-gradient-to-r from-orange-400 to-purple-500 bg-clip-text text-transparent">
+              en un solo lugar
+            </span>
+          </h2>
+          <p className="mt-4 text-base text-slate-300/90">
+            Deja de pagar 5 herramientas distintas. Klosify reúne todo lo que necesitas para
+            atraer, atender y cerrar clientes.
+          </p>
+        </div>
+
+        <div className="mt-12 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {FEATURES.map((f, i) => (
+            <motion.div
+              key={f.title}
+              initial={{ opacity: 0, y: 16 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-40px" }}
+              transition={{ duration: 0.4, delay: (i % 4) * 0.06 }}
+              className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5 transition hover:border-orange-500/30 hover:bg-white/[0.05]"
+            >
+              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-500/15 text-orange-400 transition group-hover:bg-orange-500/25">
+                <f.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-base font-bold text-white">{f.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-slate-400">{f.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <div className="mt-12 text-center">
+          <a
+            href="#top"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="group inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 px-7 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-500/30 transition hover:shadow-orange-500/50"
+          >
+            Quiero mi acceso VIP
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </a>
+        </div>
+      </section>
 
       {/* ── Footer ── */}
       <footer className="relative z-10 mx-auto max-w-6xl px-6 pb-10 text-center text-xs text-slate-500">
