@@ -495,12 +495,10 @@ Deno.serve(async (req) => {
                 // @ts-ignore — EdgeRuntime is Deno Deploy specific
                 if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
 
-                // ── AI Agent: respond automatically (runs in the BACKGROUND so we
-                // ACK Meta immediately. The slow Claude call no longer holds the
-                // webhook connection open or gets cut off at Meta's ~20s timeout,
-                // which caused intermittent missed replies — especially for new
-                // contacts that also do pipeline/automation work first). ────────
-                const aiReplyTask = (async () => {
+                // ── AI Agent: respond automatically (inline, awaited before the
+                // 200 — reliable because the agent call is fast, ~3-5s, well under
+                // Meta's ~20s window; the ai-agent fetch is retried once to absorb
+                // transient inter-function hiccups that silently dropped replies). ──
                 console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact?.id);
                 try {
                   if (config.organization_id) {
@@ -527,32 +525,42 @@ Deno.serve(async (req) => {
                       }));
 
                     console.log("[AI-AGENT] Calling ai-agent function, history length:", history.length);
-                    const agentRes = await fetch(
-                      `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`,
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          // Inter-function auth. Supabase's gateway rejects the
-                          // request if Authorization and apikey carry DIFFERENT
-                          // keys ("Conflicting API keys"), so use the SAME service
-                          // role key in both headers.
-                          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""}`,
-                          "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
-                        },
-                        body: JSON.stringify({
-                          channel: "whatsapp",
-                          organization_id: config.organization_id,
-                          user_id: config.user_id,
-                          contact_id: contact.id,
-                          session_key: senderPhone.startsWith("+") ? senderPhone : `+${senderPhone}`,
-                          message: { type: messageType, content: messageText, media_url: mediaUrl },
-                          recent_messages: history,
-                        }),
+                    // Retry the inter-function call up to 2 times — a transient
+                    // gateway/network hiccup here used to silently drop the reply.
+                    let agentData: any = null;
+                    for (let attempt = 1; attempt <= 2; attempt++) {
+                      try {
+                        const agentRes = await fetch(
+                          `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`,
+                          {
+                            method: "POST",
+                            headers: {
+                              // Inter-function auth. Supabase's gateway rejects the
+                              // request if Authorization and apikey carry DIFFERENT
+                              // keys ("Conflicting API keys"), so use the SAME service
+                              // role key in both headers.
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""}`,
+                              "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
+                            },
+                            body: JSON.stringify({
+                              channel: "whatsapp",
+                              organization_id: config.organization_id,
+                              user_id: config.user_id,
+                              contact_id: contact.id,
+                              session_key: senderPhone.startsWith("+") ? senderPhone : `+${senderPhone}`,
+                              message: { type: messageType, content: messageText, media_url: mediaUrl },
+                              recent_messages: history,
+                            }),
+                          }
+                        );
+                        agentData = await agentRes.json();
+                        break; // got a JSON response — stop retrying
+                      } catch (fetchErr: any) {
+                        console.error(`[AI-AGENT] ai-agent fetch attempt ${attempt} failed:`, fetchErr?.message);
+                        if (attempt < 2) await sleep(1200);
                       }
-                    );
-
-                    const agentData = await agentRes.json();
+                    }
 
                     // Detailed logging so we can diagnose agent failures in production
                     if (!agentData?.response) {
@@ -671,11 +679,6 @@ Deno.serve(async (req) => {
                 } catch (e: any) {
                   console.error("[AI-AGENT] CAUGHT ERROR:", e?.message, e?.stack);
                 }
-                })();
-                // Keep the function alive until the reply finishes, without
-                // blocking the 200 response to Meta.
-                if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(aiReplyTask);
-                else await aiReplyTask;
               }
             }
           }
