@@ -65,6 +65,12 @@ function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: s
     ? "Usa un tono casual y relajado, como si hablaras con un amigo."
     : "Usa un tono amigable, cálido y cercano.";
 
+  // Regional language adaptation — keep the agent from sounding like the wrong
+  // country (e.g. Mexican slang "¿te late?" for a Colombian business).
+  const regionBlock = cfg.region
+    ? `IDIOMA Y REGIÓN: Comunícate en español natural de ${cfg.region}. Usa el trato y las expresiones propias de ${cfg.region}. NO uses modismos de OTROS países; por ejemplo, si la región NO es México evita mexicanismos como "¿te late?", "órale", "qué onda", "chido". Mantén un español profesional y cercano, apropiado para ${cfg.region}.`
+    : `IDIOMA: Usa español latinoamericano NEUTRO y profesional. Evita modismos muy regionales (mexicanismos, argentinismos, etc.) para que suene natural en cualquier país.`;
+
   const bookingBlock = opts.canBook
     ? `\nAGENDAMIENTO DE CITAS:
 - Puedes agendar citas usando la herramienta book_appointment.
@@ -122,6 +128,7 @@ ${opts.stages?.length ? `- Mueve al lead de etapa según avance la conversación
 Tu rol es atender consultas de clientes por ${["WhatsApp", "Instagram", "Messenger"].join("/")} de forma rápida y útil.
 
 ${tone}
+${regionBlock}
 
 ${cfg.business_description ? `SOBRE EL NEGOCIO:\n${cfg.business_description}\n` : ""}
 ${cfg.products ? `PRODUCTOS Y SERVICIOS:\n${cfg.products}\n` : ""}

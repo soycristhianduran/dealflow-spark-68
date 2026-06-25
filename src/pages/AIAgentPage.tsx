@@ -56,6 +56,7 @@ interface AgentConfig {
   products: string;
   faqs: string;
   tone: string;
+  region: string;
   escalation_response: string;
   off_topic_response: string;
   channels: { whatsapp: boolean; instagram: boolean };
@@ -106,6 +107,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   products: "",
   faqs: "",
   tone: "amigable",
+  region: "",
   escalation_response: "¡Claro! Un momento, voy a comunicarte con uno de nuestros asesores para que te ayuden mejor. 😊",
   off_topic_response: "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve.",
   channels: { whatsapp: true, instagram: false },
@@ -210,6 +212,7 @@ export default function AIAgentPage() {
           products: data.products ?? "",
           faqs: data.faqs ?? "",
           tone: data.tone ?? "amigable",
+          region: data.region ?? "",
           escalation_response: data.escalation_response ?? DEFAULT_CONFIG.escalation_response,
           off_topic_response: data.off_topic_response ?? DEFAULT_CONFIG.off_topic_response,
           channels: data.channels ?? { whatsapp: true, instagram: false },
@@ -314,6 +317,7 @@ export default function AIAgentPage() {
         products: config.products.trim() || null,
         faqs: config.faqs.trim() || null,
         tone: config.tone,
+        region: config.region.trim() || null,
         escalation_response: config.escalation_response.trim(),
         off_topic_response: config.off_topic_response.trim(),
         channels: config.channels,
@@ -526,6 +530,15 @@ export default function AIAgentPage() {
                     <SelectItem value="casual">{t("aIAgentPage.toneCasual")}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>{t("aIAgentPage.regionLabel")}</Label>
+                <Input
+                  placeholder={t("aIAgentPage.regionPlaceholder")}
+                  value={config.region}
+                  onChange={e => set("region", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">{t("aIAgentPage.regionHelp")}</p>
               </div>
             </CardContent>
           </Card>

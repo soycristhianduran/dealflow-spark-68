@@ -2746,7 +2746,10 @@
     "healthWaSend": "WhatsApp puede enviar",
     "healthWaSendFail": "El último envío de WhatsApp falló — revisa método de pago/ventana 24h",
     "healthIgConnected": "Instagram conectado",
-    "healthIgNotConnected": "Instagram no conectado — conéctalo en Integraciones"
+    "healthIgNotConnected": "Instagram no conectado — conéctalo en Integraciones",
+    "regionLabel": "País / Región",
+    "regionPlaceholder": "Ej: Colombia, México, España…",
+    "regionHelp": "El agente adapta su lenguaje a esta región (evita modismos de otros países). Déjalo vacío para español neutro."
   },
   "instagramAutomationsPage": {
     "buttonTextPlaceholder": "Texto del botón (máx 20 car.)",
