@@ -2731,7 +2731,22 @@
     "uploadFileButton": "Subir archivo (imagen o PDF, máx 16 MB)",
     "noFilesYet": "Aún no has subido archivos.",
     "saveConfig": "Guardar configuración",
-    "readOnlyMode": "Modo solo lectura — no puedes modificar la configuración del agente."
+    "readOnlyMode": "Modo solo lectura — no puedes modificar la configuración del agente.",
+    "healthTitle": "Estado del agente",
+    "healthAllGood": "Todo listo — el agente responderá automáticamente",
+    "healthIssues": "Revisa los puntos en rojo para que el agente pueda responder",
+    "healthAgentOn": "Agente activo",
+    "healthAgentOff": "Agente apagado — actívalo arriba",
+    "healthTokens": "Tokens disponibles",
+    "healthNoTokens": "Sin tokens este mes — recarga en Facturación",
+    "healthWaConnected": "WhatsApp conectado",
+    "healthWaNotConnected": "WhatsApp no conectado — conéctalo en Integraciones",
+    "healthWaReceiving": "WhatsApp recibiendo mensajes",
+    "healthWaNotReceiving": "Sin mensajes entrantes aún (envía un WhatsApp de prueba)",
+    "healthWaSend": "WhatsApp puede enviar",
+    "healthWaSendFail": "El último envío de WhatsApp falló — revisa método de pago/ventana 24h",
+    "healthIgConnected": "Instagram conectado",
+    "healthIgNotConnected": "Instagram no conectado — conéctalo en Integraciones"
   },
   "instagramAutomationsPage": {
     "buttonTextPlaceholder": "Texto del botón (máx 20 car.)",

@@ -2731,7 +2731,22 @@
     "uploadFileButton": "Upload file (image or PDF, max 16 MB)",
     "noFilesYet": "You haven't uploaded any files yet.",
     "saveConfig": "Save configuration",
-    "readOnlyMode": "Read-only mode — you can't modify the agent configuration."
+    "readOnlyMode": "Read-only mode — you can't modify the agent configuration.",
+    "healthTitle": "Agent status",
+    "healthAllGood": "All set — the agent will reply automatically",
+    "healthIssues": "Fix the items in red so the agent can reply",
+    "healthAgentOn": "Agent active",
+    "healthAgentOff": "Agent off — turn it on above",
+    "healthTokens": "Tokens available",
+    "healthNoTokens": "Out of tokens this month — top up in Billing",
+    "healthWaConnected": "WhatsApp connected",
+    "healthWaNotConnected": "WhatsApp not connected — connect it in Integrations",
+    "healthWaReceiving": "WhatsApp receiving messages",
+    "healthWaNotReceiving": "No inbound messages yet (send a test WhatsApp)",
+    "healthWaSend": "WhatsApp can send",
+    "healthWaSendFail": "Last WhatsApp send failed — check payment method / 24h window",
+    "healthIgConnected": "Instagram connected",
+    "healthIgNotConnected": "Instagram not connected — connect it in Integrations"
   },
   "instagramAutomationsPage": {
     "buttonTextPlaceholder": "Button text (max 20 chars)",

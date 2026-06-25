@@ -135,6 +135,9 @@ export default function AIAgentPage() {
   const [saving, setSaving] = useState(false);
   const [conversationsThisMonth, setConversationsThisMonth] = useState(0);
   const [hasWhatsApp, setHasWhatsApp] = useState<boolean | null>(null);
+  const [hasInstagram, setHasInstagram] = useState<boolean | null>(null);
+  const [waReceiving, setWaReceiving] = useState<boolean | null>(null);
+  const [waSendOk, setWaSendOk] = useState<boolean | null>(null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [newMediaName, setNewMediaName] = useState("");
@@ -158,6 +161,34 @@ export default function AIAgentPage() {
       .limit(1)
       .maybeSingle()
       .then(({ data }) => setHasWhatsApp(!!data));
+    // Instagram connected?
+    supabase
+      .from("instagram_accounts")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setHasInstagram(!!data));
+    // WhatsApp actually receiving? (any inbound message ever) + can send (last
+    // outgoing not failed) — quick health signals so "agent on but silent" is visible.
+    supabase
+      .from("whatsapp_messages")
+      .select("direction")
+      .eq("organization_id", organizationId)
+      .eq("direction", "incoming")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setWaReceiving(!!data));
+    supabase
+      .from("whatsapp_messages")
+      .select("status")
+      .eq("organization_id", organizationId)
+      .eq("direction", "outgoing")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setWaSendOk(data ? data.status !== "failed" : null));
   }, [organizationId]);
 
   async function loadConfig() {
@@ -389,6 +420,43 @@ export default function AIAgentPage() {
             </CardContent>
           </Card>
 
+          {/* Health check — surfaces why "agent on but silent" happens */}
+          {(() => {
+            const waEnabled = !!config.channels?.whatsapp;
+            const igEnabled = !!config.channels?.instagram;
+            const tokensOk = subscription?.monthlyAiAgentCredits == null || conversationsThisMonth < subscription.monthlyAiAgentCredits;
+            const rows: { state: "ok" | "warn" | "bad"; label: string }[] = [];
+            rows.push({ state: config.is_active ? "ok" : "bad", label: config.is_active ? t("aIAgentPage.healthAgentOn") : t("aIAgentPage.healthAgentOff") });
+            rows.push({ state: tokensOk ? "ok" : "bad", label: tokensOk ? t("aIAgentPage.healthTokens") : t("aIAgentPage.healthNoTokens") });
+            if (waEnabled) {
+              rows.push({ state: hasWhatsApp ? "ok" : "bad", label: hasWhatsApp ? t("aIAgentPage.healthWaConnected") : t("aIAgentPage.healthWaNotConnected") });
+              if (hasWhatsApp) {
+                rows.push({ state: waReceiving ? "ok" : "warn", label: waReceiving ? t("aIAgentPage.healthWaReceiving") : t("aIAgentPage.healthWaNotReceiving") });
+                rows.push({ state: waSendOk === false ? "bad" : "ok", label: waSendOk === false ? t("aIAgentPage.healthWaSendFail") : t("aIAgentPage.healthWaSend") });
+              }
+            }
+            if (igEnabled) {
+              rows.push({ state: hasInstagram ? "ok" : "bad", label: hasInstagram ? t("aIAgentPage.healthIgConnected") : t("aIAgentPage.healthIgNotConnected") });
+            }
+            const allGood = rows.every(r => r.state === "ok");
+            return (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">{t("aIAgentPage.healthTitle")}</CardTitle>
+                  <CardDescription>{allGood ? t("aIAgentPage.healthAllGood") : t("aIAgentPage.healthIssues")}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {rows.map((r, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${r.state === "ok" ? "bg-green-500" : r.state === "warn" ? "bg-amber-500" : "bg-red-500"}`} />
+                      <span className={r.state === "ok" ? "" : "text-muted-foreground"}>{r.label}</span>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* Channels */}
           <Card>
             <CardHeader>
@@ -478,7 +546,7 @@ export default function AIAgentPage() {
                   value={config.business_description}
                   onChange={e => set("business_description", e.target.value)}
                   rows={3}
-                  maxLength={1000}
+                  maxLength={4000}
                 />
               </div>
               <div className="space-y-2">
@@ -488,7 +556,7 @@ export default function AIAgentPage() {
                   value={config.products}
                   onChange={e => set("products", e.target.value)}
                   rows={4}
-                  maxLength={2000}
+                  maxLength={12000}
                 />
               </div>
               <div className="space-y-2">
@@ -498,7 +566,7 @@ export default function AIAgentPage() {
                   value={config.faqs}
                   onChange={e => set("faqs", e.target.value)}
                   rows={5}
-                  maxLength={3000}
+                  maxLength={12000}
                 />
               </div>
             </CardContent>
