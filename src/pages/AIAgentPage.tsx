@@ -267,12 +267,38 @@ export default function AIAgentPage() {
     setMedia((data as MediaItem[]) || []);
   }
 
-  async function handleUploadMedia(file: File) {
+  // WhatsApp rejects images over 5 MB (error 131053). Compress/resize images on
+  // upload so the agent can always send them — resize to max 1920px and step the
+  // JPEG quality down until it's safely under the limit.
+  async function compressImageIfNeeded(file: File): Promise<File> {
+    const MAX = 4_500_000; // stay safely under WhatsApp's 5 MB
+    if (!file.type.startsWith("image/") || file.size <= MAX) return file;
+    try {
+      const img = await createImageBitmap(file);
+      let { width, height } = img;
+      const maxDim = 1920;
+      if (Math.max(width, height) > maxDim) {
+        const s = maxDim / Math.max(width, height);
+        width = Math.round(width * s); height = Math.round(height * s);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      canvas.getContext("2d")!.drawImage(img, 0, 0, width, height);
+      const toBlob = (q: number) => new Promise<Blob | null>(r => canvas.toBlob(r, "image/jpeg", q));
+      let q = 0.85, blob = await toBlob(q);
+      while (blob && blob.size > MAX && q > 0.4) { q -= 0.15; blob = await toBlob(q); }
+      if (!blob) return file;
+      return new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" });
+    } catch { return file; }
+  }
+
+  async function handleUploadMedia(rawFile: File) {
     if (!organizationId) return;
     if (!newMediaName.trim()) { toast.error(t("aIAgentPage.nameFileFirst")); return; }
-    if (file.size > 16 * 1024 * 1024) { toast.error(t("aIAgentPage.fileExceeds16mb")); return; }
+    if (rawFile.size > 16 * 1024 * 1024 && !rawFile.type.startsWith("image/")) { toast.error(t("aIAgentPage.fileExceeds16mb")); return; }
     setUploading(true);
     try {
+      const file = await compressImageIfNeeded(rawFile);
       const ext = file.name.split(".").pop() || "bin";
       const path = `${organizationId}/${Date.now()}.${ext}`;
       const { error: upErr } = await supabase.storage.from("agent-media").upload(path, file, { upsert: false });
