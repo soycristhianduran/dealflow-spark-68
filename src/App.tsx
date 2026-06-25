@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import AuthPage from "./pages/AuthPage";
 import HomePage from "./pages/HomePage";
+import WaitlistVIPPage from "./pages/WaitlistVIPPage";
 import DashboardPage from "./pages/DashboardPage";
 import ContactsPage from "./pages/ContactsPage";
 import ContactDetailPage from "./pages/ContactDetailPage";
@@ -160,6 +161,8 @@ function AppRoutes() {
       <Route path="/privacidad" element={<PrivacyPage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
+      <Route path="/lista-vip" element={<WaitlistVIPPage />} />
+      <Route path="/vip" element={<WaitlistVIPPage />} />
 
       {/* First-time onboarding for new users (Google OAuth + anyone missing company_name) */}
       <Route path="/onboarding" element={<OnboardingPage />} />
