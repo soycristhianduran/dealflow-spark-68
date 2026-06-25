@@ -495,8 +495,13 @@ Deno.serve(async (req) => {
                 // @ts-ignore — EdgeRuntime is Deno Deploy specific
                 if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(analysisPromise);
 
-                // ── AI Agent: respond automatically if enabled ─────────────
-                console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact.id);
+                // ── AI Agent: respond automatically (runs in the BACKGROUND so we
+                // ACK Meta immediately. The slow Claude call no longer holds the
+                // webhook connection open or gets cut off at Meta's ~20s timeout,
+                // which caused intermittent missed replies — especially for new
+                // contacts that also do pipeline/automation work first). ────────
+                const aiReplyTask = (async () => {
+                console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact?.id);
                 try {
                   if (config.organization_id) {
                     console.log("[AI-AGENT] Organization check passed, fetching history...");
@@ -666,6 +671,11 @@ Deno.serve(async (req) => {
                 } catch (e: any) {
                   console.error("[AI-AGENT] CAUGHT ERROR:", e?.message, e?.stack);
                 }
+                })();
+                // Keep the function alive until the reply finishes, without
+                // blocking the 200 response to Meta.
+                if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(aiReplyTask);
+                else await aiReplyTask;
               }
             }
           }
