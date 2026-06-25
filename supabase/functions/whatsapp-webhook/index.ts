@@ -559,7 +559,10 @@ Deno.serve(async (req) => {
                         lastStatus = agentRes.status;
                         if (agentRes.ok) {
                           agentData = await agentRes.json().catch(() => null);
-                          if (agentData?.response || agentData?.reason) break; // usable payload
+                          // Usable payload = any text reply, an explicit reason
+                          // (paused/quota/inactive), or media to send. Treat all
+                          // three as "done" so a media-only reply isn't retried.
+                          if (agentData?.response || agentData?.reason || (Array.isArray(agentData?.media) && agentData.media.length)) break;
                         } else {
                           console.error(`[AI-AGENT] ai-agent non-ok status ${agentRes.status} (attempt ${attempt})`);
                         }

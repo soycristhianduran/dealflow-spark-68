@@ -548,6 +548,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // 12. Fallback for empty text. Claude can finish a turn having ONLY called a
+    //     tool (e.g. send_media for the catalog) without writing any prose, which
+    //     leaves aiText = "". An empty response is treated as "no reply" upstream
+    //     and silently retried/dropped. Guarantee a usable reply so the customer
+    //     always gets something — especially when we're attaching media.
+    if (!aiText) {
+      aiText = mediaToSend.length
+        ? "Te comparto la información 👇"
+        : "¿Te puedo ayudar en algo más? 😊";
+    }
+
     return json({ response: aiText, escalated: false, media: mediaToSend });
 
   } catch (err: any) {
