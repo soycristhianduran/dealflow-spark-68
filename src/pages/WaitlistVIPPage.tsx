@@ -1,7 +1,7 @@
 import { useState, lazy, Suspense, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock, Sparkles, Check, Loader2, Users, Gift, Zap, ArrowRight, Bot, MessageCircle, GitBranch, Mail, Calendar, BarChart3 } from "lucide-react";
+import { Lock, Sparkles, Check, Loader2, Users, Gift, Zap, ArrowRight, Bot, PhoneCall, Inbox, GitBranch, Rocket, Layout, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 
@@ -33,14 +33,14 @@ const DIAL_CODES = [
 
 // Core product pillars shown on the waitlist page.
 const FEATURES = [
-  { icon: Bot, title: "Agente de IA que vende", desc: "Responde, califica y cierra ventas por ti en WhatsApp, Instagram y Facebook, 24/7." },
-  { icon: MessageCircle, title: "Bandeja única", desc: "WhatsApp, Instagram y Messenger en un solo inbox. Nunca pierdas un mensaje." },
-  { icon: GitBranch, title: "CRM y pipelines", desc: "Organiza tus leads por etapas y mira en qué punto está cada venta." },
+  { icon: Bot, title: "Agentes de Chat", desc: "Responden, califican y cierran ventas por ti en WhatsApp, Instagram y Facebook, 24/7." },
+  { icon: PhoneCall, title: "Agentes de Voz", desc: "Atienden y hacen llamadas con IA que suena natural, sin que muevas un dedo." },
+  { icon: Inbox, title: "Bandeja única", desc: "WhatsApp, Instagram y Messenger en un solo inbox. Nunca pierdas un mensaje." },
+  { icon: GitBranch, title: "CRM y Pipeline", desc: "Organiza tus leads por etapas y mira en qué punto está cada venta." },
+  { icon: Rocket, title: "Lead Boost IA", desc: "La IA reactiva y prioriza tus leads para que vendas más con los que ya tienes." },
+  { icon: Layout, title: "Landings con IA", desc: "Crea páginas que convierten en minutos, generadas con inteligencia artificial." },
   { icon: Zap, title: "Automatizaciones", desc: "Comentarios, DMs y seguimientos automáticos sin mover un dedo." },
-  { icon: Mail, title: "Email marketing", desc: "Campañas y secuencias para nutrir y reactivar a tus contactos." },
-  { icon: Calendar, title: "Agendamiento", desc: "Tus leads reservan citas solos y se sincronizan con tu calendario." },
-  { icon: BarChart3, title: "Reportes en vivo", desc: "Mide conversaciones, leads y ventas en tiempo real." },
-  { icon: Sparkles, title: "Anuncios conectados", desc: "Tus leads de Facebook e Instagram Ads entran directo al CRM." },
+  { icon: Calendar, title: "Agenda", desc: "Tus leads reservan citas solos y se sincronizan con tu calendario." },
 ];
 
 /**
