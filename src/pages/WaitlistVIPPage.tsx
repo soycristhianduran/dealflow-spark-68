@@ -7,6 +7,30 @@ import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 
 const Mascot3D = lazy(() => import("@/components/Mascot3D"));
 
+// Country dial codes — LatAm first (the target audience), then a few common
+// others. `code` is the dial prefix stored with the number; `flag` is shown.
+const DIAL_CODES = [
+  { c: "CO", flag: "🇨🇴", code: "+57", name: "Colombia" },
+  { c: "MX", flag: "🇲🇽", code: "+52", name: "México" },
+  { c: "AR", flag: "🇦🇷", code: "+54", name: "Argentina" },
+  { c: "PE", flag: "🇵🇪", code: "+51", name: "Perú" },
+  { c: "CL", flag: "🇨🇱", code: "+56", name: "Chile" },
+  { c: "EC", flag: "🇪🇨", code: "+593", name: "Ecuador" },
+  { c: "VE", flag: "🇻🇪", code: "+58", name: "Venezuela" },
+  { c: "GT", flag: "🇬🇹", code: "+502", name: "Guatemala" },
+  { c: "CR", flag: "🇨🇷", code: "+506", name: "Costa Rica" },
+  { c: "PA", flag: "🇵🇦", code: "+507", name: "Panamá" },
+  { c: "DO", flag: "🇩🇴", code: "+1", name: "Rep. Dominicana" },
+  { c: "BO", flag: "🇧🇴", code: "+591", name: "Bolivia" },
+  { c: "PY", flag: "🇵🇾", code: "+595", name: "Paraguay" },
+  { c: "UY", flag: "🇺🇾", code: "+598", name: "Uruguay" },
+  { c: "HN", flag: "🇭🇳", code: "+504", name: "Honduras" },
+  { c: "SV", flag: "🇸🇻", code: "+503", name: "El Salvador" },
+  { c: "NI", flag: "🇳🇮", code: "+505", name: "Nicaragua" },
+  { c: "US", flag: "🇺🇸", code: "+1", name: "Estados Unidos" },
+  { c: "ES", flag: "🇪🇸", code: "+34", name: "España" },
+];
+
 /**
  * Klosify VIP launch waitlist — "solo para amigos".
  * Standalone, intentionally separate from the sales HomePage. Captures
@@ -14,6 +38,7 @@ const Mascot3D = lazy(() => import("@/components/Mascot3D"));
  */
 export default function WaitlistVIPPage() {
   const [name, setName] = useState("");
+  const [dialCode, setDialCode] = useState("+57");
   const [whatsapp, setWhatsapp] = useState("");
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
@@ -35,7 +60,7 @@ export default function WaitlistVIPPage() {
         body: {
           name: name.trim(),
           email: email.trim(),
-          whatsapp: whatsapp.trim(),
+          whatsapp: whatsapp.trim() ? `${dialCode} ${whatsapp.trim()}` : "",
           locale: navigator.language || null,
           referrer: document.referrer || null,
         },
@@ -145,14 +170,31 @@ export default function WaitlistVIPPage() {
                       autoComplete="name"
                       className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-orange-500/60 focus:bg-white/[0.09]"
                     />
-                    <input
-                      type="tel"
-                      value={whatsapp}
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      placeholder="Tu WhatsApp (con código de país)"
-                      autoComplete="tel"
-                      className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-orange-500/60 focus:bg-white/[0.09]"
-                    />
+                    <div className="flex gap-2">
+                      <div className="relative shrink-0">
+                        <select
+                          value={dialCode}
+                          onChange={(e) => setDialCode(e.target.value)}
+                          aria-label="Código de país"
+                          className="h-full appearance-none rounded-xl border border-white/10 bg-white/[0.06] py-3.5 pl-3 pr-8 text-sm text-white outline-none transition focus:border-orange-500/60 focus:bg-white/[0.09]"
+                        >
+                          {DIAL_CODES.map((d) => (
+                            <option key={d.c} value={d.code} className="bg-[#14141f] text-white">
+                              {d.flag} {d.code} {d.name}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400">▾</span>
+                      </div>
+                      <input
+                        type="tel"
+                        value={whatsapp}
+                        onChange={(e) => setWhatsapp(e.target.value.replace(/[^\d\s]/g, ""))}
+                        placeholder="Tu WhatsApp"
+                        autoComplete="tel-national"
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3.5 text-sm text-white placeholder:text-slate-400 outline-none transition focus:border-orange-500/60 focus:bg-white/[0.09]"
+                      />
+                    </div>
                     <input
                       type="email"
                       value={email}
