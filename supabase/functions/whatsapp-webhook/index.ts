@@ -500,6 +500,7 @@ Deno.serve(async (req) => {
                 // Meta's ~20s window; the ai-agent fetch is retried once to absorb
                 // transient inter-function hiccups that silently dropped replies). ──
                 console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact?.id);
+                await supabase.from("ai_agent_debug").insert({ organization_id: config.organization_id, phone: senderPhone, step: "block_reached", detail: `msgType=${messageType}` }).then(() => {}, () => {});
                 try {
                   if (config.organization_id) {
                     console.log("[AI-AGENT] Organization check passed, fetching history...");
@@ -528,17 +529,18 @@ Deno.serve(async (req) => {
                     // Retry the inter-function call up to 2 times — a transient
                     // gateway/network hiccup here used to silently drop the reply.
                     let agentData: any = null;
-                    for (let attempt = 1; attempt <= 2; attempt++) {
+                    let lastStatus = 0;
+                    // Retry up to 3 times — on network error AND on a non-2xx
+                    // status (Supabase's inter-function gateway intermittently
+                    // returns 5xx, which silently dropped replies). Only stop when
+                    // we get a usable payload (a response or an explicit reason).
+                    for (let attempt = 1; attempt <= 3; attempt++) {
                       try {
                         const agentRes = await fetch(
                           `${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`,
                           {
                             method: "POST",
                             headers: {
-                              // Inter-function auth. Supabase's gateway rejects the
-                              // request if Authorization and apikey carry DIFFERENT
-                              // keys ("Conflicting API keys"), so use the SAME service
-                              // role key in both headers.
                               "Content-Type": "application/json",
                               "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""}`,
                               "apikey": Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "",
@@ -554,20 +556,27 @@ Deno.serve(async (req) => {
                             }),
                           }
                         );
-                        agentData = await agentRes.json();
-                        break; // got a JSON response — stop retrying
+                        lastStatus = agentRes.status;
+                        if (agentRes.ok) {
+                          agentData = await agentRes.json().catch(() => null);
+                          if (agentData?.response || agentData?.reason) break; // usable payload
+                        } else {
+                          console.error(`[AI-AGENT] ai-agent non-ok status ${agentRes.status} (attempt ${attempt})`);
+                        }
                       } catch (fetchErr: any) {
                         console.error(`[AI-AGENT] ai-agent fetch attempt ${attempt} failed:`, fetchErr?.message);
-                        if (attempt < 2) await sleep(1200);
                       }
+                      if (attempt < 3) await sleep(1000);
                     }
 
                     // Detailed logging so we can diagnose agent failures in production
                     if (!agentData?.response) {
                       const reason = agentData?.reason || agentData?.error || "unknown";
                       console.log(`[AI-AGENT] No response. reason=${reason} org=${config.organization_id}`);
+                      await supabase.from("ai_agent_debug").insert({ organization_id: config.organization_id, phone: senderPhone, step: "no_response", detail: `reason=${reason} httpStatus=${lastStatus} agentDataNull=${agentData === null}` }).then(() => {}, () => {});
                     } else {
                       console.log("[AI-AGENT] Responding. length:", agentData.response.length, "escalated:", agentData.escalated);
+                      await supabase.from("ai_agent_debug").insert({ organization_id: config.organization_id, phone: senderPhone, step: "got_response", detail: `len=${agentData.response.length}` }).then(() => {}, () => {});
                     }
 
                     if (agentData?.response) {
