@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useWorkspace } from "@/hooks/useWorkspace";
+import { Link } from "react-router-dom";
 import { formatMoney } from "@/lib/money";
 import { TrendingUp, Users, Bot, Send, GitBranch, UserCheck, ArrowRight, DollarSign, ShieldAlert, ThumbsUp, Filter, CalendarCheck } from "lucide-react";
 import { FacebookIcon } from "@/components/icons/BrandIcons";
@@ -247,6 +249,7 @@ function Sparkline({ data, dates }: { data: number[]; dates?: string[] }) {
 export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, periodLabel = "30 días" }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null; periodStart?: string; periodEnd?: string; periodLabel?: string }) {
   const { t } = useTranslation();
   const { organizationId, defaultCurrency } = useOrganizationContext();
+  const { path } = useWorkspace();
   const fmtMoney = (n: number) => formatMoney(n, defaultCurrency, { compact: true });
   const [data, setData] = useState<Insights | null>(null);
   const [lastCamp, setLastCamp] = useState<any>(null);
@@ -561,10 +564,10 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         )}
       </div>
 
-      {/* Ads performance / ROAS — show whenever there's ad spend OR attributed
-          leads (rows now come from meta_ads spend, so orgs running ads without
-          lead attribution still see their performance). */}
-      {(adsRoas.length > 0 || accountSummaries.length > 0) && (
+      {/* Ads performance / ROAS — ALWAYS visible. With ad data we show the full
+          widget; without a connected/synced ad account we show an empty state
+          that links to the Meta integration so the user knows what to do. */}
+      {(adsRoas.length > 0 || accountSummaries.length > 0) ? (
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
@@ -661,6 +664,30 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
             <p className="text-[11px] text-muted-foreground mt-2">
               {t("dashboardInsights.roasNote")}
             </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-bold flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white ring-1 ring-border shadow-sm"><FacebookIcon size={18} /></span>
+              {t("dashboardInsights.adsPerformance")}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col items-center justify-center text-center py-8 px-4">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted ring-1 ring-border mb-3">
+                <FacebookIcon size={24} />
+              </span>
+              <p className="text-sm font-semibold text-foreground">{t("dashboardInsights.adsEmptyTitle")}</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-xs">{t("dashboardInsights.adsEmptyDesc")}</p>
+              <Link
+                to={path("/integrations")}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors"
+              >
+                {t("dashboardInsights.adsEmptyCta")} <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </CardContent>
         </Card>
       )}
