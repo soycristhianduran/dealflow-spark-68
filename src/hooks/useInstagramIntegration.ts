@@ -34,6 +34,8 @@ export interface IgMedia {
 
 interface IgStatus {
   connected: boolean;
+  needs_reconnect?: boolean;
+  reconnect_reason?: string | null;
   account?: IgAccount;
   conversations_count?: number;
   comments_count?: number;
@@ -250,6 +252,8 @@ export function useInstagramIntegration() {
 
   return {
     isConnected,
+    needsReconnect: !!status?.needs_reconnect,
+    reconnectReason: status?.reconnect_reason ?? null,
     loading,
     connecting,
     status,

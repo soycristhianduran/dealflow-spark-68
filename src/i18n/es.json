@@ -2047,6 +2047,8 @@
     "reconnectNeeded": "Reconexión necesaria.",
     "fbTokenInvalid": "Tu token de Facebook ya no es válido (probablemente revocaste permisos o cambiaste contraseña). Los mensajes y leads dejarán de llegar hasta que reconectes.",
     "reconnectFacebook": "Reconectar Facebook",
+    "igTokenInvalid": "Tu conexión de Instagram ya no es válida (probablemente cambiaste contraseña o revocaste permisos). Sigues recibiendo mensajes, pero las respuestas automáticas y DMs no se enviarán hasta que reconectes.",
+    "reconnectInstagram": "Reconectar Instagram",
     "primaryNumber": "Número principal",
     "setAsPrimary": "Establecer como principal",
     "labelPlaceholder": "Ej: Ventas",

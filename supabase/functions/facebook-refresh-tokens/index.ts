@@ -19,13 +19,70 @@ const corsHeaders = {
 };
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
+const IG_GRAPH_API = "https://graph.instagram.com/v21.0";
 
 interface RefreshResult {
   refreshed: number;            // user tokens successfully refreshed
   failed: number;               // user tokens that failed (marked needs_reconnect)
   pages_updated: number;        // page-level tokens re-derived
   ig_accounts_updated: number;  // IG accounts whose page token was re-derived
+  ig_invalidated: number;       // IG accounts whose token is dead (190) → flagged
   total: number;                // tokens considered for refresh
+}
+
+/**
+ * Directly validate every active Instagram account's stored token against the
+ * Graph API and flag the dead ones for reconnection.
+ *
+ * This is the catch-all the user-token refresh above misses:
+ *  • Instagram Login accounts ("IGAA..." tokens) have NO facebook_tokens row,
+ *    so the refresh loop never touches them.
+ *  • Page-based accounts whose facebook_tokens row is missing/stale.
+ *
+ * A code-190 response (password change / revoked / session invalidated) is the
+ * only signal we act on — transient/network errors are ignored so we never
+ * flag a healthy account by mistake.
+ */
+async function validateIgAccounts(supabase: any): Promise<number> {
+  const { data: accounts, error } = await supabase
+    .from("instagram_accounts")
+    .select("id, ig_user_id, page_id, page_access_token")
+    .eq("is_active", true)
+    .eq("needs_reconnect", false);
+
+  if (error || !accounts?.length) return 0;
+
+  let flagged = 0;
+  for (const acc of accounts) {
+    const token: string | null = acc.page_access_token;
+    if (!token) continue;
+
+    // IG Login token → graph.instagram.com (validate the IG user node).
+    // Page token → graph.facebook.com (validate the page node).
+    const isIgLogin = token.startsWith("IGAA");
+    const host = isIgLogin ? IG_GRAPH_API : GRAPH_API;
+    const node = isIgLogin ? (acc.ig_user_id || "me") : (acc.page_id || "me");
+
+    try {
+      const res = await fetch(`${host}/${node}?fields=id&access_token=${encodeURIComponent(token)}`);
+      const data = await res.json().catch(() => ({}));
+      if (data?.error?.code === 190) {
+        const msg = data.error.message?.slice(0, 500) || "token invalidated (190)";
+        await supabase
+          .from("instagram_accounts")
+          .update({
+            needs_reconnect: true,
+            last_refresh_at: new Date().toISOString(),
+            last_refresh_error: msg,
+          })
+          .eq("id", acc.id);
+        flagged++;
+      }
+    } catch (_e) {
+      // Transient / network error — leave the account alone for next run.
+    }
+  }
+  return flagged;
 }
 
 /**
@@ -101,6 +158,11 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+    // Always validate IG account tokens directly first — this catches dead
+    // tokens (Instagram Login + page-based) that the user-token refresh below
+    // never inspects. Runs regardless of whether any facebook_tokens are due.
+    const igInvalidated = await validateIgAccounts(supabase);
+
     // Pick up tokens that:
     //   - expire within 7 days, AND
     //   - are NOT already flagged needs_reconnect (avoid retrying broken ones
@@ -116,7 +178,7 @@ Deno.serve(async (req) => {
 
     if (!tokens || tokens.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No tokens need refresh", refreshed: 0, failed: 0, pages_updated: 0, ig_accounts_updated: 0, total: 0 }),
+        JSON.stringify({ message: "No tokens need refresh", refreshed: 0, failed: 0, pages_updated: 0, ig_accounts_updated: 0, ig_invalidated: igInvalidated, total: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -126,6 +188,7 @@ Deno.serve(async (req) => {
       failed: 0,
       pages_updated: 0,
       ig_accounts_updated: 0,
+      ig_invalidated: igInvalidated,
       total: tokens.length,
     };
 

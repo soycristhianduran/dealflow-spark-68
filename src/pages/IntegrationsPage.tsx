@@ -918,6 +918,32 @@ export default function IntegrationsPage() {
                     </div>
                   )}
 
+                  {/* Instagram reconnect banner: token invalidated (password
+                      change / revoked). Inbound still works via webhook, but
+                      outbound DMs/comment replies fail until reconnected. */}
+                  {integration.id === "instagram" && ig.isConnected && ig.needsReconnect && (
+                    <div className="rounded-md border border-red-400 bg-red-50 dark:bg-red-950/30 p-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-start gap-1.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
+                        <p className="text-[11px] text-red-800 dark:text-red-300 leading-snug">
+                          <span className="font-semibold">{t("integrationsPage.reconnectNeeded")}</span>{" "}
+                          {t("integrationsPage.igTokenInvalid")}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5 border-red-400 text-red-700 hover:bg-red-100"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          ig.startDirectLogin(organizationId ?? null);
+                        }}
+                      >
+                        {t("integrationsPage.reconnectInstagram")}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* WhatsApp multi-number list */}
                   {integration.id === "whatsapp" && wa.isConnected && (
                     <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
