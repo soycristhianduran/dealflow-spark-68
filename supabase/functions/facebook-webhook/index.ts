@@ -578,7 +578,22 @@ async function upsertIgConversation(
     .select("id")
     .single();
 
-  return inserted?.id ?? null;
+  if (inserted?.id) return inserted.id;
+
+  // Insert returned nothing — almost always a duplicate-webhook race where a
+  // concurrent delivery already created this conversation, so our insert hit
+  // the unique constraint. Re-select so we still return a real id; otherwise
+  // the message gets stored with conversation_id=null and the thread shows
+  // empty even though the conversation appears in the list.
+  const { data: raced } = await supabase
+    .from("instagram_conversations")
+    .select("id")
+    .eq("user_id", args.user_id)
+    .eq("ig_account_id", args.ig_account_id)
+    .eq("participant_id", args.participant_id)
+    .maybeSingle();
+
+  return raced?.id ?? null;
 }
 
 /**
