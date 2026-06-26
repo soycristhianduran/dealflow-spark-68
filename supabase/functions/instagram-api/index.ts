@@ -446,10 +446,9 @@ Deno.serve(async (req) => {
         .eq("is_active", true);
       accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
       // NOTE: instagram_accounts has NO created_at column — only updated_at.
-      // Ordering by created_at threw "column does not exist", which made the
-      // whole status call error out → the UI always showed "no conectado"
-      // even when the account WAS connected and subscribed. Use updated_at.
-      const { data: account } = await accQuery.order("updated_at", { ascending: true }).limit(1).maybeSingle();
+      // Order DESC so, if an org has more than one connected account, we show
+      // the most recently connected/updated one (the one the user just linked).
+      const { data: account } = await accQuery.order("updated_at", { ascending: false }).limit(1).maybeSingle();
 
       if (!account) {
         return new Response(JSON.stringify({ connected: false }), {
@@ -457,16 +456,19 @@ Deno.serve(async (req) => {
         });
       }
 
-      const orgFilter = account.organization_id;
+      // Count by the SPECIFIC account (ig_account_id), NOT the whole org. An org
+      // can hold multiple IG accounts (e.g. a freshly connected second account);
+      // counting by org made every account show the org-wide totals — so a brand
+      // new account appeared to "inherit" another account's conversations.
       const { count: conversationsCount } = await supabase
         .from("instagram_conversations")
         .select("id", { count: "exact", head: true })
-        .eq(orgFilter ? "organization_id" : "user_id", orgFilter ?? user.id);
+        .eq("ig_account_id", account.id);
 
       const { count: commentsCount } = await supabase
         .from("instagram_comments")
         .select("id", { count: "exact", head: true })
-        .eq(orgFilter ? "organization_id" : "user_id", orgFilter ?? user.id);
+        .eq("ig_account_id", account.id);
 
       return new Response(
         JSON.stringify({
