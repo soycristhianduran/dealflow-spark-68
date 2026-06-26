@@ -264,15 +264,27 @@ export default function ConversationsPage() {
       wa.selectConversation(conv.id);
     } else {
       (async () => {
-        const { data } = await supabase
-          .from("instagram_messages")
-          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", conv.id)
-          .order("sent_at", { ascending: true });
-        setIgMessages((data || []) as IgMessageRow[]);
+        const loadMsgs = async () => {
+          const { data } = await supabase
+            .from("instagram_messages")
+            .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
+            .eq("conversation_id", conv.id)
+            .order("sent_at", { ascending: true });
+          setIgMessages((data || []) as IgMessageRow[]);
+        };
+        await loadMsgs();
         if (conv.unread_count > 0) {
           await supabase.from("instagram_conversations").update({ unread_count: 0 }).eq("id", conv.id);
         }
+        // Backfill from the Instagram API in the background — captures replies the
+        // owner sent from the phone (Instagram doesn't webhook those). Reload if
+        // anything new came in. Non-blocking; failures are silent.
+        try {
+          const { data: sync } = await supabase.functions.invoke("instagram-api", {
+            body: { action: "sync_thread", conversation_id: conv.id },
+          });
+          if ((sync as any)?.synced > 0) await loadMsgs();
+        } catch { /* ignore */ }
       })();
     }
   }, [wa]);

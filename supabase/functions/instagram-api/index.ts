@@ -772,6 +772,107 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── SYNC A CONVERSATION THREAD FROM THE GRAPH API ─────────────────────────
+    // Instagram does NOT webhook messages the business sends from the native IG
+    // app, so threads can be missing those replies. This pulls the full thread
+    // from the API and backfills any messages we don't have (dedup by message
+    // id), so the CRM always shows the complete history. Called when a thread is
+    // opened. Org-scoped via the conversation's organization_id.
+    if (action === "sync_thread") {
+      const { conversation_id } = body;
+      if (!conversation_id) throw new Error("conversation_id es obligatorio");
+
+      // Caller's orgs (security: only sync conversations in the caller's orgs).
+      const { data: memberships } = await supabase
+        .from("organization_members").select("organization_id").eq("user_id", user.id);
+      const orgIds = (memberships || []).map((m: any) => m.organization_id).filter(Boolean);
+
+      const { data: conv } = await supabase
+        .from("instagram_conversations")
+        .select("id, ig_account_id, participant_id, organization_id, user_id")
+        .eq("id", conversation_id)
+        .maybeSingle();
+      if (!conv) throw new Error("Conversación no encontrada");
+      if (orgIds.length && conv.organization_id && !orgIds.includes(conv.organization_id)) {
+        throw new Error("No autorizado");
+      }
+
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("id, ig_user_id, ig_username, page_id, page_access_token, organization_id, user_id")
+        .eq("id", conv.ig_account_id)
+        .maybeSingle();
+      if (!account?.page_access_token) throw new Error("Cuenta de Instagram no disponible");
+
+      const node = messagingNode(account);
+      const token = account.page_access_token;
+
+      // 1) Resolve the Graph thread id for this participant.
+      const convRes = await fetch(
+        `${node.host}/${node.id}/conversations?platform=instagram&user_id=${encodeURIComponent(conv.participant_id)}&fields=id&access_token=${encodeURIComponent(token)}`,
+      );
+      const convData = await convRes.json();
+      const threadId = convData?.data?.[0]?.id;
+      if (!threadId) {
+        return new Response(JSON.stringify({ synced: 0, reason: convData?.error?.message || "no_thread" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 2) Pull recent messages of the thread.
+      const msgsRes = await fetch(
+        `${node.host}/${threadId}/messages?fields=id,from,message,created_time&limit=40&access_token=${encodeURIComponent(token)}`,
+      );
+      const msgsData = await msgsRes.json();
+      const apiMsgs: any[] = msgsData?.data || [];
+      if (!apiMsgs.length) {
+        return new Response(JSON.stringify({ synced: 0, reason: msgsData?.error?.message || "no_messages" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // 3) Which message ids do we already have?
+      const ids = apiMsgs.map((m) => m.id).filter(Boolean);
+      const { data: existing } = await supabase
+        .from("instagram_messages")
+        .select("ig_message_id")
+        .in("ig_message_id", ids);
+      const have = new Set((existing || []).map((r: any) => r.ig_message_id));
+
+      // 4) Insert the missing ones.
+      let synced = 0;
+      for (const m of apiMsgs) {
+        if (!m.id || have.has(m.id)) continue;
+        const fromId = String(m.from?.id || "");
+        const fromUser = m.from?.username || "";
+        const isOutgoing = fromId === account.ig_user_id || (account.ig_username && fromUser === account.ig_username);
+        const ts = m.created_time ? new Date(m.created_time).toISOString() : new Date().toISOString();
+        const { error: insErr } = await supabase.from("instagram_messages").insert({
+          user_id: conv.user_id ?? account.user_id,
+          organization_id: conv.organization_id ?? account.organization_id,
+          conversation_id: conv.id,
+          ig_account_id: account.id,
+          ig_message_id: m.id,
+          direction: isOutgoing ? "outgoing" : "incoming",
+          message_type: "text",
+          message_text: m.message || null,
+          sender_id: isOutgoing ? account.ig_user_id : conv.participant_id,
+          recipient_id: isOutgoing ? conv.participant_id : account.ig_user_id,
+          status: "sent",
+          // Set sent_at on both directions: the inbox orders the thread by
+          // sent_at, so a null would misplace backfilled inbound messages.
+          sent_at: ts,
+          received_at: isOutgoing ? null : ts,
+          created_at: ts,
+        });
+        if (!insErr) synced++;
+      }
+
+      return new Response(JSON.stringify({ synced }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     throw new Error(`Unknown action: ${action}`);
   } catch (error: any) {
     console.error("instagram-api error:", error);
