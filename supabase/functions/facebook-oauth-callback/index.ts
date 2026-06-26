@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
       const pagesData = await pagesRes.json();
       for (const page of pagesData?.data || []) {
         if (!page.id || !page.access_token) continue;
-        await supabase
+        const { data: updated } = await supabase
           .from("instagram_accounts")
           .update({
             page_access_token: page.access_token,
@@ -221,7 +221,20 @@ Deno.serve(async (req) => {
             last_refresh_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           })
-          .eq("page_id", page.id);
+          .eq("page_id", page.id)
+          .eq("is_active", true)
+          .select("id");
+        // Re-subscribe the page to IG messaging. Reconnecting Meta can reset the
+        // page's webhook fields (we've seen it drop to just 'leadgen'), which
+        // silently stops inbound Instagram DMs. Only do this for pages that
+        // actually back an IG account here.
+        if (updated && updated.length) {
+          await fetch(`${GRAPH_API}/${page.id}/subscribed_apps`, {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: `subscribed_fields=messages,messaging_postbacks&access_token=${encodeURIComponent(page.access_token)}`,
+          }).catch(() => {});
+        }
       }
     } catch (e) {
       console.error("IG page-token re-derivation failed (non-fatal):", e);
