@@ -227,6 +227,19 @@ Deno.serve(async (req) => {
       console.error("IG page-token re-derivation failed (non-fatal):", e);
     }
 
+    // Kick off a Meta Ads sync right after connecting, so campaigns/ads/spend
+    // populate within seconds instead of waiting for the next cron run. The user
+    // connects and immediately checks the dashboard; without this it looks empty.
+    // Server-to-server, fire-and-forget — never blocks the redirect.
+    try {
+      const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      fetch(`${SUPABASE_URL}/functions/v1/meta-auto-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-cron-secret": "klosify-cron-2026" },
+        body: JSON.stringify({ trigger: "facebook-connect" }),
+      }).catch(() => {});
+    } catch (_) { /* non-fatal */ }
+
     // Redirect using the org from the state, or resolve it as fallback
     let slug: string | null = null;
     if (organizationId) {
