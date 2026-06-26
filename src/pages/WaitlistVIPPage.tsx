@@ -316,7 +316,7 @@ export default function WaitlistVIPPage() {
             </span>
           </h2>
           <p className="mt-4 text-base text-slate-300/90">
-            Deja de pagar 5 herramientas distintas. Klosify reúne todo lo que necesitas para
+            Deja de pagar herramientas distintas. Klosify reúne todo lo que necesitas para
             atraer, atender y cerrar clientes.
           </p>
         </div>
