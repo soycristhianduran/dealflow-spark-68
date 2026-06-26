@@ -171,17 +171,32 @@ Deno.serve(async (req) => {
     const longData = await longRes.json();
     const longToken = longData.access_token || shortToken;
 
-    // 3) Fetch the IG account profile
+    // 3) Fetch the IG account profile.
+    // Request only the core, always-supported fields. `name` is NOT reliably
+    // available on the Instagram-Login /me node for every account type — when
+    // it isn't, the WHOLE request errors and we get no user_id → profile_failed.
+    // We fetch `name` separately (best-effort) so it can never break the connect.
     const meRes = await fetch(
-      `${IG_GRAPH_V}/me?fields=user_id,username,name,profile_picture_url&access_token=${encodeURIComponent(longToken)}`,
+      `${IG_GRAPH_V}/me?fields=user_id,username,profile_picture_url,account_type&access_token=${encodeURIComponent(longToken)}`,
     );
     const me = await meRes.json();
     const igUserId = String(me.user_id || me.id || "");
     if (!igUserId) {
       console.error("IG /me returned no id:", JSON.stringify(me));
+      // Surface the real Meta reason so the toast is actionable instead of a
+      // generic 'profile_failed'.
+      const detail = me?.error?.message ? `: ${String(me.error.message).slice(0, 120)}` : "";
       const slug = await resolveOrgSlug(service, organizationId, userId);
-      return new Response(null, { status: 302, headers: { "Location": buildRedirect(appUrl, slug, "ig_error=profile_failed") } });
+      return new Response(null, { status: 302, headers: { "Location": buildRedirect(appUrl, slug, `ig_error=${encodeURIComponent("profile_failed" + detail)}`) } });
     }
+
+    // Best-effort display name — never fatal.
+    let displayName: string | null = me.username ?? null;
+    try {
+      const nameRes = await fetch(`${IG_GRAPH_V}/me?fields=name&access_token=${encodeURIComponent(longToken)}`);
+      const nameData = await nameRes.json();
+      if (nameData?.name) displayName = nameData.name;
+    } catch (_) { /* ignore */ }
 
     // Resolve org if the state didn't carry it
     if (!organizationId) {
@@ -200,7 +215,7 @@ Deno.serve(async (req) => {
         ig_username: me.username ?? null,
         profile_picture_url: me.profile_picture_url ?? null,
         page_id: null,            // IG-Login accounts are NOT tied to a FB page
-        page_name: me.name ?? null,
+        page_name: displayName,
         page_access_token: longToken, // IGAA… token → routes to graph.instagram.com
         fb_user_id: null,
         is_active: true,
