@@ -612,6 +612,68 @@ async function processInstagramMessenger(
     return;
   }
 
+  // Read message contents
+  const msg = event.message;
+  if (!msg) {
+    // Could be a postback, read, delivery — log and skip
+    if (event.postback) console.log("IG postback:", JSON.stringify(event.postback));
+    return;
+  }
+
+  // ── Echo handling ──────────────────────────────────────────────────────────
+  // Meta echoes back every message the business SENDS — including ones typed
+  // straight from the Instagram phone app (outside Klosify). For an echo the
+  // SENDER is the business and the RECIPIENT is the customer (the reverse of an
+  // inbound DM). We must capture these so the CRM thread shows the FULL history
+  // regardless of where the owner replied. Messages already stored on-send from
+  // the CRM are de-duped by ig_message_id.
+  if (msg.is_echo) {
+    const bizAccount = await findIgAccountByIgUserId(supabase, senderId);
+    if (!bizAccount) return; // not one of our accounts
+    const customerId = recipientId;
+    const echoMid = msg.mid ?? null;
+
+    // Skip if we already stored this message (sent through the CRM).
+    if (echoMid) {
+      const { data: dup } = await supabase
+        .from("instagram_messages")
+        .select("id")
+        .eq("ig_message_id", echoMid)
+        .maybeSingle();
+      if (dup) return;
+    }
+
+    const echoText = msg.text ?? "";
+    const echoAttachment = msg.attachments?.[0]?.payload?.url ?? null;
+    const echoType = msg.attachments?.[0]?.type ?? "text";
+    const echoTs = event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString();
+
+    const echoConvId = await upsertIgConversation(supabase, {
+      user_id: bizAccount.user_id,
+      ig_account_id: bizAccount.id,
+      participant_id: customerId,
+      last_message_at: echoTs,
+      last_message_preview: echoText.substring(0, 200) || `[${echoType}]`,
+      increment_unread: false, // our own message — never mark unread
+    });
+
+    await supabase.from("instagram_messages").insert({
+      user_id: bizAccount.user_id,
+      conversation_id: echoConvId,
+      ig_account_id: bizAccount.id,
+      ig_message_id: echoMid,
+      direction: "outgoing",
+      message_type: echoType,
+      message_text: echoText || null,
+      attachment_url: echoAttachment,
+      sender_id: senderId,
+      recipient_id: customerId,
+      status: "sent",
+      sent_at: echoTs,
+    }).catch(() => {/* non-fatal */});
+    return;
+  }
+
   // Find which IG account this belongs to.  In the messenger format the
   // recipient.id is the IG business account ID (ig_user_id).
   const account = await findIgAccountByIgUserId(supabase, recipientId);
@@ -628,16 +690,6 @@ async function processInstagramMessenger(
   const sendFromNode = account.page_access_token?.startsWith("IGAA")
     ? recipientId
     : (account.page_id || recipientId);
-
-  // Read message contents
-  const msg = event.message;
-  if (!msg) {
-    // Could be a postback, read, delivery — log and skip
-    if (event.postback) console.log("IG postback:", JSON.stringify(event.postback));
-    return;
-  }
-  // Echoes: messages WE sent that Meta echoes back.  Skip — we already stored them on send.
-  if (msg.is_echo) return;
 
   const messageText = msg.text ?? "";
   const attachmentUrl = msg.attachments?.[0]?.payload?.url ?? null;
