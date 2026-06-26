@@ -199,6 +199,34 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Re-derive page-based Instagram tokens. Instagram accounts connected via a
+    // Facebook Page (page_id set, EAA… token) get their messaging token FROM the
+    // page token — which dies when the FB user changes their password. Reconnecting
+    // Facebook here is exactly when we can heal them, so refresh every matching
+    // IG account's page_access_token and clear its needs_reconnect flag.
+    // (Instagram-Login accounts — page_id null, IGAA token — are NOT touched.)
+    try {
+      const pagesRes = await fetch(
+        `${GRAPH_API}/me/accounts?fields=id,access_token&limit=100&access_token=${encodeURIComponent(longLivedToken)}`,
+      );
+      const pagesData = await pagesRes.json();
+      for (const page of pagesData?.data || []) {
+        if (!page.id || !page.access_token) continue;
+        await supabase
+          .from("instagram_accounts")
+          .update({
+            page_access_token: page.access_token,
+            needs_reconnect: false,
+            last_refresh_error: null,
+            last_refresh_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("page_id", page.id);
+      }
+    } catch (e) {
+      console.error("IG page-token re-derivation failed (non-fatal):", e);
+    }
+
     // Redirect using the org from the state, or resolve it as fallback
     let slug: string | null = null;
     if (organizationId) {

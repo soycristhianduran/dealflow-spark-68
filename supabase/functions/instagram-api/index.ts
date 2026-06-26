@@ -442,7 +442,7 @@ Deno.serve(async (req) => {
 
       let accQuery = supabase
         .from("instagram_accounts")
-        .select("id, ig_user_id, ig_username, profile_picture_url, page_name, organization_id, needs_reconnect, last_refresh_error")
+        .select("id, ig_user_id, ig_username, profile_picture_url, page_name, page_id, organization_id, needs_reconnect, last_refresh_error")
         .eq("is_active", true);
       accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
       // NOTE: instagram_accounts has NO created_at column — only updated_at.
@@ -478,6 +478,9 @@ Deno.serve(async (req) => {
           // silently showing "connected" while outbound sends fail.
           needs_reconnect: !!account.needs_reconnect,
           reconnect_reason: account.needs_reconnect ? (account.last_refresh_error || null) : null,
+          // page-based (FB Page) accounts reconnect via Meta/Facebook, NOT
+          // Instagram Login. Null page_id = Instagram-Login (IGAA) account.
+          is_page_based: !!account.page_id,
           account,
           conversations_count: conversationsCount ?? 0,
           comments_count: commentsCount ?? 0,

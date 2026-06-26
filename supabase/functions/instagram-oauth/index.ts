@@ -183,6 +183,16 @@ Deno.serve(async (req) => {
     const igUserId = String(me.user_id || me.id || "");
     if (!igUserId) {
       console.error("IG /me returned no id:", JSON.stringify(me));
+      // Diagnostic capture so we can see the exact token shape + responses.
+      await service.from("ig_oauth_debug").insert({
+        step: "profile_failed",
+        detail: JSON.stringify({
+          shortPrefix: String(shortToken).slice(0, 6),
+          longPrefix: String(longToken).slice(0, 6),
+          longExchangeError: longData?.error ?? null,
+          meError: me?.error ?? null,
+        }).slice(0, 1500),
+      }).then(() => {}, () => {});
       // Surface the real Meta reason so the toast is actionable instead of a
       // generic 'profile_failed'.
       const detail = me?.error?.message ? `: ${String(me.error.message).slice(0, 120)}` : "";

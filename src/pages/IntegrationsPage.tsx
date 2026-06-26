@@ -927,7 +927,7 @@ export default function IntegrationsPage() {
                         <AlertTriangle className="h-3.5 w-3.5 text-red-600 mt-0.5 shrink-0" />
                         <p className="text-[11px] text-red-800 dark:text-red-300 leading-snug">
                           <span className="font-semibold">{t("integrationsPage.reconnectNeeded")}</span>{" "}
-                          {t("integrationsPage.igTokenInvalid")}
+                          {ig.isPageBased ? t("integrationsPage.igReconnectViaMeta") : t("integrationsPage.igTokenInvalid")}
                         </p>
                       </div>
                       <Button
@@ -936,10 +936,13 @@ export default function IntegrationsPage() {
                         className="w-full text-xs gap-1.5 border-red-400 text-red-700 hover:bg-red-100"
                         onClick={(e) => {
                           e.stopPropagation();
-                          ig.startDirectLogin(organizationId ?? null);
+                          // Page-based IG accounts get their token from the FB Page,
+                          // so reconnecting Meta heals them — Instagram Login won't.
+                          if (ig.isPageBased) fb.connect();
+                          else ig.startDirectLogin(organizationId ?? null);
                         }}
                       >
-                        {t("integrationsPage.reconnectInstagram")}
+                        {ig.isPageBased ? t("integrationsPage.reconnectViaMeta") : t("integrationsPage.reconnectInstagram")}
                       </Button>
                     </div>
                   )}

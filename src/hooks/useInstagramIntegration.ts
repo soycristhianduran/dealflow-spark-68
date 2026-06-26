@@ -36,6 +36,7 @@ interface IgStatus {
   connected: boolean;
   needs_reconnect?: boolean;
   reconnect_reason?: string | null;
+  is_page_based?: boolean;
   account?: IgAccount;
   conversations_count?: number;
   comments_count?: number;
@@ -254,6 +255,7 @@ export function useInstagramIntegration() {
     isConnected,
     needsReconnect: !!status?.needs_reconnect,
     reconnectReason: status?.reconnect_reason ?? null,
+    isPageBased: !!status?.is_page_based,
     loading,
     connecting,
     status,
