@@ -561,8 +561,10 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
         )}
       </div>
 
-      {/* Ads performance / ROAS */}
-      {adsRoas.length > 0 && (
+      {/* Ads performance / ROAS — show whenever there's ad spend OR attributed
+          leads (rows now come from meta_ads spend, so orgs running ads without
+          lead attribution still see their performance). */}
+      {(adsRoas.length > 0 || accountSummaries.length > 0) && (
         <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between gap-2">
