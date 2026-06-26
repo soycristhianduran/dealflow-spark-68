@@ -38,7 +38,7 @@ const FEATURES = [
   { icon: PhoneCall, title: "Agentes de Voz", desc: "Atienden y hacen llamadas con IA que suena natural, sin que muevas un dedo." },
   { icon: Inbox, title: "Bandeja única", desc: "WhatsApp, Instagram y Messenger en un solo inbox. Nunca pierdas un mensaje." },
   { icon: GitBranch, title: "CRM y Pipeline", desc: "Organiza tus leads por etapas y mira en qué punto está cada venta." },
-  { icon: Rocket, title: "Lead Boost IA", desc: "La IA reactiva y prioriza tus leads para que vendas más con los que ya tienes." },
+  { icon: Rocket, title: "Lead Boost IA", desc: "La IA puntúa cada lead por su probabilidad de cierre y te da argumentos para rebatir objeciones." },
   { icon: Layout, title: "Landings con IA", desc: "Crea páginas que convierten en minutos, generadas con inteligencia artificial." },
   { icon: Zap, title: "Automatizaciones", desc: "Comentarios, DMs y seguimientos automáticos sin mover un dedo." },
   { icon: Calendar, title: "Agenda", desc: "Tus leads reservan citas solos y se sincronizan con tu calendario." },
