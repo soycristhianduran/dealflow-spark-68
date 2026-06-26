@@ -26,8 +26,43 @@ interface RefreshResult {
   failed: number;               // user tokens that failed (marked needs_reconnect)
   pages_updated: number;        // page-level tokens re-derived
   ig_accounts_updated: number;  // IG accounts whose page token was re-derived
+  fb_invalidated: number;       // FB user tokens dead (190) → flagged
   ig_invalidated: number;       // IG accounts whose token is dead (190) → flagged
   total: number;                // tokens considered for refresh
+}
+
+/**
+ * Directly validate every Facebook user token against the Graph API and flag
+ * the dead ones. The refresh loop only inspects tokens close to EXPIRY, so a
+ * token killed by a password change (still months from expiry) stays
+ * needs_reconnect=false — the Meta card then shows "Connected" while every call
+ * fails with code 190. This closes that gap. Returns the count flagged.
+ */
+async function validateFbTokens(supabase: any): Promise<number> {
+  const { data: tokens, error } = await supabase
+    .from("facebook_tokens")
+    .select("id, access_token")
+    .eq("needs_reconnect", false);
+  if (error || !tokens?.length) return 0;
+
+  let flagged = 0;
+  for (const tk of tokens) {
+    if (!tk.access_token) continue;
+    try {
+      const res = await fetch(`${GRAPH_API}/me?fields=id&access_token=${encodeURIComponent(tk.access_token)}`);
+      const data = await res.json().catch(() => ({}));
+      if (data?.error?.code === 190) {
+        const msg = data.error.message?.slice(0, 500) || "token invalidated (190)";
+        await supabase.from("facebook_tokens").update({
+          needs_reconnect: true,
+          last_refresh_at: new Date().toISOString(),
+          last_refresh_error: msg,
+        }).eq("id", tk.id);
+        flagged++;
+      }
+    } catch (_e) { /* transient — leave for next run */ }
+  }
+  return flagged;
 }
 
 /**
@@ -161,6 +196,7 @@ Deno.serve(async (req) => {
     // Always validate IG account tokens directly first — this catches dead
     // tokens (Instagram Login + page-based) that the user-token refresh below
     // never inspects. Runs regardless of whether any facebook_tokens are due.
+    const fbInvalidated = await validateFbTokens(supabase);
     const igInvalidated = await validateIgAccounts(supabase);
 
     // Pick up tokens that:
@@ -178,7 +214,7 @@ Deno.serve(async (req) => {
 
     if (!tokens || tokens.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No tokens need refresh", refreshed: 0, failed: 0, pages_updated: 0, ig_accounts_updated: 0, ig_invalidated: igInvalidated, total: 0 }),
+        JSON.stringify({ message: "No tokens need refresh", refreshed: 0, failed: 0, pages_updated: 0, ig_accounts_updated: 0, fb_invalidated: fbInvalidated, ig_invalidated: igInvalidated, total: 0 }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -188,6 +224,7 @@ Deno.serve(async (req) => {
       failed: 0,
       pages_updated: 0,
       ig_accounts_updated: 0,
+      fb_invalidated: fbInvalidated,
       ig_invalidated: igInvalidated,
       total: tokens.length,
     };
