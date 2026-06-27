@@ -146,20 +146,34 @@ async function processCampaign(supabase: any, campaignId: string) {
     return { campaignId, sent, failed, partial: true };
   }
 
-  // Final counters from the source of truth.
-  const { data: allSends } = await supabase.from("whatsapp_sends").select("status").eq("campaign_id", campaignId);
-  const rows = allSends || [];
-  // If any recipients are still pending (e.g. rate-limited retries), DON'T mark
-  // the campaign 'sent' — leave it stale so the cron finishes them.
-  const stillPending = rows.filter((r: any) => r.status === "pending").length;
+  // Final counters from the source of truth — use exact COUNT queries, NOT a
+  // row fetch. A plain select() is capped at 1000 rows by PostgREST, so for a
+  // campaign with >1000 recipients the old code only ever saw the first 1000,
+  // found 0 pending among them, and marked the whole campaign 'sent' while
+  // thousands of recipients were still pending. Counts are not capped.
+  const countByStatus = async (status: string) => {
+    const { count } = await supabase
+      .from("whatsapp_sends")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)
+      .eq("status", status);
+    return count ?? 0;
+  };
+
+  const stillPending = await countByStatus("pending");
+  // If any recipients are still pending (rate-limited retries or the next batch),
+  // DON'T mark the campaign 'sent' — leave it stale so the cron finishes them.
   if (stillPending > 0) {
     await supabase.from("whatsapp_campaigns").update({ updated_at: new Date(Date.now() - 5 * 60_000).toISOString() }).eq("id", campaignId);
     return { campaignId, sent, failed, retryPending: stillPending };
   }
+
+  const failedTotal = await countByStatus("failed");
+  const sentTotal = await countByStatus("sent");
   await supabase.from("whatsapp_campaigns").update({
     status: "sent",
-    sent_count: rows.filter((r: any) => r.status !== "pending").length - rows.filter((r: any) => r.status === "failed").length,
-    failed_count: rows.filter((r: any) => r.status === "failed").length,
+    sent_count: sentTotal,
+    failed_count: failedTotal,
     sent_at: new Date().toISOString(),
   }).eq("id", campaignId);
 
