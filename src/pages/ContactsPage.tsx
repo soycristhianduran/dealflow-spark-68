@@ -709,13 +709,23 @@ export default function ContactsPage() {
       setWaBlastProgress({ done: 0, total: targets.length, finished: false });
       if (waPollRef.current) clearInterval(waPollRef.current);
       waPollRef.current = window.setInterval(async () => {
-        const { data: cnt } = await supabase.from("whatsapp_campaigns")
-          .select("sent_count, failed_count, total_recipients, status").eq("id", campaignId).maybeSingle();
+        // Count REAL processed sends (anything no longer 'pending') instead of the
+        // campaign's sent_count/failed_count, which only update at the end of each
+        // server pass and lag behind. This gives smooth, accurate live progress.
+        const [{ data: cnt }, { count: doneCount }] = await Promise.all([
+          supabase.from("whatsapp_campaigns").select("total_recipients, status").eq("id", campaignId).maybeSingle(),
+          supabase.from("whatsapp_sends").select("id", { count: "exact", head: true })
+            .eq("campaign_id", campaignId).neq("status", "pending"),
+        ]);
         if (!cnt) return;
-        const done = (cnt.sent_count || 0) + (cnt.failed_count || 0);
-        const isDone = cnt.status === "sent";
+        const total = cnt.total_recipients || targets.length;
+        const done = Math.min(doneCount ?? 0, total);
+        // "Finished" only when the campaign is truly marked sent AND everything is
+        // processed — never at a partial point (this is what showed a premature
+        // "¡Envío completado!" when large campaigns were capped at 1000).
+        const isDone = cnt.status === "sent" && done >= total;
         // Only update if the loader is still open (user may have closed it).
-        setWaBlastProgress(prev => prev ? { done, total: cnt.total_recipients || targets.length, finished: isDone } : null);
+        setWaBlastProgress(prev => prev ? { done, total, finished: isDone } : null);
         if (isDone && waPollRef.current) { clearInterval(waPollRef.current); waPollRef.current = null; }
       }, 1500);
 
