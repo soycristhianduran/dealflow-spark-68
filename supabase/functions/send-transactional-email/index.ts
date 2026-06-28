@@ -132,7 +132,7 @@ function renderTemplate(
     case "welcome": {
       const name = String(data.first_name || "amigo");
       const workspaceName = String(data.workspace_name || "tu workspace");
-      const daysInTrial = Number(data.days_in_trial ?? 14);
+      const daysInTrial = Number(data.days_in_trial ?? 7); // real trial = 7 days (start_internal_trial)
       const dashboardUrl = String(data.dashboard_url || appUrl);
 
       const subject = `Bienvenido a ${brandName}, ${name} 🚀`;
