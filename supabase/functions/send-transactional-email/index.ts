@@ -52,12 +52,15 @@ interface RequestBody {
 // ---------------------------------------------------------------------------
 
 function brandHeader(brandName: string, appUrl: string): string {
+  // Use a hosted PNG, NOT an inline SVG — Gmail / Apple Mail / Outlook strip SVG,
+  // which left the header showing only the wordmark on a dark block. PNG renders
+  // everywhere. White header + orange logo matches the Klosify brand.
   return `
-    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#0f172a;padding:24px 0;">
+    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#ffffff;padding:22px 0;border-bottom:1px solid #f1f5f9;">
       <tr><td align="center">
-        <a href="${appUrl}" style="color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:22px;font-weight:700;text-decoration:none;letter-spacing:-0.4px;display:inline-flex;align-items:center;gap:8px;">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="28" height="28" style="display:inline-block;vertical-align:middle;"><defs><linearGradient id="kg" x1="20" y1="6" x2="80" y2="91" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#FFA01E"/><stop offset="46%" stop-color="#FF6B2C"/><stop offset="100%" stop-color="#E8460E"/></linearGradient></defs><rect x="17" y="6" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="61" y="6" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="28" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="39" y="28" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="50" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="39" y="50" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="17" y="72" width="19" height="19" rx="5" fill="url(#kg)"/><rect x="61" y="72" width="19" height="19" rx="5" fill="url(#kg)"/></svg>
-          ${brandName}
+        <a href="${appUrl}" style="text-decoration:none;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+          <img src="${appUrl}/icon-512.png" alt="${brandName}" width="34" height="34" style="border:0;outline:none;border-radius:8px;vertical-align:middle;">
+          <span style="font-size:22px;font-weight:700;color:#0f172a;letter-spacing:-0.4px;vertical-align:middle;margin-left:9px;">${brandName}</span>
         </a>
       </td></tr>
     </table>
@@ -102,7 +105,7 @@ function wrap(content: string, brandName: string, appUrl: string, contactEmail: 
 function ctaButton(label: string, href: string): string {
   return `
     <p style="text-align:center;margin:24px 0;">
-      <a href="${href}" style="display:inline-block;background:#3b82f6;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 28px;border-radius:8px;font-size:15px;">${label}</a>
+      <a href="${href}" style="display:inline-block;background:#F97316;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 28px;border-radius:8px;font-size:15px;">${label}</a>
     </p>
   `;
 }
@@ -170,7 +173,7 @@ Entra a tu CRM: ${dashboardUrl}
         <p>Si te ha gustado lo que has visto, elige tu plan ahora y mantén todo tu progreso (contactos, deals, automatizaciones, integraciones de WhatsApp/IG):</p>
         ${ctaButton("Elegir mi plan", upgradeUrl)}
         <p style="font-size:14px;color:#6b7280;">Si no eliges un plan antes de que termine la prueba, tu workspace se pausará y podrás reactivarlo cuando quieras pagando un plan.</p>
-        <p style="font-size:14px;color:#6b7280;">Nuestros planes desde <strong>$14 USD/mes</strong>. <a href="${upgradeUrl}" style="color:#3b82f6;">Ver comparativa</a>.</p>
+        <p style="font-size:14px;color:#6b7280;">Nuestros planes desde <strong>$29 USD/mes</strong>. <a href="${upgradeUrl}" style="color:#F97316;">Ver comparativa</a>.</p>
       `;
       const text =
 `Hola ${name},
@@ -193,7 +196,7 @@ Elige tu plan ahora para mantener tu workspace activo: ${upgradeUrl}
         <p>Tu workspace está pausado, pero <strong>todos tus datos siguen intactos</strong> (contactos, conversaciones, deals, automatizaciones).</p>
         <p>Elige un plan para reactivarlo ahora:</p>
         ${ctaButton("Elegir mi plan", upgradeUrl)}
-        <p style="font-size:14px;color:#6b7280;">Planes desde <strong>$14 USD/mes</strong>. Sin contratos largos, cancela cuando quieras.</p>
+        <p style="font-size:14px;color:#6b7280;">Planes desde <strong>$29 USD/mes</strong>. Sin contratos largos, cancela cuando quieras.</p>
         <p style="font-size:14px;color:#6b7280;">¿Tienes preguntas antes de pagar? Responde este email y te respondo personalmente.</p>
       `;
       const text =
