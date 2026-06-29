@@ -346,12 +346,16 @@ Deno.serve(async (req) => {
     // ── Main runner: process due enrollments ──────────────────────────────────
     const now = new Date().toISOString();
 
+    // Pull a larger batch per run — parallel processing below drains it fast.
+    // Anything over BATCH_LIMIT is left for the next minute's run (nothing lost).
+    const BATCH_LIMIT = 500;
     const { data: enrollments, error: enrErr } = await supabase
       .from("automation_enrollments")
       .select("*, automations(*), contacts(*)")
       .in("status", ["active", "waiting"])
       .lte("next_run_at", now)
-      .limit(200);
+      .order("next_run_at", { ascending: true }) // oldest-due first (fairness)
+      .limit(BATCH_LIMIT);
 
     if (enrErr) throw enrErr;
 
@@ -363,11 +367,16 @@ Deno.serve(async (req) => {
     // finishes; if a run crashes mid-step, the lease expires and it retries.
     const LEASE_MS = 5 * 60_000;
 
-    for (const enr of (enrollments || [])) {
-      // Optimistic claim: only ONE concurrent runner wins this row. The guard
-      // `.eq("next_run_at", enr.next_run_at)` means a second runner that already
-      // moved this enrollment (or claimed it) updates 0 rows → we skip it. This
-      // makes running every minute safe at any volume (no double-sends).
+    // Bounded concurrency: process this many enrollments at once. Kept modest so
+    // we don't burst WhatsApp's per-number rate limit (#130429) — rate-limited
+    // sends are left pending and retried, so nothing is lost, but a low ceiling
+    // keeps delivery healthy. Independent across orgs (different phone numbers).
+    const CONCURRENCY = 10;
+
+    const claimAndProcess = async (enr: any) => {
+      // Optimistic claim: only ONE runner wins this row. The guard
+      // `.eq("next_run_at", enr.next_run_at)` means a runner that already moved
+      // (or claimed) this enrollment updates 0 rows → we skip it. No double-sends.
       const { data: claimed } = await supabase
         .from("automation_enrollments")
         .update({ next_run_at: new Date(Date.now() + LEASE_MS).toISOString() })
@@ -375,7 +384,7 @@ Deno.serve(async (req) => {
         .eq("next_run_at", enr.next_run_at)
         .in("status", ["active", "waiting"])
         .select("id");
-      if (!claimed || claimed.length === 0) continue; // another runner owns it
+      if (!claimed || claimed.length === 0) return; // another runner owns it
 
       try {
         await processEnrollment(enr, supabase);
@@ -389,6 +398,12 @@ Deno.serve(async (req) => {
         }).eq("id", enr.id);
         errors++;
       }
+    };
+
+    // Run in fixed-size waves so at most CONCURRENCY are in flight at once.
+    const list = enrollments || [];
+    for (let i = 0; i < list.length; i += CONCURRENCY) {
+      await Promise.all(list.slice(i, i + CONCURRENCY).map(claimAndProcess));
     }
 
     // ── Scheduled trigger: enroll contacts for due automations ──────────────────
