@@ -155,10 +155,24 @@ function MediaUploader({
       ? t("whatsAppTemplatesPage.mediaVideo")
       : t("whatsAppTemplatesPage.mediaDocument");
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     if (file.size > maxMb * 1024 * 1024) {
       toast.error(t("whatsAppTemplatesPage.fileTooLarge", { maxMb }));
       return;
+    }
+    // Block HEVC/H.265 videos before upload — WhatsApp rejects them at send time
+    // with error 131053 (the message silently fails). iPhones record HEVC by
+    // default. We scan the file for the 'hvc1'/'hev1' codec marker and stop the
+    // upload with a clear message instead of letting it fail later.
+    if (headerType === "VIDEO") {
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const head = new TextDecoder("latin1").decode(bytes);
+        if (head.includes("hvc1") || head.includes("hev1")) {
+          toast.error(t("whatsAppTemplatesPage.videoHevcBlocked"), { duration: 12000 });
+          return;
+        }
+      } catch { /* detection failed → allow upload, don't block legit files */ }
     }
     onUpload(file);
   };
