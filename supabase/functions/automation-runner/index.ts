@@ -357,7 +357,26 @@ Deno.serve(async (req) => {
 
     let processed = 0, completed = 0, errors = 0;
 
+    // Lease window: while an enrollment is being processed we push its
+    // next_run_at this far into the future so a concurrent runner won't pick it
+    // up. processEnrollment overwrites next_run_at with the real value when it
+    // finishes; if a run crashes mid-step, the lease expires and it retries.
+    const LEASE_MS = 5 * 60_000;
+
     for (const enr of (enrollments || [])) {
+      // Optimistic claim: only ONE concurrent runner wins this row. The guard
+      // `.eq("next_run_at", enr.next_run_at)` means a second runner that already
+      // moved this enrollment (or claimed it) updates 0 rows → we skip it. This
+      // makes running every minute safe at any volume (no double-sends).
+      const { data: claimed } = await supabase
+        .from("automation_enrollments")
+        .update({ next_run_at: new Date(Date.now() + LEASE_MS).toISOString() })
+        .eq("id", enr.id)
+        .eq("next_run_at", enr.next_run_at)
+        .in("status", ["active", "waiting"])
+        .select("id");
+      if (!claimed || claimed.length === 0) continue; // another runner owns it
+
       try {
         await processEnrollment(enr, supabase);
         processed++;
