@@ -209,6 +209,14 @@ function MediaUploader({
           </div>
         )}
       </div>
+      {headerType === "VIDEO" && (
+        <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-2.5">
+          <p className="text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+            <span className="font-semibold">⚠️ {t("whatsAppTemplatesPage.videoCodecTitle")}</span>{" "}
+            {t("whatsAppTemplatesPage.videoCodecHint")}
+          </p>
+        </div>
+      )}
       {(preview || mediaId) && (
         <button
           type="button"

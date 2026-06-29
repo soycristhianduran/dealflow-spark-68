@@ -2378,6 +2378,8 @@
     "fileUploadedCheck": "✓ Archivo subido correctamente",
     "dropFileHere": "Haz clic o arrastra tu {{label}} aquí",
     "maxSize": "máx. {{maxMb}}MB",
+    "videoCodecTitle": "El video debe estar en H.264 (no HEVC).",
+    "videoCodecHint": "WhatsApp rechaza videos HEVC/H.265 (formato \"Alta Eficiencia\" del iPhone). En tu iPhone: Ajustes → Cámara → Formatos → \"Más compatible\", o exporta el video en H.264. Máximo 16MB.",
     "removeFile": "Eliminar archivo",
     "fileUploadedSuccess": "Archivo subido correctamente",
     "fileUploadError": "Error al subir archivo: {{message}}",
