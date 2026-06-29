@@ -12,6 +12,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { motion, useTransform, useMotionValue, useMotionValueEvent, type MotionValue } from "framer-motion";
+import NumberFlow from "@number-flow/react";
 import { KlosifyLogo } from "@/components/icons/KlosifyLogo";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, MessengerIcon, GoogleCalendarIcon } from "@/components/icons/BrandIcons";
 import { trackEvent } from "@/lib/metaPixel";
@@ -449,43 +450,55 @@ function PlanCard({ plan, isAnnual, onCta, loading }: {
   const { t } = useTranslation();
   const price = isAnnual ? plan.annual : plan.monthly;
   return (
-    <div className={`relative flex flex-col h-full rounded-2xl p-8 transition-all duration-300 hover:-translate-y-1 ${plan.popular ? "border-2 border-orange-500 shadow-2xl shadow-orange-500/10 bg-white hover:shadow-orange-500/20" : "border border-slate-200 bg-white shadow-sm hover:shadow-lg"}`}>
+    <div
+      className={`relative flex flex-col h-full rounded-2xl p-8 text-white border transition-all duration-300 hover:-translate-y-1 bg-gradient-to-b from-neutral-900 via-neutral-900 to-neutral-950 ${
+        plan.popular
+          ? "border-orange-500/60 shadow-[0px_-10px_220px_0px_rgba(249,115,22,0.35)] z-20"
+          : "border-neutral-800 shadow-lg shadow-black/40 z-10"
+      }`}
+    >
       {plan.popular && (
         <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-          <span className="inline-flex items-center gap-1.5 bg-orange-500 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs font-bold px-4 py-1.5 rounded-full whitespace-nowrap shadow-lg shadow-orange-600/30">
             <Star className="w-3 h-3 fill-current" /> {t("homePage.mostPopular")}
           </span>
         </div>
       )}
-      <div className="mb-6">
-        <h3 className="text-xl font-bold text-slate-900 mb-1">{plan.name}</h3>
-        <p className="text-sm text-slate-500">{t(`homePage.${plan.desc}`)}</p>
+      <div className="mb-5">
+        <h3 className="text-2xl font-bold text-white mb-1">{plan.name}</h3>
+        <p className="text-sm text-neutral-400">{t(`homePage.${plan.desc}`)}</p>
       </div>
       <div className="mb-6">
         <div className="flex items-end gap-1">
-          <span className="text-4xl font-black text-slate-900 font-mono">${price}</span>
-          <span className="text-slate-500 mb-1">{t("homePage.perMonth")}</span>
+          <span className="text-4xl font-black text-white tabular-nums flex items-baseline">
+            $<NumberFlow value={price} className="text-4xl font-black" />
+          </span>
+          <span className="text-neutral-400 mb-1">{t("homePage.perMonth")}</span>
         </div>
-        {isAnnual && <p className="text-xs text-green-600 font-medium mt-1">{t("homePage.billedAnnually", { amount: (plan.monthly - plan.annual) * 12 })}</p>}
+        {isAnnual && <p className="text-xs text-emerald-400 font-medium mt-1">{t("homePage.billedAnnually", { amount: (plan.monthly - plan.annual) * 12 })}</p>}
       </div>
       <button
         onClick={onCta}
         disabled={loading}
-        className={`flex items-center justify-center gap-2 w-full py-3 px-6 rounded-xl font-semibold text-sm transition-all mb-8 disabled:opacity-70 disabled:cursor-not-allowed ${plan.popular ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/25 hover:shadow-orange-500/40 hover:from-orange-400 hover:to-orange-500" : "border-2 border-slate-200 text-slate-700 hover:border-orange-500 hover:text-orange-500"}`}
+        className={`flex items-center justify-center gap-2 w-full py-3.5 px-6 rounded-xl font-semibold text-sm transition-all mb-8 disabled:opacity-70 disabled:cursor-not-allowed ${
+          plan.popular
+            ? "bg-gradient-to-t from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-900/50 border border-orange-500 hover:from-orange-400 hover:to-orange-500"
+            : "bg-gradient-to-t from-neutral-950 to-neutral-700 text-white shadow-lg shadow-black/50 border border-neutral-700 hover:border-orange-500/60"
+        }`}
       >
         {loading ? <><Loader2 className="w-4 h-4 animate-spin" /> {t("homePage.processing")}</> : t(`homePage.${plan.cta}`)}
       </button>
-      <div className="space-y-3 flex-1">
+      <div className="space-y-2.5 flex-1 pt-5 border-t border-neutral-800">
         {plan.features.map((f, i) => (
-          <div key={i} className="flex items-start gap-3">
-            <Check className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-            <span className="text-sm text-slate-700">{t(`homePage.${f}`)}</span>
+          <div key={i} className="flex items-start gap-2.5">
+            <span className="h-2.5 w-2.5 mt-1.5 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex-shrink-0" />
+            <span className="text-sm text-neutral-300">{t(`homePage.${f}`)}</span>
           </div>
         ))}
         {plan.notIncluded.map((f, i) => (
-          <div key={i} className="flex items-start gap-3 opacity-40">
-            <X className="w-4 h-4 text-slate-400 mt-0.5 flex-shrink-0" />
-            <span className="text-sm text-slate-500 line-through">{t(`homePage.${f}`)}</span>
+          <div key={i} className="flex items-start gap-2.5 opacity-40">
+            <X className="w-4 h-4 text-neutral-500 mt-0.5 flex-shrink-0" />
+            <span className="text-sm text-neutral-400 line-through">{t(`homePage.${f}`)}</span>
           </div>
         ))}
       </div>
@@ -2025,16 +2038,42 @@ export default function HomePage() {
         </section>
 
         {/* ── PRICING ───────────────────────────────────────────────────────── */}
-        <section id="pricing" className="bg-slate-50 py-24">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section id="pricing" className="relative overflow-hidden bg-black py-24">
+          {/* Orange ambient glow + subtle grid (brand-colored) */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute left-1/2 top-[-10%] h-[42rem] w-[42rem] -translate-x-1/2 rounded-full bg-orange-600/25 blur-[140px]" />
+            <div className="absolute left-[8%] top-0 h-full w-[84%] opacity-60" style={{ backgroundImage: "radial-gradient(circle at center, rgba(249,115,22,0.18) 0%, transparent 70%)" }} />
+            <div className="absolute inset-x-0 top-0 h-96 [mask-image:radial-gradient(50%_50%,white,transparent)]" style={{ backgroundImage: "linear-gradient(to right,#ffffff14 1px,transparent 1px),linear-gradient(to bottom,#ffffff0a 1px,transparent 1px)", backgroundSize: "70px 80px" }} />
+          </div>
+
+          <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <FadeUp className="text-center mb-14">
-              <p className="text-orange-500 font-semibold text-sm uppercase tracking-widest mb-3">{t("homePage.pricingEyebrow")}</p>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 mb-6">{t("homePage.pricingTitle")}</h2>
-              <div className="inline-flex items-center bg-white border border-slate-200 rounded-xl p-1 gap-1 shadow-sm">
-                <button onClick={() => setIsAnnual(false)} className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${!isAnnual ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>{t("homePage.monthly")}</button>
-                <button onClick={() => setIsAnnual(true)} className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold transition-all ${isAnnual ? "bg-slate-900 text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`}>
-                  {t("homePage.annual")} <span className="bg-green-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold">{t("homePage.twoMonthsFree")}</span>
-                </button>
+              <p className="text-orange-400 font-semibold text-sm uppercase tracking-widest mb-3">{t("homePage.pricingEyebrow")}</p>
+              <h2 className="text-4xl md:text-5xl font-black text-white mb-6">{t("homePage.pricingTitle")}</h2>
+              {/* Animated toggle pill */}
+              <div className="relative z-10 mx-auto flex w-fit rounded-full bg-neutral-900 border border-neutral-700 p-1">
+                {([["false", t("homePage.monthly")], ["true", t("homePage.annual")]] as const).map(([key, label]) => {
+                  const active = (key === "true") === isAnnual;
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setIsAnnual(key === "true")}
+                      className={`relative z-10 h-10 rounded-full px-6 py-2 text-sm font-semibold transition-colors ${active ? "text-white" : "text-neutral-300 hover:text-white"}`}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="pricing-switch"
+                          className="absolute inset-0 rounded-full border border-orange-500 bg-gradient-to-t from-orange-500 to-orange-600 shadow-md shadow-orange-600/40"
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        />
+                      )}
+                      <span className="relative flex items-center gap-2">
+                        {label}
+                        {key === "true" && <span className="rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{t("homePage.twoMonthsFree")}</span>}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </FadeUp>
 
@@ -2052,17 +2091,17 @@ export default function HomePage() {
             </div>
 
             <FadeUp delay={200} className="mt-10">
-              <p className="text-center text-xs font-semibold text-slate-400 mb-5 uppercase tracking-widest">{t("homePage.addonsAvailable")}</p>
+              <p className="text-center text-xs font-semibold text-neutral-500 mb-5 uppercase tracking-widest">{t("homePage.addonsAvailable")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
                 {addOns.map((addon) => {
                   const AddonIcon = addon.icon;
                   return (
-                    <div key={addon.label} className="bg-white rounded-xl p-5 text-center border border-slate-200 hover:border-orange-200 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
-                      <div className={`w-10 h-10 ${addon.iconBg} rounded-xl flex items-center justify-center mx-auto mb-3`}>
-                        <AddonIcon className={`w-5 h-5 ${addon.iconColor}`} />
+                    <div key={addon.label} className="bg-neutral-900/80 rounded-xl p-5 text-center border border-neutral-800 hover:border-orange-500/50 hover:-translate-y-0.5 transition-all duration-200">
+                      <div className="w-10 h-10 bg-orange-500/15 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <AddonIcon className="w-5 h-5 text-orange-400" />
                       </div>
-                      <p className="text-xs font-semibold text-slate-700 mb-1">{t(`homePage.${addon.label}`)}</p>
-                      <p className="text-sm font-black text-orange-500 font-mono">{addon.price}</p>
+                      <p className="text-xs font-semibold text-neutral-300 mb-1">{t(`homePage.${addon.label}`)}</p>
+                      <p className="text-sm font-black text-orange-400 font-mono">{addon.price}</p>
                     </div>
                   );
                 })}
