@@ -113,12 +113,13 @@ Para etiquetas usa las del catálogo cuando aplique. Si falta un dato (plantilla
     type: "function",
     function: {
       name: "top_ads",
-      description: "Anuncios, campañas o canales que más VENTAS GANADAS e INGRESOS han generado, usando la atribución UTM de los leads (requiere que la cuenta publicitaria esté conectada y que los leads lleguen con UTM). Úsalo para preguntas como '¿qué anuncio ha generado más ventas/ingresos?' o '¿cuál es la mejor campaña?'.",
+      description: "Anuncios, campañas o canales con mejor desempeño, usando la atribución UTM de los leads (requiere cuenta publicitaria conectada y leads con UTM). Úsalo para '¿qué anuncio me ha generado más LEADS?' (metric=leads) o '¿qué anuncio generó más VENTAS/INGRESOS?' (metric=won).",
       parameters: {
         type: "object",
         properties: {
+          metric: { type: "string", enum: ["leads", "won"], description: "leads = cuántos leads trajo cada anuncio (todos los contactos atribuidos). won = ventas ganadas e ingresos. Elige 'leads' si preguntan por leads, 'won' si preguntan por ventas/ingresos. Default: leads." },
           dimension: { type: "string", enum: ["ad", "campaign", "source"], description: "Agrupar por anuncio (utm_content), campaña (utm_campaign) o canal (utm_source). Default: ad." },
-          since_days: { type: "number", description: "Solo ventas ganadas de los últimos N días" },
+          since_days: { type: "number", description: "Solo de los últimos N días" },
           limit: { type: "number", description: "Cuántos resultados top devolver (default 5)" },
         },
         additionalProperties: false,
@@ -247,43 +248,50 @@ async function runTool(name: string, args: any, supabase: any, orgId: string, us
     };
   }
   if (name === "top_ads") {
+    const metric = args.metric === "won" ? "won" : "leads";
     const dim = args.dimension === "campaign" ? "utm_campaign"
       : args.dimension === "source" ? "utm_source" : "utm_content";
-    // "Ganado" = lead_status 'won' OR the contact sits in a won-type pipeline
-    // stage (name contains "gan"/"won", e.g. "Ganado", "Cerrado ganado").
-    // Revenue is the contact's budget; UTM attribution comes from the ad account.
-    const { data: wonStages } = await supabase.from("pipeline_stages")
-      .select("id, name").eq("organization_id", orgId)
-      .or("name.ilike.%gan%,name.ilike.%won%");
-    const wonStageIds = (wonStages || []).map((s: any) => s.id);
-    const orParts = ["lead_status.eq.won"];
-    if (wonStageIds.length) orParts.push(`stage_id.in.(${wonStageIds.join(",")})`);
+    const sinceIso = args.since_days
+      ? new Date(Date.now() - args.since_days * 86400000).toISOString() : null;
+    const lim = Math.max(1, Math.min(20, args.limit || 5));
+
     let q = supabase.from("contacts")
       .select("budget, utm_content, utm_campaign, utm_source, created_at")
       .eq("organization_id", orgId)
-      .or(orParts.join(","));
-    if (args.since_days) {
-      const since = new Date(Date.now() - args.since_days * 86400000).toISOString();
-      q = q.gte("created_at", since);
+      .not(dim, "is", null);
+
+    if (metric === "won") {
+      // "Ganado" = lead_status 'won' OR a won-type pipeline stage (name ~ "gan"/"won").
+      const { data: wonStages } = await supabase.from("pipeline_stages")
+        .select("id, name").eq("organization_id", orgId)
+        .or("name.ilike.%gan%,name.ilike.%won%");
+      const wonStageIds = (wonStages || []).map((s: any) => s.id);
+      const orParts = ["lead_status.eq.won"];
+      if (wonStageIds.length) orParts.push(`stage_id.in.(${wonStageIds.join(",")})`);
+      q = q.or(orParts.join(","));
     }
+    if (sinceIso) q = q.gte("created_at", sinceIso);
+
     const { data } = await q.limit(10000);
-    const agg: Record<string, { won: number; revenue: number }> = {};
+    const agg: Record<string, { count: number; revenue: number }> = {};
     for (const c of (data || [])) {
       const k = (c as any)[dim];
       if (!k) continue;
-      if (!agg[k]) agg[k] = { won: 0, revenue: 0 };
-      agg[k].won += 1;
+      if (!agg[k]) agg[k] = { count: 0, revenue: 0 };
+      agg[k].count += 1;
       agg[k].revenue += Number((c as any).budget || 0);
     }
     const top = Object.entries(agg)
-      .map(([k, v]) => ({ name: k, won: v.won, revenue: v.revenue }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, Math.max(1, Math.min(20, args.limit || 5)));
+      .map(([k, v]) => metric === "won"
+        ? { name: k, ganados: v.count, ingresos: v.revenue }
+        : { name: k, leads: v.count })
+      .sort((a: any, b: any) => metric === "won" ? b.ingresos - a.ingresos : b.leads - a.leads)
+      .slice(0, lim);
     return {
       result: {
-        dimension: dim,
-        top,
-        note: top.length ? null : "No hay ventas ganadas con atribución UTM. Verifica que la cuenta publicitaria esté conectada y que los leads lleguen con UTM (utm_campaign / utm_content).",
+        metric, dimension: dim, top,
+        note: top.length ? null
+          : "No hay datos de atribución UTM. Verifica que la cuenta publicitaria esté conectada y que los leads lleguen con UTM (utm_campaign / utm_content).",
       },
     };
   }
