@@ -36,7 +36,7 @@ Deno.serve(async (req) => {
     const appUrl = Deno.env.get("APP_URL") || "https://app.klosify.com";
 
     const { data: ticket } = await supabase.from("support_tickets")
-      .select("id, subject, organization_id, created_by, organizations(name, slug)")
+      .select("id, subject, organization_id, created_by, last_notified_support_at, last_notified_client_at, organizations(name, slug)")
       .eq("id", ticket_id).maybeSingle();
     if (!ticket) return new Response(JSON.stringify({ ok: false }), { headers: { ...cors, "Content-Type": "application/json" } });
 
@@ -48,6 +48,15 @@ Deno.serve(async (req) => {
     const orgName = (ticket as any).organizations?.name || "una organización";
     const orgSlug = (ticket as any).organizations?.slug || "";
     const excerpt = (lastMsg.body || "").slice(0, 280);
+
+    // Debounce: at most one email per direction per ticket every 5 minutes, so a
+    // rapid back-and-forth doesn't flood the inbox (the panel is already realtime).
+    const DEBOUNCE_MS = 5 * 60 * 1000;
+    const dirCol = lastMsg.is_staff ? "last_notified_client_at" : "last_notified_support_at";
+    const lastAt = (ticket as any)[dirCol] ? new Date((ticket as any)[dirCol]).getTime() : 0;
+    if (Date.now() - lastAt < DEBOUNCE_MS) {
+      return new Response(JSON.stringify({ ok: true, skipped: "debounced" }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
 
     let to: string, html: string, subject: string;
     if (lastMsg.is_staff) {
@@ -75,6 +84,7 @@ Deno.serve(async (req) => {
         headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ from: FROM, to: [to], subject, html }),
       });
+      await supabase.from("support_tickets").update({ [dirCol]: new Date().toISOString() }).eq("id", ticket_id);
     }
     return new Response(JSON.stringify({ ok: true, to }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
