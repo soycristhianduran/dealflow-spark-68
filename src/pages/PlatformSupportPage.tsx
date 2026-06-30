@@ -58,6 +58,7 @@ export default function PlatformSupportPage() {
       .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim() });
     setSending(false);
     if (error) return;
+    supabase.functions.invoke("support-notify", { body: { ticket_id: active.id } }).catch(() => {});
     setReply("");
     const { data } = await supabase.from("support_messages").select("*")
       .eq("ticket_id", active.id).order("created_at", { ascending: true });

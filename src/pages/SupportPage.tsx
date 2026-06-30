@@ -76,6 +76,7 @@ export default function SupportPage() {
     }).select().single();
     if (error || !ticket) { setSending(false); toast.error(error?.message || "No se pudo crear"); return; }
     await supabase.from("support_messages").insert({ ticket_id: ticket.id, author_id: user.id, body: body.trim() });
+    supabase.functions.invoke("support-notify", { body: { ticket_id: ticket.id } }).catch(() => {});
     setSending(false); setSubject(""); setBody(""); setCategory("general");
     toast.success("Ticket creado. Te responderemos pronto.");
     await loadTickets();
@@ -89,6 +90,7 @@ export default function SupportPage() {
       .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim() });
     setSending(false);
     if (error) { toast.error(error.message); return; }
+    supabase.functions.invoke("support-notify", { body: { ticket_id: active.id } }).catch(() => {});
     setReply("");
     const { data } = await supabase.from("support_messages").select("*")
       .eq("ticket_id", active.id).order("created_at", { ascending: true });
