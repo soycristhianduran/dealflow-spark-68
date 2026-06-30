@@ -47,9 +47,6 @@ export default function BillingPage() {
   const [boostCredits, setBoostCredits] = useState<number>(0);
   const [landingCredits, setLandingCredits] = useState<number>(0);
   const [agentCredits, setAgentCredits] = useState<number>(0);
-  const [landingUsageLog, setLandingUsageLog] = useState<Array<{
-    created_at: string; call_type: string; tokens_total: number; tokens_input: number; tokens_output: number;
-  }>>([]);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
   const [addonCatalog, setAddonCatalog] = useState<Array<{
@@ -125,15 +122,6 @@ export default function BillingPage() {
       setBoostCredits((boosts ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
       setLandingCredits((landings ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
       setAgentCredits((agents ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
-
-      // Load landing usage log (last 30 entries)
-      supabase
-        .from("ia_landings_usage_log")
-        .select("created_at, call_type, tokens_total, tokens_input, tokens_output")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false })
-        .limit(30)
-        .then(({ data }) => setLandingUsageLog(data ?? []));
 
       // Capacity add-ons: catalog (sellable) + current purchased extras for this org.
       supabase
@@ -453,41 +441,6 @@ export default function BillingPage() {
               purchasingBoost={purchasingBoost}
               onBuy={buyBoost}
             />
-
-            {/* IA Landings — Token usage history */}
-            {landingUsageLog.length > 0 && (
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <Sparkles className="h-3.5 w-3.5 text-orange-500" />
-                  {t("billingPage.landingsUsageHistory")}
-                </h4>
-                <div className="space-y-1">
-                  {landingUsageLog.map((entry, i) => (
-                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-border/40 last:border-0">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide ${
-                          entry.call_type === "generation"
-                            ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
-                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        }`}>
-                          {entry.call_type === "generation" ? t("billingPage.generation") : t("billingPage.edition")}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {new Date(entry.created_at).toLocaleDateString("es", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
-                        </span>
-                      </div>
-                      <span className="font-medium tabular-nums">
-                        {entry.tokens_total.toLocaleString()} tokens
-                        <span className="text-muted-foreground ml-1 text-[10px]">
-                          ({entry.tokens_input.toLocaleString()} in / {entry.tokens_output.toLocaleString()} out)
-                        </span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[11px] text-muted-foreground">{t("billingPage.lastCalls")}</p>
-              </div>
-            )}
 
             {/* IA Agent */}
             {subscription.featureAiAgent && (
