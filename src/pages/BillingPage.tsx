@@ -269,7 +269,7 @@ export default function BillingPage() {
   return (
     <AppLayout>
       <AppHeader title={t("billingPage.billing")} />
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
 
         {/* ── Plan card ──────────────────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl border bg-card px-5 py-4">
