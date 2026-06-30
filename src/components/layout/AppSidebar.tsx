@@ -12,6 +12,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useSubscription } from "@/hooks/useSubscription";
+import { OrgSwitcher } from "@/components/layout/OrgSwitcher";
 import { useTranslation } from "react-i18next";
 
 // ── Nav key definitions (titles are i18n keys resolved in component) ──────────
@@ -168,6 +169,9 @@ export function AppSidebar() {
           </span>
         )}
       </div>
+
+      {/* ── Selector de organización (multi-org / gestores) ── */}
+      <OrgSwitcher collapsed={collapsed} />
 
       {/* ── Nav principal ── */}
       <nav className="flex-1 p-2 overflow-y-auto scrollbar-thin space-y-0.5">

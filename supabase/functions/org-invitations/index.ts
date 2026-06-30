@@ -133,10 +133,60 @@ Deno.serve(async (req) => {
   const { data: { user } } = await supabase.auth.getUser(token);
   if (!user) return err("No autorizado");
 
+  // ── Platform admin: grant the non-billable 'gestor' role to someone by email ──
+  // Gated by platform_admins. Works for any organization (the caller need not be
+  // a member). Reuses the invitation flow: the recipient accepts and becomes a
+  // gestor (excluded from seat counts). If they already have an account+member
+  // row in that org, we upgrade them to gestor directly.
+  if (action === "assign_gestor") {
+    const { data: pa } = await supabase
+      .from("platform_admins").select("user_id").eq("user_id", user.id).maybeSingle();
+    if (!pa) return new Response(JSON.stringify({ error: "Solo administradores de plataforma" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { email, organization_id: orgId } = body;
+    if (!email || !orgId) return new Response(JSON.stringify({ error: "Email y organización requeridos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: orgRow } = await supabase
+      .from("organizations").select("name").eq("id", orgId).maybeSingle();
+    if (!orgRow) return new Response(JSON.stringify({ error: "Organización no encontrada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const orgName = orgRow.name || "tu equipo";
+
+    const { data: invitation, error: invErr } = await supabase
+      .from("organization_invitations")
+      .upsert({ organization_id: orgId, email, role: "gestor", invited_by: user.id }, { onConflict: "organization_id,email" })
+      .select().maybeSingle();
+    if (invErr) return new Response(JSON.stringify({ error: invErr.message }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const appUrl = Deno.env.get("APP_URL") || "https://app.klosify.com";
+    const inviteUrl = `${appUrl}/invite?token=${invitation!.token}`;
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
+    if (RESEND_API_KEY) {
+      await fetch(`${RESEND_API}/emails`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: INVITE_FROM,
+          to: [email],
+          subject: `Fuiste agregado como gestor de ${orgName} en Klosify`,
+          html: brandedInviteEmail({ inviterName: "El equipo de Klosify", orgName, inviteUrl, role: "gestor" }),
+        }),
+      });
+    }
+    return new Response(JSON.stringify({ success: true, invite_url: inviteUrl }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
   // ── Invite a user by email ──────────────────────────────────────────────────
   if (action === "invite") {
     const { email, role = "vendor" } = body;
     if (!email) return new Response(JSON.stringify({ error: "Email requerido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    // 'gestor' is a non-billable role assignable ONLY by platform admins via the
+    // assign_gestor action — never through a normal org-owner invite (that would
+    // let owners dodge seat charges).
+    const invitableRoles = ["admin", "vendor", "setter", "readonly"];
+    if (!invitableRoles.includes(role)) {
+      return new Response(JSON.stringify({ error: "Rol inválido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     // Get user's organization — fetch any role, then check permission in code
     const { data: membership, error: memErr } = await supabase
@@ -168,9 +218,10 @@ Deno.serve(async (req) => {
         .from("org_addons").select("extra_seats").eq("organization_id", orgId).maybeSingle();
       const limit = maxUsers + Number(addon?.extra_seats ?? 0);
 
+      // Gestores (non-billable managers) never count toward the seat limit.
       const { count: memberCount } = await supabase
         .from("organization_members").select("user_id", { count: "exact", head: true })
-        .eq("organization_id", orgId);
+        .eq("organization_id", orgId).neq("role", "gestor");
 
       // Pending (not-yet-accepted) invites that aren't this same email.
       const { count: pendingCount } = await supabase

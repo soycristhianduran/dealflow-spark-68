@@ -49,6 +49,7 @@ import ProfilePage from "./pages/ProfilePage";
 import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
+import PlatformOrgsPage from "./pages/PlatformOrgsPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import PlatformPage from "./pages/PlatformPage";
 import IgVerifyPage from "./pages/IgVerifyPage";
@@ -178,6 +179,9 @@ function AppRoutes() {
 
       {/* Founder-only SaaS health monitor (server-gated to platform_admins) */}
       <Route path="/platform" element={<ProtectedRoute><PlatformPage /></ProtectedRoute>} />
+
+      {/* Founder-only org panel: enter any org + assign non-billable gestores */}
+      <Route path="/admin" element={<ProtectedRoute><PlatformOrgsPage /></ProtectedRoute>} />
 
       {/* Legacy flat routes (backward compat) — redirect to slug-based */}
       <Route path="*" element={<NotFound />} />

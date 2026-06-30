@@ -15,7 +15,10 @@ export function usePermissions() {
   const { user } = useAuth();
 
   const myUserId = user?.id ?? null;
-  const isOwnerOrAdmin = role === "owner" || role === "admin";
+  // 'gestor' is a non-billable manager (platform/agency staff) with full
+  // owner-like access inside the org. Treat it exactly like owner/admin.
+  const isGestor = role === "gestor";
+  const isOwnerOrAdmin = role === "owner" || role === "admin" || isGestor;
   // Setter has the SAME permissions as a vendor; it only differs at the dashboard
   // level (setters book appointments, vendors close them).
   const isSetter = role === "setter";
@@ -63,6 +66,7 @@ export function usePermissions() {
     myUserId,
     role,
     isOwnerOrAdmin,
+    isGestor,
     isVendor,
     isSetter,
     isReadonly,
