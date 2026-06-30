@@ -7,7 +7,8 @@
  * Leads list with that filter applied (via URL params ContactsPage reads).
  */
 import { useState, useRef, useEffect } from "react";
-import { BotMessageSquare, X, Send, Loader2, ArrowRight } from "lucide-react";
+import { X, Send, Loader2, ArrowRight, LifeBuoy } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +25,7 @@ export function CrmAssistant() {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -76,17 +78,47 @@ export function CrmAssistant() {
 
   if (!open) {
     return (
-      <button
-        onClick={() => setOpen(true)}
-        className="group fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 text-white shadow-lg shadow-primary/30 ring-1 ring-white/25 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-primary/50"
-        title={t("crmAssistant.assistantTitle")}
-      >
-        {/* soft pulsing halo */}
-        <span className="absolute inset-0 -z-10 rounded-2xl bg-primary/40 blur-md animate-pulse" />
-        <BotMessageSquare className="h-6 w-6 drop-shadow transition-transform duration-300 group-hover:scale-110" />
-        {/* little online dot */}
-        <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-card" />
-      </button>
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        {/* Option menu */}
+        {menuOpen && (
+          <div className="w-64 overflow-hidden rounded-2xl border bg-card shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <button
+              onClick={() => { setMenuOpen(false); setOpen(true); }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
+            >
+              <img src="/mascot-head.png" alt="Klofy" className="h-10 w-10 shrink-0 rounded-full object-contain" />
+              <div>
+                <p className="text-sm font-semibold leading-tight">Hablar con Klofy</p>
+                <p className="text-[11px] text-muted-foreground">Pregúntame sobre tus leads</p>
+              </div>
+            </button>
+            <div className="h-px bg-border" />
+            <button
+              onClick={() => { setMenuOpen(false); toast.info("El módulo de soporte estará disponible muy pronto."); }}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                <LifeBuoy className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold leading-tight">Soporte</p>
+                <p className="text-[11px] text-muted-foreground">Habla con nuestro equipo</p>
+              </div>
+            </button>
+          </div>
+        )}
+
+        {/* Mascot launcher button */}
+        <button
+          onClick={() => setMenuOpen((v) => !v)}
+          className="group relative flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary via-orange-500 to-amber-400 shadow-lg shadow-primary/30 ring-1 ring-white/25 transition-all duration-300 hover:scale-110 hover:shadow-xl hover:shadow-primary/50"
+          title="Klofy"
+        >
+          <span className="absolute inset-0 -z-10 rounded-full bg-primary/40 blur-md animate-pulse" />
+          <img src="/mascot-head.png" alt="Klofy" className="h-12 w-12 object-contain drop-shadow transition-transform duration-300 group-hover:scale-110" />
+          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
+        </button>
+      </div>
     );
   }
 
@@ -94,8 +126,8 @@ export function CrmAssistant() {
     <div className="fixed bottom-6 right-6 z-50 flex h-[34rem] w-[26rem] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border bg-card shadow-2xl">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 ring-1 ring-white/25 shadow-sm">
-            <BotMessageSquare className="h-4 w-4 text-white" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 ring-1 ring-white/25 shadow-sm overflow-hidden">
+            <img src="/mascot-head.png" alt="Klofy" className="h-6 w-6 object-contain" />
           </div>
           <div>
             <p className="text-sm font-semibold leading-none">{t("crmAssistant.assistantTitle")}</p>
