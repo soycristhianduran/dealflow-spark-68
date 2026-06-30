@@ -40,11 +40,15 @@ export function useWhatsAppInbox() {
 
   // Derive conversation list from raw messages grouped by phone_number
   const fetchConversations = useCallback(async () => {
+    // Multi-org: never query without an org scope, or RLS would return rows from
+    // EVERY org the user belongs to (a gestor/owner is in many) and mix inboxes.
+    if (!organizationId) { setConversations([]); setLoadingConversations(false); return; }
     setLoadingConversations(true);
     try {
       const { data: msgs, error } = await supabase
         .from("whatsapp_messages")
         .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at, read_at, from_phone_number_id")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -81,6 +85,7 @@ export function useWhatsAppInbox() {
       const { data: unreadMsgs } = await supabase
         .from("whatsapp_messages")
         .select("phone_number, contact_id, message_text, message_type, created_at")
+        .eq("organization_id", organizationId)
         .eq("direction", "incoming")
         .is("read_at", null)
         .order("created_at", { ascending: false })
@@ -140,14 +145,16 @@ export function useWhatsAppInbox() {
     } finally {
       setLoadingConversations(false);
     }
-  }, []);
+  }, [organizationId]);
 
   const fetchMessages = useCallback(async (phone: string) => {
+    if (!organizationId) return;
     setLoadingMessages(true);
     try {
       const { data, error } = await supabase
         .from("whatsapp_messages")
         .select("*")
+        .eq("organization_id", organizationId)
         .eq("phone_number", phone)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -158,7 +165,7 @@ export function useWhatsAppInbox() {
     } finally {
       setLoadingMessages(false);
     }
-  }, []);
+  }, [organizationId]);
 
   const selectConversation = useCallback(
     async (phone: string) => {
@@ -174,15 +181,17 @@ export function useWhatsAppInbox() {
       // Done as a direct UPDATE (no RPC) so RLS handles authorization and
       // we don't depend on a server-side function existing.
       try {
-        await supabase
+        let upd = supabase
           .from("whatsapp_messages")
           .update({ read_at: new Date().toISOString() })
           .eq("phone_number", phone)
           .eq("direction", "incoming")
           .is("read_at", null);
+        if (organizationId) upd = upd.eq("organization_id", organizationId);
+        await upd;
       } catch (_) { /* non-fatal — at worst the badge comes back on refresh */ }
     },
-    [fetchMessages]
+    [fetchMessages, organizationId]
   );
 
   // Manually mark a conversation as unread (sets the most recent incoming
@@ -190,12 +199,14 @@ export function useWhatsAppInbox() {
   // Implemented as a direct query (no RPC) for robustness.
   const markAsUnread = useCallback(async (phone: string) => {
     try {
-      // Find the most recent incoming message for this phone
-      const { data: latest, error: selErr } = await supabase
+      // Find the most recent incoming message for this phone (scoped to org)
+      let latestQ = supabase
         .from("whatsapp_messages")
         .select("id")
         .eq("phone_number", phone)
-        .eq("direction", "incoming")
+        .eq("direction", "incoming");
+      if (organizationId) latestQ = latestQ.eq("organization_id", organizationId);
+      const { data: latest, error: selErr } = await latestQ
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

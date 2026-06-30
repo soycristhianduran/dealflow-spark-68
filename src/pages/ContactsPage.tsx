@@ -269,6 +269,9 @@ export default function ContactsPage() {
   // Apply the active filters to any contacts query (shared by the paged fetch
   // and by "select all across pages" so both operate on the same result set).
   const applyFilters = useCallback((query: any) => {
+    // Multi-org scope: leads belong to one org. Without this, RLS exposes leads
+    // from every org the user belongs to (gestor/owner) and mixes them together.
+    if (organizationId) query = query.eq("organization_id", organizationId);
     if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
     else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
@@ -296,7 +299,7 @@ export default function ContactsPage() {
       query = query.eq("owner_id", ownerFilter);
     }
     return query;
-  }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isSetter, isOwnerOrAdmin, myUserId]);
+  }, [organizationId, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isSetter, isOwnerOrAdmin, myUserId]);
 
   const fetchContacts = useCallback(async () => {
     setLoading(true);

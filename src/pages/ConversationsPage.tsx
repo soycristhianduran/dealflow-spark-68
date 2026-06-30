@@ -176,15 +176,18 @@ export default function ConversationsPage() {
   // ── Load IG conversations ─────────────────────────────────────────────────
   const loadIgConversations = useCallback(async () => {
     if (!user) { setLoadingIg(false); return; }
+    // Multi-org: scope to the current workspace, otherwise RLS exposes IG
+    // conversations from EVERY org the user belongs to and mixes inboxes.
+    if (!organizationId) { setIgConversations([]); setLoadingIg(false); return; }
     setLoadingIg(true);
-    // No user_id filter — RLS (get_org_member_ids) exposes all org conversations
     const { data } = await supabase
       .from("instagram_conversations")
       .select("*")
+      .eq("organization_id", organizationId)
       .order("last_message_at", { ascending: false });
     setIgConversations((data || []) as IgConvRow[]);
     setLoadingIg(false);
-  }, [user]);
+  }, [user, organizationId]);
 
   useEffect(() => { loadIgConversations(); }, [loadIgConversations]);
 
