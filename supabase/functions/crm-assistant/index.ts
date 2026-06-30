@@ -15,13 +15,22 @@ const corsHeaders = {
 const OPENAI_API = "https://api.openai.com/v1/chat/completions";
 const MODEL = "gpt-4o-mini";
 
-const SYSTEM_PROMPT = `Eres el asistente de Klosify CRM. Ayudas al usuario a consultar sus leads y su pipeline.
+const SYSTEM_PROMPT = `Eres el asistente de Klosify CRM. Eres un agente capaz de CONSULTAR y ACTUAR sobre todo el CRM del usuario.
 - Responde SIEMPRE en español, breve y claro.
-- Cuando el usuario quiera ver/filtrar leads (ej. "los más calientes", "sin asignar", "de tal campaña", "de esta semana"), llama a la herramienta filter_leads. "Caliente" = score alto (hot), "tibio" = warm, "frío" = cold.
-- Para un panorama del pipeline usa pipeline_summary. Para encontrar a alguien usa search_contact.
-- Si el usuario describe un flujo/automatización ("crea una automatización que...", "cuando llegue un lead haz..."), usa create_automation. SIEMPRE queda como BORRADOR desactivado; dile al usuario que la revise y la active. Usa solo los triggers/pasos soportados.
-- NO inventes datos: usa solo lo que devuelven las herramientas.
-- Tras filtrar, resume el resultado en 1-2 frases (cuántos hay y un par de ejemplos) e invita a verlos en Leads.`;
+- CONSULTAS: usa la herramienta adecuada según lo que pregunten:
+  • Leads / filtros ("los más calientes", "sin asignar", "de tal campaña", "de esta semana") → filter_leads ("caliente"=hot, "tibio"=warm, "frío"=cold).
+  • Panorama del pipeline → pipeline_summary. Buscar a alguien → search_contact.
+  • Anuncios/campañas/canales que más leads o ventas generan → top_ads (metric=leads o won).
+  • Reuniones/citas → meetings_summary. Tareas → tasks_summary. Campañas Email/WhatsApp → campaigns_summary.
+  • Resumen general / "¿cómo va el mes?" → crm_overview.
+- ACCIONES: cuando el usuario pida hacer algo, EJECÚTALO con la herramienta:
+  • Crear un lead/contacto → create_lead.
+  • Mover un lead de etapa ("pasa a Juan a Ganado") → move_lead.
+  • Crear una tarea/recordatorio → create_task.
+  • Crear una automatización/flujo → create_automation (queda como BORRADOR desactivado; dile que la revise y active).
+- Si te falta un dato obligatorio (ej. el nombre para crear un lead), pídelo antes de actuar.
+- NO inventes datos: usa solo lo que devuelven las herramientas. Si una herramienta devuelve "note" o "error", explícalo con naturalidad.
+- Tras una consulta resume en 1-2 frases; tras una acción confirma qué hiciste.`;
 
 const TOOLS = [
   {
@@ -122,6 +131,111 @@ Para etiquetas usa las del catálogo cuando aplique. Si falta un dato (plantilla
           since_days: { type: "number", description: "Solo de los últimos N días" },
           limit: { type: "number", description: "Cuántos resultados top devolver (default 5)" },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "meetings_summary",
+      description: "Reuniones/citas agendadas: próximas, de hoy o pasadas, con conteo y detalle.",
+      parameters: {
+        type: "object",
+        properties: {
+          range: { type: "string", enum: ["upcoming", "today", "past"], description: "upcoming (futuras), today (hoy) o past (pasadas). Default: upcoming." },
+          limit: { type: "number", description: "Cuántas listar (default 5)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "tasks_summary",
+      description: "Tareas: pendientes, vencidas o todas, con conteo y detalle.",
+      parameters: {
+        type: "object",
+        properties: {
+          status: { type: "string", enum: ["pending", "overdue", "completed", "all"], description: "Default: pending." },
+          limit: { type: "number", description: "Cuántas listar (default 5)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "campaigns_summary",
+      description: "Desempeño de campañas de Email y/o WhatsApp: enviados, abiertos, clics, entregados.",
+      parameters: {
+        type: "object",
+        properties: {
+          channel: { type: "string", enum: ["email", "whatsapp", "all"], description: "Default: all." },
+          limit: { type: "number", description: "Cuántas listar (default 5)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "crm_overview",
+      description: "Resumen general del CRM: total de leads, nuevos del mes, ventas ganadas e ingresos del mes, reuniones próximas y tareas pendientes. Úsalo para '¿cómo va todo?' o '¿resumen del mes?'.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_lead",
+      description: "Crea un nuevo lead/contacto en el CRM. Pide nombre; teléfono y email son opcionales.",
+      parameters: {
+        type: "object",
+        properties: {
+          full_name: { type: "string", description: "Nombre completo del lead" },
+          phone: { type: "string", description: "Teléfono (opcional)" },
+          email: { type: "string", description: "Email (opcional)" },
+          source: { type: "string", description: "Origen, ej. manual, referido (opcional)" },
+        },
+        required: ["full_name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "move_lead",
+      description: "Mueve un lead a otra etapa del pipeline. Identifica al lead por nombre/email/teléfono y la etapa por su nombre (ej. 'Ganado', 'Contactado').",
+      parameters: {
+        type: "object",
+        properties: {
+          contact_query: { type: "string", description: "Nombre, email o teléfono del lead a mover" },
+          stage_name: { type: "string", description: "Nombre de la etapa destino (parcial está bien)" },
+        },
+        required: ["contact_query", "stage_name"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_task",
+      description: "Crea una tarea/recordatorio, opcionalmente asociada a un lead.",
+      parameters: {
+        type: "object",
+        properties: {
+          title: { type: "string", description: "Título de la tarea" },
+          contact_query: { type: "string", description: "Lead a asociar (nombre/email/teléfono, opcional)" },
+          due_in_days: { type: "number", description: "Vence en N días desde hoy (opcional)" },
+          priority: { type: "string", enum: ["low", "medium", "high", "urgent"], description: "Default: medium" },
+        },
+        required: ["title"],
         additionalProperties: false,
       },
     },
@@ -295,6 +409,153 @@ async function runTool(name: string, args: any, supabase: any, orgId: string, us
       },
     };
   }
+  if (name === "meetings_summary") {
+    const range = args.range || "upcoming";
+    const nowIso = new Date().toISOString();
+    const lim = Math.max(1, Math.min(20, args.limit || 5));
+    let listQ = supabase.from("meetings").select("title, start_at, status, contacts(full_name)").eq("organization_id", orgId);
+    let cntQ = supabase.from("meetings").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+    if (range === "past") {
+      listQ = listQ.lt("start_at", nowIso).order("start_at", { ascending: false });
+      cntQ = cntQ.lt("start_at", nowIso);
+    } else if (range === "today") {
+      const d0 = new Date(); d0.setUTCHours(0, 0, 0, 0);
+      const d1 = new Date(d0); d1.setUTCDate(d1.getUTCDate() + 1);
+      listQ = listQ.gte("start_at", d0.toISOString()).lt("start_at", d1.toISOString()).order("start_at", { ascending: true });
+      cntQ = cntQ.gte("start_at", d0.toISOString()).lt("start_at", d1.toISOString());
+    } else {
+      listQ = listQ.gte("start_at", nowIso).order("start_at", { ascending: true });
+      cntQ = cntQ.gte("start_at", nowIso);
+    }
+    const [{ data }, { count }] = await Promise.all([listQ.limit(lim), cntQ]);
+    return { result: { range, total: count ?? 0, meetings: (data || []).map((m: any) => ({ title: m.title, when: m.start_at, status: m.status, contact: m.contacts?.full_name || null })) } };
+  }
+
+  if (name === "tasks_summary") {
+    const status = args.status || "pending";
+    const lim = Math.max(1, Math.min(20, args.limit || 5));
+    const today = new Date().toISOString().slice(0, 10);
+    let listQ = supabase.from("tasks").select("title, priority, status, due_date, contacts(full_name)").eq("organization_id", orgId);
+    let cntQ = supabase.from("tasks").select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+    if (status === "completed") { listQ = listQ.eq("status", "completed"); cntQ = cntQ.eq("status", "completed"); }
+    else if (status === "overdue") { listQ = listQ.neq("status", "completed").lt("due_date", today); cntQ = cntQ.neq("status", "completed").lt("due_date", today); }
+    else if (status === "pending") { listQ = listQ.neq("status", "completed"); cntQ = cntQ.neq("status", "completed"); }
+    const [{ data }, { count }] = await Promise.all([listQ.order("due_date", { ascending: true }).limit(lim), cntQ]);
+    return { result: { status, total: count ?? 0, tasks: (data || []).map((t: any) => ({ title: t.title, priority: t.priority, status: t.status, due_date: t.due_date, contact: t.contacts?.full_name || null })) } };
+  }
+
+  if (name === "campaigns_summary") {
+    const channel = args.channel || "all";
+    const lim = Math.max(1, Math.min(10, args.limit || 5));
+    const out: any = {};
+    if (channel === "email" || channel === "all") {
+      const { data } = await supabase.from("email_campaigns")
+        .select("name, status, total_recipients, sent_count, opened_count, clicked_count")
+        .eq("organization_id", orgId).order("created_at", { ascending: false }).limit(lim);
+      out.email = data || [];
+    }
+    if (channel === "whatsapp" || channel === "all") {
+      const { data } = await supabase.from("whatsapp_campaigns")
+        .select("name, template_name, status, total_recipients, sent_count, delivered_count, read_count")
+        .eq("organization_id", orgId).order("created_at", { ascending: false }).limit(lim);
+      out.whatsapp = data || [];
+    }
+    return { result: out };
+  }
+
+  if (name === "crm_overview") {
+    const monthStart = (() => { const d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString(); })();
+    const nowIso = new Date().toISOString();
+    const today = nowIso.slice(0, 10);
+    const head = (tbl: string) => supabase.from(tbl).select("id", { count: "exact", head: true }).eq("organization_id", orgId);
+    const { data: wonStages } = await supabase.from("pipeline_stages").select("id").eq("organization_id", orgId).or("name.ilike.%gan%,name.ilike.%won%");
+    const wonIds = (wonStages || []).map((s: any) => s.id);
+    const wonOr = ["lead_status.eq.won"]; if (wonIds.length) wonOr.push(`stage_id.in.(${wonIds.join(",")})`);
+    const [totalLeads, newLeads, upMeetings, pendTasks, wonRows] = await Promise.all([
+      head("contacts"),
+      head("contacts").gte("created_at", monthStart),
+      head("meetings").gte("start_at", nowIso),
+      head("tasks").neq("status", "completed"),
+      supabase.from("contacts").select("budget").eq("organization_id", orgId).or(wonOr.join(",")).gte("created_at", monthStart).limit(10000),
+    ]);
+    const wonThisMonth = (wonRows.data || []).length;
+    const revenueThisMonth = (wonRows.data || []).reduce((a: number, r: any) => a + Number(r.budget || 0), 0);
+    return { result: {
+      total_leads: totalLeads.count ?? 0,
+      new_leads_this_month: newLeads.count ?? 0,
+      won_this_month: wonThisMonth,
+      revenue_this_month: revenueThisMonth,
+      upcoming_meetings: upMeetings.count ?? 0,
+      pending_tasks: pendTasks.count ?? 0,
+    } };
+  }
+
+  if (name === "create_lead") {
+    const { data: created, error } = await supabase.from("contacts").insert({
+      organization_id: orgId,
+      full_name: args.full_name,
+      primary_phone: args.phone || null,
+      primary_email: args.email || null,
+      source: args.source || "manual",
+      owner_id: userId,
+      lead_status: "new",
+    }).select("id, full_name").single();
+    if (error) return { result: { error: error.message } };
+    return {
+      result: { created: true, id: created.id, name: created.full_name },
+      action: { type: "open_contact", matches: [{ id: created.id, name: created.full_name }] },
+    };
+  }
+
+  if (name === "move_lead") {
+    const { data: cs } = await supabase.from("contacts").select("id, full_name")
+      .eq("organization_id", orgId)
+      .or(`full_name.ilike.%${args.contact_query}%,primary_email.ilike.%${args.contact_query}%,primary_phone.ilike.%${args.contact_query}%`)
+      .limit(1);
+    const contact = (cs || [])[0];
+    if (!contact) return { result: { error: `No encontré un lead que coincida con "${args.contact_query}".` } };
+    const { data: st } = await supabase.from("pipeline_stages").select("id, name, pipeline_id")
+      .eq("organization_id", orgId).ilike("name", `%${args.stage_name}%`).limit(1);
+    const stage = (st || [])[0];
+    if (!stage) return { result: { error: `No encontré una etapa que coincida con "${args.stage_name}".` } };
+    const lname = stage.name.toLowerCase();
+    const upd: any = { stage_id: stage.id, pipeline_id: stage.pipeline_id };
+    if (lname.includes("gan") || lname.includes("won")) upd.lead_status = "won";
+    else if (lname.includes("perd") || lname.includes("lost")) upd.lead_status = "lost";
+    const { error } = await supabase.from("contacts").update(upd).eq("id", contact.id);
+    if (error) return { result: { error: error.message } };
+    return {
+      result: { moved: true, contact: contact.full_name, stage: stage.name },
+      action: { type: "open_contact", matches: [{ id: contact.id, name: contact.full_name }] },
+    };
+  }
+
+  if (name === "create_task") {
+    let contactId: string | null = null;
+    if (args.contact_query) {
+      const { data: cs } = await supabase.from("contacts").select("id")
+        .eq("organization_id", orgId)
+        .or(`full_name.ilike.%${args.contact_query}%,primary_email.ilike.%${args.contact_query}%,primary_phone.ilike.%${args.contact_query}%`)
+        .limit(1);
+      contactId = (cs || [])[0]?.id ?? null;
+    }
+    const due = args.due_in_days != null
+      ? new Date(Date.now() + args.due_in_days * 86400000).toISOString().slice(0, 10) : null;
+    const { data: created, error } = await supabase.from("tasks").insert({
+      organization_id: orgId,
+      title: args.title,
+      priority: args.priority || "medium",
+      status: "pending",
+      due_date: due,
+      contact_id: contactId,
+      owner_id: userId,
+      task_type: "follow_up",
+      source: "ai_assistant",
+    }).select("id, title").single();
+    if (error) return { result: { error: error.message } };
+    return { result: { created: true, id: created.id, title: created.title, due_date: due } };
+  }
+
   return { result: { error: "unknown tool" } };
 }
 
