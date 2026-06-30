@@ -1,9 +1,9 @@
 -- AI Assistant: per-plan monthly limits + purchasable credit packs
 -- ---------------------------------------------------------------------------
--- 1. New monthly limits: Starter 30, Pro 100, Business 300 (Agency unchanged).
+-- 1. New monthly limits: Starter 30, Pro 50, Business 100 (Agency unchanged).
 UPDATE public.plans SET monthly_ai_assistant = 30  WHERE id = 'starter';
-UPDATE public.plans SET monthly_ai_assistant = 100 WHERE id = 'pro';
-UPDATE public.plans SET monthly_ai_assistant = 300 WHERE id = 'business';
+UPDATE public.plans SET monthly_ai_assistant = 50  WHERE id = 'pro';
+UPDATE public.plans SET monthly_ai_assistant = 100 WHERE id = 'business';
 
 -- 2. Purchasable extra-assistance credits (mirrors ia_agent_credits).
 CREATE TABLE IF NOT EXISTS public.ai_assistant_credits (
