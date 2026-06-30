@@ -23,6 +23,7 @@ Deno.serve(async (req) => {
   const mode = key.startsWith("sk_live") ? "LIVE" : "TEST";
 
   const defs = [
+    { id: "starter",  name: "Klosify Starter",  monthly: 29,  annual: 290 },
     { id: "pro",      name: "Klosify Pro",      monthly: 59,  annual: 590 },
     { id: "business", name: "Klosify Business", monthly: 99,  annual: 990 },
     { id: "agency",   name: "Klosify Agencia",  monthly: 249, annual: 2490 },
@@ -35,6 +36,12 @@ Deno.serve(async (req) => {
     const pa = await stripe.prices.create({ product: product.id, unit_amount: d.annual * 100, currency: "usd", recurring: { interval: "year" }, metadata: { plan_id: d.id, period: "annual" } });
     created[d.id] = { product: product.id, monthly: pm.id, annual: pa.id };
   }
+
+  // Update Starter Stripe IDs (price unchanged: $29 / $290).
+  await supabase.from("plans").update({
+    monthly_price_usd: 29, annual_price_usd: 290,
+    stripe_price_id_monthly: created.starter.monthly, stripe_price_id_annual: created.starter.annual,
+  }).eq("id", "starter");
 
   // Update Pro + Business prices and Stripe IDs.
   await supabase.from("plans").update({

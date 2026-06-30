@@ -18,7 +18,7 @@ export const IA_BOOST_PACKS = [
     description: "1,000 análisis adicionales de contactos con IA",
     credits: 1000,
     priceUsd: 19,
-    price_id: "price_1TbswhRvVDvs7cXCvm8l27mT",
+    price_id: "price_1To6ULCFCI8hiTfkX7ePhZm9",
   },
   {
     key: "ia_boost_5000",
@@ -26,7 +26,7 @@ export const IA_BOOST_PACKS = [
     description: "5,000 análisis adicionales de contactos con IA",
     credits: 5000,
     priceUsd: 49,
-    price_id: "price_1TbswhRvVDvs7cXC1wTja50X",
+    price_id: "price_1To6ULCFCI8hiTfkcn9CjL8M",
   },
 ] as const;
 
@@ -44,7 +44,7 @@ export const IA_LANDINGS_PACKS = [
     description: "500 créditos para generar y refinar landing pages con IA",
     credits: 500000,
     priceUsd: 12,
-    price_id: "price_1TefHVRvVDvs7cXC5FUxHrpq",
+    price_id: "price_1To6UMCFCI8hiTfkPBZLgcGo",
   },
   {
     key: "ia_landings_1m",
@@ -52,7 +52,7 @@ export const IA_LANDINGS_PACKS = [
     description: "1.000 créditos para generar y refinar landing pages con IA",
     credits: 1000000,
     priceUsd: 22,
-    price_id: "price_1TefHWRvVDvs7cXCIaXOreuq",
+    price_id: "price_1To6UMCFCI8hiTfkSyJZHZIt",
   },
   {
     key: "ia_landings_3m",
@@ -60,7 +60,7 @@ export const IA_LANDINGS_PACKS = [
     description: "3.000 créditos para generar y refinar landing pages con IA",
     credits: 3000000,
     priceUsd: 52,
-    price_id: "price_1TefHWRvVDvs7cXCAHdDIdV4",
+    price_id: "price_1To6UMCFCI8hiTfkaqWJ4Jfg",
   },
 ] as const;
 
@@ -79,7 +79,7 @@ export const IA_AGENT_PACKS = [
     description: "1.000 créditos adicionales (≈1.000.000 tokens) para el Agente de Chat",
     credits: 1000,
     priceUsd: 9,
-    price_id: "price_1TbswiRvVDvs7cXCBLbnX48I",
+    price_id: "price_1To6UNCFCI8hiTfkqKzBZBon",
   },
   {
     key: "ia_agent_1000",
@@ -87,7 +87,7 @@ export const IA_AGENT_PACKS = [
     description: "4.000 créditos adicionales (≈4.000.000 tokens) para el Agente de Chat",
     credits: 4000,
     priceUsd: 29,
-    price_id: "price_1TbswiRvVDvs7cXCkfJQ35XY",
+    price_id: "price_1To6UNCFCI8hiTfkk3cdp3rd",
   },
 ] as const;
 
