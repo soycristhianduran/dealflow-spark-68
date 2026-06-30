@@ -26,7 +26,7 @@ import { CreditCard, Sparkles, ExternalLink, CheckCircle2, Loader2, Bot, Zap, Tr
 import { supabase } from "@/integrations/supabase/client";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { IA_BOOST_PACKS, IA_LANDINGS_PACKS, IA_AGENT_PACKS } from "@/lib/stripe-products";
+import { IA_BOOST_PACKS, IA_LANDINGS_PACKS, IA_AGENT_PACKS, IA_ASSISTANT_PACKS } from "@/lib/stripe-products";
 
 interface UsageRow {
   ai_analyses_used: number;
@@ -47,6 +47,7 @@ export default function BillingPage() {
   const [boostCredits, setBoostCredits] = useState<number>(0);
   const [landingCredits, setLandingCredits] = useState<number>(0);
   const [agentCredits, setAgentCredits] = useState<number>(0);
+  const [assistantCredits, setAssistantCredits] = useState<number>(0);
   const [openingPortal, setOpeningPortal] = useState(false);
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
   const [addonCatalog, setAddonCatalog] = useState<Array<{
@@ -86,7 +87,7 @@ export default function BillingPage() {
       // Use UTC month start so it matches what the DB stores via date_trunc('month', NOW())
       const now = new Date();
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
-      const [usageRes, { data: boosts }, { data: landings }, { data: agents }] = await Promise.all([
+      const [usageRes, { data: boosts }, { data: landings }, { data: agents }, { data: assistants }] = await Promise.all([
         supabase
           .from("usage_counters")
           .select("ai_analyses_used, automated_messages_used, email_sends_used, ai_agent_conversations_used, ai_agent_credits_used, ai_assistant_used")
@@ -103,6 +104,10 @@ export default function BillingPage() {
           .eq("organization_id", organizationId),
         supabase
           .from("ia_agent_credits")
+          .select("credits_remaining")
+          .eq("organization_id", organizationId),
+        supabase
+          .from("ai_assistant_credits")
           .select("credits_remaining")
           .eq("organization_id", organizationId),
       ]);
@@ -122,6 +127,7 @@ export default function BillingPage() {
       setBoostCredits((boosts ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
       setLandingCredits((landings ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
       setAgentCredits((agents ?? []).reduce((a: number, r) => a + (r.credits_remaining ?? 0), 0));
+      setAssistantCredits((assistants ?? []).reduce((a: number, r: any) => a + (r.credits_remaining ?? 0), 0));
 
       // Capacity add-ons: catalog (sellable) + current purchased extras for this org.
       supabase
@@ -454,6 +460,17 @@ export default function BillingPage() {
                 onBuy={buyBoost}
               />
             )}
+
+            {/* Asistente IA — extra assistances */}
+            <PackCard
+              icon={<Sparkles className="h-4 w-4 text-orange-500" />}
+              title="Asistente IA — Asistencias extra"
+              creditsLabel={assistantCredits > 0 ? `${assistantCredits.toLocaleString()} asistencias disponibles` : null}
+              emptyText="Se consumen al agotar el cupo mensual del plan (1 asistencia por consulta)."
+              packs={IA_ASSISTANT_PACKS}
+              purchasingBoost={purchasingBoost}
+              onBuy={buyBoost}
+            />
 
           </div>
         </section>

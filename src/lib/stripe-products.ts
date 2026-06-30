@@ -92,3 +92,18 @@ export const IA_AGENT_PACKS = [
 ] as const;
 
 export type IaAgentPackKey = typeof IA_AGENT_PACKS[number]["key"];
+
+// ── Asistente IA (one-time, adds CRM-assistant uses after the monthly quota) ──
+
+export const IA_ASSISTANT_PACKS = [
+  {
+    key: "ai_assistant_100",
+    label: "Asistente IA +100 asistencias",
+    description: "100 asistencias adicionales del asistente del CRM",
+    credits: 100,
+    priceUsd: 10,
+    price_id: "price_1To6tOCFCI8hiTfkyMfWSKWf",
+  },
+] as const;
+
+export type IaAssistantPackKey = typeof IA_ASSISTANT_PACKS[number]["key"];

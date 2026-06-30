@@ -17,6 +17,7 @@ const PACKS = [
   { key: "ia_landings_3m",   name: "IA Landings +3.000 créditos", kind: "ia_landings", credits: 3000000, usd: 52, lookup: "pack_ia_landings_3m" },
   { key: "ia_agent_200",     name: "Agente IA +1.000 créditos",   kind: "ia_agent",    credits: 1000,    usd: 9,  lookup: "pack_ia_agent_1000" },
   { key: "ia_agent_1000",    name: "Agente IA +4.000 créditos",   kind: "ia_agent",    credits: 4000,    usd: 29, lookup: "pack_ia_agent_4000" },
+  { key: "ai_assistant_100", name: "Asistente IA +100 asistencias", kind: "ai_assistant", credits: 100,  usd: 10, lookup: "pack_ai_assistant_100" },
 ];
 
 Deno.serve(async (req) => {

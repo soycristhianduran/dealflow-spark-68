@@ -379,6 +379,30 @@ async function recordIaAgentPurchase(
   console.log(`Recorded IA Agent: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
 }
 
+async function recordAiAssistantPurchase(
+  supabase: any,
+  orgId: string,
+  credits: number,
+  paymentIntentId: string,
+): Promise<void> {
+  const { data: existing } = await supabase
+    .from("ai_assistant_credits")
+    .select("id")
+    .eq("stripe_payment_intent_id", paymentIntentId)
+    .maybeSingle();
+  if (existing) {
+    console.log(`AI Assistant payment ${paymentIntentId} already recorded, skipping`);
+    return;
+  }
+  await supabase.from("ai_assistant_credits").insert({
+    organization_id: orgId,
+    credits_remaining: credits,
+    credits_initial: credits,
+    stripe_payment_intent_id: paymentIntentId,
+  });
+  console.log(`Recorded AI Assistant: org=${orgId}, credits=${credits}, pi=${paymentIntentId}`);
+}
+
 // Resolve credits and kind from a checkout session's line items (uses Stripe
 // price metadata set by stripe-setup-products: { credits, kind }).
 async function resolveCreditsFromSession(
@@ -486,6 +510,8 @@ Deno.serve(async (req) => {
             await recordIaLandingsPurchase(supabase, orgId, resolved.credits, paymentIntentId);
           } else if (resolved.kind === "ia_agent") {
             await recordIaAgentPurchase(supabase, orgId, resolved.credits, paymentIntentId);
+          } else if (resolved.kind === "ai_assistant") {
+            await recordAiAssistantPurchase(supabase, orgId, resolved.credits, paymentIntentId);
           } else {
             console.warn(`Unknown credit kind="${resolved.kind}" for session ${session.id}`);
           }
