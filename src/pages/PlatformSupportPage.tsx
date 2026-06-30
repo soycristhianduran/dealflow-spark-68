@@ -90,6 +90,7 @@ export default function PlatformSupportPage() {
   const setStatus = async (status: string) => {
     if (!active) return;
     await supabase.from("support_tickets").update({ status }).eq("id", active.id);
+    supabase.functions.invoke("support-notify", { body: { ticket_id: active.id, event: "status" } }).catch(() => {});
     setActive({ ...active, status });
     load();
   };

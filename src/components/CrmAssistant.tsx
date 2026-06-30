@@ -12,19 +12,39 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: any }
 
+// Short notification beep via the Web Audio API (no asset needed).
+function beep() {
+  try {
+    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = "sine"; o.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    o.start(); o.stop(ctx.currentTime + 0.36);
+  } catch { /* ignore */ }
+}
+
 export function CrmAssistant() {
   const { organizationId } = useOrganizationContext();
+  const { user } = useAuth();
   const { path } = useWorkspace();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [supportUnread, setSupportUnread] = useState(0);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -33,6 +53,26 @@ export function CrmAssistant() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight }); }, [messages, loading]);
+
+  // In-app support alerts: when support replies to one of this org's tickets,
+  // beep + badge + toast (RLS only delivers this org's ticket messages).
+  useEffect(() => {
+    if (!organizationId || !user) return;
+    const ch = supabase.channel("support-alerts")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages" }, (payload: any) => {
+        const m = payload.new;
+        if (m?.is_staff && m?.author_id !== user.id) {
+          beep();
+          setSupportUnread((n) => n + 1);
+          toast("Soporte respondió tu ticket", {
+            description: "Toca la mascota → Soporte para ver la respuesta.",
+            action: { label: "Ver", onClick: () => { setSupportUnread(0); navigate(path("/support")); } },
+          });
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [organizationId, user, navigate, path]);
 
   const openContact = (id: string) => { navigate(path(`/contacts/${id}`)); setOpen(false); };
   const openAutomation = (id: string) => { navigate(`${path("/automations")}?open=${id}`); setOpen(false); };
@@ -93,14 +133,15 @@ export function CrmAssistant() {
             </button>
             <div className="h-px bg-border" />
             <button
-              onClick={() => { setMenuOpen(false); navigate(path("/support")); }}
+              onClick={() => { setMenuOpen(false); setSupportUnread(0); navigate(path("/support")); }}
               className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
                 <LifeBuoy className="h-5 w-5 text-primary" />
+                {supportUnread > 0 && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-card" />}
               </div>
               <div>
-                <p className="text-sm font-semibold leading-tight">Soporte</p>
+                <p className="text-sm font-semibold leading-tight">Soporte {supportUnread > 0 && <span className="text-red-500">({supportUnread})</span>}</p>
                 <p className="text-[11px] text-muted-foreground">Habla con nuestro equipo</p>
               </div>
             </button>
@@ -115,7 +156,11 @@ export function CrmAssistant() {
         >
           <span className="absolute inset-0 -z-10 rounded-full bg-primary/40 blur-md animate-pulse" />
           <img src="/mascot-head.png" alt="Klofy" className="h-12 w-12 object-contain drop-shadow transition-transform duration-300 group-hover:scale-110" />
-          <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
+          {supportUnread > 0 ? (
+            <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-500 px-1 text-[11px] font-bold text-white ring-2 ring-card">{supportUnread}</span>
+          ) : (
+            <span className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-card" />
+          )}
         </button>
       </div>
     );

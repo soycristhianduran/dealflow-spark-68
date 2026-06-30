@@ -29,64 +29,66 @@ function wrap(title: string, lines: string[], cta: { url: string; label: string 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   try {
-    const { ticket_id } = await req.json().catch(() => ({}));
+    const { ticket_id, event = "message" } = await req.json().catch(() => ({}));
     if (!ticket_id) return new Response(JSON.stringify({ error: "ticket_id requerido" }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
 
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const appUrl = Deno.env.get("APP_URL") || "https://app.klosify.com";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 
     const { data: ticket } = await supabase.from("support_tickets")
-      .select("id, subject, organization_id, created_by, last_notified_support_at, last_notified_client_at, organizations(name, slug)")
+      .select("id, subject, status, organization_id, created_by, organizations(name, slug)")
       .eq("id", ticket_id).maybeSingle();
     if (!ticket) return new Response(JSON.stringify({ ok: false }), { headers: { ...cors, "Content-Type": "application/json" } });
 
+    const orgName = (ticket as any).organizations?.name || "una organización";
+    const orgSlug = (ticket as any).organizations?.slug || "";
+    const send = async (to: string, subject: string, html: string) => {
+      if (RESEND_API_KEY && to) {
+        await fetch(RESEND_API, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: FROM, to: [to], subject, html }),
+        });
+      }
+      return to;
+    };
+    const clientEmail = async () => {
+      const { data: u } = await supabase.auth.admin.getUserById(ticket.created_by);
+      return u?.user?.email ?? "";
+    };
+
+    // ── Status change → notify the client ───────────────────────────────────
+    if (event === "status") {
+      const LBL: Record<string, string> = { open: "Abierto", in_progress: "En proceso", resolved: "Resuelto", closed: "Cerrado" };
+      const to = await clientEmail();
+      const status = LBL[ticket.status] ?? ticket.status;
+      await send(to, `Tu ticket "${ticket.subject}" ahora está: ${status}`,
+        wrap(`Tu ticket cambió de estado → ${status} 🔔`,
+          [`El estado de tu ticket <b>"${ticket.subject}"</b> es ahora <b>${status}</b>.`],
+          { url: `${appUrl}/w/${orgSlug}/support`, label: "Ver el ticket" }));
+      return new Response(JSON.stringify({ ok: true, to, kind: "status" }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
+
+    // ── New message ─────────────────────────────────────────────────────────
+    // Email ONLY for the FIRST message of a ticket (new ticket → support inbox).
+    // Staff replies and follow-up client replies are surfaced in-app (Klofy
+    // bubble + realtime panels), not by email.
     const { data: lastMsg } = await supabase.from("support_messages")
       .select("body, is_staff").eq("ticket_id", ticket_id)
       .order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!lastMsg) return new Response(JSON.stringify({ ok: false }), { headers: { ...cors, "Content-Type": "application/json" } });
+    if (!lastMsg || lastMsg.is_staff) return new Response(JSON.stringify({ ok: true, skipped: "in_app" }), { headers: { ...cors, "Content-Type": "application/json" } });
 
-    const orgName = (ticket as any).organizations?.name || "una organización";
-    const orgSlug = (ticket as any).organizations?.slug || "";
+    const { count } = await supabase.from("support_messages")
+      .select("id", { count: "exact", head: true }).eq("ticket_id", ticket_id);
+    if ((count ?? 0) > 1) return new Response(JSON.stringify({ ok: true, skipped: "not_first" }), { headers: { ...cors, "Content-Type": "application/json" } });
+
     const excerpt = (lastMsg.body || "").slice(0, 280);
-
-    // Debounce: at most one email per direction per ticket every 5 minutes, so a
-    // rapid back-and-forth doesn't flood the inbox (the panel is already realtime).
-    const DEBOUNCE_MS = 5 * 60 * 1000;
-    const dirCol = lastMsg.is_staff ? "last_notified_client_at" : "last_notified_support_at";
-    const lastAt = (ticket as any)[dirCol] ? new Date((ticket as any)[dirCol]).getTime() : 0;
-    if (Date.now() - lastAt < DEBOUNCE_MS) {
-      return new Response(JSON.stringify({ ok: true, skipped: "debounced" }), { headers: { ...cors, "Content-Type": "application/json" } });
-    }
-
-    let to: string, html: string, subject: string;
-    if (lastMsg.is_staff) {
-      // Notify the client that support replied.
-      const { data: u } = await supabase.auth.admin.getUserById(ticket.created_by);
-      to = u?.user?.email ?? "";
-      if (!to) return new Response(JSON.stringify({ ok: false }), { headers: { ...cors, "Content-Type": "application/json" } });
-      subject = `Respuesta a tu ticket: ${ticket.subject}`;
-      html = wrap("Soporte te respondió 💬",
-        [`Tu ticket <b>"${ticket.subject}"</b> tiene una nueva respuesta:`, `<i>"${excerpt}"</i>`],
-        { url: `${appUrl}/w/${orgSlug}/support`, label: "Ver la respuesta" });
-    } else {
-      // Notify the support inbox of a new client message.
-      to = SUPPORT_INBOX;
-      subject = `[Soporte] ${orgName}: ${ticket.subject}`;
-      html = wrap("Nuevo mensaje de soporte 🎫",
-        [`<b>${orgName}</b> escribió en el ticket <b>"${ticket.subject}"</b>:`, `<i>"${excerpt}"</i>`],
-        { url: `${appUrl}/admin/soporte`, label: "Abrir bandeja de soporte" });
-    }
-
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
-    if (RESEND_API_KEY && to) {
-      await fetch(RESEND_API, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ from: FROM, to: [to], subject, html }),
-      });
-      await supabase.from("support_tickets").update({ [dirCol]: new Date().toISOString() }).eq("id", ticket_id);
-    }
-    return new Response(JSON.stringify({ ok: true, to }), { headers: { ...cors, "Content-Type": "application/json" } });
+    const to = await send(SUPPORT_INBOX, `[Soporte] ${orgName}: ${ticket.subject}`,
+      wrap("Nuevo ticket de soporte 🎫",
+        [`<b>${orgName}</b> abrió el ticket <b>"${ticket.subject}"</b>:`, `<i>"${excerpt}"</i>`],
+        { url: `${appUrl}/admin/soporte`, label: "Abrir bandeja de soporte" }));
+    return new Response(JSON.stringify({ ok: true, to, kind: "new_ticket" }), { headers: { ...cors, "Content-Type": "application/json" } });
   } catch (e) {
     return new Response(JSON.stringify({ error: String(e) }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   }
