@@ -164,3 +164,16 @@ BEGIN
 END;$$;
 REVOKE ALL ON FUNCTION public.assign_gestor_by_email(TEXT, UUID) FROM PUBLIC, authenticated;
 GRANT EXECUTE ON FUNCTION public.assign_gestor_by_email(TEXT, UUID) TO service_role;
+
+-- 8. Let gestores see all conversations of the orgs they manage (full access).
+--    Security is unchanged: still requires a real membership row in that org.
+CREATE OR REPLACE FUNCTION public.org_conv_see_all(p_org uuid)
+ RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO 'public'
+AS $function$
+  select exists (
+    select 1 from public.organization_members
+     where organization_id = p_org and user_id = auth.uid()
+       and role in ('owner','admin','readonly','gestor')
+  );
+$function$;
