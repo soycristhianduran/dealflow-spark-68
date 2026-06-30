@@ -4,11 +4,13 @@
 //  support, and grants the non-billable "gestor" role by email.
 // ══════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { Shield, Building2, LogIn, Search, Loader2 } from "lucide-react";
+import { Shield, Building2, LogIn, Search, Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+
+interface AuditFinding { table_name: string; issue: string; }
 
 interface PlatformOrg {
   organization_id: string;
@@ -26,6 +28,16 @@ export default function PlatformOrgsPage() {
   const [denied, setDenied] = useState(false);
   const [q, setQ] = useState("");
   const [entering, setEntering] = useState<string | null>(null);
+  const [auditing, setAuditing] = useState(false);
+  const [audit, setAudit] = useState<{ findings: AuditFinding[] } | null>(null);
+
+  const runAudit = async () => {
+    setAuditing(true);
+    const { data, error } = await supabase.rpc("audit_rls_isolation");
+    setAuditing(false);
+    if (error) { toast({ title: "No se pudo auditar", description: error.message, variant: "destructive" }); return; }
+    setAudit({ findings: (data ?? []) as AuditFinding[] });
+  };
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.rpc("platform_list_organizations");
@@ -73,14 +85,39 @@ export default function PlatformOrgsPage() {
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
             <Shield className="h-5 w-5 text-amber-600" />
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="text-xl font-semibold text-slate-900">Panel de plataforma</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{orgs.length} organizaciones · entra a cualquiera</p>
           </div>
+          <Button variant="outline" size="sm" onClick={runAudit} disabled={auditing}>
+            {auditing ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Shield className="h-4 w-4 mr-1.5" /> Auditar seguridad</>}
+          </Button>
         </div>
       </div>
 
       <div className="p-6 max-w-4xl mx-auto">
+        {audit && (
+          <div className={`mb-4 rounded-lg border p-4 ${audit.findings.length === 0 ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}>
+            {audit.findings.length === 0 ? (
+              <div className="flex items-center gap-2 text-emerald-700">
+                <ShieldCheck className="h-5 w-5 shrink-0" />
+                <span className="text-sm font-medium">Aislamiento de datos correcto: ninguna tabla queda sin protección entre organizaciones.</span>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-red-700">
+                  <ShieldAlert className="h-5 w-5 shrink-0" />
+                  <span className="text-sm font-semibold">{audit.findings.length} riesgo(s) de aislamiento detectado(s):</span>
+                </div>
+                <ul className="list-disc pl-8 text-sm text-red-700 space-y-0.5">
+                  {audit.findings.map((f, i) => (
+                    <li key={i}><code className="font-mono">{f.table_name}</code> — {f.issue}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
         <div className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar organización…" className="pl-9" />
