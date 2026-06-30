@@ -145,3 +145,22 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.platform_assign_gestor(uuid, uuid) TO authenticated;
+
+-- 7. Grant gestor directly to an already-registered user by email (skips the
+--    signup/invite dead-end). Service-role only — the org-invitations edge
+--    function gates the caller as a platform admin before invoking this.
+CREATE OR REPLACE FUNCTION public.assign_gestor_by_email(p_email TEXT, p_org_id UUID)
+RETURNS BOOLEAN
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth
+AS $$
+DECLARE uid UUID;
+BEGIN
+  SELECT id INTO uid FROM auth.users WHERE lower(email) = lower(p_email) LIMIT 1;
+  IF uid IS NULL THEN RETURN false; END IF;
+  INSERT INTO public.organization_members (user_id, organization_id, role)
+  VALUES (uid, p_org_id, 'gestor')
+  ON CONFLICT (organization_id, user_id) DO UPDATE SET role = 'gestor';
+  RETURN true;
+END;$$;
+REVOKE ALL ON FUNCTION public.assign_gestor_by_email(TEXT, UUID) FROM PUBLIC, authenticated;
+GRANT EXECUTE ON FUNCTION public.assign_gestor_by_email(TEXT, UUID) TO service_role;

@@ -151,6 +151,13 @@ Deno.serve(async (req) => {
     if (!orgRow) return new Response(JSON.stringify({ error: "Organización no encontrada" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     const orgName = orgRow.name || "tu equipo";
 
+    // If the person ALREADY has an account, add them as gestor directly — no
+    // signup/invite email (that would dead-end on "User already registered").
+    const { data: addedNow } = await supabase.rpc("assign_gestor_by_email", { p_email: email, p_org_id: orgId });
+    if (addedNow === true) {
+      return new Response(JSON.stringify({ success: true, added_directly: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     const { data: invitation, error: invErr } = await supabase
       .from("organization_invitations")
       .upsert({ organization_id: orgId, email, role: "gestor", invited_by: user.id }, { onConflict: "organization_id,email" })

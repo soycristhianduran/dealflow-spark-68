@@ -64,7 +64,12 @@ export default function PlatformOrgsPage() {
       toast({ title: "Error", description: (data as any)?.error || error?.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Gestor asignado", description: `Se envió la invitación de gestor a ${assignEmail.trim()}.` });
+    toast({
+      title: "Gestor asignado",
+      description: (data as any)?.added_directly
+        ? `${assignEmail.trim()} ya tenía cuenta y fue agregado como gestor de inmediato.`
+        : `Se envió la invitación de gestor a ${assignEmail.trim()}.`,
+    });
     setAssignFor(null);
     setAssignEmail("");
   };
