@@ -109,6 +109,22 @@ Para etiquetas usa las del catálogo cuando aplique. Si falta un dato (plantilla
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "top_ads",
+      description: "Anuncios, campañas o canales que más VENTAS GANADAS e INGRESOS han generado, usando la atribución UTM de los leads (requiere que la cuenta publicitaria esté conectada y que los leads lleguen con UTM). Úsalo para preguntas como '¿qué anuncio ha generado más ventas/ingresos?' o '¿cuál es la mejor campaña?'.",
+      parameters: {
+        type: "object",
+        properties: {
+          dimension: { type: "string", enum: ["ad", "campaign", "source"], description: "Agrupar por anuncio (utm_content), campaña (utm_campaign) o canal (utm_source). Default: ad." },
+          since_days: { type: "number", description: "Solo ventas ganadas de los últimos N días" },
+          limit: { type: "number", description: "Cuántos resultados top devolver (default 5)" },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 function tempRange(t?: string): { gte?: number; lte?: number } {
@@ -228,6 +244,47 @@ async function runTool(name: string, args: any, supabase: any, orgId: string, us
     return {
       result: { matches },
       action: matches.length ? { type: "open_contact", matches: matches.map((m: any) => ({ id: m.id, name: m.name })) } : undefined,
+    };
+  }
+  if (name === "top_ads") {
+    const dim = args.dimension === "campaign" ? "utm_campaign"
+      : args.dimension === "source" ? "utm_source" : "utm_content";
+    // "Ganado" = lead_status 'won' OR the contact sits in a won-type pipeline
+    // stage (name contains "gan"/"won", e.g. "Ganado", "Cerrado ganado").
+    // Revenue is the contact's budget; UTM attribution comes from the ad account.
+    const { data: wonStages } = await supabase.from("pipeline_stages")
+      .select("id, name").eq("organization_id", orgId)
+      .or("name.ilike.%gan%,name.ilike.%won%");
+    const wonStageIds = (wonStages || []).map((s: any) => s.id);
+    const orParts = ["lead_status.eq.won"];
+    if (wonStageIds.length) orParts.push(`stage_id.in.(${wonStageIds.join(",")})`);
+    let q = supabase.from("contacts")
+      .select("budget, utm_content, utm_campaign, utm_source, created_at")
+      .eq("organization_id", orgId)
+      .or(orParts.join(","));
+    if (args.since_days) {
+      const since = new Date(Date.now() - args.since_days * 86400000).toISOString();
+      q = q.gte("created_at", since);
+    }
+    const { data } = await q.limit(10000);
+    const agg: Record<string, { won: number; revenue: number }> = {};
+    for (const c of (data || [])) {
+      const k = (c as any)[dim];
+      if (!k) continue;
+      if (!agg[k]) agg[k] = { won: 0, revenue: 0 };
+      agg[k].won += 1;
+      agg[k].revenue += Number((c as any).budget || 0);
+    }
+    const top = Object.entries(agg)
+      .map(([k, v]) => ({ name: k, won: v.won, revenue: v.revenue }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, Math.max(1, Math.min(20, args.limit || 5)));
+    return {
+      result: {
+        dimension: dim,
+        top,
+        note: top.length ? null : "No hay ventas ganadas con atribución UTM. Verifica que la cuenta publicitaria esté conectada y que los leads lleguen con UTM (utm_campaign / utm_content).",
+      },
     };
   }
   return { result: { error: "unknown tool" } };
