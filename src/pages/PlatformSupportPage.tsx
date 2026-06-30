@@ -51,6 +51,21 @@ export default function PlatformSupportPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Realtime: new tickets/messages appear without reloading.
+  useEffect(() => {
+    const ch = supabase.channel("support-admin-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "support_tickets" }, () => load())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "support_messages" }, (payload: any) => {
+        load();
+        if (active && payload.new?.ticket_id === active.id) {
+          supabase.from("support_messages").select("*").eq("ticket_id", active.id)
+            .order("created_at", { ascending: true }).then(({ data }) => setMsgs((data ?? []) as Msg[]));
+        }
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [active, load]);
+
   const openThread = async (t: Ticket) => {
     setActive(t); setMsgs([]);
     const { data } = await supabase.from("support_messages").select("*")
