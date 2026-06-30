@@ -4,7 +4,7 @@
 //  support, and grants the non-billable "gestor" role by email.
 // ══════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { Shield, Building2, LogIn, UserPlus, Search, Loader2 } from "lucide-react";
+import { Shield, Building2, LogIn, Search, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,10 +26,6 @@ export default function PlatformOrgsPage() {
   const [denied, setDenied] = useState(false);
   const [q, setQ] = useState("");
   const [entering, setEntering] = useState<string | null>(null);
-  const [assignFor, setAssignFor] = useState<string | null>(null);
-  const [assignEmail, setAssignEmail] = useState("");
-  const [assigning, setAssigning] = useState(false);
-
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase.rpc("platform_list_organizations");
@@ -51,27 +47,6 @@ export default function PlatformOrgsPage() {
     if (error) { toast({ title: "No se pudo entrar", description: error.message, variant: "destructive" }); return; }
     const slug = Array.isArray(data) ? data[0]?.org_slug : (data as any)?.org_slug;
     window.location.href = `/w/${slug || org.org_slug}`;
-  };
-
-  const assignGestor = async (org: PlatformOrg) => {
-    if (!assignEmail.trim()) return;
-    setAssigning(true);
-    const { data, error } = await supabase.functions.invoke("org-invitations", {
-      body: { action: "assign_gestor", organization_id: org.organization_id, email: assignEmail.trim() },
-    });
-    setAssigning(false);
-    if (error || (data as any)?.error) {
-      toast({ title: "Error", description: (data as any)?.error || error?.message, variant: "destructive" });
-      return;
-    }
-    toast({
-      title: "Gestor asignado",
-      description: (data as any)?.added_directly
-        ? `${assignEmail.trim()} ya tenía cuenta y fue agregado como gestor de inmediato.`
-        : `Se envió la invitación de gestor a ${assignEmail.trim()}.`,
-    });
-    setAssignFor(null);
-    setAssignEmail("");
   };
 
   if (loading) {
@@ -100,7 +75,7 @@ export default function PlatformOrgsPage() {
           </div>
           <div>
             <h1 className="text-xl font-semibold text-slate-900">Panel de plataforma</h1>
-            <p className="text-sm text-muted-foreground mt-0.5">{orgs.length} organizaciones · entra a cualquiera o asigna gestores</p>
+            <p className="text-sm text-muted-foreground mt-0.5">{orgs.length} organizaciones · entra a cualquiera</p>
           </div>
         </div>
       </div>
@@ -120,27 +95,10 @@ export default function PlatformOrgsPage() {
                   <div className="font-medium text-slate-900 truncate">{o.org_name}</div>
                   <div className="text-xs text-muted-foreground">/{o.org_slug} · {o.member_count} usuario{o.member_count === 1 ? "" : "s"}</div>
                 </div>
-                <Button variant="outline" size="sm" onClick={() => setAssignFor(assignFor === o.organization_id ? null : o.organization_id)}>
-                  <UserPlus className="h-4 w-4 mr-1.5" /> Gestor
-                </Button>
                 <Button size="sm" onClick={() => enterOrg(o)} disabled={entering === o.organization_id}>
                   {entering === o.organization_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogIn className="h-4 w-4 mr-1.5" /> Entrar</>}
                 </Button>
               </div>
-              {assignFor === o.organization_id && (
-                <div className="mt-3 flex items-center gap-2 pl-8">
-                  <Input
-                    type="email"
-                    value={assignEmail}
-                    onChange={(e) => setAssignEmail(e.target.value)}
-                    placeholder="email@gestor.com"
-                    className="max-w-xs"
-                  />
-                  <Button size="sm" onClick={() => assignGestor(o)} disabled={assigning}>
-                    {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : "Asignar gestor"}
-                  </Button>
-                </div>
-              )}
             </div>
           ))}
         </div>
