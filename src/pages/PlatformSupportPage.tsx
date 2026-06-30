@@ -38,6 +38,13 @@ export default function PlatformSupportPage() {
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("platform_list_support_tickets");
     if (error) { setDenied(true); setLoading(false); return; }
+    // Empty can mean "no tickets" OR "not a platform admin" (the RPC is gated and
+    // returns [] for non-admins). Disambiguate so we don't show an empty inbox to
+    // someone who simply isn't logged in as the platform admin.
+    if (!data || data.length === 0) {
+      const { data: pa } = await supabase.from("platform_admins").select("user_id").maybeSingle();
+      if (!pa) { setDenied(true); setLoading(false); return; }
+    }
     setTickets((data ?? []) as Ticket[]);
     setLoading(false);
   }, []);
