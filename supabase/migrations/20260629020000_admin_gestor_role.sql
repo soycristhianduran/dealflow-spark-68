@@ -99,6 +99,8 @@ AS $$
          EXISTS (SELECT 1 FROM public.organization_members me WHERE me.organization_id = o.id AND me.user_id = auth.uid())
   FROM public.organizations o
   WHERE public.is_platform_admin(auth.uid())
+    -- Hide empty/orphan orgs (abandoned signups) from the support panel.
+    AND EXISTS (SELECT 1 FROM public.organization_members mm WHERE mm.organization_id = o.id)
   ORDER BY o.created_at DESC;
 $$;
 GRANT EXECUTE ON FUNCTION public.platform_list_organizations() TO authenticated;
