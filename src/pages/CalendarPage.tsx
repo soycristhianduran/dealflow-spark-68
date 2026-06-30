@@ -15,6 +15,7 @@ import {
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 
@@ -49,6 +50,7 @@ function getMeetingDisplayTitle(m: MeetingRow, t: TFunction) {
 
 export default function CalendarPage() {
   const { isVendor, myUserId } = usePermissions();
+  const { organizationId } = useOrganizationContext();
   const { t } = useTranslation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
@@ -61,10 +63,12 @@ export default function CalendarPage() {
   const [editingMeeting, setEditingMeeting] = useState<MeetingRow | null>(null);
 
   const fetchMeetings = useCallback(async () => {
+    if (!organizationId) { setMeetings([]); setLoading(false); return; }
     setLoading(true);
     let query = supabase
       .from("meetings")
       .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, google_event_id, contacts(full_name)")
+      .eq("organization_id", organizationId)
       .order("start_at", { ascending: true });
     if (isVendor && myUserId) query = query.eq("advisor_id", myUserId);
     const { data } = await query;
@@ -76,7 +80,7 @@ export default function CalendarPage() {
       })));
     }
     setLoading(false);
-  }, [isVendor, myUserId]);
+  }, [isVendor, myUserId, organizationId]);
 
   useEffect(() => { fetchMeetings(); }, [fetchMeetings]);
 

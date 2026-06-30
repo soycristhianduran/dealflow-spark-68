@@ -632,12 +632,14 @@ function describeCron(expr: string): string {
 // the runner matches reliably). Empty = any stage.
 function StageTriggerPicker({ config, onChange }: { config: Record<string, any>; onChange: (cfg: Record<string, any>) => void }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const [pipelines, setPipelines] = React.useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = React.useState<{ id: string; name: string; pipeline_id: string }[]>([]);
   React.useEffect(() => {
-    supabase.from("pipelines").select("id, name").order("created_at").then(({ data }) => setPipelines(data || []));
-    supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order", { ascending: true }).then(({ data }) => setStages((data as any) || []));
-  }, []);
+    if (!organizationId) return;
+    supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at").then(({ data }) => setPipelines(data || []));
+    supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("organization_id", organizationId).order("order", { ascending: true }).then(({ data }) => setStages((data as any) || []));
+  }, [organizationId]);
   const pid: string = config?.pipeline_id ?? "";
   const stagesFor = pid ? stages.filter(s => s.pipeline_id === pid) : stages;
   const pname = (id: string) => pipelines.find(p => p.id === id)?.name ?? "";
@@ -2136,15 +2138,18 @@ function EnrollAutomationEditor({ step, onChange }: {
   onChange: (updated: AutomationStep) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const c = step.config;
   const [autos, setAutos] = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   useEffect(() => {
+    if (!organizationId) return;
     supabase
       .from("automations")
       .select("id, name, is_active")
+      .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => setAutos(data || []));
-  }, []);
+  }, [organizationId]);
 
   return (
     <div className="space-y-3">
@@ -2781,8 +2786,11 @@ export default function AutomationsPage() {
   };
 
   const load = async () => {
+    if (!organizationId) { setLoading(false); return; }
     setLoading(true);
-    const { data } = await supabase.from("automations").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase.from("automations").select("*")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: false });
     const ids = (data || []).map((a: Automation) => a.id);
     let countMap: Record<string, number> = {};
     if (ids.length) {

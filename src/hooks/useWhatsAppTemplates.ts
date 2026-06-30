@@ -77,11 +77,10 @@ export function useWhatsAppTemplates() {
       });
       if (data?.error) throw new Error(data.error);
       if (error) throw new Error(error.message);
-      // Reload from DB after sync
-      const { data: local } = await supabase
-        .from("whatsapp_templates")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Reload from DB after sync (scoped to the current org)
+      let lq = supabase.from("whatsapp_templates").select("*").order("created_at", { ascending: false });
+      if (organizationId) lq = lq.eq("organization_id", organizationId);
+      const { data: local } = await lq;
       setTemplates(local || []);
       toast.success("Plantillas sincronizadas");
     } catch (e: any) {
@@ -91,7 +90,7 @@ export function useWhatsAppTemplates() {
     } finally {
       setLoading(false);
     }
-  }, [fetchTemplates]);
+  }, [fetchTemplates, organizationId]);
 
   const createTemplate = useCallback(async (params: CreateTemplateParams) => {
     setCreating(true);

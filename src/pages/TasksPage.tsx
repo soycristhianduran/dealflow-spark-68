@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
   Plus, Search, Phone, MessageCircle, Mail, Calendar,
@@ -69,6 +70,7 @@ const nextStatus: Record<string, string> = {
 export default function TasksPage() {
   const { t } = useTranslation();
   const { session } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const { isVendor, myUserId } = usePermissions();
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -89,10 +91,12 @@ export default function TasksPage() {
   const [contacts, setContacts] = useState<{ id: string; full_name: string }[]>([]);
 
   const fetchTasks = useCallback(async () => {
+    if (!organizationId) { setTasks([]); setLoading(false); return; }
     setLoading(true);
     let query = supabase
       .from("tasks")
       .select("id, title, description, task_type, priority, due_date, due_time, status, contact_id, deal_id, contacts(full_name)")
+      .eq("organization_id", organizationId)
       .order("due_date", { ascending: true });
     if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
     const { data } = await query;
@@ -103,18 +107,18 @@ export default function TasksPage() {
     }));
     setTasks(mapped);
     setLoading(false);
-  }, [isVendor, myUserId]);
+  }, [isVendor, myUserId, organizationId]);
 
   useEffect(() => {
+    if (!organizationId) return;
     fetchTasks();
     // Vendors only see their own contacts in the picker
-    const contactsQuery = isVendor && myUserId
-      ? supabase.from("contacts").select("id, full_name").eq("owner_id", myUserId).order("full_name")
-      : supabase.from("contacts").select("id, full_name").order("full_name");
-    contactsQuery.then(({ data }) => {
+    let contactsQuery = supabase.from("contacts").select("id, full_name").eq("organization_id", organizationId);
+    if (isVendor && myUserId) contactsQuery = contactsQuery.eq("owner_id", myUserId);
+    contactsQuery.order("full_name").then(({ data }) => {
       if (data) setContacts(data);
     });
-  }, [fetchTasks, isVendor, myUserId]);
+  }, [fetchTasks, isVendor, myUserId, organizationId]);
 
   const today = format(new Date(), "yyyy-MM-dd");
 

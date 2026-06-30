@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,7 @@ export function CreateMeetingDialog({
 }: CreateMeetingDialogProps) {
   const { t } = useTranslation();
   const { session } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -102,9 +104,11 @@ export function CreateMeetingDialog({
       setContactSearch("");
       setSyncToGcal(true);
 
-      supabase.from("contacts").select("id, full_name, primary_email").order("full_name").then(({ data }) => {
-        if (data) setContacts(data);
-      });
+      {
+        let cq = supabase.from("contacts").select("id, full_name, primary_email").order("full_name");
+        if (organizationId) cq = cq.eq("organization_id", organizationId);
+        cq.then(({ data }) => { if (data) setContacts(data); });
+      }
     }
   }, [open, defaultDate, defaultStartTime, defaultEndTime, defaultContactId, editingMeeting]);
 

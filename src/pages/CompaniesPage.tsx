@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Plus, Search, Building2, Globe, MapPin } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback } from "react";
@@ -36,15 +37,18 @@ export default function CompaniesPage() {
   const navigate = useNavigate();
   const { path } = useWorkspace();
   const { isVendor, myUserId } = usePermissions();
+  const { organizationId } = useOrganizationContext();
   const { t } = useTranslation();
 
   const fetchCompanies = useCallback(async () => {
-    let query = supabase.from("companies").select("id, name, industry, company_size, city, country, website").order("name");
+    if (!organizationId) { setCompanies([]); setLoading(false); return; }
+    let query = supabase.from("companies").select("id, name, industry, company_size, city, country, website")
+      .eq("organization_id", organizationId).order("name");
     if (isVendor && myUserId) query = query.eq("owner_id", myUserId);
     const { data } = await query;
     setCompanies(data || []);
     setLoading(false);
-  }, [isVendor, myUserId]);
+  }, [isVendor, myUserId, organizationId]);
 
   useEffect(() => { fetchCompanies(); }, [fetchCompanies]);
 

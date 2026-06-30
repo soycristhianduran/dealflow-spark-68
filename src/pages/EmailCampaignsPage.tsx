@@ -6,6 +6,7 @@ import { AppHeader } from "@/components/layout/AppHeader";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import {
   Mail, MessageSquare, Users, Eye, XCircle, Loader2,
   ChevronRight, MousePointerClick, CheckCircle2, RefreshCw, ShoppingBag,
@@ -194,6 +195,7 @@ function WaCampaignRow({ campaign: c, sales, onClick }: { campaign: WaCampaign; 
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function CampaignsPage() {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const [tab, setTab] = useState<TabType>("email");
   const [salesById, setSalesById] = useState<Record<string, { orders: number; revenue: number; currency: string | null }>>({});
   const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([]);
@@ -208,13 +210,16 @@ export default function CampaignsPage() {
   const [rescheduleValue, setRescheduleValue] = useState("");
 
   const load = useCallback(async (showSpinner = true) => {
+    if (!organizationId) { setLoading(false); setRefreshing(false); return; }
     if (showSpinner) setLoading(true); else setRefreshing(true);
     const [emailRes, waRes] = await Promise.all([
       supabase.from("email_campaigns")
         .select("id,name,subject,status,sent_at,scheduled_at,total_recipients,sent_count,opened_count,clicked_count,failed_count,from_name,from_email")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false }).limit(100),
       supabase.from("whatsapp_campaigns")
         .select("id,name,template_name,status,sent_at,scheduled_at,total_recipients,sent_count,failed_count,delivered_count,read_count,organization_id")
+        .eq("organization_id", organizationId)
         .order("created_at", { ascending: false }).limit(100),
     ]);
     if (emailRes.data) setEmailCampaigns(emailRes.data as EmailCampaign[]);
@@ -242,7 +247,7 @@ export default function CampaignsPage() {
       setWaCampaigns(wa as WaCampaign[]);
     }
     if (showSpinner) setLoading(false); else setRefreshing(false);
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => { load(); }, [load]);
 

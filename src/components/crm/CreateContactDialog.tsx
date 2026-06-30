@@ -48,7 +48,9 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
 
   useEffect(() => {
     if (open) {
-      supabase.from("companies").select("id, name").order("name").then(({ data }) => {
+      let cq = supabase.from("companies").select("id, name").order("name");
+      if (organizationId) cq = cq.eq("organization_id", organizationId);
+      cq.then(({ data }) => {
         setCompanies(data || []);
       });
     } else {
@@ -129,11 +131,9 @@ export function CreateContactDialog({ open, onOpenChange, onCreated }: CreateCon
         toast.error(t("createContactDialog.createError", { message: error.message }));
       }
     } else {
-      const { data: pipeline } = await supabase
-        .from("pipelines")
-        .select("id")
-        .limit(1)
-        .single();
+      let pq = supabase.from("pipelines").select("id");
+      if (organizationId) pq = pq.eq("organization_id", organizationId);
+      const { data: pipeline } = await pq.limit(1).single();
 
       if (pipeline) {
         const { data: firstStage } = await supabase

@@ -13,6 +13,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { ArrowLeft, DollarSign, Calendar, User, Target, Pencil, Trash2 } from "lucide-react";
@@ -52,6 +53,7 @@ export default function DealDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { organizationId } = useOrganizationContext();
   const { t } = useTranslation();
   const [deal, setDeal] = useState<DealFull | null>(null);
   const [loading, setLoading] = useState(true);
@@ -90,9 +92,15 @@ export default function DealDetailPage() {
 
   const fetchRelated = async () => {
     if (!id) return;
+    const stagesQ = organizationId
+      ? supabase.from("pipeline_stages").select("id, name, color, order").eq("organization_id", organizationId).order("order")
+      : supabase.from("pipeline_stages").select("id, name, color, order").order("order");
+    const contactsQ = organizationId
+      ? supabase.from("contacts").select("id, full_name").eq("organization_id", organizationId).order("full_name").limit(200)
+      : supabase.from("contacts").select("id, full_name").order("full_name").limit(200);
     const [stagesRes, contactsRes, activitiesRes, tasksRes, meetingsRes] = await Promise.all([
-      supabase.from("pipeline_stages").select("id, name, color, order").order("order"),
-      supabase.from("contacts").select("id, full_name").order("full_name").limit(200),
+      stagesQ,
+      contactsQ,
       supabase.from("activities").select("*").eq("related_entity_id", id).order("created_at", { ascending: false }),
       supabase.from("tasks").select("id, title, priority, status, due_date").eq("deal_id", id).order("due_date"),
       supabase.from("meetings").select("id, title, start_at, status").eq("deal_id", id).order("start_at", { ascending: false }),

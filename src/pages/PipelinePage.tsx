@@ -132,11 +132,14 @@ export default function PipelinePage() {
   }, [organizationId]);
 
   const fetchPipelines = useCallback(async () => {
-    const { data } = await supabase.from("pipelines").select("id, name").order("created_at", { ascending: true });
+    if (!organizationId) return [];
+    const { data } = await supabase.from("pipelines").select("id, name")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true });
     const list = data || [];
     setPipelines(list);
     return list;
-  }, []);
+  }, [organizationId]);
 
   const fetchStagesAndContacts = useCallback(async (pid: string) => {
     // Paginate past Supabase's 1,000-row default cap so the board shows ALL leads.

@@ -16,6 +16,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { useTranslation } from "react-i18next";
@@ -46,12 +47,15 @@ export default function DealsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const { path } = useWorkspace();
+  const { organizationId } = useOrganizationContext();
   const { t } = useTranslation();
 
   const fetchDeals = async () => {
+    if (!organizationId) { setDeals([]); setLoading(false); return; }
     const { data, error } = await supabase
       .from("deals")
       .select("id, title, value, currency, status, stage_id, contact_id, expected_close_date, contacts(full_name), pipeline_stages(name, color)")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false });
     if (error) { toast.error(t("dealsPage.loadError")); return; }
     setDeals((data as unknown as DealRow[]) || []);
@@ -59,11 +63,13 @@ export default function DealsPage() {
   };
 
   const fetchStages = async () => {
-    const { data } = await supabase.from("pipeline_stages").select("id, name, color").order("order");
+    if (!organizationId) return;
+    const { data } = await supabase.from("pipeline_stages").select("id, name, color")
+      .eq("organization_id", organizationId).order("order");
     if (data) setStages(data as Stage[]);
   };
 
-  useEffect(() => { fetchDeals(); fetchStages(); }, []);
+  useEffect(() => { if (organizationId) { fetchDeals(); fetchStages(); } /* eslint-disable-next-line */ }, [organizationId]);
 
   useRealtimeRefresh({ table: "deals", channelKey: "deals-page-all", onChange: fetchDeals });
 
