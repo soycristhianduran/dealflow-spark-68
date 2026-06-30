@@ -144,9 +144,20 @@ Deno.serve(async (req) => {
 
     let customerId = sub?.stripe_customer_id ?? null;
 
+    // Validate the stored customer actually exists on the CURRENT Stripe account.
+    // After a Stripe-account migration, old customer IDs are invalid here and
+    // passing one to checkout throws "No such customer" — so create a fresh one.
+    if (customerId) {
+      try {
+        const existing = await stripe.customers.retrieve(customerId);
+        if ((existing as any)?.deleted) customerId = null;
+      } catch (_) {
+        customerId = null;
+      }
+    }
+
     if (!customerId) {
-      // Either no subscription row yet (shouldn't happen if signup hook ran)
-      // or row exists but customer not yet created in Stripe. Create now.
+      // No customer yet, or the stored one belongs to a different (old) account.
       const customer = await stripe.customers.create({
         email: user.email ?? undefined,
         name: orgName,
@@ -159,17 +170,24 @@ Deno.serve(async (req) => {
       });
       customerId = customer.id;
 
-      // Upsert the subscription row with the customer_id (idempotent if it
-      // already exists from the signup trial hook).
-      await adminClient.from("subscriptions").upsert(
-        {
-          organization_id: orgId,
-          plan_id: "pro",                  // default while in trial / pre-checkout
-          status: "trialing_internal",
-          stripe_customer_id: customerId,
-        },
-        { onConflict: "organization_id" },
-      );
+      if (sub?.id) {
+        // Existing row → only refresh the customer id. NEVER touch plan/status
+        // here, or we'd downgrade an active customer mid-checkout.
+        await adminClient.from("subscriptions")
+          .update({ stripe_customer_id: customerId })
+          .eq("organization_id", orgId);
+      } else {
+        // Brand-new org with no subscription row yet.
+        await adminClient.from("subscriptions").upsert(
+          {
+            organization_id: orgId,
+            plan_id: "pro",
+            status: "trialing_internal",
+            stripe_customer_id: customerId,
+          },
+          { onConflict: "organization_id" },
+        );
+      }
     }
 
     // ── Build success / cancel URLs ────────────────────────────────────────
