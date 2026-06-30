@@ -97,12 +97,28 @@ export type IaAgentPackKey = typeof IA_AGENT_PACKS[number]["key"];
 
 export const IA_ASSISTANT_PACKS = [
   {
+    key: "ai_assistant_20",
+    label: "Asistente IA +20 asistencias",
+    description: "20 asistencias adicionales del asistente del CRM",
+    credits: 20,
+    priceUsd: 5,
+    price_id: "price_1To7WRCFCI8hiTfkO98NozlF",
+  },
+  {
+    key: "ai_assistant_50",
+    label: "Asistente IA +50 asistencias",
+    description: "50 asistencias adicionales del asistente del CRM",
+    credits: 50,
+    priceUsd: 10,
+    price_id: "price_1To7WSCFCI8hiTfkxGzaZCAU",
+  },
+  {
     key: "ai_assistant_100",
     label: "Asistente IA +100 asistencias",
     description: "100 asistencias adicionales del asistente del CRM",
     credits: 100,
-    priceUsd: 10,
-    price_id: "price_1To6tOCFCI8hiTfkyMfWSKWf",
+    priceUsd: 18,
+    price_id: "price_1To7WSCFCI8hiTfkRAQHo4iV",
   },
 ] as const;
 
