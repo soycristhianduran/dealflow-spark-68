@@ -114,6 +114,9 @@
     "english": "English"
   },
   "callingAgentPage": {
+    "lockedTitle": "Agente de Voz no incluido",
+    "lockedDesc": "El Agente de Voz está disponible en los planes Pro, Business y Agencia. Mejora tu plan para automatizar llamadas con agentes de voz inteligentes.",
+    "lockedCta": "Ver planes",
     "pageTitle": "Agente de Llamadas IA",
     "pageSubtitle": "Automatiza llamadas de ventas con agentes de voz inteligentes.",
     "tabAgents": "Agentes IA",

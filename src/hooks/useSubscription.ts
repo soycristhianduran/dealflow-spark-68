@@ -54,6 +54,7 @@ export interface SubscriptionInfo {
   featureAiAgent: boolean;
   featureEmailCampaigns: boolean;
   featureApiAccess: boolean;
+  featureVoiceAgent: boolean;
 }
 
 interface UseSubscriptionReturn {
@@ -116,6 +117,7 @@ export function useSubscription(): UseSubscriptionReturn {
       featureAiAgent: !!row.feature_ai_agent,
       featureEmailCampaigns: !!row.feature_email_campaigns,
       featureApiAccess: !!row.feature_api_access,
+      featureVoiceAgent: !!row.feature_voice_agent,
     });
     setLoading(false);
   }, [organizationId]);

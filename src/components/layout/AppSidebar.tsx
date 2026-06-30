@@ -11,6 +11,7 @@ import { useLocation } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useSubscription } from "@/hooks/useSubscription";
 import { useTranslation } from "react-i18next";
 
 // ── Nav key definitions (titles are i18n keys resolved in component) ──────────
@@ -84,12 +85,19 @@ export function AppSidebar() {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const location = useLocation();
 
+  // Gate certain nav items behind plan features. Voice Agent is Pro+ only;
+  // while the subscription is still loading we keep it hidden to avoid a flash.
+  const { subscription, loading: subLoading } = useSubscription();
+  const canVoiceAgent = !!subscription?.featureVoiceAgent;
+
   // Resolve translated arrays inside component so they react to language changes
   const navItems = navItemDefs.map((d) => ({ ...d, title: t(d.key) }));
   const powerGroups = powerGroupDefs.map((g) => ({
     ...g,
     label: t(g.labelKey),
-    items: g.items.map((i) => ({ ...i, title: t(i.key) })),
+    items: g.items
+      .filter((i) => i.key !== "nav.voiceAgent" || (!subLoading && canVoiceAgent))
+      .map((i) => ({ ...i, title: t(i.key) })),
   }));
   const bottomItems = bottomItemDefs.map((d) => ({ ...d, title: t(d.key) }));
 

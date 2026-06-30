@@ -156,6 +156,37 @@ Deno.serve(async (req) => {
 
     const orgId = membership.organization_id;
 
+    // ── Seat-limit enforcement ────────────────────────────────────────────────
+    // Effective seats = plan's included users + paid extra_seats add-ons. Block
+    // the invite once the org is at capacity so extra seats are actually paid
+    // for (US$9/mo each in Billing) instead of given away. Re-inviting an email
+    // that already has a seat/pending invite never consumes a new seat.
+    {
+      const { data: subRows } = await supabase.rpc("get_active_subscription", { p_org_id: orgId });
+      const maxUsers = Number(subRows?.[0]?.max_users ?? 1);
+      const { data: addon } = await supabase
+        .from("org_addons").select("extra_seats").eq("organization_id", orgId).maybeSingle();
+      const limit = maxUsers + Number(addon?.extra_seats ?? 0);
+
+      const { count: memberCount } = await supabase
+        .from("organization_members").select("user_id", { count: "exact", head: true })
+        .eq("organization_id", orgId);
+
+      // Pending (not-yet-accepted) invites that aren't this same email.
+      const { count: pendingCount } = await supabase
+        .from("organization_invitations").select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId).is("accepted_at", null).neq("email", email);
+
+      const used = (memberCount ?? 0) + (pendingCount ?? 0);
+      if (used >= limit) {
+        return new Response(JSON.stringify({
+          error: `Alcanzaste el límite de ${limit} usuario${limit === 1 ? "" : "s"} de tu plan. Compra asientos adicionales en Facturación para invitar a más personas.`,
+          code: "seat_limit_reached",
+          limit,
+        }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+    }
+
     // Fetch org name separately to avoid join issues
     const { data: orgRow } = await supabase
       .from("organizations")

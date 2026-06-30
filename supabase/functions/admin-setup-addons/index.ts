@@ -21,9 +21,12 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const mode = key.startsWith("sk_live") ? "LIVE" : "TEST";
 
+  // NOTE: extra_seats moved $12 -> $9. Stripe prices are immutable, so we use a
+  // NEW lookup_key (…_v9) to force creation of the $9 price; the old $12 price is
+  // archived below. monthly_price_usd is written so the app display matches Stripe.
   const defs = [
-    { key: "extra_seats",    name: "Asientos adicionales",   kind: "extra_seats",    units: 1,    monthly: 12, lookup: "addon_extra_seats_monthly" },
-    { key: "extra_contacts", name: "Contactos adicionales",  kind: "extra_contacts", units: 5000, monthly: 9,  lookup: "addon_extra_contacts_monthly" },
+    { key: "extra_seats",    name: "Asientos adicionales",   kind: "extra_seats",    units: 1,    monthly: 9, lookup: "addon_extra_seats_monthly_v9", oldLookup: "addon_extra_seats_monthly" },
+    { key: "extra_contacts", name: "Contactos adicionales",  kind: "extra_contacts", units: 5000, monthly: 9, lookup: "addon_extra_contacts_monthly" },
   ];
 
   const created: Record<string, any> = {};
@@ -43,8 +46,18 @@ Deno.serve(async (req) => {
       });
       priceId = price.id;
     }
+    // Archive any superseded price (e.g. the old $12 seat price) so it can't be
+    // used for new checkouts. Existing subscriptions on it are unaffected.
+    if (d.oldLookup) {
+      const stale = await stripe.prices.list({ lookup_keys: [d.oldLookup], active: true, limit: 1 });
+      if (stale.data[0]?.id && stale.data[0].id !== priceId) {
+        await stripe.prices.update(stale.data[0].id, { active: false });
+      }
+    }
     created[d.key] = priceId;
-    await supabase.from("addon_catalog").update({ stripe_price_id: priceId, updated_at: new Date().toISOString() }).eq("key", d.key);
+    await supabase.from("addon_catalog")
+      .update({ stripe_price_id: priceId, monthly_price_usd: d.monthly, updated_at: new Date().toISOString() })
+      .eq("key", d.key);
   }
 
   return new Response(JSON.stringify({ ok: true, mode, created }, null, 2), {

@@ -52,6 +52,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useSubscription } from "@/hooks/useSubscription";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -1654,6 +1655,25 @@ function VapiConfigBanner() {
 
 export default function CallingAgentPage() {
   const { t } = useTranslation();
+  const { subscription, loading: subLoading } = useSubscription();
+
+  // Voice Agent is a Pro+ feature. Plans without it see an upgrade prompt
+  // instead of the tool (defends against direct URL navigation).
+  if (!subLoading && subscription && !subscription.featureVoiceAgent) {
+    return (
+      <AppLayout>
+        <div className="flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-100">
+            <PhoneCall className="h-7 w-7 text-indigo-600" />
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-900">{t("callingAgentPage.lockedTitle")}</h1>
+          <p className="max-w-md text-sm text-muted-foreground">{t("callingAgentPage.lockedDesc")}</p>
+          <Button onClick={() => (window.location.href = "/billing")}>{t("callingAgentPage.lockedCta")}</Button>
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout>
       <div className="flex flex-col h-full">
