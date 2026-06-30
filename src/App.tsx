@@ -50,6 +50,7 @@ import InviteAcceptPage from "./pages/InviteAcceptPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import PlatformOrgsPage from "./pages/PlatformOrgsPage";
+import PlatformSupportPage from "./pages/PlatformSupportPage";
 import OnboardingPage from "./pages/OnboardingPage";
 import PlatformPage from "./pages/PlatformPage";
 import IgVerifyPage from "./pages/IgVerifyPage";
@@ -182,6 +183,7 @@ function AppRoutes() {
 
       {/* Founder-only org panel: enter any org + assign non-billable gestores */}
       <Route path="/admin" element={<ProtectedRoute><PlatformOrgsPage /></ProtectedRoute>} />
+      <Route path="/admin/soporte" element={<ProtectedRoute><PlatformSupportPage /></ProtectedRoute>} />
 
       {/* Legacy flat routes (backward compat) — redirect to slug-based */}
       <Route path="*" element={<NotFound />} />

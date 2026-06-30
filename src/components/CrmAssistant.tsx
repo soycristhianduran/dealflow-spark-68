@@ -8,7 +8,6 @@
  */
 import { useState, useRef, useEffect } from "react";
 import { X, Send, Loader2, ArrowRight, LifeBuoy } from "lucide-react";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,7 +93,7 @@ export function CrmAssistant() {
             </button>
             <div className="h-px bg-border" />
             <button
-              onClick={() => { setMenuOpen(false); toast.info("El módulo de soporte estará disponible muy pronto."); }}
+              onClick={() => { setMenuOpen(false); navigate(path("/support")); }}
               className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">

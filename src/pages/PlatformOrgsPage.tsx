@@ -4,7 +4,7 @@
 //  support, and grants the non-billable "gestor" role by email.
 // ══════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { Shield, Building2, LogIn, Search, Loader2, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Shield, Building2, LogIn, Search, Loader2, ShieldCheck, ShieldAlert, LifeBuoy } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -89,6 +89,9 @@ export default function PlatformOrgsPage() {
             <h1 className="text-xl font-semibold text-slate-900">Panel de plataforma</h1>
             <p className="text-sm text-muted-foreground mt-0.5">{orgs.length} organizaciones · entra a cualquiera</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => (window.location.href = "/admin/soporte")}>
+            <LifeBuoy className="h-4 w-4 mr-1.5" /> Soporte
+          </Button>
           <Button variant="outline" size="sm" onClick={runAudit} disabled={auditing}>
             {auditing ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Shield className="h-4 w-4 mr-1.5" /> Auditar seguridad</>}
           </Button>

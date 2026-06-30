@@ -37,6 +37,7 @@ import MorePage from "./MorePage";
 import BillingPage from "./BillingPage";
 import AIAgentPage from "./AIAgentPage";
 import CallingAgentPage from "./CallingAgentPage";
+import SupportPage from "./SupportPage";
 import NotFound from "./NotFound";
 import { LockoutScreen } from "@/components/billing/LockoutScreen";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -166,6 +167,7 @@ export default function WorkspaceEntryPage() {
         <Route path="billing" element={<P><BillingPage /></P>} />
         <Route path="ai-agent" element={<P><AIAgentPage /></P>} />
         <Route path="calling-agent" element={<P><CallingAgentPage /></P>} />
+        <Route path="support" element={<P><SupportPage /></P>} />
         <Route path="more" element={<P><MorePage /></P>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
