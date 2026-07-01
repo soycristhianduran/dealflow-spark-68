@@ -25,8 +25,9 @@ export function EnableNotifications() {
   };
 
   return (
-    <Button size="sm" variant="outline" onClick={enable} disabled={working}>
-      <Bell className="h-4 w-4 mr-1.5" /> Activar notificaciones
+    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={enable} disabled={working}
+      title="Activar notificaciones de mensajes nuevos">
+      <Bell className="h-3.5 w-3.5" />
     </Button>
   );
 }

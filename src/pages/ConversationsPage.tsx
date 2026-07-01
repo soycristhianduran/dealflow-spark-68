@@ -688,9 +688,9 @@ export default function ConversationsPage() {
         {/* ===== LEFT: list ===== */}
         <aside className={`${selected ? "hidden md:flex" : "flex"} w-full md:w-96 border-r flex-col`}>
           <div className="p-4 border-b space-y-3">
-            <div className="flex items-center justify-between">
-              <h1 className="font-bold text-base">{t("conversationsPage.title")}</h1>
-              <div className="flex items-center gap-1">
+            <div className="flex items-center justify-between gap-2">
+              <h1 className="font-bold text-base truncate min-w-0">{t("conversationsPage.title")}</h1>
+              <div className="flex items-center gap-1 shrink-0">
                 <EnableNotifications />
                 {canEditConversations && counts.unread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
