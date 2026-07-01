@@ -47,6 +47,7 @@ import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EnableNotifications } from "@/components/EnableNotifications";
+import { NotificationsBanner } from "@/components/NotificationsBanner";
 
 type Channel = "whatsapp" | "instagram";
 type FilterMode = "all" | Channel;
@@ -733,6 +734,8 @@ export default function ConversationsPage() {
                 className="pl-8 h-9 text-sm" />
             </div>
           </div>
+
+          <NotificationsBanner />
 
           <ScrollArea className="flex-1">
             {(wa.loadingConversations || loadingIg) && filtered.length === 0 ? (
