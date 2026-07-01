@@ -29,4 +29,11 @@ import "./i18n";
   }
 
   createRoot(document.getElementById("root")!).render(<App />);
+
+  // Register the PWA service worker (install + push) on secure origins.
+  if ("serviceWorker" in navigator && window.location.protocol === "https:") {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    });
+  }
 })();

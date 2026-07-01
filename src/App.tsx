@@ -51,6 +51,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import WorkspaceEntryPage from "./pages/WorkspaceEntryPage";
 import PlatformOrgsPage from "./pages/PlatformOrgsPage";
 import PlatformSupportPage from "./pages/PlatformSupportPage";
+import { InstallPrompt } from "./components/InstallPrompt";
 import OnboardingPage from "./pages/OnboardingPage";
 import PlatformPage from "./pages/PlatformPage";
 import IgVerifyPage from "./pages/IgVerifyPage";
@@ -199,6 +200,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <CookieConsent />
+          <InstallPrompt />
           <BrowserRouter>
             <MetaPageView />
             <AuthProvider>
