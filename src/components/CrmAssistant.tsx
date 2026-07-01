@@ -7,7 +7,7 @@
  * Leads list with that filter applied (via URL params ContactsPage reads).
  */
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Loader2, ArrowRight, LifeBuoy } from "lucide-react";
+import { X, Send, Loader2, ArrowRight, LifeBuoy, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,6 +17,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { pushSupported, isPushEnabled, enablePush } from "@/lib/push";
 
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: any }
 
@@ -45,6 +46,15 @@ export function CrmAssistant() {
   const [open, setOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [supportUnread, setSupportUnread] = useState(0);
+  const [pushOn, setPushOn] = useState<boolean | null>(null);
+  useEffect(() => { isPushEnabled().then(setPushOn); }, []);
+  const activatePush = async () => {
+    const r = await enablePush(organizationId);
+    if (r.ok) { setPushOn(true); toast.success("Notificaciones activadas 🔔"); }
+    else if (r.reason === "denied") toast.error("Permiso bloqueado. Actívalo en Ajustes → Notificaciones.");
+    else if (r.reason === "unsupported") toast.error("Tu dispositivo no soporta notificaciones aquí. En iPhone, instala la app en la pantalla de inicio.");
+    else toast.error("No se pudieron activar.");
+  };
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<ChatMsg[]>([
@@ -131,6 +141,23 @@ export function CrmAssistant() {
                 <p className="text-[11px] text-muted-foreground">Pregúntame sobre tus leads</p>
               </div>
             </button>
+            {pushSupported() && !pushOn && (
+              <>
+                <div className="h-px bg-border" />
+                <button
+                  onClick={() => { setMenuOpen(false); activatePush(); }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
+                >
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
+                    <Bell className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold leading-tight">Activar notificaciones</p>
+                    <p className="text-[11px] text-muted-foreground">Avísame cuando lleguen mensajes</p>
+                  </div>
+                </button>
+              </>
+            )}
             <div className="h-px bg-border" />
             <button
               onClick={() => { setMenuOpen(false); setSupportUnread(0); navigate(path("/support")); }}
