@@ -26,12 +26,20 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   const { organization_id, user_ids, title, body, url, tag } = await req.json().catch(() => ({}));
 
-  let q = supabase.from("push_subscriptions").select("id, endpoint, p256dh, auth");
-  if (Array.isArray(user_ids) && user_ids.length) q = q.in("user_id", user_ids);
-  else if (organization_id) q = q.eq("organization_id", organization_id);
-  else return new Response(JSON.stringify({ error: "organization_id o user_ids requerido" }), { status: 200, headers: cors });
+  // Resolve target user ids. For an org, notify EVERY member's devices (the
+  // subscription's stored org may be stale for multi-org users).
+  let targetUserIds: string[] = Array.isArray(user_ids) ? user_ids : [];
+  if (!targetUserIds.length && organization_id) {
+    const { data: members } = await supabase.from("organization_members")
+      .select("user_id").eq("organization_id", organization_id);
+    targetUserIds = (members || []).map((m: any) => m.user_id);
+  }
+  if (!targetUserIds.length) {
+    return new Response(JSON.stringify({ error: "organization_id o user_ids requerido" }), { status: 200, headers: cors });
+  }
 
-  const { data: subs } = await q;
+  const { data: subs } = await supabase.from("push_subscriptions")
+    .select("id, endpoint, p256dh, auth").in("user_id", targetUserIds);
   const payload = JSON.stringify({ title: title || "Klosify", body: body || "", url: url || "/", tag });
 
   let sent = 0, removed = 0;
