@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { pushSupported, isPushEnabled, enablePush } from "@/lib/push";
@@ -39,6 +39,7 @@ function beep() {
 
 export function CrmAssistant() {
   const { organizationId } = useOrganizationContext();
+  const location = useLocation();
   const { user } = useAuth();
   const { path } = useWorkspace();
   const navigate = useNavigate();
@@ -125,9 +126,13 @@ export function CrmAssistant() {
     }
   };
 
+  // Hide the floating bubble on Conversations — that page has its own message
+  // composer + send button which the bubble would cover.
+  if (location.pathname.includes("/conversations")) return null;
+
   if (!open) {
     return (
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+      <div className="fixed bottom-20 right-4 z-50 flex flex-col items-end gap-3 md:bottom-6 md:right-6">
         {/* Option menu */}
         {menuOpen && (
           <div className="w-64 overflow-hidden rounded-2xl border bg-card shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
@@ -194,7 +199,7 @@ export function CrmAssistant() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex h-[34rem] w-[26rem] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border bg-card shadow-2xl">
+    <div className="fixed bottom-20 right-4 z-50 flex h-[34rem] max-h-[calc(100vh-7rem)] w-[26rem] max-w-[calc(100vw-2rem)] flex-col rounded-2xl border bg-card shadow-2xl md:bottom-6 md:right-6">
       <div className="flex items-center justify-between border-b px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-primary via-orange-500 to-amber-400 ring-1 ring-white/25 shadow-sm overflow-hidden">
