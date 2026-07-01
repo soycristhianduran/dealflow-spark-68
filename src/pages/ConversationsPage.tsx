@@ -1096,6 +1096,36 @@ function failReason(errorDetails?: string | null): string {
   return detail ? `No se pudo enviar: ${detail}` : "No se pudo enviar el mensaje.";
 }
 
+// Shared Instagram content (reels/posts/stories shared from OTHER accounts).
+// Meta gives us a CDN url; guess video vs image and fall back to a link if the
+// CDN asset expired (Meta keeps them for a limited time).
+function SharedIgMedia({ url, kind }: { url: string; kind: string }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const [vidFailed, setVidFailed] = useState(false);
+  const label =
+    kind === "ig_reel" ? "🎬 Reel compartido"
+    : kind === "ig_post" || kind === "share" ? "📎 Publicación compartida"
+    : kind === "story_mention" ? "📖 Te mencionó en su historia"
+    : "📖 Historia";
+  const looksVideo = kind === "ig_reel" || /\.mp4(\?|$)|video/i.test(url);
+  return (
+    <div className="mb-1">
+      <div className="text-[10px] font-semibold opacity-70 mb-1">{label}</div>
+      {looksVideo && !vidFailed ? (
+        <video src={url} controls playsInline className="max-w-full rounded-lg max-h-64" onError={() => setVidFailed(true)} />
+      ) : !imgFailed && !looksVideo ? (
+        <a href={url} target="_blank" rel="noopener noreferrer">
+          <img src={url} alt="Contenido compartido" className="max-w-full rounded-lg max-h-64 object-contain cursor-pointer hover:opacity-90" onError={() => setImgFailed(true)} />
+        </a>
+      ) : (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">
+          Ver contenido compartido ↗
+        </a>
+      )}
+    </div>
+  );
+}
+
 function MessageBubble({
   msg, channel, onFetchMedia,
 }: {
@@ -1152,6 +1182,11 @@ function MessageBubble({
   );
 
   const renderMedia = () => {
+    // Instagram shared content (reels/posts/stories from other accounts)
+    if (channel === "instagram" && realUrl &&
+        ["ig_reel", "ig_post", "share", "story_mention", "story_reply", "ig_story"].includes(msg.message_type)) {
+      return <SharedIgMedia url={realUrl} kind={msg.message_type} />;
+    }
     if (isImage) {
       if (realUrl)
         return (
