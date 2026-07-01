@@ -126,9 +126,10 @@ export function CrmAssistant() {
     }
   };
 
-  // Hide the floating bubble on Conversations — that page has its own message
-  // composer + send button which the bubble would cover.
-  if (location.pathname.includes("/conversations")) return null;
+  // Hide the floating bubble on full-screen editor/inbox pages whose own
+  // bottom-right controls (composer send, AI "Refinar", etc.) it would cover.
+  const HIDDEN_ON = ["/conversations", "/landing-builder", "/email-builder", "/whatsapp/inbox", "/instagram/inbox"];
+  if (HIDDEN_ON.some((r) => location.pathname.includes(r))) return null;
 
   if (!open) {
     return (
