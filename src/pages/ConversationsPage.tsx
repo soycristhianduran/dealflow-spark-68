@@ -1132,6 +1132,16 @@ function MessageBubble({
   const metaMediaId = isMetaRef ? msg.attachment_url!.slice(5) : null;
   const realUrl = isMetaRef ? null : msg.attachment_url || null;
 
+  // Auto-resolve media placeholders (templates, undownloaded media) once, so the
+  // image/video shows in history without the user tapping "load".
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!autoLoadedRef.current && isMetaRef && metaMediaId && onFetchMedia) {
+      autoLoadedRef.current = true;
+      onFetchMedia(msg.id, metaMediaId);
+    }
+  }, [isMetaRef, metaMediaId, onFetchMedia, msg.id]);
+
   const LoadBtn = ({ icon, label }: { icon: string; label: string }) => (
     <button
       onClick={() => onFetchMedia && metaMediaId && onFetchMedia(msg.id, metaMediaId)}
