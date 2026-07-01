@@ -408,11 +408,14 @@ export default function ContactsPage() {
       });
   }, []);
 
-  // Load pipelines for the filter dropdown
+  // Load pipelines for the filter dropdown (scoped to the current org)
   useEffect(() => {
-    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
+    if (!organizationId) { setPipelines([]); return; }
+    supabase.from("pipelines").select("id, name")
+      .eq("organization_id", organizationId)
+      .order("created_at", { ascending: true })
       .then(({ data }) => setPipelines(data || []));
-  }, []);
+  }, [organizationId]);
 
   // When pipeline filter changes, load its stages
   useEffect(() => {

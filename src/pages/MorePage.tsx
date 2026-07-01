@@ -1,5 +1,6 @@
 import { AppLayout } from "@/components/layout/AppLayout";
 import { AppHeader } from "@/components/layout/AppHeader";
+import { MobileOrgSwitcher } from "@/components/layout/MobileOrgSwitcher";
 import { NavLink } from "@/components/NavLink";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useTranslation } from "react-i18next";
@@ -34,6 +35,7 @@ export default function MorePage() {
     <AppLayout>
       <AppHeader title={t("morePage.title")} />
       <div className="flex-1 overflow-y-auto p-4 pb-20">
+        <MobileOrgSwitcher />
         <div className="space-y-1">
           {moreItems.map((item) => (
             <NavLink
