@@ -94,10 +94,15 @@ async function processCampaign(supabase: any, campaignId: string) {
       let body = tpl?.body_text || `[Plantilla: ${camp.template_name}]`;
       vars.forEach((val, i) => { body = body.replace(new RegExp(`\\{\\{${i + 1}\\}\\}`, "g"), val || `{{${i + 1}}}`); });
 
+      // If the template has a media header, store it so the CRM can render the
+      // image/video (as a meta:{id} placeholder the inbox resolves on demand).
+      const hasMedia = MEDIA_HEADER.includes(headerType) && camp.media_id;
       await supabase.from("whatsapp_sends").update({ status: "sent", wa_message_id: waId, sent_at: new Date().toISOString() }).eq("id", s.id);
       await supabase.from("whatsapp_messages").insert({
         user_id: camp.user_id, organization_id: camp.organization_id, contact_id: s.contact_id,
-        wa_message_id: waId, phone_number: s.phone, direction: "outgoing", message_type: "template",
+        wa_message_id: waId, phone_number: s.phone, direction: "outgoing",
+        message_type: hasMedia ? headerType.toLowerCase() : "template",
+        media_url: hasMedia ? `meta:${camp.media_id}` : null,
         message_text: body, status: "sent", sent_at: new Date().toISOString(),
       });
       return "sent";
