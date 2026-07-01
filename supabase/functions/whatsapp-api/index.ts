@@ -1297,14 +1297,18 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Save to messages DB
+      // Save to messages DB. Store the header media (if any) so the CRM history
+      // renders the template's image/video (meta:{id} resolves on demand).
+      const hasHeaderMedia = (headerType === "IMAGE" || headerType === "VIDEO" || headerType === "DOCUMENT")
+        && (header_media_id || header_media_url);
       await supabase.from("whatsapp_messages").insert({
         user_id: user.id,
         contact_id: contact_id || null,
         wa_message_id: waMessageId,
         phone_number: phone.replace(/[^0-9]/g, ""),
         direction: "outgoing",
-        message_type: "template",
+        message_type: hasHeaderMedia ? headerType.toLowerCase() : "template",
+        media_url: hasHeaderMedia ? (header_media_url || `meta:${header_media_id}`) : null,
         message_text: renderedBody,
         status: "sent",
       });

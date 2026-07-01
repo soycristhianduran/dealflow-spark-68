@@ -782,6 +782,10 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           msgText = msgText.replace(new RegExp(`\\{\\{${i + 1}\\}\\}`, "g"), v);
         });
 
+        // Store the header media (if any) so the CRM history renders the
+        // template's image/video (meta:{id} resolves on demand).
+        const hasHeaderMedia = !!headerHandle &&
+          (headerType === "IMAGE" || headerType === "VIDEO" || headerType === "DOCUMENT");
         await supabase.from("whatsapp_messages").insert({
           user_id: enr.user_id,
           contact_id: contact.id,
@@ -789,7 +793,10 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           phone_number: contact.primary_phone.replace(/[^0-9]/g, ""),
           from_phone_number_id: waConfig.phone_number_id,
           direction: "outgoing",
-          message_type: "template",
+          message_type: hasHeaderMedia ? (headerType as string).toLowerCase() : "template",
+          media_url: hasHeaderMedia
+            ? (headerHandle.startsWith("http") ? headerHandle : `meta:${headerHandle}`)
+            : null,
           message_text: msgText,
           status: "sent",
         });
