@@ -15,10 +15,16 @@ import "./i18n";
     const host = window.location.hostname;
     const isApexKlosify = host === "klosify.com" || host === "www.klosify.com";
     const isCrmRoute = window.location.pathname.startsWith("/w/");
-    if (isApexKlosify && isCrmRoute) {
+    // Installed PWA launched on the apex (installed from the marketing site) →
+    // send it to the CRM app domain. Only affects standalone (installed) mode;
+    // normal browser visits to klosify.com are untouched.
+    const isStandalone =
+      window.matchMedia?.("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true;
+    if (isApexKlosify && (isCrmRoute || isStandalone)) {
       const target =
         "https://app.klosify.com" +
-        window.location.pathname +
+        (isCrmRoute ? window.location.pathname : "/") +
         window.location.search +
         window.location.hash;
       window.location.replace(target);
