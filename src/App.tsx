@@ -132,6 +132,23 @@ function RootRoute() {
   return <HomePage />;
 }
 
+/** Bare-path redirect (e.g. push notifications open "/conversations") → resolves
+ *  the user's workspace and forwards to /w/{slug}/{sub}. */
+function WorkspaceRedirect({ sub }: { sub: string }) {
+  const { session, loading } = useAuth();
+  const navigate = useNavigate();
+  useEffect(() => {
+    if (loading) return;
+    if (!session) { navigate(`/auth?next=/${sub}`, { replace: true }); return; }
+    (async () => {
+      const { data } = await supabase.rpc("get_my_organization");
+      const slug = data?.[0]?.org_slug;
+      navigate(slug ? `/w/${slug}/${sub}` : "/", { replace: true });
+    })();
+  }, [loading, session, navigate, sub]);
+  return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
+}
+
 // NOTE: The workspace routes + the billing lockout gate live in
 // WorkspaceEntryPage (the component actually mounted at /w/:slug/*). A previous
 // duplicate "WorkspaceRoutes" here was dead code AND held the only lockout check,
@@ -181,6 +198,10 @@ function AppRoutes() {
 
       {/* Founder-only SaaS health monitor (server-gated to platform_admins) */}
       <Route path="/platform" element={<ProtectedRoute><PlatformPage /></ProtectedRoute>} />
+
+      {/* Bare paths opened by push notifications → forward to the workspace */}
+      <Route path="/conversations" element={<WorkspaceRedirect sub="conversations" />} />
+      <Route path="/contacts" element={<WorkspaceRedirect sub="contacts" />} />
 
       {/* Founder-only org panel: enter any org + assign non-billable gestores */}
       <Route path="/admin" element={<ProtectedRoute><PlatformOrgsPage /></ProtectedRoute>} />
