@@ -1087,9 +1087,11 @@ function failReason(errorDetails?: string | null): string {
     detail = e?.error_data?.details || e?.message || e?.title || "";
   } catch { /* ignore */ }
   if (code === 131047) return "No se pudo enviar: pasaron más de 24 h desde la última respuesta del cliente. Usa una plantilla para reactivar la conversación.";
+  if (code === 131049) return "Meta limitó la entrega de este mensaje de marketing (el cliente ya recibió muchos mensajes promocionales recientemente). Es un tope de frecuencia de Meta, no un error del CRM.";
+  if (code === 130472) return "No se entregó: el cliente está en un experimento de Meta que limita mensajes de marketing. Vuelve a intentar más adelante o usa un mensaje de utilidad.";
   if (code === 131026) return "No se pudo entregar: el número no tiene WhatsApp o no puede recibir mensajes.";
   if (code === 131051) return "No se pudo enviar: tipo de mensaje no permitido fuera de la ventana de 24 h. Usa una plantilla.";
-  if (code === 131053 || code === 130472) return "No se pudo enviar el medio (formato/codec no soportado).";
+  if (code === 131053) return "No se pudo enviar el medio (formato/codec no soportado).";
   if (code === 131050) return "El cliente optó por no recibir mensajes (opt-out).";
   return detail ? `No se pudo enviar: ${detail}` : "No se pudo enviar el mensaje.";
 }
