@@ -416,6 +416,23 @@ Deno.serve(async (req) => {
                 sent_at: new Date(parseInt(msg.timestamp) * 1000).toISOString(),
               });
 
+              // Push notification to the org's devices (fire-and-forget)
+              if (config.organization_id) {
+                const who = contact?.full_name || senderPhone;
+                const preview = messageType === "text" ? (messageText || "") : `[${messageType}]`;
+                fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", "x-internal-secret": Deno.env.get("PUSH_INTERNAL_SECRET") ?? "" },
+                  body: JSON.stringify({
+                    organization_id: config.organization_id,
+                    title: `WhatsApp · ${who}`,
+                    body: preview.slice(0, 120),
+                    url: "/conversations",
+                    tag: `wa-${senderPhone}`,
+                  }),
+                }).catch(() => {});
+              }
+
               // Fire whatsapp_incoming automation trigger (fire-and-forget)
               if (contact?.id) {
                 fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {

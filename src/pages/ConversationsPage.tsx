@@ -46,6 +46,7 @@ const OPUS_ENCODER_WORKER_PATH = "/opus-encoder-worker.js";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EnableNotifications } from "@/components/EnableNotifications";
 
 type Channel = "whatsapp" | "instagram";
 type FilterMode = "all" | Channel;
@@ -676,6 +677,7 @@ export default function ConversationsPage() {
             <div className="flex items-center justify-between">
               <h1 className="font-bold text-base">{t("conversationsPage.title")}</h1>
               <div className="flex items-center gap-1">
+                <EnableNotifications />
                 {canEditConversations && counts.unread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
                     onClick={markAllRead} disabled={markingAll}

@@ -736,6 +736,22 @@ async function processInstagramMessenger(
 
   console.log(`IG ${isStoryReply ? "story reply" : "DM"} stored: from=${senderId} text=${messageText.substring(0, 60)}`);
 
+  // Push notification to the org's devices (fire-and-forget)
+  if (account.organization_id) {
+    const preview = messageText ? messageText.slice(0, 120) : (isStoryReply ? "Respondió tu historia" : "[adjunto]");
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": Deno.env.get("PUSH_INTERNAL_SECRET") ?? "" },
+      body: JSON.stringify({
+        organization_id: account.organization_id,
+        title: "Instagram · nuevo mensaje",
+        body: preview,
+        url: "/conversations",
+        tag: `ig-${senderId}`,
+      }),
+    }).catch(() => {});
+  }
+
   // ── Story reply automations ────────────────────────────────────────────────
   if (isStoryReply) {
     try {
