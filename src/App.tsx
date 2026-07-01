@@ -137,15 +137,17 @@ function RootRoute() {
 function WorkspaceRedirect({ sub }: { sub: string }) {
   const { session, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   useEffect(() => {
     if (loading) return;
-    if (!session) { navigate(`/auth?next=/${sub}`, { replace: true }); return; }
+    const qs = location.search || "";
+    if (!session) { navigate(`/auth?next=/${sub}${encodeURIComponent(qs)}`, { replace: true }); return; }
     (async () => {
       const { data } = await supabase.rpc("get_my_organization");
       const slug = data?.[0]?.org_slug;
-      navigate(slug ? `/w/${slug}/${sub}` : "/", { replace: true });
+      navigate(slug ? `/w/${slug}/${sub}${qs}` : "/", { replace: true });
     })();
-  }, [loading, session, navigate, sub]);
+  }, [loading, session, navigate, sub, location.search]);
   return <div className="flex min-h-screen items-center justify-center"><p className="text-muted-foreground">Cargando...</p></div>;
 }
 

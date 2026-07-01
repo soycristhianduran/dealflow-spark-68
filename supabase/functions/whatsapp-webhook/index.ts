@@ -427,7 +427,7 @@ Deno.serve(async (req) => {
                     organization_id: config.organization_id,
                     title: `WhatsApp · ${who}`,
                     body: preview.slice(0, 120),
-                    url: "/conversations",
+                    url: `/conversations?ch=wa&id=${encodeURIComponent(senderPhone)}`,
                     tag: `wa-${senderPhone}`,
                   }),
                 }).catch(() => {});

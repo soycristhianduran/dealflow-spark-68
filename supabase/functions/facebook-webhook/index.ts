@@ -746,7 +746,7 @@ async function processInstagramMessenger(
         organization_id: account.organization_id,
         title: "Instagram · nuevo mensaje",
         body: preview,
-        url: "/conversations",
+        url: conversationId ? `/conversations?ch=ig&id=${encodeURIComponent(conversationId)}` : "/conversations",
         tag: `ig-${senderId}`,
       }),
     }).catch(() => {});

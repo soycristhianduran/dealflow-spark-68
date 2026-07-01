@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useWorkspace } from "@/hooks/useWorkspace";
@@ -292,6 +292,20 @@ export default function ConversationsPage() {
       })();
     }
   }, [wa]);
+
+  // Deep-link from a push notification: /conversations?ch=wa&id=<phone|convId>
+  // → auto-open that specific chat once its data has loaded.
+  const [searchParams] = useSearchParams();
+  const autoOpenedRef = useRef(false);
+  useEffect(() => {
+    if (autoOpenedRef.current) return;
+    const ch = searchParams.get("ch");
+    const id = searchParams.get("id");
+    if (!ch || !id) return;
+    const channel = ch === "ig" ? "instagram" : "whatsapp";
+    const match = unifiedList.find((c) => c.channel === channel && c.id === id);
+    if (match) { autoOpenedRef.current = true; handleSelect(match); }
+  }, [searchParams, unifiedList, handleSelect]);
 
   const handleMarkUnread = useCallback(async (conv: UnifiedConversation) => {
     if (conv.unread_count > 0) return;
