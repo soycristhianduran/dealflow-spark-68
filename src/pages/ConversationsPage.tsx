@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, Bot, BotOff, ExternalLink, Eye,
+  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
 import {
@@ -75,6 +75,7 @@ interface UnifiedMessage {
   status: string;
   sent_at: string;
   sent_by_name?: string | null;
+  error_details?: string | null;
 }
 
 interface IgConvRow {
@@ -360,6 +361,7 @@ export default function ConversationsPage() {
         status: m.status,
         sent_at: m.created_at,
         sent_by_name: m.sent_by_name || null,
+        error_details: (m as any).error_details ?? null,
       }));
     }
     return igMessages.map((m) => ({
@@ -914,6 +916,7 @@ export default function ConversationsPage() {
                     </Button>
 
                     <Input
+                      className="flex-1 min-w-0"
                       placeholder={t("conversationsPage.messagePlaceholder", { channel: isWA ? "WhatsApp" : "Instagram" })}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
@@ -1074,6 +1077,23 @@ function ConvItem({
   );
 }
 
+// Human-friendly reason for a failed WhatsApp/Instagram message.
+function failReason(errorDetails?: string | null): string {
+  let code = 0, detail = "";
+  try {
+    const arr = JSON.parse(errorDetails || "[]");
+    const e = Array.isArray(arr) ? arr[0] : arr;
+    code = Number(e?.code) || 0;
+    detail = e?.error_data?.details || e?.message || e?.title || "";
+  } catch { /* ignore */ }
+  if (code === 131047) return "No se pudo enviar: pasaron más de 24 h desde la última respuesta del cliente. Usa una plantilla para reactivar la conversación.";
+  if (code === 131026) return "No se pudo entregar: el número no tiene WhatsApp o no puede recibir mensajes.";
+  if (code === 131051) return "No se pudo enviar: tipo de mensaje no permitido fuera de la ventana de 24 h. Usa una plantilla.";
+  if (code === 131053 || code === 130472) return "No se pudo enviar el medio (formato/codec no soportado).";
+  if (code === 131050) return "El cliente optó por no recibir mensajes (opt-out).";
+  return detail ? `No se pudo enviar: ${detail}` : "No se pudo enviar el mensaje.";
+}
+
 function MessageBubble({
   msg, channel, onFetchMedia,
 }: {
@@ -1083,6 +1103,7 @@ function MessageBubble({
 }) {
   const { t } = useTranslation();
   const out = msg.direction === "outgoing";
+  const isFailed = out && msg.status === "failed";
   // Format as HH:MM (exact time, same as Kommo)
   const timeLabel = (() => {
     try {
@@ -1189,6 +1210,12 @@ function MessageBubble({
           </span>
           {out && channel === "whatsapp" && <MsgStatus status={msg.status} />}
         </div>
+        {isFailed && (
+          <div className="mt-1.5 flex items-start gap-1.5 rounded-lg bg-red-500/10 px-2 py-1.5 text-[11px] leading-snug text-red-600 dark:text-red-400">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-px" />
+            <span>{failReason(msg.error_details)}</span>
+          </div>
+        )}
       </div>
     </div>
   );
