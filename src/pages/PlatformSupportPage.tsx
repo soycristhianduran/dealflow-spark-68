@@ -11,13 +11,17 @@ import { Input } from "@/components/ui/input";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { uploadSupportFiles, SUPPORT_MAX_BYTES, type SupportAttachment } from "@/lib/support-attachments";
+import { AttachmentChips } from "@/components/support/AttachmentChips";
+import { FilePicker } from "@/components/support/FilePicker";
+import { toast } from "sonner";
 
 interface Ticket {
   id: string; organization_id: string; org_name: string; requester_email: string;
   subject: string; category: string; status: string; priority: string;
   message_count: number; created_at: string; last_message_at: string;
 }
-interface Msg { id: string; body: string; is_staff: boolean; created_at: string; }
+interface Msg { id: string; body: string; is_staff: boolean; created_at: string; attachments?: SupportAttachment[]; }
 
 const STATUS_LABEL: Record<string, string> = { open: "Abierto", in_progress: "En proceso", resolved: "Resuelto", closed: "Cerrado" };
 const STATUS_CLASS: Record<string, string> = {
@@ -33,7 +37,16 @@ export default function PlatformSupportPage() {
   const [active, setActive] = useState<Ticket | null>(null);
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [reply, setReply] = useState("");
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+
+  const pickFiles = (list: FileList | null) => {
+    if (!list) return;
+    const picked = Array.from(list);
+    const tooBig = picked.find((f) => f.size > SUPPORT_MAX_BYTES);
+    if (tooBig) { toast.error(`"${tooBig.name}" supera 10 MB`); return; }
+    setReplyFiles([...replyFiles, ...picked]);
+  };
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("platform_list_support_tickets");
@@ -74,14 +87,17 @@ export default function PlatformSupportPage() {
   };
 
   const sendReply = async () => {
-    if (!reply.trim() || !active || !user) return;
+    if ((!reply.trim() && !replyFiles.length) || !active || !user) return;
     setSending(true);
+    let attachments: SupportAttachment[] = [];
+    try { if (replyFiles.length) attachments = await uploadSupportFiles(replyFiles, active.organization_id, active.id); }
+    catch (e: any) { setSending(false); toast.error(e.message || "Error al subir archivo"); return; }
     const { error } = await supabase.from("support_messages")
-      .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim() });
+      .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim(), attachments });
     setSending(false);
     if (error) return;
     supabase.functions.invoke("support-notify", { body: { ticket_id: active.id } }).catch(() => {});
-    setReply("");
+    setReply(""); setReplyFiles([]);
     const { data } = await supabase.from("support_messages").select("*")
       .eq("ticket_id", active.id).order("created_at", { ascending: true });
     setMsgs((data ?? []) as Msg[]);
@@ -159,19 +175,24 @@ export default function PlatformSupportPage() {
                   <div key={m.id} className={m.is_staff ? "flex justify-end" : "flex justify-start"}>
                     <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.is_staff ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
                       <div className="mb-0.5 text-[10px] font-semibold opacity-70">{m.is_staff ? "Soporte (tú)" : active.requester_email}</div>
-                      <p className="whitespace-pre-wrap">{m.body}</p>
+                      {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                      <AttachmentChips items={m.attachments ?? []} />
                       <div className="mt-1 text-[10px] opacity-60">{new Date(m.created_at).toLocaleString("es")}</div>
                     </div>
                   </div>
                 ))}
               </div>
-              <div className="flex items-center gap-2 border-t p-3">
-                <Input value={reply} onChange={(e) => setReply(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendReply())}
-                  placeholder="Responder al cliente…" />
-                <Button size="icon" onClick={sendReply} disabled={sending || !reply.trim()}>
-                  {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                </Button>
+              <div className="space-y-2 border-t p-3">
+                <div className="flex items-center gap-2">
+                  <Input value={reply} onChange={(e) => setReply(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendReply())}
+                    placeholder="Responder al cliente…" />
+                  <Button size="icon" onClick={sendReply} disabled={sending || (!reply.trim() && !replyFiles.length)}>
+                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <FilePicker id="admin-reply-files" files={replyFiles} onPick={pickFiles}
+                  onRemove={(i) => setReplyFiles(replyFiles.filter((_, x) => x !== i))} />
               </div>
             </div>
           )}

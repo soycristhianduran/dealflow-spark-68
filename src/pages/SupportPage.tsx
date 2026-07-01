@@ -15,13 +15,16 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { uploadSupportFiles, SUPPORT_MAX_BYTES, type SupportAttachment } from "@/lib/support-attachments";
+import { AttachmentChips } from "@/components/support/AttachmentChips";
+import { FilePicker } from "@/components/support/FilePicker";
 import { toast } from "sonner";
 
 interface Ticket {
   id: string; subject: string; category: string; status: string;
   priority: string; created_at: string; last_message_at: string;
 }
-interface Msg { id: string; body: string; is_staff: boolean; created_at: string; }
+interface Msg { id: string; body: string; is_staff: boolean; created_at: string; attachments?: SupportAttachment[]; }
 
 const STATUS_LABEL: Record<string, string> = {
   open: "Abierto", in_progress: "En proceso", resolved: "Resuelto", closed: "Cerrado",
@@ -49,6 +52,16 @@ export default function SupportPage() {
   const [subject, setSubject] = useState("");
   const [category, setCategory] = useState("general");
   const [body, setBody] = useState("");
+  const [newFiles, setNewFiles] = useState<File[]>([]);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+
+  const pickFiles = (list: FileList | null, setter: (f: File[]) => void, current: File[]) => {
+    if (!list) return;
+    const picked = Array.from(list);
+    const tooBig = picked.find((f) => f.size > SUPPORT_MAX_BYTES);
+    if (tooBig) { toast.error(`"${tooBig.name}" supera 10 MB`); return; }
+    setter([...current, ...picked]);
+  };
 
   const loadTickets = useCallback(async () => {
     if (!organizationId) { setTickets([]); setLoading(false); return; }
@@ -90,23 +103,29 @@ export default function SupportPage() {
       organization_id: organizationId, created_by: user.id, subject: subject.trim(), category,
     }).select().single();
     if (error || !ticket) { setSending(false); toast.error(error?.message || "No se pudo crear"); return; }
-    await supabase.from("support_messages").insert({ ticket_id: ticket.id, author_id: user.id, body: body.trim() });
+    let attachments: SupportAttachment[] = [];
+    try { if (newFiles.length) attachments = await uploadSupportFiles(newFiles, organizationId, ticket.id); }
+    catch (e: any) { toast.error(e.message || "Error al subir archivo"); }
+    await supabase.from("support_messages").insert({ ticket_id: ticket.id, author_id: user.id, body: body.trim(), attachments });
     supabase.functions.invoke("support-notify", { body: { ticket_id: ticket.id } }).catch(() => {});
-    setSending(false); setSubject(""); setBody(""); setCategory("general");
+    setSending(false); setSubject(""); setBody(""); setCategory("general"); setNewFiles([]);
     toast.success("Ticket creado. Te responderemos pronto.");
     await loadTickets();
     openThread(ticket as Ticket);
   };
 
   const sendReply = async () => {
-    if (!reply.trim() || !active || !user) return;
+    if ((!reply.trim() && !replyFiles.length) || !active || !user || !organizationId) return;
     setSending(true);
+    let attachments: SupportAttachment[] = [];
+    try { if (replyFiles.length) attachments = await uploadSupportFiles(replyFiles, organizationId, active.id); }
+    catch (e: any) { setSending(false); toast.error(e.message || "Error al subir archivo"); return; }
     const { error } = await supabase.from("support_messages")
-      .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim() });
+      .insert({ ticket_id: active.id, author_id: user.id, body: reply.trim(), attachments });
     setSending(false);
     if (error) { toast.error(error.message); return; }
     supabase.functions.invoke("support-notify", { body: { ticket_id: active.id } }).catch(() => {});
-    setReply("");
+    setReply(""); setReplyFiles([]);
     const { data } = await supabase.from("support_messages").select("*")
       .eq("ticket_id", active.id).order("created_at", { ascending: true });
     setMsgs((data ?? []) as Msg[]);
@@ -173,6 +192,9 @@ export default function SupportPage() {
                 <label className="text-sm font-medium">Describe tu solicitud</label>
                 <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={5} placeholder="Cuéntanos qué necesitas…" />
               </div>
+              <FilePicker id="new-ticket-files" files={newFiles}
+                onPick={(l) => pickFiles(l, setNewFiles, newFiles)}
+                onRemove={(i) => setNewFiles(newFiles.filter((_, x) => x !== i))} />
               <Button onClick={createTicket} disabled={sending || !subject.trim() || !body.trim()}>
                 {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar ticket"}
               </Button>
@@ -198,20 +220,26 @@ export default function SupportPage() {
                   <div key={m.id} className={m.is_staff ? "flex justify-start" : "flex justify-end"}>
                     <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm ${m.is_staff ? "bg-muted" : "bg-primary text-primary-foreground"}`}>
                       {m.is_staff && <div className="mb-0.5 text-[10px] font-semibold opacity-70">Soporte Klosify</div>}
-                      <p className="whitespace-pre-wrap">{m.body}</p>
+                      {m.body && <p className="whitespace-pre-wrap">{m.body}</p>}
+                      <AttachmentChips items={m.attachments ?? []} />
                       <div className="mt-1 text-[10px] opacity-60">{new Date(m.created_at).toLocaleString("es")}</div>
                     </div>
                   </div>
                 ))}
               </div>
               {active.status !== "closed" && (
-                <div className="flex items-center gap-2 border-t p-3">
-                  <Input value={reply} onChange={(e) => setReply(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendReply())}
-                    placeholder="Escribe una respuesta…" />
-                  <Button size="icon" onClick={sendReply} disabled={sending || !reply.trim()}>
-                    {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  </Button>
+                <div className="space-y-2 border-t p-3">
+                  <div className="flex items-center gap-2">
+                    <Input value={reply} onChange={(e) => setReply(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && (e.preventDefault(), sendReply())}
+                      placeholder="Escribe una respuesta…" />
+                    <Button size="icon" onClick={sendReply} disabled={sending || (!reply.trim() && !replyFiles.length)}>
+                      {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <FilePicker id="reply-files" files={replyFiles}
+                    onPick={(l) => pickFiles(l, setReplyFiles, replyFiles)}
+                    onRemove={(i) => setReplyFiles(replyFiles.filter((_, x) => x !== i))} />
                 </div>
               )}
             </div>
