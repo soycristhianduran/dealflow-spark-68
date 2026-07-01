@@ -760,7 +760,7 @@ export default function ConversationsPage() {
         </aside>
 
         {/* ===== RIGHT: chat ===== */}
-        <main className={`${selected ? "flex" : "hidden md:flex"} flex-1 flex-col`}>
+        <main className={`${selected ? "flex" : "hidden md:flex"} min-w-0 flex-1 flex-col overflow-hidden`}>
           {!selected ? (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-2 max-w-sm">
@@ -1191,7 +1191,7 @@ function MessageBubble({
     <div className={cn("flex", out ? "justify-end" : "justify-start")}>
       <div className={cn("max-w-[75%] rounded-2xl px-3 py-2 text-sm shadow-sm", bubbleColor)}>
         {renderMedia()}
-        {msg.text && <p className="whitespace-pre-wrap break-words leading-snug">{msg.text}</p>}
+        {msg.text && <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-snug">{msg.text}</p>}
         <div className={cn("flex items-center gap-1.5 mt-1", out ? "justify-end" : "justify-start")}>
           {/* Agent name — only on outgoing, only when we have a name */}
           {out && msg.sent_by_name && (
