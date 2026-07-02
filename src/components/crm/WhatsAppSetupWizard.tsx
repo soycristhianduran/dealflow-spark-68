@@ -417,6 +417,17 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               {t("whatsAppSetupWizard.connectAnotherNumber")}
             </Button>
 
+            {/* Add a coexistence number — keeps using the WhatsApp Business app */}
+            <Button
+              variant="outline"
+              className="w-full gap-2 border-green-500/40 text-green-700 hover:bg-green-500/10 dark:text-green-400"
+              onClick={() => wa.launchEmbeddedSignup({ coexistence: true })}
+              disabled={wa.connecting}
+            >
+              <Smartphone className="h-4 w-4" />
+              {t("whatsAppSetupWizard.coexistenceTitle")}
+            </Button>
+
             {/* Advanced actions — collapsed by default */}
             <details className="group">
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none flex items-center gap-1.5">
