@@ -2606,6 +2606,8 @@
     "connectWithFacebook": "Connect with Facebook",
     "recommended": "Recommended",
     "connectWithFacebookDesc": "Sign in with Facebook and select your WhatsApp Business account.",
+    "coexistenceTitle": "Keep my WhatsApp Business app",
+    "coexistenceDesc": "Coexistence: keep using WhatsApp Business on your phone and connect the same number to the CRM (QR scan).",
     "manualSetup": "Manual setup",
     "manualSetupDesc": "Enter your Meta Business credentials manually.",
     "selectPortfolio": "Select your business portfolio",

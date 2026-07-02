@@ -142,7 +142,7 @@ export function useWhatsAppIntegration() {
   // EXTERNAL customers' WhatsApp work: the popup shares the customer's WABA with
   // our app and lets Meta deliver webhooks (incoming messages + delivery status).
   // Falls back to the plain OAuth redirect when no config_id is configured.
-  const launchEmbeddedSignup = useCallback(async () => {
+  const launchEmbeddedSignup = useCallback(async (opts?: { coexistence?: boolean }) => {
     if (!metaAppId) {
       toast.error("La configuración de Meta no está lista. Intenta de nuevo.");
       return;
@@ -210,7 +210,10 @@ export function useWhatsAppIntegration() {
           config_id: waConfigId,
           response_type: "code",
           override_default_response_type: true,
-          extras: { setup: {}, featureType: "", sessionInfoVersion: "3" },
+          // featureType 'whatsapp_business_app_onboarding' = coexistence: the
+          // client KEEPS using their WhatsApp Business app while the number also
+          // connects to the Cloud API (QR scan inside the popup).
+          extras: { setup: {}, featureType: opts?.coexistence ? "whatsapp_business_app_onboarding" : "", sessionInfoVersion: "3" },
         }
       );
     } catch (e: any) {

@@ -624,6 +624,24 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
                 </button>
 
+                {/* Coexistence — keep using the WhatsApp Business app */}
+                <button
+                  className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-green-500/30 bg-card p-5 text-left transition-all hover:shadow-md group disabled:opacity-60"
+                  onClick={() => { setUseManual(false); wa.launchEmbeddedSignup({ coexistence: true }); }}
+                  disabled={!wa.metaAppId || wa.connecting}
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl shrink-0 bg-green-500/15">
+                    <Smartphone className="h-6 w-6 text-green-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">{t("whatsAppSetupWizard.coexistenceTitle")}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {t("whatsAppSetupWizard.coexistenceDesc")}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
+                </button>
+
                 {/* Manual */}
                 <button
                   className="w-full flex items-center gap-4 rounded-xl border-2 border-transparent hover:border-primary/30 bg-card p-5 text-left transition-all hover:shadow-md group"
