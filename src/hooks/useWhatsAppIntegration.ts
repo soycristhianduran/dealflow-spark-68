@@ -175,36 +175,40 @@ export function useWhatsAppIntegration() {
       };
       window.addEventListener("message", messageHandler);
 
+      // NOTE: the FB SDK rejects async callbacks ("Expression is of type
+      // asyncfunction, not function"), so wrap the async work in a plain fn.
       FB.login(
-        async (response: any) => {
-          window.removeEventListener("message", messageHandler);
-          const code = response?.authResponse?.code;
-          if (!code) {
-            setConnecting(false);
-            toast.error("Conexión cancelada.");
-            return;
-          }
-          try {
-            const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
-              body: {
-                code,
-                waba_id: session.waba_id ?? null,
-                phone_number_id: session.phone_number_id ?? null,
-                organization_id: organizationId ?? null,
-              },
-            });
-            if (error || data?.error) throw new Error(data?.error || error?.message);
-            if (data?.status === "pending") {
-              toast.success("Cuenta vinculada. Selecciona el número para terminar.");
-            } else {
-              toast.success("WhatsApp conectado. Los mensajes ya llegan al CRM.");
+        (response: any) => {
+          void (async () => {
+            window.removeEventListener("message", messageHandler);
+            const code = response?.authResponse?.code;
+            if (!code) {
+              setConnecting(false);
+              toast.error("Conexión cancelada.");
+              return;
             }
-            await fetchConfig();
-          } catch (e: any) {
-            toast.error(e?.message || "Error al conectar WhatsApp.");
-          } finally {
-            setConnecting(false);
-          }
+            try {
+              const { data, error } = await supabase.functions.invoke("whatsapp-embedded-signup", {
+                body: {
+                  code,
+                  waba_id: session.waba_id ?? null,
+                  phone_number_id: session.phone_number_id ?? null,
+                  organization_id: organizationId ?? null,
+                },
+              });
+              if (error || data?.error) throw new Error(data?.error || error?.message);
+              if (data?.status === "pending") {
+                toast.success("Cuenta vinculada. Selecciona el número para terminar.");
+              } else {
+                toast.success("WhatsApp conectado. Los mensajes ya llegan al CRM.");
+              }
+              await fetchConfig();
+            } catch (e: any) {
+              toast.error(e?.message || "Error al conectar WhatsApp.");
+            } finally {
+              setConnecting(false);
+            }
+          })();
         },
         {
           config_id: waConfigId,
