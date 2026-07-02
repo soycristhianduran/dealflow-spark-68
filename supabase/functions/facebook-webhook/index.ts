@@ -937,13 +937,20 @@ async function processInstagramMessenger(
   // ── AI Agent: respond automatically if enabled ────────────────────────────
   // Awaited inline so it completes within the outer EdgeRuntime.waitUntil work promise.
   try {
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", account.user_id)
-      .maybeSingle();
+    // Use the account's own org — resolving via organization_members breaks
+    // (maybeSingle errors) when the owner belongs to several organizations,
+    // and could pick the wrong org's agent config.
+    let agentOrgId: string | null = account.organization_id ?? null;
+    if (!agentOrgId) {
+      const { data: memberships } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", account.user_id)
+        .limit(1);
+      agentOrgId = memberships?.[0]?.organization_id ?? null;
+    }
 
-    if (membership?.organization_id) {
+    if (agentOrgId) {
       // Fetch last 12 messages for context (13 rows, skip index 0 = current message)
       const { data: recentMsgs } = await supabase
         .from("instagram_messages")
@@ -971,7 +978,7 @@ async function processInstagramMessenger(
         },
         body: JSON.stringify({
           channel: "instagram",
-          organization_id: membership.organization_id,
+          organization_id: agentOrgId,
           user_id: account.user_id,
           session_key: senderId,
           message: { type: messageType, content: messageText, media_url: attachmentUrl },
