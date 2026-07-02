@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -49,6 +49,48 @@ interface ContactRow {
   source: string | null;
   tags: string[] | null;
   created_at: string;
+}
+
+/** Checkbox multi-select dropdown used by the board filter bar. */
+function MultiFilter({ label, active, allLabel, options, selected, onToggle, onClear }: {
+  label: string;
+  active: boolean;
+  allLabel: string;
+  options: { value: string; label: string }[];
+  selected: string[];
+  onToggle: (value: string) => void;
+  onClear: () => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant={active ? "secondary" : "outline"} size="sm" className="h-8 gap-1.5 text-xs font-normal max-w-[200px]">
+          <span className="truncate">{label}</span>
+          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56 max-h-72 overflow-y-auto">
+        <DropdownMenuCheckboxItem
+          checked={selected.length === 0}
+          onCheckedChange={() => onClear()}
+          onSelect={e => e.preventDefault()}
+        >
+          {allLabel}
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        {options.map(o => (
+          <DropdownMenuCheckboxItem
+            key={o.value}
+            checked={selected.includes(o.value)}
+            onCheckedChange={() => onToggle(o.value)}
+            onSelect={e => e.preventDefault()}
+          >
+            <span className="truncate">{o.label}</span>
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 }
 
 const stageColorOptions = [
@@ -97,22 +139,26 @@ export default function PipelinePage() {
   // Board filters (client-side; the board already loads all leads of the pipeline).
   // Initialized from URL params so filters survive the Lista ⇄ Embudo switch.
   const [searchParams] = useSearchParams();
-  const initParam = (k: string, fallback: string) => searchParams.get(k) || fallback;
+  // Multi-select filters (empty array = no filter). URL uses comma-separated values.
+  const initList = (k: string) =>
+    (searchParams.get(k) || "").split(",").map(s => s.trim()).filter(v => v && v !== "all");
   const [showFilters, setShowFilters] = useState(() =>
     ["owner", "source", "tag", "from", "to"].some(k => searchParams.get(k)));
-  const [ownerFilter, setOwnerFilter] = useState(() => initParam("owner", "all"));
-  const [sourceFilter, setSourceFilter] = useState(() => initParam("source", "all"));
-  const [tagFilter, setTagFilter] = useState(() => initParam("tag", "all"));
-  const [dateFrom, setDateFrom] = useState(() => initParam("from", ""));
-  const [dateTo, setDateTo] = useState(() => initParam("to", ""));
+  const [ownerFilter, setOwnerFilter] = useState<string[]>(() => initList("owner"));
+  const [sourceFilter, setSourceFilter] = useState<string[]>(() => initList("source"));
+  const [tagFilter, setTagFilter] = useState<string[]>(() => initList("tag"));
+  const [dateFrom, setDateFrom] = useState(() => searchParams.get("from") || "");
+  const [dateTo, setDateTo] = useState(() => searchParams.get("to") || "");
   const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
 
-  // Switch to the list view carrying the active filters in the URL
+  // Switch to the list view carrying the active filters in the URL.
+  // The list's filters are single-select, so only pass a value when exactly
+  // one is chosen here (otherwise the list would silently narrow the set).
   const goToListView = () => {
     const qs = new URLSearchParams({ flt: "1" });
-    if (ownerFilter !== "all") qs.set("owner", ownerFilter);
-    if (sourceFilter !== "all") qs.set("source", sourceFilter);
-    if (tagFilter !== "all") qs.set("tag", tagFilter);
+    if (ownerFilter.length === 1) qs.set("owner", ownerFilter[0]);
+    if (sourceFilter.length === 1) qs.set("source", sourceFilter[0]);
+    if (tagFilter.length === 1) qs.set("tag", tagFilter[0]);
     if (dateFrom) qs.set("from", dateFrom);
     if (dateTo) qs.set("to", dateTo);
     if (selectedPipelineId) qs.set("pipeline", selectedPipelineId);
@@ -488,9 +534,9 @@ export default function PipelinePage() {
   // raw `contacts` list so a filtered-out lead can still be mutated safely.
   const filteredContacts = useMemo(() => {
     return contacts.filter(c => {
-      if (ownerFilter !== "all" && c.owner_id !== ownerFilter) return false;
-      if (sourceFilter !== "all" && (c.source || "") !== sourceFilter) return false;
-      if (tagFilter !== "all" && !(c.tags || []).includes(tagFilter)) return false;
+      if (ownerFilter.length && !ownerFilter.includes(c.owner_id || "")) return false;
+      if (sourceFilter.length && !sourceFilter.includes(c.source || "")) return false;
+      if (tagFilter.length && !(c.tags || []).some(tg => tagFilter.includes(tg))) return false;
       if (dateFrom && c.created_at < dateFrom) return false;
       if (dateTo && c.created_at > `${dateTo}T23:59:59`) return false;
       return true;
@@ -498,13 +544,16 @@ export default function PipelinePage() {
   }, [contacts, ownerFilter, sourceFilter, tagFilter, dateFrom, dateTo]);
 
   const activeFilterCount =
-    (ownerFilter !== "all" ? 1 : 0) + (sourceFilter !== "all" ? 1 : 0) +
-    (tagFilter !== "all" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+    ownerFilter.length + sourceFilter.length + tagFilter.length +
+    (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
 
   const clearFilters = () => {
-    setOwnerFilter("all"); setSourceFilter("all"); setTagFilter("all");
+    setOwnerFilter([]); setSourceFilter([]); setTagFilter([]);
     setDateFrom(""); setDateTo("");
   };
+
+  const toggleIn = (setter: (fn: (prev: string[]) => string[]) => void, value: string) =>
+    setter(prev => prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]);
 
   // Distinct sources/tags present in this pipeline's leads
   const sourceOptions = useMemo(
@@ -752,44 +801,52 @@ export default function PipelinePage() {
       {showFilters && (
         <div className="flex flex-wrap items-center gap-2 px-2 sm:px-6 py-2 border-b bg-muted/30">
           {isOwnerOrAdmin && members.length > 0 && (
-            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[150px] text-xs">
-                <SelectValue placeholder={t("pipelinePage.filterOwner")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("pipelinePage.allOwners")}</SelectItem>
-                {members.map(m => (
-                  <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <MultiFilter
+              label={ownerFilter.length === 0
+                ? t("pipelinePage.allOwners")
+                : ownerFilter.length === 1
+                  ? (members.find(m => m.user_id === ownerFilter[0])?.full_name || t("pipelinePage.filterOwner"))
+                  : `${t("pipelinePage.filterOwner")} (${ownerFilter.length})`}
+              active={ownerFilter.length > 0}
+              allLabel={t("pipelinePage.allOwners")}
+              options={members.map(m => ({ value: m.user_id, label: m.full_name }))}
+              selected={ownerFilter}
+              onToggle={v => toggleIn(setOwnerFilter, v)}
+              onClear={() => setOwnerFilter([])}
+            />
           )}
           {sourceOptions.length > 0 && (
-            <Select value={sourceFilter} onValueChange={setSourceFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder={t("pipelinePage.filterSource")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("pipelinePage.allSources")}</SelectItem>
-                {sourceOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <MultiFilter
+              label={sourceFilter.length === 0
+                ? t("pipelinePage.allSources")
+                : sourceFilter.length === 1 ? sourceFilter[0]
+                : `${t("pipelinePage.filterSource")} (${sourceFilter.length})`}
+              active={sourceFilter.length > 0}
+              allLabel={t("pipelinePage.allSources")}
+              options={sourceOptions.map(s => ({ value: s, label: s }))}
+              selected={sourceFilter}
+              onToggle={v => toggleIn(setSourceFilter, v)}
+              onClear={() => setSourceFilter([])}
+            />
           )}
           {tagOptions.length > 0 && (
-            <Select value={tagFilter} onValueChange={setTagFilter}>
-              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
-                <SelectValue placeholder={t("pipelinePage.filterTag")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("pipelinePage.allTags")}</SelectItem>
-                {tagOptions.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <MultiFilter
+              label={tagFilter.length === 0
+                ? t("pipelinePage.allTags")
+                : tagFilter.length === 1 ? tagFilter[0]
+                : `${t("pipelinePage.filterTag")} (${tagFilter.length})`}
+              active={tagFilter.length > 0}
+              allLabel={t("pipelinePage.allTags")}
+              options={tagOptions.map(tag => ({ value: tag, label: tag }))}
+              selected={tagFilter}
+              onToggle={v => toggleIn(setTagFilter, v)}
+              onClear={() => setTagFilter([])}
+            />
           )}
-          <div className="flex items-center gap-1">
-            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-[135px] text-xs" />
-            <span className="text-xs text-muted-foreground">–</span>
-            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-[135px] text-xs" />
+          <div className="flex items-center gap-1.5">
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-[155px] min-w-[155px] text-xs px-2" />
+            <span className="text-xs text-muted-foreground shrink-0">–</span>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-[155px] min-w-[155px] text-xs px-2" />
           </div>
           {activeFilterCount > 0 && (
             <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground" onClick={clearFilters}>
