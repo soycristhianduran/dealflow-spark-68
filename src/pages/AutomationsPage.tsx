@@ -2770,6 +2770,7 @@ function AutomationCard({
 export default function AutomationsPage() {
   const { t } = useTranslation();
   const { toast } = useToast();
+  const { organizationId } = useOrganizationContext();
   const { canAccessPowerFeatures: canEdit } = usePermissions();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2801,7 +2802,9 @@ export default function AutomationsPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  // Re-run when the org context resolves (it's null on the very first render).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [organizationId]);
 
   // Deep-link: ?open=<id> (used by the AI assistant after creating a draft) opens
   // that automation's builder for review.
