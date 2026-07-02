@@ -255,6 +255,39 @@ Deno.serve(async (req) => {
     // Meta's WhatsApp Manager UI cannot do this — it must be done via the
     // /register API endpoint with a 6-digit PIN.  The PIN doubles as the
     // two-step verification PIN for future re-registrations.
+    // ── VERIFY REGISTRATION (auto-heal) ─────────────────────────────────────
+    // Checks each unverified config against Meta: if the phone number is already
+    // CONNECTED on Cloud API (e.g. after a reconnection), mark webhook_verified
+    // so the "pending activation" banner doesn't show a false positive.
+    if (action === "verify_registration") {
+      let vrQ = supabase
+        .from("whatsapp_configs")
+        .select("id, phone_number_id, access_token")
+        .eq("is_active", true)
+        .eq("webhook_verified", false)
+        .neq("phone_number_id", "pending");
+      if (orgId) vrQ = vrQ.eq("organization_id", orgId);
+      else vrQ = vrQ.eq("user_id", user.id);
+      const { data: unverified } = await vrQ;
+
+      let healed = 0;
+      for (const cfg of (unverified || [])) {
+        try {
+          const r = await fetch(
+            `${GRAPH_API}/${cfg.phone_number_id}?fields=status,platform_type,code_verification_status&access_token=${encodeURIComponent(cfg.access_token)}`,
+          );
+          const info = await r.json();
+          if (info?.status === "CONNECTED") {
+            await supabase.from("whatsapp_configs").update({ webhook_verified: true }).eq("id", cfg.id);
+            healed++;
+          }
+        } catch (_) { /* leave unverified */ }
+      }
+      return new Response(JSON.stringify({ success: true, healed, checked: unverified?.length ?? 0 }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (action === "register_phone") {
       const { pin } = body;
       if (!pin || !/^\d{6}$/.test(String(pin))) {

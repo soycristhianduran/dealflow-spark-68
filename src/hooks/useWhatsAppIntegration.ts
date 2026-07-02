@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -56,6 +56,8 @@ export function useWhatsAppIntegration() {
   const { organizationId } = useOrganizationContext();
   const [configs, setConfigs] = useState<WhatsAppConfig[]>([]);
   const [loading, setLoading] = useState(true);
+  // One auto verify_registration pass per mount (avoids loops).
+  const autoVerifiedRef = useRef(false);
   const [connecting, setConnecting] = useState(false);
   const [metaAppId, setMetaAppId] = useState<string | null>(null);
   const [waConfigId, setWaConfigId] = useState<string | null>(null);
@@ -93,6 +95,21 @@ export function useWhatsAppIntegration() {
       const { data, error } = await query;
       if (error) throw error;
       setConfigs(data ?? []);
+
+      // Auto-heal stale "pending activation": if a number shows as unverified
+      // (e.g. after a reconnection) ask Meta for its real status once; when it's
+      // already CONNECTED the flag is fixed server-side and we refresh the list.
+      if ((data ?? []).some((c: any) => !c.webhook_verified) && !autoVerifiedRef.current) {
+        autoVerifiedRef.current = true;
+        supabase.functions
+          .invoke("whatsapp-api", { body: { action: "verify_registration", organization_id: organizationId ?? null } })
+          .then(({ data: vr }) => {
+            if (vr?.healed > 0) {
+              query.then(({ data: fresh }: any) => setConfigs(fresh ?? []));
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e: any) {
       console.warn("Error fetching WA configs:", e);
     } finally {
