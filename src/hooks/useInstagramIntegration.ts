@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
 
 export interface IgAccount {
@@ -68,6 +69,7 @@ export interface IgDiagnosis {
 
 export function useInstagramIntegration() {
   const { user } = useAuth();
+  const { organizationId } = useOrganizationContext();
   const [isConnected, setIsConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -79,8 +81,10 @@ export function useInstagramIntegration() {
       setLoading(false);
       return;
     }
+    // Scope to the CURRENT workspace so multi-org users see this org's account,
+    // not another org's (e.g. a gestor viewing a client workspace).
     const { data, error } = await supabase.functions.invoke("instagram-api", {
-      body: { action: "status" },
+      body: { action: "status", organization_id: organizationId ?? null },
     });
     if (error || data?.error) {
       console.warn("IG status error:", data?.error || error?.message);
@@ -90,7 +94,7 @@ export function useInstagramIntegration() {
       setIsConnected(!!data?.connected);
     }
     setLoading(false);
-  }, [user]);
+  }, [user, organizationId]);
 
   useEffect(() => {
     checkStatus();

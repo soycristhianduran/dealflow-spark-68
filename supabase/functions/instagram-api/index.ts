@@ -434,17 +434,24 @@ Deno.serve(async (req) => {
 
     // ── GET ACTIVE ACCOUNT STATUS ─────────────────────────────────────────────
     if (action === "status") {
-      // Instagram connection is shared ORG-WIDE: resolve the caller's org and
-      // report the org's connected account so every member sees it connected.
+      // Instagram connection is shared ORG-WIDE: report the CURRENT workspace's
+      // account. Multi-org users (owners/gestores) belong to several orgs, so we
+      // must scope to the org the caller is viewing — otherwise another org's
+      // account (the most recently updated one) shows as "connected" here.
       const { data: memberships } = await supabase
         .from("organization_members").select("organization_id").eq("user_id", user.id);
       const orgIds = (memberships || []).map((m: any) => m.organization_id).filter(Boolean);
+
+      const requestedOrg = body?.organization_id && orgIds.includes(body.organization_id)
+        ? body.organization_id
+        : null;
 
       let accQuery = supabase
         .from("instagram_accounts")
         .select("id, ig_user_id, ig_username, profile_picture_url, page_name, page_id, organization_id, needs_reconnect, last_refresh_error")
         .eq("is_active", true);
-      accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
+      if (requestedOrg) accQuery = accQuery.eq("organization_id", requestedOrg);
+      else accQuery = orgIds.length ? accQuery.in("organization_id", orgIds) : accQuery.eq("user_id", user.id);
       // NOTE: instagram_accounts has NO created_at column — only updated_at.
       // Order DESC so, if an org has more than one connected account, we show
       // the most recently connected/updated one (the one the user just linked).
