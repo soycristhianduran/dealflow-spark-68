@@ -956,7 +956,9 @@
     "starting": "Iniciando…",
     "startCampaign": "Iniciar campaña",
     "deleteConfirmTitle": "¿Eliminar {{count}} leads?",
-    "deleteConfirmDescription": "Esta acción no se puede deshacer. Los leads se eliminarán permanentemente."
+    "deleteConfirmDescription": "Esta acción no se puede deshacer. Los leads se eliminarán permanentemente.",
+    "viewList": "Lista",
+    "viewBoard": "Embudo"
   },
   "homePage": {
     "planStarterDesc": "Para emprendedores que están comenzando",
@@ -2554,7 +2556,9 @@
     "allSources": "Todas las fuentes",
     "filterTag": "Etiqueta",
     "allTags": "Todas las etiquetas",
-    "clearFilters": "Limpiar filtros"
+    "clearFilters": "Limpiar filtros",
+    "viewList": "Lista",
+    "viewBoard": "Embudo"
   },
   "whatsAppSetupWizard": {
     "webhookReactivated": "Webhook reactivado — los mensajes entrantes deberían llegar ahora",

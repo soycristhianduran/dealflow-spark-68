@@ -12,9 +12,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus, Filter, X } from "lucide-react";
+import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus, Filter, X, List, KanbanSquare } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
@@ -72,7 +72,9 @@ export default function PipelinePage() {
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const { isVendor, isSetter, myUserId, canEditContacts, isOwnerOrAdmin } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
-  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
+  const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(
+    () => new URLSearchParams(window.location.search).get("pipeline"),
+  );
   const [stages, setStages] = useState<Stage[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,14 +94,30 @@ export default function PipelinePage() {
   // Manage mode
   const [manageMode, setManageMode] = useState(false);
 
-  // Board filters (client-side; the board already loads all leads of the pipeline)
-  const [showFilters, setShowFilters] = useState(false);
-  const [ownerFilter, setOwnerFilter] = useState("all");
-  const [sourceFilter, setSourceFilter] = useState("all");
-  const [tagFilter, setTagFilter] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  // Board filters (client-side; the board already loads all leads of the pipeline).
+  // Initialized from URL params so filters survive the Lista ⇄ Embudo switch.
+  const [searchParams] = useSearchParams();
+  const initParam = (k: string, fallback: string) => searchParams.get(k) || fallback;
+  const [showFilters, setShowFilters] = useState(() =>
+    ["owner", "source", "tag", "from", "to"].some(k => searchParams.get(k)));
+  const [ownerFilter, setOwnerFilter] = useState(() => initParam("owner", "all"));
+  const [sourceFilter, setSourceFilter] = useState(() => initParam("source", "all"));
+  const [tagFilter, setTagFilter] = useState(() => initParam("tag", "all"));
+  const [dateFrom, setDateFrom] = useState(() => initParam("from", ""));
+  const [dateTo, setDateTo] = useState(() => initParam("to", ""));
   const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
+
+  // Switch to the list view carrying the active filters in the URL
+  const goToListView = () => {
+    const qs = new URLSearchParams({ flt: "1" });
+    if (ownerFilter !== "all") qs.set("owner", ownerFilter);
+    if (sourceFilter !== "all") qs.set("source", sourceFilter);
+    if (tagFilter !== "all") qs.set("tag", tagFilter);
+    if (dateFrom) qs.set("from", dateFrom);
+    if (dateTo) qs.set("to", dateTo);
+    if (selectedPipelineId) qs.set("pipeline", selectedPipelineId);
+    navigate(path(`/contacts?${qs.toString()}`));
+  };
 
   // Pipeline dialog (create/rename)
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -642,6 +660,17 @@ export default function PipelinePage() {
         subtitle={t("pipelinePage.subtitle")}
         actions={
           <div className="flex items-center gap-2">
+            {/* Lista ⇄ Embudo view switch */}
+            <div className="flex rounded-md border overflow-hidden">
+              <Button variant="ghost" size="sm" className="h-8 gap-1.5 rounded-none text-muted-foreground" onClick={goToListView}>
+                <List className="h-4 w-4" />
+                <span className="hidden md:inline">{t("pipelinePage.viewList")}</span>
+              </Button>
+              <Button variant="secondary" size="sm" className="h-8 gap-1.5 rounded-none pointer-events-none">
+                <KanbanSquare className="h-4 w-4" />
+                <span className="hidden md:inline">{t("pipelinePage.viewBoard")}</span>
+              </Button>
+            </div>
             {/* Pipeline selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

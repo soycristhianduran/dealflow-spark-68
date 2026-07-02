@@ -956,7 +956,9 @@
     "starting": "Starting…",
     "startCampaign": "Start campaign",
     "deleteConfirmTitle": "Delete {{count}} leads?",
-    "deleteConfirmDescription": "This action cannot be undone. The leads will be permanently deleted."
+    "deleteConfirmDescription": "This action cannot be undone. The leads will be permanently deleted.",
+    "viewList": "List",
+    "viewBoard": "Board"
   },
   "homePage": {
     "planStarterDesc": "For entrepreneurs just getting started",
@@ -2554,7 +2556,9 @@
     "allSources": "All sources",
     "filterTag": "Tag",
     "allTags": "All tags",
-    "clearFilters": "Clear filters"
+    "clearFilters": "Clear filters",
+    "viewList": "List",
+    "viewBoard": "Board"
   },
   "whatsAppSetupWizard": {
     "webhookReactivated": "Webhook reactivated — incoming messages should now arrive",

@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download, Upload } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download, Upload, List } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -144,6 +144,26 @@ export default function ContactsPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Apply filters arriving from the pipeline board view switch (?flt=1&owner=...).
+  useEffect(() => {
+    if (searchParams.get("flt") !== "1") return;
+    const owner = searchParams.get("owner");
+    const source = searchParams.get("source");
+    const tag = searchParams.get("tag");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+    const pipeline = searchParams.get("pipeline");
+    if (owner) setOwnerFilter(owner);
+    if (source) setSourceFilter(source);
+    if (tag) setTagFilter(tag);
+    if (from) setDateFrom(from);
+    if (to) setDateTo(to);
+    if (pipeline) setPipelineFilter(pipeline);
+    setCurrentPage(0);
+    setSearchParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   // Apply filters arriving from the CRM assistant (?ai=1&temperature=hot&...).
   useEffect(() => {
@@ -1115,6 +1135,29 @@ export default function ContactsPage() {
     <AppLayout>
       <AppHeader title={t("contactsPage.leads")} subtitle={t("contactsPage.leadsCount", { count: totalCount })} actions={
         <div className="flex items-center gap-1.5 md:gap-2">
+          {/* Lista ⇄ Embudo view switch — carries active filters to the board */}
+          <div className="hidden sm:flex rounded-md border overflow-hidden">
+            <Button variant="secondary" size="sm" className="h-8 gap-1.5 rounded-none pointer-events-none">
+              <List className="h-4 w-4" />
+              <span className="hidden md:inline">{t("contactsPage.viewList")}</span>
+            </Button>
+            <Button
+              variant="ghost" size="sm" className="h-8 gap-1.5 rounded-none text-muted-foreground"
+              onClick={() => {
+                const qs = new URLSearchParams();
+                if (isOwnerOrAdmin && ownerFilter !== "all") qs.set("owner", ownerFilter);
+                if (sourceFilter !== "all") qs.set("source", sourceFilter);
+                if (tagFilter !== "all") qs.set("tag", tagFilter);
+                if (dateFrom) qs.set("from", dateFrom);
+                if (dateTo) qs.set("to", dateTo);
+                if (pipelineFilter !== "all") qs.set("pipeline", pipelineFilter);
+                navigate(path(`/pipeline${qs.toString() ? `?${qs}` : ""}`));
+              }}
+            >
+              <KanbanSquare className="h-4 w-4" />
+              <span className="hidden md:inline">{t("contactsPage.viewBoard")}</span>
+            </Button>
+          </div>
           {canEditContacts && (
             <Button size="sm" variant="outline" className="gap-1.5 hidden sm:inline-flex" onClick={() => setImportOpen(true)}>
               <Upload className="h-4 w-4" />
