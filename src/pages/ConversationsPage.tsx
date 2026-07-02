@@ -63,6 +63,8 @@ interface UnifiedConversation {
   last_message_time: string;
   last_direction: "incoming" | "outgoing";
   unread_count: number;
+  /** IG only: the participant's IGSID — the session_key the AI agent uses. */
+  participant_id?: string;
 }
 
 interface UnifiedMessage {
@@ -238,6 +240,7 @@ export default function ConversationsPage() {
       last_message_time: c.last_message_at,
       last_direction: "incoming",
       unread_count: c.unread_count,
+      participant_id: c.participant_id,
     }));
     return [...waList, ...igList].sort(
       (a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime(),
@@ -390,44 +393,50 @@ export default function ConversationsPage() {
 
   // Load AI agent pause state when conversation changes
   useEffect(() => {
-    if (!selected) { setAgentPaused(false); return; }
+    if (!selected || !organizationId) { setAgentPaused(false); return; }
     (async () => {
+      // Must match the session_key the webhooks send to ai-agent:
+      // WhatsApp → +<phone>, Instagram → the participant's IGSID.
       const sessionKey = selected.channel === "whatsapp"
         ? (selected.id.startsWith("+") ? selected.id : `+${selected.id}`)
-        : selected.id;
+        : (selected.participant_id || selected.id);
       const { data } = await supabase
         .from("ai_agent_paused")
         .select("paused_at")
+        .eq("organization_id", organizationId)
         .eq("channel", selected.channel)
         .eq("session_key", sessionKey)
         .maybeSingle();
       setAgentPaused(!!data);
     })();
-  }, [selected?.id, selected?.channel]);
+  }, [selected?.id, selected?.channel, organizationId]);
 
   async function toggleAgentPause() {
-    if (!selected) return;
+    if (!selected || !organizationId) return;
     setTogglingAgent(true);
     try {
       const sessionKey = selected.channel === "whatsapp"
         ? (selected.id.startsWith("+") ? selected.id : `+${selected.id}`)
-        : selected.id;
+        : (selected.participant_id || selected.id);
 
       if (agentPaused) {
         // Resume AI agent
-        await supabase
+        const { error } = await supabase
           .from("ai_agent_paused")
           .delete()
+          .eq("organization_id", organizationId)
           .eq("channel", selected.channel)
           .eq("session_key", sessionKey);
+        if (error) throw error;
         setAgentPaused(false);
         toast.success(t("conversationsPage.agentResumedMsg"));
       } else {
         // Pause AI agent — human taking over
-        await supabase
+        const { error } = await supabase
           .from("ai_agent_paused")
-          .upsert({ channel: selected.channel, session_key: sessionKey, paused_at: new Date().toISOString() },
+          .upsert({ organization_id: organizationId, channel: selected.channel, session_key: sessionKey, paused_at: new Date().toISOString() },
             { onConflict: "organization_id,channel,session_key" });
+        if (error) throw error;
         setAgentPaused(true);
         toast.success(t("conversationsPage.agentPausedMsg"));
       }
