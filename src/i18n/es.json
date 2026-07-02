@@ -2546,7 +2546,15 @@
     "color_green": "Verde",
     "color_red": "Rojo",
     "color_pink": "Rosa",
-    "color_violet": "Violeta"
+    "color_violet": "Violeta",
+    "filters": "Filtros",
+    "filterOwner": "Usuario",
+    "allOwners": "Todos los usuarios",
+    "filterSource": "Fuente",
+    "allSources": "Todas las fuentes",
+    "filterTag": "Etiqueta",
+    "allTags": "Todas las etiquetas",
+    "clearFilters": "Limpiar filtros"
   },
   "whatsAppSetupWizard": {
     "webhookReactivated": "Webhook reactivado — los mensajes entrantes deberían llegar ahora",

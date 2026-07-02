@@ -11,10 +11,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus } from "lucide-react";
+import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus, Filter, X } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
@@ -45,6 +45,10 @@ interface ContactRow {
   budget_currency: string | null;
   expected_close_date: string | null;
   lead_status: string;
+  owner_id: string | null;
+  source: string | null;
+  tags: string[] | null;
+  created_at: string;
 }
 
 const stageColorOptions = [
@@ -66,7 +70,7 @@ export default function PipelinePage() {
   const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId, defaultCurrency } = useOrganizationContext();
-  const { isVendor, isSetter, myUserId, canEditContacts } = usePermissions();
+  const { isVendor, isSetter, myUserId, canEditContacts, isOwnerOrAdmin } = usePermissions();
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(null);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -87,6 +91,15 @@ export default function PipelinePage() {
 
   // Manage mode
   const [manageMode, setManageMode] = useState(false);
+
+  // Board filters (client-side; the board already loads all leads of the pipeline)
+  const [showFilters, setShowFilters] = useState(false);
+  const [ownerFilter, setOwnerFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [members, setMembers] = useState<{ user_id: string; full_name: string }[]>([]);
 
   // Pipeline dialog (create/rename)
   const [pipelineDialogOpen, setPipelineDialogOpen] = useState(false);
@@ -148,7 +161,7 @@ export default function PipelinePage() {
       const PAGE = 1000;
       for (let from = 0; ; from += PAGE) {
         let q = supabase.from("contacts")
-          .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status")
+          .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status, owner_id, source, tags, created_at")
           .eq("pipeline_id", pid)
           .order("created_at", { ascending: false })
           .range(from, from + PAGE - 1);
@@ -191,6 +204,22 @@ export default function PipelinePage() {
     if (pid) await fetchStagesAndContacts(pid);
     setLoading(false);
   }, [selectedPipelineId, fetchPipelines, fetchStagesAndContacts, seedDefaultStages]);
+
+  // Team members for the owner filter (owner/admin only — vendors/setters
+  // already see just their own leads).
+  useEffect(() => {
+    if (!isOwnerOrAdmin) return;
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+      .then(({ data }) => {
+        if (data?.members) {
+          setMembers((data.members as { user_id: string; full_name?: string; email?: string }[]).map(m => ({
+            user_id: m.user_id,
+            full_name: m.full_name || m.email || m.user_id,
+          })));
+        }
+      })
+      .catch(() => {});
+  }, [isOwnerOrAdmin]);
 
   useEffect(() => {
     fetchData();
@@ -437,8 +466,40 @@ export default function PipelinePage() {
     setPendingWonDrop(null);
   };
 
+  // Apply board filters (client-side). Drag&drop and dialogs keep using the
+  // raw `contacts` list so a filtered-out lead can still be mutated safely.
+  const filteredContacts = useMemo(() => {
+    return contacts.filter(c => {
+      if (ownerFilter !== "all" && c.owner_id !== ownerFilter) return false;
+      if (sourceFilter !== "all" && (c.source || "") !== sourceFilter) return false;
+      if (tagFilter !== "all" && !(c.tags || []).includes(tagFilter)) return false;
+      if (dateFrom && c.created_at < dateFrom) return false;
+      if (dateTo && c.created_at > `${dateTo}T23:59:59`) return false;
+      return true;
+    });
+  }, [contacts, ownerFilter, sourceFilter, tagFilter, dateFrom, dateTo]);
+
+  const activeFilterCount =
+    (ownerFilter !== "all" ? 1 : 0) + (sourceFilter !== "all" ? 1 : 0) +
+    (tagFilter !== "all" ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0);
+
+  const clearFilters = () => {
+    setOwnerFilter("all"); setSourceFilter("all"); setTagFilter("all");
+    setDateFrom(""); setDateTo("");
+  };
+
+  // Distinct sources/tags present in this pipeline's leads
+  const sourceOptions = useMemo(
+    () => [...new Set(contacts.map(c => c.source).filter(Boolean))].sort() as string[],
+    [contacts],
+  );
+  const tagOptions = useMemo(
+    () => [...new Set(contacts.flatMap(c => c.tags || []))].sort(),
+    [contacts],
+  );
+
   const getStageValue = (stageId: string) =>
-    contacts.filter(c => c.stage_id === stageId).reduce((sum, c) => sum + Number(c.budget || 0), 0);
+    filteredContacts.filter(c => c.stage_id === stageId).reduce((sum, c) => sum + Number(c.budget || 0), 0);
 
   // Stage CRUD
   const openAddStage = () => {
@@ -626,6 +687,20 @@ export default function PipelinePage() {
               </DropdownMenuContent>
             </DropdownMenu>
 
+            <Button
+              size="sm"
+              variant={showFilters || activeFilterCount > 0 ? "default" : "outline"}
+              className="gap-1.5"
+              onClick={() => setShowFilters(v => !v)}
+            >
+              <Filter className="h-4 w-4" />
+              <span className="hidden sm:inline">{t("pipelinePage.filters")}</span>
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-background/20 text-[10px] font-bold px-1">
+                  {activeFilterCount}
+                </span>
+              )}
+            </Button>
             {canEditContacts && (
             <Button
               size="sm"
@@ -645,6 +720,55 @@ export default function PipelinePage() {
           </div>
         }
       />
+      {showFilters && (
+        <div className="flex flex-wrap items-center gap-2 px-2 sm:px-6 py-2 border-b bg-muted/30">
+          {isOwnerOrAdmin && members.length > 0 && (
+            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[150px] text-xs">
+                <SelectValue placeholder={t("pipelinePage.filterOwner")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("pipelinePage.allOwners")}</SelectItem>
+                {members.map(m => (
+                  <SelectItem key={m.user_id} value={m.user_id}>{m.full_name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {sourceOptions.length > 0 && (
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder={t("pipelinePage.filterSource")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("pipelinePage.allSources")}</SelectItem>
+                {sourceOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          {tagOptions.length > 0 && (
+            <Select value={tagFilter} onValueChange={setTagFilter}>
+              <SelectTrigger className="h-8 w-auto min-w-[130px] text-xs">
+                <SelectValue placeholder={t("pipelinePage.filterTag")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t("pipelinePage.allTags")}</SelectItem>
+                {tagOptions.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+          <div className="flex items-center gap-1">
+            <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="h-8 w-[135px] text-xs" />
+            <span className="text-xs text-muted-foreground">–</span>
+            <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="h-8 w-[135px] text-xs" />
+          </div>
+          {activeFilterCount > 0 && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs text-muted-foreground" onClick={clearFilters}>
+              <X className="h-3.5 w-3.5" /> {t("pipelinePage.clearFilters")}
+            </Button>
+          )}
+        </div>
+      )}
       <main className="flex-1 overflow-x-auto p-2 sm:p-6 scrollbar-thin">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -660,7 +784,7 @@ export default function PipelinePage() {
         ) : (
           <div className="flex gap-4 min-w-max h-full">
             {stages.map((stage, idx) => {
-              const stageContacts = contacts.filter(c => c.stage_id === stage.id);
+              const stageContacts = filteredContacts.filter(c => c.stage_id === stage.id);
               const sys = (stage as any).is_system;
               const isWon = (stage as any).is_won;
               const isLost = (stage as any).is_lost;
