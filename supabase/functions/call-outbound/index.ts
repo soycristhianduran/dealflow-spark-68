@@ -500,6 +500,7 @@ Deno.serve(async (req) => {
   const token = authHeader.slice(7);
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   let isAuthorized = token === serviceKey;
+  let callerUser: { id: string } | null = null;
 
   if (!isAuthorized) {
     const { data: { user }, error: authErr } = await supabase.auth.getUser(token);
@@ -510,6 +511,7 @@ Deno.serve(async (req) => {
       });
     }
     isAuthorized = true;
+    callerUser = user;
   }
 
   // Parse body
@@ -524,6 +526,24 @@ Deno.serve(async (req) => {
   }
 
   const { action } = body;
+
+  // Authorization: user-authenticated callers may only act on orgs they belong
+  // to (service-role callers — automations/cron — are trusted). Without this a
+  // valid JWT could trigger calls billed to ANY organization.
+  if (callerUser && body.organization_id) {
+    const { data: member } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", callerUser.id)
+      .eq("organization_id", body.organization_id)
+      .maybeSingle();
+    if (!member) {
+      return new Response(JSON.stringify({ error: "No perteneces a esta organización" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
 
   // ── Action: call_contact ──────────────────────────────────────────────────
   if (action === "call_contact") {

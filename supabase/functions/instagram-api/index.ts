@@ -40,6 +40,52 @@ function messagingNode(account: { ig_user_id: string; page_id?: string | null; p
   return { host: GRAPH_API, id: account.page_id || account.ig_user_id };
 }
 
+/**
+ * Resolve which IG account to send FROM. Multi-org users (owners/gestores)
+ * belong to several orgs, so a user-scoped lookup can pick another org's
+ * account. Priority:
+ *   1. The conversation's own account (replies always leave from the account
+ *      that owns the thread) — with a membership check on its organization.
+ *   2. The caller's current organization (body.organization_id, validated).
+ *   3. Legacy fallback: accounts created by this user.
+ */
+async function resolveSendAccount(supabase: any, userId: string, body: any) {
+  const { data: memberships } = await supabase
+    .from("organization_members").select("organization_id").eq("user_id", userId);
+  const orgIds = (memberships || []).map((m: any) => m.organization_id).filter(Boolean);
+
+  if (body?.conversation_id) {
+    const { data: conv } = await supabase
+      .from("instagram_conversations")
+      .select("ig_account_id")
+      .eq("id", body.conversation_id)
+      .maybeSingle();
+    if (conv?.ig_account_id) {
+      const { data: acc } = await supabase
+        .from("instagram_accounts")
+        .select("id, ig_user_id, page_id, page_access_token, organization_id, user_id")
+        .eq("id", conv.ig_account_id)
+        .maybeSingle();
+      if (acc && (acc.user_id === userId || (acc.organization_id && orgIds.includes(acc.organization_id)))) {
+        return acc;
+      }
+      return null; // thread belongs to an org the caller is not part of
+    }
+  }
+
+  let q = supabase
+    .from("instagram_accounts")
+    .select("id, ig_user_id, page_id, page_access_token, organization_id, user_id")
+    .eq("is_active", true);
+  if (body?.organization_id && orgIds.includes(body.organization_id)) {
+    q = q.eq("organization_id", body.organization_id);
+  } else {
+    q = q.eq("user_id", userId);
+  }
+  const { data: acc } = await q.order("updated_at", { ascending: false }).limit(1).maybeSingle();
+  return acc;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -506,12 +552,9 @@ Deno.serve(async (req) => {
         throw new Error("recipient_id y text son obligatorios");
       }
 
-      const { data: account } = await supabase
-        .from("instagram_accounts")
-        .select("id, ig_user_id, page_id, page_access_token")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+      // Resolve the account from the conversation/current org — a plain
+      // user-scoped lookup could pick ANOTHER org's account for multi-org users.
+      const account = await resolveSendAccount(supabase, user.id, body);
       if (!account) throw new Error("Instagram no está conectado");
 
       // Send to the correct messaging node:
@@ -567,12 +610,8 @@ Deno.serve(async (req) => {
         throw new Error("recipient_id, file_base64 y mime_type son obligatorios");
       }
 
-      const { data: account } = await supabase
-        .from("instagram_accounts")
-        .select("id, ig_user_id, page_id, page_access_token")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
+      // Same multi-org-safe resolution as send_dm.
+      const account = await resolveSendAccount(supabase, user.id, body);
       if (!account) throw new Error("Instagram no está conectado");
 
       // Normalize MIME aliases the same way WhatsApp does, so audio recorded

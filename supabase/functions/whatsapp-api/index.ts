@@ -38,7 +38,25 @@ Deno.serve(async (req) => {
     const { action } = body;
 
     // Helper to get user's access token — prefers pending row (fresh OAuth), then any active row
-    const orgId: string | null = body?.organization_id ?? null;
+    // Multi-org safety: when the frontend didn't pass organization_id, derive it
+    // when unambiguous (user belongs to exactly one org). If the user belongs to
+    // SEVERAL orgs, an unscoped user_id lookup could pick another org's WhatsApp
+    // config (wrong sender number), so we keep orgId null only for single-org
+    // legacy rows and never mix configs across orgs for multi-org users.
+    let orgId: string | null = body?.organization_id ?? null;
+    if (!orgId) {
+      const { data: myOrgs } = await supabase
+        .from("organization_members").select("organization_id").eq("user_id", user.id);
+      const ids = [...new Set((myOrgs || []).map((m: any) => m.organization_id).filter(Boolean))];
+      if (ids.length === 1) orgId = ids[0] as string;
+      else if (ids.length > 1) {
+        // Ambiguous: refuse to guess for config-sensitive actions.
+        const CONFIG_SENSITIVE = ["send_template", "send_media", "upload_media", "upload_template_media", "create_template", "delete_template", "update_template", "check_webhook_app", "register_phone"];
+        if (CONFIG_SENSITIVE.includes(action)) {
+          throw new Error("organization_id es obligatorio para esta acción (usuario multi-organización).");
+        }
+      }
+    }
     const getUserToken = async () => {
       // 1. Look for pending row (just created by OAuth) — MUST be scoped by org
       //    so that a user admin of multiple orgs gets the token for THIS org, not another.
