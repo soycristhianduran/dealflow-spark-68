@@ -744,9 +744,11 @@ export default function InstagramAutomationsPage() {
                   </div>
                 )}
 
-                {triggerTypes.includes("comment") && (
+                {/* IG post picker — hidden for Facebook-only automations (FB always
+                    listens on all page posts; only the keyword filters there) */}
+                {triggerTypes.includes("comment") && networks.includes("instagram") && (
                   <div className="space-y-1.5">
-                    <Label className="text-xs">{t("instagramAutomationsPage.specificPostsLabel")}</Label>
+                    <Label className="text-xs">{t("instagramAutomationsPage.specificPostsLabel")} <span className="text-muted-foreground font-normal">{networks.includes("facebook") ? t("instagramAutomationsPage.igOnlyTag") : ""}</span></Label>
                     {mediaIds.length > 0 ? (
                       <div className="rounded-xl border bg-background p-2.5 space-y-2">
                         <div className="flex items-center justify-between">
