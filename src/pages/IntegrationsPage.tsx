@@ -8,7 +8,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X, Webhook, Copy, Eye, EyeOff } from "lucide-react";
+import { CheckCircle2, Circle, ExternalLink, Shield, Zap, ArrowRight, Loader2, AlertTriangle, Star, Trash2, Plus, Pencil, Check, X, Webhook, Copy, Eye, EyeOff, RefreshCw } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, FacebookIcon, TikTokIcon, GoogleCalendarIcon, GoogleAdsIcon } from "@/components/icons/BrandIcons";
 import { useState, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
