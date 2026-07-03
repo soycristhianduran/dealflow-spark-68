@@ -206,7 +206,7 @@ export function useFacebookIntegration() {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const redirectUri = encodeURIComponent(`${supabaseUrl}/functions/v1/facebook-oauth-callback`);
       const scopes = [
-        "pages_show_list","pages_read_engagement","pages_manage_metadata",
+        "pages_show_list","pages_read_engagement","pages_manage_engagement","pages_manage_metadata",
         "pages_manage_ads","pages_messaging","leads_retrieval",
         "ads_read","ads_management","business_management",
         "instagram_basic","instagram_manage_messages",
@@ -223,6 +223,8 @@ export function useFacebookIntegration() {
       // Pages (Facebook)
       "pages_show_list",
       "pages_read_engagement",
+      // Reply to page post comments as the page (RRSS comment automations)
+      "pages_manage_engagement",
       "pages_manage_metadata",
       "pages_manage_ads",
       "pages_messaging",
