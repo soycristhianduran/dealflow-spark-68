@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, CheckCircle2, Facebook, FileText, MessageCircle, BarChart3, ArrowRight, ArrowLeft, RefreshCw, Settings2, Plus, Search, Download } from "lucide-react";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
+import { MessengerIcon } from "@/components/icons/BrandIcons";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -645,8 +646,8 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
             <div className="space-y-3">
               <div className="rounded-lg border p-4 space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
-                    <MessageCircle className="h-5 w-5 text-primary" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#007FFF]/10">
+                    <MessengerIcon size={22} />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-foreground">{t("facebookSetupWizard.messengerInbox")}</p>

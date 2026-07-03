@@ -123,26 +123,14 @@ export function MessengerIcon({ size = 24, className, ...rest }: BrandIconProps)
       xmlns="http://www.w3.org/2000/svg"
       width={size}
       height={size}
-      viewBox="0 0 32 32"
+      viewBox="0 0 48 48"
       className={className}
       {...rest}
     >
-      <defs>
-        <radialGradient id="msg-grad" cx="19%" cy="99%" r="108%">
-          <stop offset="0" stopColor="#0099FF" />
-          <stop offset="0.6" stopColor="#A033FF" />
-          <stop offset="0.9" stopColor="#FF5280" />
-          <stop offset="1" stopColor="#FF7061" />
-        </radialGradient>
-      </defs>
-      <path
-        fill="url(#msg-grad)"
-        d="M16 0C7.07 0 0 6.55 0 15.16c0 4.5 1.94 8.4 5.1 11.1V32l4.66-2.56c1.96.54 4.03.82 6.24.82 8.93 0 16-6.55 16-15.16C32 6.55 24.93 0 16 0z"
-      />
-      <path
-        fill="#fff"
-        d="M7.5 20.05L11.95 13l4.55 3.5L20.45 13l5.05 7.05-4.05-2.55-3.55 3.55-4.55-3.5-3.45 2.5z"
-      />
+      {/* Official Messenger mark (Messenger-color) */}
+      <g transform="translate(-301,-860)" fill="#007FFF">
+        <path d="M325,860 C311.745143,860 301,869.949185 301,882.222222 C301,889.215556 304.489988,895.453481 309.944099,899.526963 L309.944099,908 L318.115876,903.515111 C320.296745,904.118667 322.607155,904.444444 325,904.444444 C338.254857,904.444444 349,894.495259 349,882.222222 C349,869.949185 338.254857,860 325,860 L325,860 Z M327.385093,889.925926 L321.273292,883.407407 L309.347826,889.925926 L322.465839,876 L328.726708,882.518519 L340.503106,876 L327.385093,889.925926 L327.385093,889.925926 Z" />
+      </g>
     </svg>
   );
 }
