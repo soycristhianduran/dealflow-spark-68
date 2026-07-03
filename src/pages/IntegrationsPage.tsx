@@ -915,6 +915,16 @@ export default function IntegrationsPage() {
                         <Badge variant="outline" className="text-xs">{t("integrationsPage.formsCount", { count: fb.status.forms.length })}</Badge>
                         <Badge variant="outline" className="text-xs">{t("integrationsPage.campaignsCount", { count: fb.status.campaigns_count })}</Badge>
                       </div>
+                      {/* Re-run OAuth (no disconnect) — needed when the app adds
+                          new permission scopes and the stored token predates them */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full text-xs gap-1.5"
+                        onClick={(e) => { e.stopPropagation(); fb.connect(); }}
+                      >
+                        <RefreshCw className="h-3 w-3" /> {t("integrationsPage.refreshPermissions")}
+                      </Button>
                     </div>
                   )}
 

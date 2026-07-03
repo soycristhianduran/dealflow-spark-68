@@ -2364,7 +2364,8 @@
         "label": "Form submitted",
         "description": "When someone submits a landing page form"
       }
-    }
+    },
+    "refreshPermissions": "Refresh Meta permissions"
   },
   "whatsAppTemplatesPage": {
     "variablesLabel": "Variables:",

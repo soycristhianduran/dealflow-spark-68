@@ -2364,7 +2364,8 @@
         "label": "Formulario enviado",
         "description": "Cuando alguien envía un formulario de landing page"
       }
-    }
+    },
+    "refreshPermissions": "Actualizar permisos de Meta"
   },
   "whatsAppTemplatesPage": {
     "variablesLabel": "Variables:",
