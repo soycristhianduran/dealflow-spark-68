@@ -212,7 +212,7 @@ export function useFacebookIntegration() {
         "instagram_basic","instagram_manage_messages",
         "instagram_manage_comments","instagram_manage_insights",
       ].join(",");
-      const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(fallbackState)}&response_type=code${configIdParam}`;
+      const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(fallbackState)}&response_type=code&auth_type=rerequest${configIdParam}`;
       window.location.href = oauthUrl;
       return;
     }
@@ -242,7 +242,7 @@ export function useFacebookIntegration() {
       "instagram_manage_insights",
     ].join(",");
 
-    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code${configIdParam}`;
+    const oauthUrl = `https://www.facebook.com/v21.0/dialog/oauth?client_id=${metaAppId}&redirect_uri=${redirectUri}&scope=${scopes}&state=${encodeURIComponent(stateToken)}&response_type=code&auth_type=rerequest${configIdParam}`;
 
     // Use direct redirect instead of popup (cross-origin popup doesn't work)
     window.location.href = oauthUrl;
