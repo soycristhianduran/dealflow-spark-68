@@ -24,13 +24,18 @@ import {
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
+import { useOrganizationContext } from "@/context/OrganizationContext";
+import { Facebook } from "lucide-react";
 
 type TriggerType = "comment" | "story_reply" | "story_mention" | "new_follower";
 type TriggerTypes = TriggerType[];
+type Network = "instagram" | "facebook";
 
 interface IgButton { title: string; url: string; }
 
 interface Automation {
+  networks: Network[] | null;
+  fb_page_id: string | null;
   id: string;
   name: string;
   is_active: boolean;
@@ -178,6 +183,17 @@ export default function InstagramAutomationsPage() {
   const { path } = useWorkspace();
   const navigate = useNavigate();
   const ig = useInstagramIntegration();
+  const { organizationId } = useOrganizationContext();
+
+  // Facebook pages connected to this org (for the Facebook network)
+  const [fbPages, setFbPages] = useState<{ page_id: string; page_name: string }[]>([]);
+  useEffect(() => {
+    if (!organizationId) { setFbPages([]); return; }
+    supabase.from("facebook_pages")
+      .select("page_id, page_name")
+      .eq("organization_id", organizationId)
+      .then(({ data }) => setFbPages(data || []));
+  }, [organizationId]);
 
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,6 +202,8 @@ export default function InstagramAutomationsPage() {
 
   // Form state
   const [name, setName] = useState("");
+  const [networks, setNetworks] = useState<Network[]>(["instagram"]);
+  const [fbPageId, setFbPageId] = useState<string>("");
   const [keywordsInput, setKeywordsInput] = useState("");
   const [matchMode, setMatchMode] = useState<"any" | "all" | "exact">("any");
   const [mediaIds, setMediaIds] = useState<string[]>([]);
@@ -219,6 +237,8 @@ export default function InstagramAutomationsPage() {
   const openCreate = () => {
     setEditing(null);
     setName("");
+    setNetworks(["instagram"]);
+    setFbPageId(fbPages[0]?.page_id || "");
     setKeywordsInput("");
     setMatchMode("any");
     setMediaIds([]);
@@ -236,6 +256,8 @@ export default function InstagramAutomationsPage() {
   const openEdit = (a: Automation) => {
     setEditing(a);
     setName(a.name);
+    setNetworks(a.networks?.length ? a.networks : ["instagram"]);
+    setFbPageId(a.fb_page_id || fbPages[0]?.page_id || "");
     setTriggerTypes(a.trigger_types?.length ? a.trigger_types : [a.trigger_type || "comment"]);
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
@@ -267,21 +289,31 @@ export default function InstagramAutomationsPage() {
       return;
     }
 
+    const hasIg = networks.includes("instagram");
+    const hasFb = networks.includes("facebook");
+    if (hasFb && !fbPageId && fbPages.length === 0) {
+      toast.error(t("instagramAutomationsPage.needFbPageError"));
+      return;
+    }
+
     setSaving(true);
     const keywords = keywordsInput.split(",").map((k) => k.trim()).filter(Boolean);
 
-    // Resolve ig_account_id
-    const { data: account } = await supabase
-      .from("instagram_accounts")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .maybeSingle();
-
-    if (!account) {
-      toast.error(t("instagramAutomationsPage.connectFirstError"));
-      setSaving(false);
-      return;
+    // Resolve ig_account_id (required only when the automation runs on Instagram)
+    let igAccountId: string | null = null;
+    if (hasIg) {
+      const { data: account } = await supabase
+        .from("instagram_accounts")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (!account) {
+        toast.error(t("instagramAutomationsPage.connectFirstError"));
+        setSaving(false);
+        return;
+      }
+      igAccountId = account.id;
     }
 
     const validBtns = (btns: IgButton[]) =>
@@ -289,7 +321,10 @@ export default function InstagramAutomationsPage() {
 
     const payload = {
       user_id: user.id,
-      ig_account_id: account.id,
+      ig_account_id: igAccountId,
+      organization_id: organizationId,
+      networks,
+      fb_page_id: hasFb ? (fbPageId || fbPages[0]?.page_id || null) : null,
       name: name.trim(),
       trigger_type: triggerTypes[0] || "comment",
       trigger_types: triggerTypes,
@@ -297,13 +332,14 @@ export default function InstagramAutomationsPage() {
       match_mode: matchMode,
       media_id: triggerTypes.includes("comment") ? (mediaIds[0] || null) : null,
       media_ids: triggerTypes.includes("comment") ? mediaIds : [],
-      require_follower: requireFollower,
+      // Follower gate only exists on Instagram — force off for FB-only automations
+      require_follower: hasIg && requireFollower,
       dm_message_text: dmText.trim() || null,
       dm_buttons: validBtns(dmButtons).length > 0 ? validBtns(dmButtons) : null,
-      dm_message_non_follower: requireFollower ? (dmNonFollowerText.trim() || null) : null,
-      dm_buttons_non_follower: requireFollower && validBtns(dmButtonsNonFollower).length > 0
+      dm_message_non_follower: hasIg && requireFollower ? (dmNonFollowerText.trim() || null) : null,
+      dm_buttons_non_follower: hasIg && requireFollower && validBtns(dmButtonsNonFollower).length > 0
         ? validBtns(dmButtonsNonFollower) : null,
-      follow_keyword: requireFollower ? (followKeyword.trim() || "LISTO") : null,
+      follow_keyword: hasIg && requireFollower ? (followKeyword.trim() || "LISTO") : null,
       reply_to_comment_text: triggerTypes.includes("comment") ? (replyText.trim() || null) : null,
       is_active: true,
       updated_at: new Date().toISOString(),
@@ -316,6 +352,19 @@ export default function InstagramAutomationsPage() {
     if (error) {
       toast.error(t("instagramAutomationsPage.saveError") + error.message);
     } else {
+      // Make sure the FB page is subscribed to feed events so comments arrive.
+      if (hasFb) {
+        const pid = fbPageId || fbPages[0]?.page_id;
+        if (pid) {
+          supabase.functions.invoke("facebook-api", {
+            body: { action: "subscribe_page_feed", page_id: pid, organization_id: organizationId },
+          }).then(({ data }) => {
+            if (data && data.success === false) {
+              toast.warning(t("instagramAutomationsPage.fbFeedSubscribeWarning") + (data.error ? `: ${data.error}` : ""));
+            }
+          }).catch(() => {});
+        }
+      }
       toast.success(editing ? t("instagramAutomationsPage.updatedMsg") : t("instagramAutomationsPage.createdMsg"));
       setDialogOpen(false);
       loadAutomations();
@@ -355,8 +404,8 @@ export default function InstagramAutomationsPage() {
     }
   };
 
-  // ===== Not connected ======================================================
-  if (!ig.loading && !ig.isConnected) {
+  // ===== Not connected (neither IG nor a FB page) ===========================
+  if (!ig.loading && !ig.isConnected && fbPages.length === 0) {
     return (
       <AppLayout>
         <div className="flex h-[calc(100vh-3.5rem)] items-center justify-center">
@@ -421,8 +470,20 @@ export default function InstagramAutomationsPage() {
               <div key={a.id} className={`rounded-xl border p-5 transition-all ${!a.is_active && "opacity-60"}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
                       <h3 className="font-semibold">{a.name}</h3>
+                      <span className="flex items-center gap-1">
+                        {(a.networks?.length ? a.networks : ["instagram"]).includes("instagram") && (
+                          <span title="Instagram" className="flex h-5 w-5 items-center justify-center rounded bg-gradient-to-br from-pink-500/15 to-orange-500/15">
+                            <Instagram className="h-3 w-3 text-pink-600" />
+                          </span>
+                        )}
+                        {(a.networks || []).includes("facebook") && (
+                          <span title="Facebook" className="flex h-5 w-5 items-center justify-center rounded bg-blue-500/15">
+                            <Facebook className="h-3 w-3 text-blue-600" />
+                          </span>
+                        )}
+                      </span>
                       {a.is_active ? (
                         <Badge variant="outline" className="text-[10px] gap-1 text-green-600 border-green-300 bg-green-50">
                           <Zap className="h-2.5 w-2.5" /> {t("instagramAutomationsPage.active")}
@@ -548,6 +609,57 @@ export default function InstagramAutomationsPage() {
                 />
               </div>
 
+              {/* Networks */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">{t("instagramAutomationsPage.networksLabel")}</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {([
+                    { value: "instagram" as Network, icon: <Instagram className="h-4 w-4" />, label: "Instagram", disabled: false },
+                    { value: "facebook" as Network, icon: <Facebook className="h-4 w-4" />, label: "Facebook", disabled: fbPages.length === 0 },
+                  ]).map((opt) => {
+                    const active = networks.includes(opt.value);
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        disabled={opt.disabled}
+                        onClick={() => {
+                          if (active) {
+                            if (networks.length === 1) return; // keep at least one
+                            setNetworks(networks.filter(n => n !== opt.value));
+                          } else {
+                            setNetworks([...networks, opt.value]);
+                          }
+                        }}
+                        className={`relative flex items-center justify-center gap-2 rounded-lg border-2 py-2.5 px-2 text-xs transition-colors ${
+                          active
+                            ? "border-pink-500 bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300 font-semibold"
+                            : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                        } ${opt.disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        {active && <span className="absolute top-1 right-1.5 text-pink-500 text-[10px]">✓</span>}
+                        {opt.icon} {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {fbPages.length === 0 && (
+                  <p className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.fbNotConnectedHint")}</p>
+                )}
+                {networks.includes("facebook") && fbPages.length > 1 && (
+                  <select
+                    value={fbPageId}
+                    onChange={(e) => setFbPageId(e.target.value)}
+                    className="w-full h-9 rounded-md border bg-background px-3 text-sm"
+                  >
+                    {fbPages.map(p => <option key={p.page_id} value={p.page_id}>{p.page_name}</option>)}
+                  </select>
+                )}
+                {networks.includes("facebook") && (
+                  <p className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.fbScopeHint")}</p>
+                )}
+              </div>
+
               {/* Trigger section */}
               <div className="rounded-xl border bg-muted/30 p-4 space-y-3">
                 <h4 className="text-sm font-semibold flex items-center gap-1.5">
@@ -595,6 +707,9 @@ export default function InstagramAutomationsPage() {
                     })}
                   </div>
                   <p className="text-[10px] text-muted-foreground">{t("instagramAutomationsPage.multiTriggerHint")}</p>
+                  {networks.includes("facebook") && (
+                    <p className="text-[10px] text-blue-600 dark:text-blue-400">{t("instagramAutomationsPage.fbTriggersNote")}</p>
+                  )}
                 </div>
 
                 {/* Keywords & match mode hidden when only new_follower */}
@@ -678,6 +793,11 @@ export default function InstagramAutomationsPage() {
                     <p className="text-[10px] text-muted-foreground">
                       {t("instagramAutomationsPage.allPostsRuleHint")}
                     </p>
+                    {networks.includes("facebook") && (
+                      <p className="text-[10px] text-blue-600 dark:text-blue-400">
+                        {t("instagramAutomationsPage.fbAllPostsNote")}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -704,28 +824,46 @@ export default function InstagramAutomationsPage() {
                   <MessageSquare className="h-3.5 w-3.5 text-pink-500" /> {t("instagramAutomationsPage.dmSectionTitle")}
                 </h4>
 
-                {/* Follower toggle — visible always, prominent */}
-                <div
-                  className={`rounded-xl border-2 p-3 flex items-start gap-3 cursor-pointer transition-all ${
-                    requireFollower
-                      ? "border-pink-400 bg-pink-50 dark:bg-pink-950/30"
-                      : "border-border hover:border-muted-foreground/30"
-                  }`}
-                  onClick={() => setRequireFollower(!requireFollower)}
-                >
-                  <Switch checked={requireFollower} onCheckedChange={setRequireFollower}
-                    onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-semibold">
-                      {t("instagramAutomationsPage.verifyFollowerTitle")}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
-                      {requireFollower
-                        ? t("instagramAutomationsPage.verifyFollowerActive")
-                        : t("instagramAutomationsPage.verifyFollowerInactive")}
+                {/* Follower toggle — Instagram only (Facebook's API can't verify follows) */}
+                {networks.includes("instagram") ? (
+                  <div
+                    className={`rounded-xl border-2 p-3 flex items-start gap-3 cursor-pointer transition-all ${
+                      requireFollower
+                        ? "border-pink-400 bg-pink-50 dark:bg-pink-950/30"
+                        : "border-border hover:border-muted-foreground/30"
+                    }`}
+                    onClick={() => setRequireFollower(!requireFollower)}
+                  >
+                    <Switch checked={requireFollower} onCheckedChange={setRequireFollower}
+                      onClick={(e) => e.stopPropagation()} className="mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold">
+                        {t("instagramAutomationsPage.verifyFollowerTitle")}
+                        {networks.includes("facebook") && (
+                          <span className="ml-1.5 text-[10px] font-normal text-orange-600 dark:text-orange-400">
+                            {t("instagramAutomationsPage.igOnlyTag")}
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {requireFollower
+                          ? t("instagramAutomationsPage.verifyFollowerActive")
+                          : t("instagramAutomationsPage.verifyFollowerInactive")}
+                      </p>
+                      {requireFollower && networks.includes("facebook") && (
+                        <p className="text-[10px] text-orange-600 dark:text-orange-400 mt-1">
+                          {t("instagramAutomationsPage.fbNoGateNote")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border p-3 bg-muted/30">
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("instagramAutomationsPage.fbNoGateNote")}
                     </p>
                   </div>
-                </div>
+                )}
 
                 {/* Follower DM */}
                 <div className={`rounded-xl border p-4 space-y-3 ${

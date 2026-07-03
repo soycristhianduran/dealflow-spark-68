@@ -1293,6 +1293,7 @@ async function processInstagramComment(
     .eq("user_id", account.user_id)
     .eq("ig_account_id", account.id)
     .eq("is_active", true)
+    .contains("networks", ["instagram"])
     .contains("trigger_types", ["comment"]);
 
   if (!automations || automations.length === 0) return;
@@ -1465,6 +1466,152 @@ async function processInstagramComment(
 
     // Don't fire multiple automations for the same comment
     break;
+  }
+}
+
+/**
+ * Process a Facebook Page feed comment (object=page, field=feed, item=comment).
+ * Runs comment automations whose `networks` includes 'facebook':
+ *   1) public reply on the comment, 2) private reply via Messenger Send API
+ * No follower gate — Facebook's API can't verify page follows, so the
+ * resource DM (dm_message_text) is sent directly.
+ */
+async function processFacebookComment(
+  supabase: any,
+  pageId: string,
+  change: any,
+): Promise<void> {
+  const value = change.value;
+  if (!value || value.item !== "comment" || value.verb !== "add") return;
+
+  const commentId = value.comment_id;
+  const postId = value.post_id ?? null;
+  const commenterId = value.from?.id ?? null;
+  const commenterName = value.from?.name ?? null;
+  const text: string = value.message ?? "";
+  if (!commentId) return;
+
+  // Ignore comments authored by the page itself (our own replies)
+  if (commenterId && commenterId === pageId) return;
+
+  const { data: page } = await supabase
+    .from("facebook_pages")
+    .select("id, user_id, organization_id, page_id, page_access_token")
+    .eq("page_id", pageId)
+    .maybeSingle();
+  if (!page?.page_access_token) {
+    console.log(`[fb-comment] No connected page for page_id=${pageId}; ignoring`);
+    return;
+  }
+
+  // Idempotency: Meta redelivers webhooks; only the first insert runs automations.
+  const { data: inserted } = await supabase
+    .from("facebook_comments")
+    .upsert(
+      {
+        user_id: page.user_id,
+        organization_id: page.organization_id,
+        page_id: pageId,
+        comment_id: commentId,
+        parent_comment_id: value.parent_id ?? null,
+        post_id: postId,
+        commenter_id: commenterId,
+        commenter_name: commenterName,
+        text,
+      },
+      { onConflict: "comment_id", ignoreDuplicates: true },
+    )
+    .select("id")
+    .maybeSingle();
+  if (!inserted) {
+    console.log(`[fb-comment] Duplicate delivery for ${commentId} — skipping`);
+    return;
+  }
+
+  const { data: automations } = await supabase
+    .from("instagram_comment_automations")
+    .select("*")
+    .eq("organization_id", page.organization_id)
+    .eq("is_active", true)
+    .contains("networks", ["facebook"])
+    .contains("trigger_types", ["comment"]);
+  if (!automations?.length) return;
+
+  const lowerText = text.toLowerCase();
+  const host = "https://graph.facebook.com/v21.0";
+
+  for (const auto of automations) {
+    // If the automation targets a specific page, honor it
+    if (auto.fb_page_id && auto.fb_page_id !== pageId) continue;
+
+    const keywords: string[] = (auto.keywords || []).map((k: string) => k.toLowerCase());
+    let matches = false;
+    if (keywords.length === 0) matches = true;
+    else if (auto.match_mode === "exact") matches = keywords.some((k) => lowerText.trim() === k);
+    else if (auto.match_mode === "all") matches = keywords.every((k) => lowerText.includes(k));
+    else matches = keywords.some((k) => lowerText.includes(k));
+    if (!matches) continue;
+
+    const rv = (t: string) => resolveVars(t, null, commenterName);
+
+    // 1) Public reply on the comment
+    if (auto.reply_to_comment_text) {
+      try {
+        const res = await fetch(`${host}/${commentId}/comments`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${page.page_access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ message: rv(auto.reply_to_comment_text) }),
+        });
+        const data = await res.json();
+        if (data.error) console.error("[fb-comment-reply] FAILED:", JSON.stringify(data.error));
+        else {
+          await supabase.from("facebook_comments")
+            .update({ is_replied: true, matched_automation_id: auto.id })
+            .eq("comment_id", commentId);
+        }
+      } catch (e) { console.error("[fb-comment-reply] Exception:", e); }
+    }
+
+    // 2) Private reply (Messenger Send API, recipient = the comment).
+    //    One private message per comment allowed, 7-day window.
+    if (auto.dm_message_text) {
+      try {
+        const message: Record<string, unknown> = { text: rv(auto.dm_message_text) };
+        const buttons = (auto.dm_buttons || []) as { title: string; url: string }[];
+        const body: Record<string, unknown> = buttons.length
+          ? {
+              recipient: { comment_id: commentId },
+              message: {
+                attachment: {
+                  type: "template",
+                  payload: {
+                    template_type: "button",
+                    text: rv(auto.dm_message_text),
+                    buttons: buttons.slice(0, 3).map((b) => ({ type: "web_url", url: b.url, title: b.title })),
+                  },
+                },
+              },
+            }
+          : { recipient: { comment_id: commentId }, message };
+        const res = await fetch(`${host}/${pageId}/messages`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${page.page_access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.error) console.error("[fb-private-reply] FAILED:", JSON.stringify(data.error));
+        else {
+          await supabase.from("facebook_comments")
+            .update({ is_dm_sent: true, matched_automation_id: auto.id })
+            .eq("comment_id", commentId);
+        }
+      } catch (e) { console.error("[fb-private-reply] Exception:", e); }
+    }
+
+    await supabase.from("instagram_comment_automations")
+      .update({ trigger_count: (auto.trigger_count ?? 0) + 1, last_triggered_at: new Date().toISOString() })
+      .eq("id", auto.id);
+    break; // one automation per comment
   }
 }
 
@@ -1762,6 +1909,9 @@ Deno.serve(async (req) => {
         try {
           if (change.field === "leadgen") {
             await processLeadgenChange(supabase, entryId, change);
+          } else if (change.field === "feed" && body.object === "page") {
+            // Facebook Page comments (RRSS comment automations)
+            await processFacebookComment(supabase, entryId, change);
           } else if (change.field === "comments") {
             await processInstagramComment(supabase, entryId, change);
           } else if (change.field === "messages") {
