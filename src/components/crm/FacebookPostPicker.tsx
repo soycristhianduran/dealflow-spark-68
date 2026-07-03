@@ -58,7 +58,8 @@ export function FacebookPostPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col">
+      {/* z above the fullscreen automation editor (z-[9999]) which otherwise hides this dialog */}
+      <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col z-[10000]">
         <DialogHeader>
           <DialogTitle>{t("facebookPostPicker.title")}</DialogTitle>
         </DialogHeader>
