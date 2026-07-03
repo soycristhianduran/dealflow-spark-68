@@ -337,8 +337,8 @@ export default function InstagramAutomationsPage() {
       trigger_types: triggerTypes,
       keywords: keywords.length > 0 ? keywords : null,
       match_mode: matchMode,
-      media_id: triggerTypes.includes("comment") ? (mediaIds[0] || null) : null,
-      media_ids: triggerTypes.includes("comment") ? mediaIds : [],
+      media_id: hasIg && triggerTypes.includes("comment") ? (mediaIds[0] || null) : null,
+      media_ids: hasIg && triggerTypes.includes("comment") ? mediaIds : [],
       // Follower gate only exists on Instagram — force off for FB-only automations
       require_follower: hasIg && requireFollower,
       dm_message_text: dmText.trim() || null,
