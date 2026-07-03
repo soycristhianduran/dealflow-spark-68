@@ -1544,6 +1544,9 @@ async function processFacebookComment(
     // If the automation targets a specific page, honor it
     if (auto.fb_page_id && auto.fb_page_id !== pageId) continue;
 
+    // Optional per-post targeting (empty array = all page posts)
+    if (auto.fb_post_ids?.length && (!postId || !auto.fb_post_ids.includes(postId))) continue;
+
     const keywords: string[] = (auto.keywords || []).map((k: string) => k.toLowerCase());
     let matches = false;
     if (keywords.length === 0) matches = true;

@@ -26,6 +26,7 @@ import { useTranslation } from "react-i18next";
 import { InstagramPostPicker } from "@/components/crm/InstagramPostPicker";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Facebook } from "lucide-react";
+import { FacebookPostPicker } from "@/components/crm/FacebookPostPicker";
 
 type TriggerType = "comment" | "story_reply" | "story_mention" | "new_follower";
 type TriggerTypes = TriggerType[];
@@ -36,6 +37,7 @@ interface IgButton { title: string; url: string; }
 interface Automation {
   networks: Network[] | null;
   fb_page_id: string | null;
+  fb_post_ids: string[] | null;
   id: string;
   name: string;
   is_active: boolean;
@@ -204,6 +206,8 @@ export default function InstagramAutomationsPage() {
   const [name, setName] = useState("");
   const [networks, setNetworks] = useState<Network[]>(["instagram"]);
   const [fbPageId, setFbPageId] = useState<string>("");
+  const [fbPostIds, setFbPostIds] = useState<string[]>([]);
+  const [fbPickerOpen, setFbPickerOpen] = useState(false);
   const [keywordsInput, setKeywordsInput] = useState("");
   const [matchMode, setMatchMode] = useState<"any" | "all" | "exact">("any");
   const [mediaIds, setMediaIds] = useState<string[]>([]);
@@ -239,6 +243,7 @@ export default function InstagramAutomationsPage() {
     setName("");
     setNetworks(["instagram"]);
     setFbPageId(fbPages[0]?.page_id || "");
+    setFbPostIds([]);
     setKeywordsInput("");
     setMatchMode("any");
     setMediaIds([]);
@@ -258,6 +263,7 @@ export default function InstagramAutomationsPage() {
     setName(a.name);
     setNetworks(a.networks?.length ? a.networks : ["instagram"]);
     setFbPageId(a.fb_page_id || fbPages[0]?.page_id || "");
+    setFbPostIds(a.fb_post_ids || []);
     setTriggerTypes(a.trigger_types?.length ? a.trigger_types : [a.trigger_type || "comment"]);
     setKeywordsInput((a.keywords || []).join(", "));
     setMatchMode(a.match_mode);
@@ -325,6 +331,7 @@ export default function InstagramAutomationsPage() {
       organization_id: organizationId,
       networks,
       fb_page_id: hasFb ? (fbPageId || fbPages[0]?.page_id || null) : null,
+      fb_post_ids: hasFb && triggerTypes.includes("comment") ? fbPostIds : [],
       name: name.trim(),
       trigger_type: triggerTypes[0] || "comment",
       trigger_types: triggerTypes,
@@ -795,11 +802,55 @@ export default function InstagramAutomationsPage() {
                     <p className="text-[10px] text-muted-foreground">
                       {t("instagramAutomationsPage.allPostsRuleHint")}
                     </p>
-                    {networks.includes("facebook") && (
-                      <p className="text-[10px] text-blue-600 dark:text-blue-400">
-                        {t("instagramAutomationsPage.fbAllPostsNote")}
-                      </p>
+                  </div>
+                )}
+
+                {/* Facebook post picker — same idea as the IG one, for the page */}
+                {triggerTypes.includes("comment") && networks.includes("facebook") && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">
+                      {t("instagramAutomationsPage.specificFbPostsLabel")}
+                    </Label>
+                    {fbPostIds.length > 0 ? (
+                      <div className="rounded-xl border bg-background p-2.5 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">
+                            {t("instagramAutomationsPage.fbPostsSelected", { count: fbPostIds.length })}
+                          </span>
+                          <div className="flex gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => setFbPickerOpen(true)}>
+                              {t("instagramAutomationsPage.change")}
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setFbPostIds([])}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive">
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {fbPostIds.map((id) => (
+                            <span key={id} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[10px] font-mono text-muted-foreground">
+                              ID: ...{id.slice(-8)}
+                              <button type="button" onClick={() => setFbPostIds(prev => prev.filter(x => x !== id))}>
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setFbPickerOpen(true)}
+                        className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed py-4 text-sm text-muted-foreground hover:border-blue-500/50 hover:text-foreground transition-colors"
+                      >
+                        <Facebook className="h-4 w-4" />
+                        {t("instagramAutomationsPage.selectFbPosts")}
+                      </button>
                     )}
+                    <p className="text-[10px] text-muted-foreground">
+                      {t("instagramAutomationsPage.allPostsRuleHint")}
+                    </p>
                   </div>
                 )}
 
@@ -932,6 +983,15 @@ export default function InstagramAutomationsPage() {
         , document.body)}
 
         {/* Visual picker — Instagram posts */}
+        <FacebookPostPicker
+          open={fbPickerOpen}
+          onOpenChange={setFbPickerOpen}
+          pageId={fbPageId || fbPages[0]?.page_id || ""}
+          organizationId={organizationId}
+          selectedPostIds={fbPostIds}
+          onSelect={setFbPostIds}
+        />
+
         <InstagramPostPicker
           open={pickerOpen}
           onOpenChange={setPickerOpen}

@@ -2880,7 +2880,10 @@
     "igOnlyTag": "(Instagram only)",
     "fbNoGateNote": "Facebook doesn't allow verifying page follows: there, the private message with the resource is sent directly to the commenter.",
     "needFbPageError": "Connect a Facebook page to use this network.",
-    "fbFeedSubscribeWarning": "Saved, but couldn't enable Facebook comment listening"
+    "fbFeedSubscribeWarning": "Saved, but couldn't enable Facebook comment listening",
+    "specificFbPostsLabel": "Facebook posts (optional)",
+    "selectFbPosts": "Select Facebook posts...",
+    "fbPostsSelected": "{{count}} Facebook post(s) selected"
   },
   "facebookSetupWizard": {
     "title": "Set up Facebook",
@@ -4546,5 +4549,16 @@
     "pipeline": "Pipeline",
     "messages": "Messages",
     "more": "More"
+  },
+  "facebookPostPicker": {
+    "title": "Your Facebook page posts",
+    "hint": "Select one or more posts where this automation fires. No selection = applies to all page posts.",
+    "searchPlaceholder": "Search by text or ID...",
+    "empty": "No posts found",
+    "noCaption": "(no text)",
+    "clear": "Clear selection",
+    "cancel": "Cancel",
+    "applyCount": "Apply to {{count}} post(s)",
+    "applyAll": "Apply to all"
   }
 }

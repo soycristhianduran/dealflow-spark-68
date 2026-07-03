@@ -2880,7 +2880,10 @@
     "igOnlyTag": "(solo Instagram)",
     "fbNoGateNote": "Facebook no permite verificar si alguien sigue tu página: allí el mensaje privado con el recurso se envía directamente a quien comenta.",
     "needFbPageError": "Conecta una página de Facebook para usar esta red.",
-    "fbFeedSubscribeWarning": "Guardado, pero no se pudo activar la escucha de comentarios en Facebook"
+    "fbFeedSubscribeWarning": "Guardado, pero no se pudo activar la escucha de comentarios en Facebook",
+    "specificFbPostsLabel": "Publicaciones de Facebook (opcional)",
+    "selectFbPosts": "Seleccionar publicaciones de Facebook...",
+    "fbPostsSelected": "{{count}} publicación(es) de Facebook seleccionada(s)"
   },
   "facebookSetupWizard": {
     "title": "Configurar Facebook",
@@ -4546,5 +4549,16 @@
     "pipeline": "Pipeline",
     "messages": "Mensajes",
     "more": "Más"
+  },
+  "facebookPostPicker": {
+    "title": "Publicaciones de tu página de Facebook",
+    "hint": "Selecciona una o varias publicaciones donde se activará esta automatización. Sin selección = aplica a todas las publicaciones de la página.",
+    "searchPlaceholder": "Buscar por texto o ID...",
+    "empty": "No se encontraron publicaciones",
+    "noCaption": "(sin texto)",
+    "clear": "Quitar selección",
+    "cancel": "Cancelar",
+    "applyCount": "Aplicar a {{count}} publicación(es)",
+    "applyAll": "Aplicar a todas"
   }
 }

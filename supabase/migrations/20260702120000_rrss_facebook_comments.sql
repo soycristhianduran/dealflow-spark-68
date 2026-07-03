@@ -30,3 +30,6 @@ create policy fb_comments_org on public.facebook_comments
 
 -- FB-only automations have no IG account
 alter table public.instagram_comment_automations alter column ig_account_id drop not null;
+
+-- Optional per-post targeting on Facebook (empty = all page posts)
+alter table public.instagram_comment_automations add column if not exists fb_post_ids text[] not null default '{}';
