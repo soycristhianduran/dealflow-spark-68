@@ -10,6 +10,7 @@ import {
 import { useInstagramIntegration, IgAvailableAccount, IgDiagnosis } from "@/hooks/useInstagramIntegration";
 import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { useIsPlatformAdmin } from "@/hooks/useIsPlatformAdmin";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +24,9 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
   const ig = useInstagramIntegration();
   const fb = useFacebookIntegration();
   const { organizationId } = useOrganizationContext();
+  // Diagnose is a support tool (raw permission/webhook report + resubscribe) —
+  // shown only to the SaaS platform owner, not to client organizations.
+  const isPlatformAdmin = useIsPlatformAdmin();
   const [availableAccounts, setAvailableAccounts] = useState<IgAvailableAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
@@ -110,7 +114,7 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
             {/* Diagnosis section */}
             {diagnosis && <DiagnosisPanel diagnosis={diagnosis} />}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className={`grid gap-2 ${isPlatformAdmin ? "grid-cols-3" : "grid-cols-2"}`}>
               <Button
                 variant="outline"
                 className="gap-2 text-destructive hover:text-destructive"
@@ -136,19 +140,21 @@ export function InstagramSetupWizard({ open, onOpenChange }: Props) {
               >
                 <RefreshCw className="h-4 w-4" /> {t("instagramSetupWizard.refresh")}
               </Button>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={handleDiagnose}
-                disabled={diagnosing}
-              >
-                {diagnosing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Stethoscope className="h-4 w-4" />
-                )}
-                {t("instagramSetupWizard.diagnose")}
-              </Button>
+              {isPlatformAdmin && (
+                <Button
+                  variant="outline"
+                  className="gap-2"
+                  onClick={handleDiagnose}
+                  disabled={diagnosing}
+                >
+                  {diagnosing ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Stethoscope className="h-4 w-4" />
+                  )}
+                  {t("instagramSetupWizard.diagnose")}
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>
