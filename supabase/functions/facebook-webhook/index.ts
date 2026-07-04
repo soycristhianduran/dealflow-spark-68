@@ -629,7 +629,11 @@ async function processInstagramMessenger(
   // the CRM are de-duped by ig_message_id.
   if (msg.is_echo) {
     const bizAccount = await findIgAccountByIgUserId(supabase, senderId);
-    if (!bizAccount) return; // not one of our accounts
+    if (!bizAccount) {
+      // Echo from a Facebook PAGE (Messenger) — capture so the thread stays complete
+      await processMessengerEvent(supabase, senderId, event);
+      return;
+    }
     const customerId = recipientId;
     const echoMid = msg.mid ?? null;
 
@@ -678,7 +682,10 @@ async function processInstagramMessenger(
   // recipient.id is the IG business account ID (ig_user_id).
   const account = await findIgAccountByIgUserId(supabase, recipientId);
   if (!account) {
-    console.log(`No IG account configured for ig_user_id=${recipientId}; ignoring DM`);
+    // Not an IG DM — if the recipient is a connected Facebook page, this is a
+    // MESSENGER conversation (object=page messaging with a PSID sender).
+    const handled = await processMessengerEvent(supabase, recipientId, event);
+    if (!handled) console.log(`No IG account/FB page for recipient=${recipientId}; ignoring DM`);
     return;
   }
 
@@ -1470,6 +1477,197 @@ async function processInstagramComment(
     // Don't fire multiple automations for the same comment
     break;
   }
+}
+
+/**
+ * Process a Facebook Messenger event (object=page messaging where the page id
+ * doesn't belong to any IG account). Returns true if the page is connected and
+ * the event was handled; false so the caller can log the ignore.
+ *
+ * Handles: inbound messages (store + push + AI agent) and echoes (messages the
+ * business sent from Meta Business Suite / the Pages app — stored for a
+ * complete thread, deduped by mid against CRM-sent messages).
+ */
+async function processMessengerEvent(
+  supabase: any,
+  pageId: string,
+  event: any,
+): Promise<boolean> {
+  const { data: page } = await supabase
+    .from("facebook_pages")
+    .select("id, user_id, organization_id, page_id, page_access_token")
+    .eq("page_id", pageId)
+    .maybeSingle();
+  if (!page) return false;
+
+  const msg = event.message;
+  if (!msg) return true; // postback/read/delivery — acked, nothing to store yet
+
+  const mid = msg.mid ?? null;
+  const text: string = msg.text ?? "";
+  const attachmentUrl = msg.attachments?.[0]?.payload?.url ?? null;
+  const messageType = msg.attachments?.[0]?.type ?? "text";
+  const ts = event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString();
+
+  // Dedupe (Meta redelivers, and CRM-sent messages come back as echoes)
+  if (mid) {
+    const { data: dup } = await supabase
+      .from("messenger_messages").select("id").eq("mid", mid).maybeSingle();
+    if (dup) return true;
+  }
+
+  const isEcho = !!msg.is_echo;
+  const psid = isEcho ? event.recipient?.id : event.sender?.id;
+  if (!psid) return true;
+
+  // Upsert conversation
+  const { data: existingConv } = await supabase
+    .from("messenger_conversations")
+    .select("id, unread_count, participant_name")
+    .eq("page_id", pageId)
+    .eq("participant_id", psid)
+    .maybeSingle();
+
+  let convId = existingConv?.id ?? null;
+  const preview = (text || `[${messageType}]`).substring(0, 200);
+
+  if (convId) {
+    await supabase.from("messenger_conversations").update({
+      last_message_at: ts,
+      last_message_preview: preview,
+      ...(isEcho ? {} : { unread_count: (existingConv.unread_count ?? 0) + 1 }),
+    }).eq("id", convId);
+  } else {
+    const { data: inserted } = await supabase.from("messenger_conversations").insert({
+      user_id: page.user_id,
+      organization_id: page.organization_id,
+      page_id: pageId,
+      participant_id: psid,
+      last_message_at: ts,
+      last_message_preview: preview,
+      unread_count: isEcho ? 0 : 1,
+    }).select("id").single();
+    convId = inserted?.id ?? null;
+  }
+  if (!convId) return true;
+
+  // Resolve the person's name/avatar (best-effort, once)
+  if (!existingConv?.participant_name) {
+    try {
+      const pr = await fetch(`https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${encodeURIComponent(page.page_access_token)}`);
+      const pd = await pr.json();
+      if (pd?.first_name || pd?.profile_pic) {
+        await supabase.from("messenger_conversations").update({
+          participant_name: [pd.first_name, pd.last_name].filter(Boolean).join(" ") || null,
+          participant_profile_pic: pd.profile_pic ?? null,
+        }).eq("id", convId);
+      }
+    } catch (_) { /* best-effort */ }
+  }
+
+  await supabase.from("messenger_messages").insert({
+    user_id: page.user_id,
+    organization_id: page.organization_id,
+    page_id: pageId,
+    conversation_id: convId,
+    mid,
+    direction: isEcho ? "outgoing" : "incoming",
+    message_type: messageType,
+    message_text: text || null,
+    attachment_url: attachmentUrl,
+    sender_id: event.sender?.id ?? null,
+    recipient_id: event.recipient?.id ?? null,
+    status: "sent",
+    sent_at: ts,
+  });
+
+  if (isEcho) return true;
+
+  // Push notification to all org members (deep-links to this exact chat)
+  try {
+    const pushRes = fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/send-push`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-internal-secret": "klosify-push-2026" },
+      body: JSON.stringify({
+        user_id: page.user_id,
+        title: "Nuevo mensaje de Messenger",
+        body: text ? text.substring(0, 120) : "📎 Adjunto",
+        url: `/conversations?ch=ms&id=${convId}`,
+        tag: `ms-${convId}`,
+      }),
+    }).catch(() => {});
+    // @ts-ignore EdgeRuntime
+    if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(pushRes);
+  } catch (_) { /* non-fatal */ }
+
+  // AI agent (channel 'messenger') — same engine as WhatsApp/Instagram
+  try {
+    if (page.organization_id) {
+      const { data: recentMsgs } = await supabase
+        .from("messenger_messages")
+        .select("direction, message_text, message_type")
+        .eq("conversation_id", convId)
+        .order("sent_at", { ascending: false })
+        .limit(13);
+      const history = (recentMsgs || []).slice(1).reverse().map((m: any) => ({
+        role: m.direction === "incoming" ? "user" : "assistant",
+        content: m.message_text || `[${m.message_type}]`,
+      }));
+
+      const agentRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/ai-agent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+        },
+        body: JSON.stringify({
+          channel: "messenger",
+          organization_id: page.organization_id,
+          user_id: page.user_id,
+          session_key: psid,
+          message: { type: messageType, content: text, media_url: attachmentUrl },
+          recent_messages: history,
+        }),
+      });
+      const agentData = await agentRes.json();
+
+      if (agentData?.response) {
+        const parts = splitResponse(agentData.response);
+        for (let i = 0; i < parts.length; i++) {
+          if (i > 0) await sleep(700);
+          const sendRes = await fetch(`https://graph.facebook.com/v21.0/${pageId}/messages`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${page.page_access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ recipient: { id: psid }, messaging_type: "RESPONSE", message: { text: parts[i] } }),
+          });
+          const sendData = await sendRes.json();
+          if (sendData.error) {
+            console.error("Messenger AI send failed:", JSON.stringify(sendData.error));
+            break;
+          }
+          await supabase.from("messenger_messages").insert({
+            user_id: page.user_id,
+            organization_id: page.organization_id,
+            page_id: pageId,
+            conversation_id: convId,
+            mid: sendData.message_id ?? null,
+            direction: "outgoing",
+            message_type: "text",
+            message_text: parts[i],
+            sender_id: pageId,
+            recipient_id: psid,
+            status: "sent",
+            is_ai_generated: true,
+            sent_at: new Date().toISOString(),
+          });
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Messenger AI agent error (non-fatal):", e);
+  }
+
+  return true;
 }
 
 /**

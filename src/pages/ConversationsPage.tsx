@@ -19,7 +19,7 @@ import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
   Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye,
 } from "lucide-react";
-import { WhatsAppIcon, InstagramIcon } from "@/components/icons/BrandIcons";
+import { WhatsAppIcon, InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import {
   AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
 } from "@/components/crm/WhatsAppChatFeatures";
@@ -49,7 +49,7 @@ import { cn } from "@/lib/utils";
 import { EnableNotifications } from "@/components/EnableNotifications";
 import { NotificationsBanner } from "@/components/NotificationsBanner";
 
-type Channel = "whatsapp" | "instagram";
+type Channel = "whatsapp" | "instagram" | "messenger";
 type FilterMode = "all" | Channel;
 
 interface UnifiedConversation {
@@ -103,6 +103,27 @@ interface IgMessageRow {
   sent_at: string;
 }
 
+interface MsConvRow {
+  id: string;
+  contact_id: string | null;
+  participant_id: string;
+  participant_name: string | null;
+  participant_profile_pic: string | null;
+  last_message_at: string;
+  last_message_preview: string | null;
+  unread_count: number;
+}
+
+interface MsMessageRow {
+  id: string;
+  direction: "incoming" | "outgoing";
+  message_type: string;
+  message_text: string | null;
+  attachment_url: string | null;
+  status: string;
+  sent_at: string;
+}
+
 export default function ConversationsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -123,7 +144,7 @@ export default function ConversationsPage() {
     setMarkingAll(true);
     try {
       const ops: Promise<any>[] = [];
-      if (channelFilter !== "instagram") {
+      if (channelFilter === "all" || channelFilter === "whatsapp") {
         let waU = supabase.from("whatsapp_messages")
           .update({ read_at: new Date().toISOString() })
           .eq("direction", "incoming").is("read_at", null);
@@ -131,17 +152,24 @@ export default function ConversationsPage() {
         else if (user) waU = waU.eq("user_id", user.id);
         ops.push(waU);
       }
-      if (channelFilter !== "whatsapp") {
+      if (channelFilter === "all" || channelFilter === "instagram") {
         let igU = supabase.from("instagram_conversations")
           .update({ unread_count: 0 }).gt("unread_count", 0);
         if (organizationId) igU = igU.eq("organization_id", organizationId);
         else if (user) igU = igU.eq("user_id", user.id);
         ops.push(igU);
       }
+      if (channelFilter === "all" || channelFilter === "messenger") {
+        let msU = supabase.from("messenger_conversations")
+          .update({ unread_count: 0 }).gt("unread_count", 0);
+        if (organizationId) msU = msU.eq("organization_id", organizationId);
+        else if (user) msU = msU.eq("user_id", user.id);
+        ops.push(msU);
+      }
       await Promise.all(ops);
-      const scope = channelFilter === "whatsapp" ? t("conversationsPage.scopeWhatsApp") : channelFilter === "instagram" ? t("conversationsPage.scopeInstagram") : "";
+      const scope = channelFilter === "whatsapp" ? t("conversationsPage.scopeWhatsApp") : channelFilter === "instagram" ? t("conversationsPage.scopeInstagram") : channelFilter === "messenger" ? "Messenger" : "";
       toast.success(t("conversationsPage.markedReadMsg", { scope }).replace("  ", " "));
-      wa.fetchConversations(); loadIgConversations();
+      wa.fetchConversations(); loadIgConversations(); loadMsConversations();
     } catch (e: any) {
       toast.error(t("conversationsPage.markReadError") + (e?.message || ""));
     } finally {
@@ -159,6 +187,8 @@ export default function ConversationsPage() {
   const [igConversations, setIgConversations] = useState<IgConvRow[]>([]);
   const [igMessages, setIgMessages] = useState<IgMessageRow[]>([]);
   const [loadingIg, setLoadingIg] = useState(true);
+  const [msConversations, setMsConversations] = useState<MsConvRow[]>([]);
+  const [msMessages, setMsMessages] = useState<MsMessageRow[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [uploadingMedia, setUploadingMedia] = useState(false);
@@ -196,6 +226,19 @@ export default function ConversationsPage() {
 
   useEffect(() => { loadIgConversations(); }, [loadIgConversations]);
 
+  // ── Load Messenger conversations (org-scoped, same rules as IG) ───────────
+  const loadMsConversations = useCallback(async () => {
+    if (!user || !organizationId) { setMsConversations([]); return; }
+    const { data } = await supabase
+      .from("messenger_conversations")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("last_message_at", { ascending: false });
+    setMsConversations((data || []) as MsConvRow[]);
+  }, [user, organizationId]);
+
+  useEffect(() => { loadMsConversations(); }, [loadMsConversations]);
+
   // ── Initial WA fetch — wait for the auth session so RLS sees auth.uid()
   //    (otherwise the first fetch runs with no session → 0 rows → empty inbox). ─
   useEffect(() => { if (user) wa.fetchConversations(); /* eslint-disable-next-line */ }, [user, organizationId]);
@@ -212,6 +255,12 @@ export default function ConversationsPage() {
     // No user_id filter — org-scoped via RLS
     channelKey: `conv-page-ig-org`,
     onChange: loadIgConversations,
+    enabled: !!user,
+  });
+  useRealtimeRefresh({
+    table: "messenger_conversations",
+    channelKey: `conv-page-ms-org`,
+    onChange: loadMsConversations,
     enabled: !!user,
   });
 
@@ -242,10 +291,23 @@ export default function ConversationsPage() {
       unread_count: c.unread_count,
       participant_id: c.participant_id,
     }));
-    return [...waList, ...igList].sort(
+    const msList: UnifiedConversation[] = msConversations.map((c) => ({
+      channel: "messenger",
+      id: c.id,
+      contact_id: c.contact_id,
+      display_name: c.participant_name || c.participant_id,
+      subtitle: "Messenger",
+      avatar_url: c.participant_profile_pic,
+      last_message: c.last_message_preview || "",
+      last_message_time: c.last_message_at,
+      last_direction: "incoming",
+      unread_count: c.unread_count,
+      participant_id: c.participant_id,
+    }));
+    return [...waList, ...igList, ...msList].sort(
       (a, b) => new Date(b.last_message_time).getTime() - new Date(a.last_message_time).getTime(),
     );
-  }, [wa.conversations, igConversations]);
+  }, [wa.conversations, igConversations, msConversations]);
 
   const filtered = useMemo(() => unifiedList.filter((c) => {
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
@@ -263,6 +325,7 @@ export default function ConversationsPage() {
     total: unifiedList.length,
     wa: unifiedList.filter((c) => c.channel === "whatsapp").length,
     ig: unifiedList.filter((c) => c.channel === "instagram").length,
+    ms: unifiedList.filter((c) => c.channel === "messenger").length,
     unread: unifiedList.filter((c) => c.unread_count > 0).length,
   }), [unifiedList]);
 
@@ -271,6 +334,18 @@ export default function ConversationsPage() {
     setSelected(conv);
     if (conv.channel === "whatsapp") {
       wa.selectConversation(conv.id);
+    } else if (conv.channel === "messenger") {
+      (async () => {
+        const { data } = await supabase
+          .from("messenger_messages")
+          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", conv.id)
+          .order("sent_at", { ascending: true });
+        setMsMessages((data || []) as MsMessageRow[]);
+        if (conv.unread_count > 0) {
+          await supabase.from("messenger_conversations").update({ unread_count: 0 }).eq("id", conv.id);
+        }
+      })();
     } else {
       (async () => {
         const loadMsgs = async () => {
@@ -307,7 +382,7 @@ export default function ConversationsPage() {
     const ch = searchParams.get("ch");
     const id = searchParams.get("id");
     if (!ch || !id) return;
-    const channel = ch === "ig" ? "instagram" : "whatsapp";
+    const channel = ch === "ig" ? "instagram" : ch === "ms" ? "messenger" : "whatsapp";
     const match = unifiedList.find((c) => c.channel === channel && c.id === id);
     if (match) { autoOpenedRef.current = true; handleSelect(match); }
   }, [searchParams, unifiedList, handleSelect]);
@@ -317,6 +392,13 @@ export default function ConversationsPage() {
     try {
       if (conv.channel === "whatsapp") {
         await wa.markAsUnread(conv.id);
+      } else if (conv.channel === "messenger") {
+        const { error } = await supabase
+          .from("messenger_conversations")
+          .update({ unread_count: 1 })
+          .eq("id", conv.id);
+        if (error) throw error;
+        loadMsConversations();
       } else {
         // Direct UPDATE — no RPC dependency. RLS filters by user_id.
         const { error } = await supabase
@@ -367,6 +449,18 @@ export default function ConversationsPage() {
         error_details: (m as any).error_details ?? null,
       }));
     }
+    if (selected.channel === "messenger") {
+      return msMessages.map((m) => ({
+        channel: "messenger" as const,
+        id: m.id,
+        direction: m.direction,
+        text: m.message_text || "",
+        attachment_url: m.attachment_url || null,
+        message_type: m.message_type,
+        status: m.status,
+        sent_at: m.sent_at,
+      }));
+    }
     return igMessages.map((m) => ({
       channel: "instagram" as const,
       id: m.id,
@@ -377,7 +471,7 @@ export default function ConversationsPage() {
       status: m.status,
       sent_at: m.sent_at,
     }));
-  }, [selected, wa.messages, igMessages]);
+  }, [selected, wa.messages, igMessages, msMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -459,6 +553,17 @@ export default function ConversationsPage() {
         // goes out from the same number (multi-number routing)
         const waConv = wa.conversations.find((c) => c.phone_number === selected.id);
         await wa.sendMessage(selected.id, text, selected.contact_id, waConv?.from_phone_number_id);
+      } else if (selected.channel === "messenger") {
+        const { data, error } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "messenger_send", conversation_id: selected.id, text },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const { data: msgs } = await supabase
+          .from("messenger_messages")
+          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", selected.id)
+          .order("sent_at", { ascending: true });
+        setMsMessages((msgs || []) as MsMessageRow[]);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.conversationNotFound"));
@@ -693,6 +798,7 @@ export default function ConversationsPage() {
   };
 
   const isWA = selected?.channel === "whatsapp";
+  const isMS = selected?.channel === "messenger";
 
   return (
     <AppLayout>
@@ -726,6 +832,9 @@ export default function ConversationsPage() {
               </FilterTab>
               <FilterTab active={channelFilter === "whatsapp"} onClick={() => setChannelFilter("whatsapp")}>
                 <span className="inline-flex items-center gap-1"><WhatsAppIcon size={14} /> WA ({counts.wa})</span>
+              </FilterTab>
+              <FilterTab active={channelFilter === "messenger"} onClick={() => setChannelFilter("messenger")}>
+                <span className="inline-flex items-center gap-1"><MessengerIcon size={14} /> MS ({counts.ms})</span>
               </FilterTab>
               <FilterTab active={channelFilter === "instagram"} onClick={() => setChannelFilter("instagram")}>
                 <span className="inline-flex items-center gap-1"><InstagramIcon size={14} /> IG ({counts.ig})</span>
@@ -912,7 +1021,8 @@ export default function ConversationsPage() {
                       </Button>
                     )}
 
-                    {/* Attach — both channels */}
+                    {/* Attach — WA/IG (Messenger is text-only for now) */}
+                    {!isMS && (
                     <Button
                       size="sm"
                       variant="outline"
@@ -923,10 +1033,11 @@ export default function ConversationsPage() {
                     >
                       {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
+                    )}
 
                     <Input
                       className="flex-1 min-w-0"
-                      placeholder={t("conversationsPage.messagePlaceholder", { channel: isWA ? "WhatsApp" : "Instagram" })}
+                      placeholder={t("conversationsPage.messagePlaceholder", { channel: isWA ? "WhatsApp" : isMS ? "Messenger" : "Instagram" })}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
@@ -940,12 +1051,13 @@ export default function ConversationsPage() {
                         disabled={sending}
                         className={cn("h-10 gap-1 shrink-0",
                           isWA ? "bg-green-600 hover:bg-green-700"
+                               : isMS ? "bg-[#007FFF] hover:bg-[#0066CC]"
                                : "bg-gradient-to-r from-pink-500 to-orange-500 hover:from-pink-600 hover:to-orange-600",
                         )}
                       >
                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       </Button>
-                    ) : (
+                    ) : !isMS ? (
                       <Button
                         onClick={startRecording}
                         variant="outline"
@@ -954,7 +1066,7 @@ export default function ConversationsPage() {
                       >
                         <Mic className="h-4 w-4" />
                       </Button>
-                    )}
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -990,7 +1102,7 @@ function FilterTab({ active, onClick, children }: { active: boolean; onClick: ()
 function ChannelBadge({ channel }: { channel: Channel }) {
   return (
     <div className="h-10 w-10 rounded-full bg-muted/30 flex items-center justify-center shrink-0">
-      {channel === "whatsapp" ? <WhatsAppIcon size={28} /> : <InstagramIcon size={28} />}
+      {channel === "whatsapp" ? <WhatsAppIcon size={28} /> : channel === "messenger" ? <MessengerIcon size={28} /> : <InstagramIcon size={28} />}
     </div>
   );
 }
@@ -1031,7 +1143,7 @@ function ConvItem({
           </div>
         )}
         <div className="absolute -bottom-1.5 -right-1.5 flex items-center justify-center rounded-full bg-background p-[1.5px] shadow-sm">
-          {conv.channel === "whatsapp" ? <WhatsAppIcon size={18} /> : <InstagramIcon size={18} />}
+          {conv.channel === "whatsapp" ? <WhatsAppIcon size={18} /> : conv.channel === "messenger" ? <MessengerIcon size={18} /> : <InstagramIcon size={18} />}
         </div>
       </div>
 

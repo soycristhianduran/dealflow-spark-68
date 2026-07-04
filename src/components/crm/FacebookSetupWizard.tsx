@@ -245,6 +245,13 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   };
 
   const handleMessengerNext = () => {
+    // Subscribe every connected page to Messenger webhook fields so incoming
+    // messages reach the CRM inbox (fire-and-forget, additive to leadgen/feed).
+    for (const p of fb.status?.pages || []) {
+      supabase.functions.invoke("facebook-api", {
+        body: { action: "subscribe_page_messages", page_id: p.page_id, organization_id: organizationId },
+      }).catch(() => {});
+    }
     setStep("campaigns");
     loadAdAccounts();
   };

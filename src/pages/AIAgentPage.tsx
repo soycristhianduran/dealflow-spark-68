@@ -26,6 +26,7 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useWhatsAppTemplates } from "@/hooks/useWhatsAppTemplates";
 import { useTranslation } from "react-i18next";
+import { MessengerIcon } from "@/components/icons/BrandIcons";
 
 // Reminder offset (minutes) ↔ human label helpers
 const OFFSET_PRESETS: { value: number; label: string }[] = [
@@ -59,7 +60,7 @@ interface AgentConfig {
   region: string;
   escalation_response: string;
   off_topic_response: string;
-  channels: { whatsapp: boolean; instagram: boolean };
+  channels: { whatsapp: boolean; instagram: boolean; messenger?: boolean };
   appointments_enabled: boolean;
   reminders_enabled: boolean;
   reminders: { minutes: number; template: string | null; lang: string }[];
@@ -110,7 +111,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   region: "",
   escalation_response: "¡Claro! Un momento, voy a comunicarte con uno de nuestros asesores para que te ayuden mejor. 😊",
   off_topic_response: "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve.",
-  channels: { whatsapp: true, instagram: false },
+  channels: { whatsapp: true, instagram: false, messenger: false },
   appointments_enabled: false,
   reminders_enabled: true,
   reminders: [
@@ -215,7 +216,7 @@ export default function AIAgentPage() {
           region: data.region ?? "",
           escalation_response: data.escalation_response ?? DEFAULT_CONFIG.escalation_response,
           off_topic_response: data.off_topic_response ?? DEFAULT_CONFIG.off_topic_response,
-          channels: data.channels ?? { whatsapp: true, instagram: false },
+          channels: data.channels ?? { whatsapp: true, instagram: false, messenger: false },
           appointments_enabled: data.appointments_enabled ?? false,
           reminders_enabled: data.reminders_enabled ?? true,
           reminders: (Array.isArray(data.reminders) && data.reminders.length)
@@ -512,6 +513,16 @@ export default function AIAgentPage() {
                 <Switch
                   checked={config.channels.instagram}
                   onCheckedChange={v => set("channels", { ...config.channels, instagram: v })}
+                />
+              </div>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="flex items-center gap-2">
+                  <MessengerIcon size={16} />
+                  <span className="text-sm font-medium">Messenger</span>
+                </div>
+                <Switch
+                  checked={!!config.channels.messenger}
+                  onCheckedChange={v => set("channels", { ...config.channels, messenger: v })}
                 />
               </div>
             </CardContent>
