@@ -89,7 +89,7 @@ export function useWhatsAppInbox() {
         .eq("direction", "incoming")
         .is("read_at", null)
         .order("created_at", { ascending: false })
-        .limit(5000);
+        .limit(1000);
       const unreadByPhone = new Map<string, number>();
       for (const m of (unreadMsgs || [])) {
         const phone = m.phone_number;

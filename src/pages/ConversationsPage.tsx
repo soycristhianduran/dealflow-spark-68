@@ -221,9 +221,10 @@ export default function ConversationsPage() {
     setLoadingIg(true);
     const { data } = await supabase
       .from("instagram_conversations")
-      .select("*")
+      .select("id, contact_id, participant_id, participant_username, participant_name, participant_profile_pic, last_message_at, last_message_preview, unread_count")
       .eq("organization_id", organizationId)
-      .order("last_message_at", { ascending: false });
+      .order("last_message_at", { ascending: false })
+      .limit(300);
     setIgConversations((data || []) as IgConvRow[]);
     setLoadingIg(false);
   }, [user, organizationId]);
@@ -235,9 +236,10 @@ export default function ConversationsPage() {
     if (!user || !organizationId) { setMsConversations([]); return; }
     const { data } = await supabase
       .from("messenger_conversations")
-      .select("*")
+      .select("id, contact_id, participant_id, participant_name, participant_profile_pic, last_message_at, last_message_preview, unread_count")
       .eq("organization_id", organizationId)
-      .order("last_message_at", { ascending: false });
+      .order("last_message_at", { ascending: false })
+      .limit(300);
     setMsConversations((data || []) as MsConvRow[]);
   }, [user, organizationId]);
 
@@ -253,6 +255,7 @@ export default function ConversationsPage() {
     channelKey: `conv-page-wa-${user?.id || "anon"}`,
     onChange: () => wa.fetchConversations(),
     enabled: !!user,
+    debounceMs: 1500,
   });
   useRealtimeRefresh({
     table: "instagram_conversations",
@@ -260,12 +263,14 @@ export default function ConversationsPage() {
     channelKey: `conv-page-ig-org`,
     onChange: loadIgConversations,
     enabled: !!user,
+    debounceMs: 1500,
   });
   useRealtimeRefresh({
     table: "messenger_conversations",
     channelKey: `conv-page-ms-org`,
     onChange: loadMsConversations,
     enabled: !!user,
+    debounceMs: 1500,
   });
 
   // ── Merge conversations ──────────────────────────────────────────────────
