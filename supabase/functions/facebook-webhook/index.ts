@@ -1133,7 +1133,10 @@ async function checkIsFollower(
  * buttons: [{ title: string, url: string }] — max 3
  */
 function buildIgMessageBody(text: string, buttons?: { title: string; url: string }[] | null): any {
-  const validBtns = (buttons || []).filter(b => b.title && b.url);
+  // Meta rejects web_url buttons without a scheme — normalize bare domains.
+  const validBtns = (buttons || [])
+    .filter(b => b.title && b.url)
+    .map(b => ({ ...b, url: /^https?:\/\//i.test(b.url) ? b.url : `https://${b.url}` }));
   if (validBtns.length === 0) {
     return { text };
   }
@@ -1580,7 +1583,9 @@ async function processFacebookComment(
     if (auto.dm_message_text) {
       try {
         const message: Record<string, unknown> = { text: rv(auto.dm_message_text) };
-        const buttons = (auto.dm_buttons || []) as { title: string; url: string }[];
+        // Meta rejects web_url buttons without a scheme — normalize bare domains.
+        const buttons = ((auto.dm_buttons || []) as { title: string; url: string }[])
+          .map((b) => ({ ...b, url: /^https?:\/\//i.test(b.url || "") ? b.url : `https://${b.url}` }));
         const body: Record<string, unknown> = buttons.length
           ? {
               recipient: { comment_id: commentId },

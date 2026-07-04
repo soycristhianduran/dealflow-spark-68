@@ -322,8 +322,14 @@ export default function InstagramAutomationsPage() {
       igAccountId = account.id;
     }
 
+    // Meta rejects link buttons without a scheme — auto-prepend https://
     const validBtns = (btns: IgButton[]) =>
-      btns.filter(b => b.title.trim() && b.url.trim());
+      btns
+        .filter(b => b.title.trim() && b.url.trim())
+        .map(b => ({
+          title: b.title.trim(),
+          url: /^https?:\/\//i.test(b.url.trim()) ? b.url.trim() : `https://${b.url.trim()}`,
+        }));
 
     const payload = {
       user_id: user.id,
