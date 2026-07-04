@@ -519,13 +519,19 @@ export default function ConversationsPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages]);
 
-  // Load whether the AI agent is globally active for this org (once)
+  // Load whether the AI agent is globally active for this org (once).
+  // MUST be org-scoped: multi-org users have several configs and an unfiltered
+  // maybeSingle() errors out → the badge wrongly showed "IA apagada".
   useEffect(() => {
+    if (!organizationId) { setAgentGloballyActive(false); return; }
     (async () => {
-      const { data } = await supabase.from("ai_agent_configs").select("is_active").maybeSingle();
+      const { data } = await supabase.from("ai_agent_configs")
+        .select("is_active")
+        .eq("organization_id", organizationId)
+        .maybeSingle();
       setAgentGloballyActive(data?.is_active ?? false);
     })();
-  }, [user?.id]);
+  }, [user?.id, organizationId]);
 
   // Load AI agent pause state when conversation changes
   useEffect(() => {
