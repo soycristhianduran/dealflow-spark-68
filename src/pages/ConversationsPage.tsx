@@ -613,7 +613,6 @@ export default function ConversationsPage() {
         lead_status: "active",
         organization_id: organizationId,
         owner_id: user?.id ?? null,
-        created_by: user?.id ?? null,
         pipeline_id: pipeline?.id ?? null,
         stage_id: stage?.id ?? null,
       }).select("id").single();

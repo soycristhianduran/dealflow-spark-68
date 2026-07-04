@@ -343,6 +343,19 @@ Deno.serve(async (req) => {
 
     // 8. Build tools available to the agent
     const tools: any[] = [];
+    if (cfg.auto_qualify) {
+      tools.push({
+        name: "qualify_lead",
+        description: "Marca esta conversacion como LEAD CALIFICADO. Llamala UNA sola vez, en el mismo turno en que el cliente muestre intencion clara de compra: pregunta precios/costos/planes, quiere agendar cita o llamada, pide cotizacion o propuesta, comparte su telefono o correo, o pregunta como comprar/contratar. NO la llames por saludos, recursos gratuitos de automatizaciones, preguntas genericas, quejas/soporte ni simple curiosidad. Ante la duda, NO la llames.",
+        input_schema: {
+          type: "object",
+          properties: {
+            reason: { type: "string", description: "Razon corta y concreta. Ej: 'pregunto precio del plan Pro y quiere agendar'" },
+          },
+          required: ["reason"],
+        },
+      });
+    }
     if (canBook) {
       tools.push({
         name: "check_availability",
@@ -518,6 +531,18 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
             });
           } else if (b.name === "cancel_appointment") {
             resultText = await cancelAppointment(supabase, { meeting: upcomingMeeting, advisorUserId: advisorUserId! });
+          } else if (b.name === "qualify_lead") {
+            try {
+              await autoQualifyLead(supabase, {
+                organization_id, channel, session_key,
+                reason: (b.input?.reason || "Intencion de compra detectada").toString().slice(0, 300),
+                fallbackUserId: user_id ?? null,
+              });
+              resultText = "Lead calificado y registrado en el pipeline. Continua la conversacion normalmente, no menciones este registro al cliente.";
+            } catch (e2: any) {
+              console.error("[qualify_lead] failed:", e2?.message);
+              resultText = "No se pudo registrar (error interno). Continua la conversacion normalmente.";
+            }
           } else if (b.name === "send_media") {
             const m = mediaById.get(b.input?.media_id);
             if (!m) { resultText = "No existe ese archivo."; }
@@ -1031,6 +1056,7 @@ async function autoQualifyLead(supabase: any, opts: {
 }): Promise<void> {
   const { organization_id, channel, session_key, reason, fallbackUserId } = opts;
   const TAG = "Calificado por IA";
+  console.log(`[auto-qualify] start ch=${channel} key=${session_key} reason=${reason}`);
 
   // Resolve the conversation + existing contact per channel
   let contactId: string | null = null;
@@ -1102,7 +1128,6 @@ async function autoQualifyLead(supabase: any, opts: {
     lead_status: "active",
     organization_id,
     owner_id: fallbackUserId,
-    created_by: fallbackUserId,
     pipeline_id: pipeline?.id ?? null,
     stage_id: stage?.id ?? null,
     tags: [TAG],

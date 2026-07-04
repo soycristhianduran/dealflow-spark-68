@@ -1608,7 +1608,6 @@ async function processMessengerEvent(
         source: "messenger",
         lead_status: "active",
         organization_id: page.organization_id,
-        created_by: page.user_id,
         owner_id: page.user_id,
         pipeline_id: pipeline?.id ?? null,
         stage_id: stage?.id ?? null,
