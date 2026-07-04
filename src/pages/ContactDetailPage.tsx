@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
+import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
@@ -97,6 +98,24 @@ export default function ContactDetailPage() {
   const [pickerPipelineId, setPickerPipelineId] = useState("");
   const [stagesForPicker, setStagesForPicker] = useState<{ id: string; name: string; color: string; order: number }[]>([]);
   const [activeTab, setActiveTab] = useState("timeline");
+  // Linked social chat (IG/Messenger) for the channel-aware quick action
+  const [socialChat, setSocialChat] = useState<{ channel: "ig" | "ms"; convId: string; lastAt: string } | null>(null);
+  useEffect(() => {
+    if (!id) { setSocialChat(null); return; }
+    (async () => {
+      const [{ data: ig }, { data: ms }] = await Promise.all([
+        supabase.from("instagram_conversations").select("id, last_message_at").eq("contact_id", id).order("last_message_at", { ascending: false }).limit(1).maybeSingle(),
+        supabase.from("messenger_conversations").select("id, last_message_at").eq("contact_id", id).order("last_message_at", { ascending: false }).limit(1).maybeSingle(),
+      ]);
+      if (ig && ms) {
+        setSocialChat(new Date(ig.last_message_at) >= new Date(ms.last_message_at)
+          ? { channel: "ig", convId: ig.id, lastAt: ig.last_message_at }
+          : { channel: "ms", convId: ms.id, lastAt: ms.last_message_at });
+      } else if (ig) setSocialChat({ channel: "ig", convId: ig.id, lastAt: ig.last_message_at });
+      else if (ms) setSocialChat({ channel: "ms", convId: ms.id, lastAt: ms.last_message_at });
+      else setSocialChat(null);
+    })();
+  }, [id]);
 
   // Pipeline state for stage dropdowns (loaded on demand when editing)
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
@@ -899,16 +918,33 @@ export default function ContactDetailPage() {
                         <Phone className="h-4 w-4" />
                         {t("contactDetailPage.call")}
                       </Button>
-                      <Button
-                        variant="outline" size="sm"
-                        className="flex-col h-auto py-2 gap-1 text-xs"
-                        disabled={!contact.primary_phone}
-                        onClick={() => { if (contact.primary_phone) setActiveTab("whatsapp"); }}
-                        title={contact.primary_phone ? t("contactDetailPage.openWhatsAppChat") : t("contactDetailPage.noPhone")}
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        WhatsApp
-                      </Button>
+                      {/* Channel-aware chat: leads born on IG/Messenger open THAT
+                          conversation; phone leads keep the WhatsApp thread tab. */}
+                      {socialChat && !contact.primary_phone ? (
+                        <Button
+                          variant="outline" size="sm"
+                          className="flex-col h-auto py-2 gap-1 text-xs"
+                          onClick={() => navigate(path(`/conversations?ch=${socialChat.channel}&id=${socialChat.convId}`))}
+                          title={t("contactDetailPage.openSocialChat")}
+                        >
+                          {socialChat.channel === "ig" ? <InstagramIcon size={16} /> : <MessengerIcon size={16} />}
+                          {socialChat.channel === "ig" ? "Instagram" : "Messenger"}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline" size="sm"
+                          className="flex-col h-auto py-2 gap-1 text-xs"
+                          disabled={!contact.primary_phone && !socialChat}
+                          onClick={() => {
+                            if (contact.primary_phone) setActiveTab("whatsapp");
+                            else if (socialChat) navigate(path(`/conversations?ch=${socialChat.channel}&id=${socialChat.convId}`));
+                          }}
+                          title={contact.primary_phone ? t("contactDetailPage.openWhatsAppChat") : t("contactDetailPage.noPhone")}
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          WhatsApp
+                        </Button>
+                      )}
                       <Button
                         variant="outline" size="sm"
                         className="flex-col h-auto py-2 gap-1 text-xs"

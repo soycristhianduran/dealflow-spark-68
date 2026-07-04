@@ -1796,7 +1796,8 @@
     "noNotes": "No notes",
     "fieldsSaveError": "Error saving fields",
     "fieldsSaved": "Fields saved",
-    "defineFieldsHint": "Define fields in Settings → Fields to see them here."
+    "defineFieldsHint": "Define fields in Settings → Fields to see them here.",
+    "openSocialChat": "Open the conversation in the CRM"
   },
   "conversationsPage": {
     "scopeWhatsApp": "WhatsApp",

@@ -1796,7 +1796,8 @@
     "noNotes": "Sin notas",
     "fieldsSaveError": "Error al guardar campos",
     "fieldsSaved": "Campos guardados",
-    "defineFieldsHint": "Define campos en Configuración → Campos para verlos aquí."
+    "defineFieldsHint": "Define campos en Configuración → Campos para verlos aquí.",
+    "openSocialChat": "Abrir la conversación en el CRM"
   },
   "conversationsPage": {
     "scopeWhatsApp": "de WhatsApp",
