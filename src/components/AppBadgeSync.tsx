@@ -7,8 +7,8 @@ import { useUnreadCounts } from "@/hooks/useUnreadCounts";
  * its push-time increments start from the right base. Renders nothing.
  */
 export function AppBadgeSync() {
-  const { waUnread, igUnread } = useUnreadCounts();
-  const unread = waUnread + igUnread;
+  const { totalUnread } = useUnreadCounts();
+  const unread = totalUnread;
 
   useEffect(() => {
     try {

@@ -114,7 +114,7 @@ export function AppSidebar() {
   });
 
   const { path } = useWorkspace();
-  const { waUnread, igUnread } = useUnreadCounts();
+  const { totalUnread } = useUnreadCounts();
   const { canAccessSettings, canViewPowerFeatures } = usePermissions();
   // Read-only members also see Settings/Billing (view-only); vendors do not.
   const canViewBottom = canAccessSettings || canViewPowerFeatures;
@@ -179,8 +179,8 @@ export function AppSidebar() {
         {/* Items visibles a todos */}
         {navItems.map((item) => {
           const badge =
-            item.url === "/conversations" && waUnread + igUnread > 0
-              ? waUnread + igUnread
+            item.url === "/conversations" && totalUnread > 0
+              ? totalUnread
               : 0;
           return (
             <NavLink

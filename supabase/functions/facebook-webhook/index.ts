@@ -1573,17 +1573,66 @@ async function processMessengerEvent(
   if (!convId) return true;
 
   // Resolve the person's name/avatar (best-effort, once)
-  if (!existingConv?.participant_name) {
+  let participantName: string | null = existingConv?.participant_name ?? null;
+  if (!participantName) {
     try {
       const pr = await fetch(`https://graph.facebook.com/v21.0/${psid}?fields=first_name,last_name,profile_pic&access_token=${encodeURIComponent(page.page_access_token)}`);
       const pd = await pr.json();
       if (pd?.first_name || pd?.profile_pic) {
+        participantName = [pd.first_name, pd.last_name].filter(Boolean).join(" ") || null;
         await supabase.from("messenger_conversations").update({
-          participant_name: [pd.first_name, pd.last_name].filter(Boolean).join(" ") || null,
+          participant_name: participantName,
           participant_profile_pic: pd.profile_pic ?? null,
         }).eq("id", convId);
       }
     } catch (_) { /* best-effort */ }
+  }
+
+  // First inbound message from a new person → create the lead (source
+  // 'messenger') and drop it into the default pipeline's first stage.
+  if (!existingConv && !isEcho && page.organization_id) {
+    try {
+      const fullName = participantName || `Messenger ${psid.slice(-6)}`;
+      const nameParts = fullName.split(" ");
+      const { data: pipeline } = await supabase.from("pipelines").select("id")
+        .eq("organization_id", page.organization_id)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      const { data: stage } = pipeline
+        ? await supabase.from("pipeline_stages").select("id")
+            .eq("pipeline_id", pipeline.id).order("order", { ascending: true }).limit(1).maybeSingle()
+        : { data: null };
+      const { data: newContact } = await supabase.from("contacts").insert({
+        full_name: fullName,
+        first_name: nameParts[0] || fullName,
+        last_name: nameParts.slice(1).join(" ") || null,
+        source: "messenger",
+        lead_status: "active",
+        organization_id: page.organization_id,
+        created_by: page.user_id,
+        owner_id: page.user_id,
+        pipeline_id: pipeline?.id ?? null,
+        stage_id: stage?.id ?? null,
+        last_contact_at: ts,
+      }).select("id").single();
+      if (newContact?.id) {
+        await supabase.from("messenger_conversations").update({ contact_id: newContact.id }).eq("id", convId);
+        // Fire contact_created automations (fire-and-forget)
+        fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            action: "trigger_event", trigger_type: "contact_created",
+            contact_id: newContact.id, trigger_data: { origin: "messenger" },
+          }),
+        }).catch(() => {});
+        console.log(`[messenger] Lead created: ${newContact.id} (${fullName})`);
+      }
+    } catch (e) {
+      console.warn("[messenger] Lead creation failed (non-fatal):", e);
+    }
   }
 
   await supabase.from("messenger_messages").insert({

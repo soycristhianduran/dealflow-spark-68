@@ -13,11 +13,13 @@ export function useUnreadCounts() {
   const { organizationId } = useOrganizationContext();
   const [waUnread, setWaUnread] = useState(0);
   const [igUnread, setIgUnread] = useState(0);
+  const [msUnread, setMsUnread] = useState(0);
 
   const refresh = useCallback(async () => {
     if (!user) {
       setWaUnread(0);
       setIgUnread(0);
+      setMsUnread(0);
       return;
     }
     // Badge counts unread CONVERSATIONS (matching the inbox "No leídos"), not raw
@@ -39,6 +41,12 @@ export function useUnreadCounts() {
     igQ = organizationId ? igQ.eq("organization_id", organizationId) : igQ.eq("user_id", user.id);
     const { data: igConvs } = await igQ;
     setIgUnread((igConvs || []).length);
+
+    // Messenger — conversations with unread_count > 0.
+    let msQ = supabase.from("messenger_conversations").select("id").gt("unread_count", 0);
+    msQ = organizationId ? msQ.eq("organization_id", organizationId) : msQ.eq("user_id", user.id);
+    const { data: msConvs } = await msQ;
+    setMsUnread((msConvs || []).length);
   }, [user, organizationId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -59,9 +67,14 @@ export function useUnreadCounts() {
         { event: "*", schema: "public", table: "instagram_conversations", filter: waFilter },
         () => refresh(),
       )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "messenger_conversations", filter: waFilter },
+        () => refresh(),
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [user, organizationId, refresh]);
 
-  return { waUnread, igUnread, totalUnread: waUnread + igUnread, refresh };
+  return { waUnread, igUnread, msUnread, totalUnread: waUnread + igUnread + msUnread, refresh };
 }
