@@ -329,6 +329,59 @@ export default function ConversationsPage() {
     unread: unifiedList.filter((c) => c.unread_count > 0).length,
   }), [unifiedList]);
 
+  // ── Thread loaders (shared by selection, sends and realtime) ─────────────
+  const loadIgThread = useCallback(async (convId: string) => {
+    const { data } = await supabase
+      .from("instagram_messages")
+      .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
+      .eq("conversation_id", convId)
+      .order("sent_at", { ascending: true });
+    // Keep optimistic temp bubbles that haven't landed in the DB yet
+    setIgMessages(prev => {
+      const real = (data || []) as IgMessageRow[];
+      const temps = prev.filter(m => m.id.startsWith("temp-") &&
+        !real.some(r => r.direction === "outgoing" && (r.message_text || "") === (m.message_text || "") && r.message_type === m.message_type));
+      return [...real, ...temps];
+    });
+  }, []);
+
+  const loadMsThread = useCallback(async (convId: string) => {
+    const { data } = await supabase
+      .from("messenger_messages")
+      .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
+      .eq("conversation_id", convId)
+      .order("sent_at", { ascending: true });
+    setMsMessages(prev => {
+      const real = (data || []) as MsMessageRow[];
+      const temps = prev.filter(m => m.id.startsWith("temp-") &&
+        !real.some(r => r.direction === "outgoing" && (r.message_text || "") === (m.message_text || "") && r.message_type === m.message_type));
+      return [...real, ...temps];
+    });
+  }, []);
+
+  // ── Live thread updates for IG/Messenger (WhatsApp already handles this
+  //    inside useWhatsAppInbox). New incoming/outgoing rows and status changes
+  //    on the OPEN conversation reload the thread instantly. ────────────────
+  useEffect(() => {
+    if (!selected || selected.channel === "whatsapp") return;
+    const isMsCh = selected.channel === "messenger";
+    const table = isMsCh ? "messenger_messages" : "instagram_messages";
+    const convId = selected.id;
+    const reload = () => {
+      (isMsCh ? loadMsThread : loadIgThread)(convId);
+      // Whatever arrives while the chat is open is instantly read
+      supabase.from(isMsCh ? "messenger_conversations" : "instagram_conversations")
+        .update({ unread_count: 0 }).eq("id", convId).gt("unread_count", 0).then(() => {}, () => {});
+    };
+    const channel = supabase
+      .channel(`thread-${table}-${convId}`)
+      .on("postgres_changes",
+        { event: "*", schema: "public", table, filter: `conversation_id=eq.${convId}` },
+        reload)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [selected?.id, selected?.channel, loadIgThread, loadMsThread]);
+
   // ── Selection ────────────────────────────────────────────────────────────
   const handleSelect = useCallback((conv: UnifiedConversation) => {
     setSelected(conv);
@@ -336,27 +389,16 @@ export default function ConversationsPage() {
       wa.selectConversation(conv.id);
     } else if (conv.channel === "messenger") {
       (async () => {
-        const { data } = await supabase
-          .from("messenger_messages")
-          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", conv.id)
-          .order("sent_at", { ascending: true });
-        setMsMessages((data || []) as MsMessageRow[]);
+        setMsMessages([]);
+        await loadMsThread(conv.id);
         if (conv.unread_count > 0) {
           await supabase.from("messenger_conversations").update({ unread_count: 0 }).eq("id", conv.id);
         }
       })();
     } else {
       (async () => {
-        const loadMsgs = async () => {
-          const { data } = await supabase
-            .from("instagram_messages")
-            .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
-            .eq("conversation_id", conv.id)
-            .order("sent_at", { ascending: true });
-          setIgMessages((data || []) as IgMessageRow[]);
-        };
-        await loadMsgs();
+        setIgMessages([]);
+        await loadIgThread(conv.id);
         if (conv.unread_count > 0) {
           await supabase.from("instagram_conversations").update({ unread_count: 0 }).eq("id", conv.id);
         }
@@ -367,11 +409,11 @@ export default function ConversationsPage() {
           const { data: sync } = await supabase.functions.invoke("instagram-api", {
             body: { action: "sync_thread", conversation_id: conv.id },
           });
-          if ((sync as any)?.synced > 0) await loadMsgs();
+          if ((sync as any)?.synced > 0) await loadIgThread(conv.id);
         } catch { /* ignore */ }
       })();
     }
-  }, [wa]);
+  }, [wa, loadIgThread, loadMsThread]);
 
   // Deep-link from a push notification: /conversations?ch=wa&id=<phone|convId>
   // → auto-open that specific chat once its data has loaded.
@@ -554,26 +596,31 @@ export default function ConversationsPage() {
         const waConv = wa.conversations.find((c) => c.phone_number === selected.id);
         await wa.sendMessage(selected.id, text, selected.contact_id, waConv?.from_phone_number_id);
       } else if (selected.channel === "messenger") {
-        const { data, error } = await supabase.functions.invoke("facebook-api", {
-          body: { action: "messenger_send", conversation_id: selected.id, text },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
-        const { data: msgs } = await supabase
-          .from("messenger_messages")
-          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", selected.id)
-          .order("sent_at", { ascending: true });
-        setMsMessages((msgs || []) as MsMessageRow[]);
+        // Optimistic bubble — appears instantly, replaced by the real row
+        const tempId = `temp-${Date.now()}`;
+        setMsMessages(prev => [...prev, { id: tempId, direction: "outgoing", message_type: "text", message_text: text, attachment_url: null, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          const { data, error } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "messenger_send", conversation_id: selected.id, text },
+          });
+          if (error || data?.error) throw new Error(data?.error || error?.message);
+          await loadMsThread(selected.id);
+        } catch (err) {
+          setMsMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.conversationNotFound"));
-        await ig.sendDm({ recipient_id: igConv.participant_id, text, conversation_id: igConv.id });
-        const { data } = await supabase
-          .from("instagram_messages")
-          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", selected.id)
-          .order("sent_at", { ascending: true });
-        setIgMessages((data || []) as IgMessageRow[]);
+        const tempId = `temp-${Date.now()}`;
+        setIgMessages(prev => [...prev, { id: tempId, ig_message_id: null, direction: "outgoing", message_type: "text", message_text: text, attachment_url: null, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          await ig.sendDm({ recipient_id: igConv.participant_id, text, conversation_id: igConv.id });
+          await loadIgThread(selected.id);
+        } catch (err) {
+          setIgMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       }
     } catch (e: any) {
       toast.error(t("conversationsPage.errorPrefix") + e.message);
@@ -677,38 +724,43 @@ export default function ConversationsPage() {
       if (selected.channel === "whatsapp") {
         await wa.sendMedia(selected.id, base64, mime, fname, selected.contact_id);
       } else if (selected.channel === "messenger") {
-        const { data, error } = await supabase.functions.invoke("facebook-api", {
-          body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: mime, filename: fname },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
-        const { data: msgs } = await supabase
-          .from("messenger_messages")
-          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", selected.id)
-          .order("sent_at", { ascending: true });
-        setMsMessages((msgs || []) as MsMessageRow[]);
+        const tempId = `temp-${Date.now()}`;
+        const localUrl = URL.createObjectURL(audioBlob);
+        setMsMessages(prev => [...prev, { id: tempId, direction: "outgoing", message_type: "audio", message_text: null, attachment_url: localUrl, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          const { data, error } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: mime, filename: fname },
+          });
+          if (error || data?.error) throw new Error(data?.error || error?.message);
+          await loadMsThread(selected.id);
+        } catch (err) {
+          setMsMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
-        await ig.sendDmMedia({
-          recipient_id: igConv.participant_id,
-          file_base64: base64,
-          mime_type: mime,
-          filename: fname,
-          conversation_id: igConv.id,
-        });
-        // Realtime might not catch outgoing IG messages — reload manually
-        const { data } = await supabase
-          .from("instagram_messages")
-          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", igConv.id)
-          .order("sent_at", { ascending: true });
-        setIgMessages((data || []) as IgMessageRow[]);
+        const tempId = `temp-${Date.now()}`;
+        const localUrl = URL.createObjectURL(audioBlob);
+        setIgMessages(prev => [...prev, { id: tempId, ig_message_id: null, direction: "outgoing", message_type: "audio", message_text: null, attachment_url: localUrl, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          await ig.sendDmMedia({
+            recipient_id: igConv.participant_id,
+            file_base64: base64,
+            mime_type: mime,
+            filename: fname,
+            conversation_id: igConv.id,
+          });
+          await loadIgThread(igConv.id);
+        } catch (err) {
+          setIgMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       }
     } catch (e: any) {
       toast.error(t("conversationsPage.audioSendError") + e.message);
     }
-  }, [selected, wa, ig, igConversations, teardownRecorder]);
+  }, [selected, wa, ig, igConversations, teardownRecorder, loadIgThread, loadMsThread]);
 
   const cancelRecording = useCallback(() => {
     const rec = recorderRef.current;
@@ -769,40 +821,47 @@ export default function ConversationsPage() {
       if (selected.channel === "whatsapp") {
         await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
       } else if (selected.channel === "messenger") {
-        const { data, error } = await supabase.functions.invoke("facebook-api", {
-          body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: file.type, filename: file.name },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message);
-        const { data: msgs } = await supabase
-          .from("messenger_messages")
-          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", selected.id)
-          .order("sent_at", { ascending: true });
-        setMsMessages((msgs || []) as MsMessageRow[]);
+        const tempId = `temp-${Date.now()}`;
+        const mType = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : "file";
+        const localUrl = URL.createObjectURL(file);
+        setMsMessages(prev => [...prev, { id: tempId, direction: "outgoing", message_type: mType, message_text: null, attachment_url: localUrl, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          const { data, error } = await supabase.functions.invoke("facebook-api", {
+            body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: file.type, filename: file.name },
+          });
+          if (error || data?.error) throw new Error(data?.error || error?.message);
+          await loadMsThread(selected.id);
+        } catch (err) {
+          setMsMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
-        await ig.sendDmMedia({
-          recipient_id: igConv.participant_id,
-          file_base64: base64,
-          mime_type: file.type,
-          filename: file.name,
-          conversation_id: igConv.id,
-        });
-        // Reload IG messages so the newly-sent attachment shows up
-        const { data } = await supabase
-          .from("instagram_messages")
-          .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
-          .eq("conversation_id", igConv.id)
-          .order("sent_at", { ascending: true });
-        setIgMessages((data || []) as IgMessageRow[]);
+        const tempId = `temp-${Date.now()}`;
+        const mType = file.type.startsWith("image/") ? "image" : file.type.startsWith("video/") ? "video" : file.type.startsWith("audio/") ? "audio" : "file";
+        const localUrl = URL.createObjectURL(file);
+        setIgMessages(prev => [...prev, { id: tempId, ig_message_id: null, direction: "outgoing", message_type: mType, message_text: null, attachment_url: localUrl, status: "sending", sent_at: new Date().toISOString() }]);
+        try {
+          await ig.sendDmMedia({
+            recipient_id: igConv.participant_id,
+            file_base64: base64,
+            mime_type: file.type,
+            filename: file.name,
+            conversation_id: igConv.id,
+          });
+          await loadIgThread(igConv.id);
+        } catch (err) {
+          setIgMessages(prev => prev.filter(m => m.id !== tempId));
+          throw err;
+        }
       }
     } catch (e: any) {
       toast.error(t("conversationsPage.fileSendError") + e.message);
     } finally {
       setUploadingMedia(false);
     }
-  }, [selected, wa, ig, igConversations]);
+  }, [selected, wa, ig, igConversations, loadIgThread, loadMsThread]);
 
   // ── Send WA template ──────────────────────────────────────────────────────
   const handleSendTemplate = async (name: string, lang: string, vars: string[], mediaId: string) => {
