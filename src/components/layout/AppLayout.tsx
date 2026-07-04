@@ -2,6 +2,7 @@ import { useLocation } from "react-router-dom";
 import { AppSidebar } from "./AppSidebar";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { AppBadgeSync } from "@/components/AppBadgeSync";
+import { NewMessageSound } from "@/components/NewMessageSound";
 import { usePermissions } from "@/hooks/usePermissions";
 
 interface AppLayoutProps {
@@ -39,6 +40,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       </div>
       <MobileBottomNav />
       <AppBadgeSync />
+      <NewMessageSound />
     </div>
   );
 }
