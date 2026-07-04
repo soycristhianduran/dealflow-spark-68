@@ -237,6 +237,21 @@ Deno.serve(async (req) => {
               const messageType = msg.type || "text";
               const waMessageId = msg.id;
 
+              // Idempotency: Meta delivers at-least-once. If we've already
+              // processed this wa_message_id, skip entirely — otherwise the
+              // AI agent replies twice and the thread shows duplicates.
+              if (waMessageId) {
+                const { data: dupMsg } = await supabase
+                  .from("whatsapp_messages")
+                  .select("id")
+                  .eq("wa_message_id", waMessageId)
+                  .maybeSingle();
+                if (dupMsg) {
+                  console.log(`[wa-webhook] Duplicate delivery ${waMessageId} — skipping`);
+                  continue;
+                }
+              }
+
               // Extract text — Meta delivers the body in different shapes
               // depending on what the customer did:
               //   - Plain text:           msg.text.body

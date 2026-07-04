@@ -704,6 +704,21 @@ async function processInstagramMessenger(
   const igMessageId = msg.mid ?? null;
   const timestamp = event.timestamp ? new Date(event.timestamp).toISOString() : new Date().toISOString();
 
+  // Idempotency: Meta delivers at-least-once (and IG DMs can arrive via both
+  // the changes[] and messaging[] payload shapes). If this mid was already
+  // processed, skip entirely so automations and the AI agent never run twice.
+  if (igMessageId) {
+    const { data: dupMsg } = await supabase
+      .from("instagram_messages")
+      .select("id")
+      .eq("ig_message_id", igMessageId)
+      .maybeSingle();
+    if (dupMsg) {
+      console.log(`[ig-dm] Duplicate delivery ${igMessageId} — skipping`);
+      return;
+    }
+  }
+
   // Detect if this is a story reply (Meta wraps it inside message.reply_to.story)
   const storyReply = msg.reply_to?.story ?? null;
   const isStoryReply = !!storyReply;
