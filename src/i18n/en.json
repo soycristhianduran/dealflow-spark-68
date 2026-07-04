@@ -2778,7 +2778,9 @@
     "healthIgNotConnected": "Instagram not connected — connect it in Integrations",
     "regionLabel": "Country / Region",
     "regionPlaceholder": "E.g. Colombia, Mexico, Spain…",
-    "regionHelp": "The agent adapts its language to this region (avoids slang from other countries). Leave empty for neutral Spanish."
+    "regionHelp": "The agent adapts its language to this region (avoids slang from other countries). Leave empty for neutral Spanish.",
+    "autoQualifyTitle": "Automatic lead qualification (AI)",
+    "autoQualifyDesc": "When the agent detects real buying intent (asks prices, wants to book, requests a quote), it automatically creates the lead in the pipeline tagged \"Calificado por IA\" with the reason logged in its timeline."
   },
   "instagramAutomationsPage": {
     "buttonTextPlaceholder": "Button text (max 20 chars)",

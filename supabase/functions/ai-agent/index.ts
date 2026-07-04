@@ -427,7 +427,18 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    const system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
+    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
+    if (cfg.auto_qualify) {
+      system += `
+
+## Calificacion de intencion (interno — el cliente NUNCA debe ver esto)
+Al FINAL de cada respuesta, en una linea aparte, agrega EXACTAMENTE un marcador con este formato:
+[[INTENT:alto|razon breve]] o [[INTENT:medio]] o [[INTENT:ninguno]]
+
+Marca "alto" SOLO si en esta conversacion el cliente: pregunta precios/costos/planes, quiere agendar cita o llamada, pide cotizacion o propuesta, comparte su telefono o correo voluntariamente, o pregunta como comprar/contratar o disponibilidad para adquirir.
+NO marques "alto" por: saludos, pedir el recurso gratuito de una automatizacion, preguntas genericas, quejas o soporte de clientes existentes, curiosidad ("de que trata").
+Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "pregunto precio del plan Pro y quiere agendar").`;
+    }
     const mediaToSend: any[] = [];
     let aiText = "";
     let bookedThisTurn = false;
@@ -536,6 +547,27 @@ Deno.serve(async (req) => {
       }).then(({ error }: any) => {
         if (error) console.error("record_ai_agent_usage error:", error.message);
       });
+    }
+
+    // 10c. Intent marker: strip it from the reply and, when intent is HIGH and
+    //      auto-qualify is on, create/link the lead (fire-and-forget).
+    let intentLevel: string | null = null;
+    let intentReason: string | null = null;
+    const intentMatch = aiText.match(/\[\[INTENT:(alto|medio|ninguno)(?:\|([^\]]*))?\]\]/i);
+    if (intentMatch) {
+      intentLevel = intentMatch[1].toLowerCase();
+      intentReason = (intentMatch[2] || "").trim() || null;
+      aiText = aiText.replace(intentMatch[0], "").trim();
+    }
+    if (cfg.auto_qualify && intentLevel === "alto") {
+      const qualifyPromise = autoQualifyLead(supabase, {
+        organization_id, channel, session_key,
+        reason: intentReason || "Intencion de compra detectada",
+        fallbackUserId: user_id ?? cfg.user_id ?? null,
+      }).catch((e: any) => console.warn("autoQualifyLead failed:", e?.message));
+      // @ts-ignore EdgeRuntime is Deno Deploy specific
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(qualifyPromise);
+      else await qualifyPromise;
     }
 
     // 11. Detect AI-initiated escalation (model returned the sentinel)
@@ -982,4 +1014,117 @@ async function transcribeAudio(mediaUrl: string | null, anthropicKey: string): P
     console.error("transcribeAudio error:", e);
     return null;
   }
+}
+
+
+/**
+ * AI auto-qualification: creates (or links) a lead for the conversation the
+ * agent flagged as high-intent. One lead per conversation; existing contacts
+ * get the tag + activity instead of a duplicate.
+ */
+async function autoQualifyLead(supabase: any, opts: {
+  organization_id: string;
+  channel: string;
+  session_key: string;
+  reason: string;
+  fallbackUserId: string | null;
+}): Promise<void> {
+  const { organization_id, channel, session_key, reason, fallbackUserId } = opts;
+  const TAG = "Calificado por IA";
+
+  // Resolve the conversation + existing contact per channel
+  let contactId: string | null = null;
+  let displayName: string | null = null;
+  let convTable: string | null = null;
+  let convId: string | null = null;
+
+  if (channel === "instagram" || channel === "messenger") {
+    convTable = channel === "instagram" ? "instagram_conversations" : "messenger_conversations";
+    const nameCols = channel === "instagram"
+      ? "id, contact_id, participant_name, participant_username"
+      : "id, contact_id, participant_name";
+    const { data: conv } = await supabase.from(convTable)
+      .select(nameCols)
+      .eq("organization_id", organization_id)
+      .eq("participant_id", session_key)
+      .order("last_message_at", { ascending: false })
+      .limit(1).maybeSingle();
+    if (!conv) return;
+    convId = conv.id;
+    contactId = conv.contact_id ?? null;
+    displayName = conv.participant_name || (conv as any).participant_username || null;
+  } else if (channel === "whatsapp") {
+    const phone = session_key.startsWith("+") ? session_key : `+${session_key}`;
+    const bare = phone.slice(1);
+    const { data: existing } = await supabase.from("contacts")
+      .select("id, tags")
+      .eq("organization_id", organization_id)
+      .or(`primary_phone.eq.${phone},primary_phone.eq.${bare}`)
+      .limit(1).maybeSingle();
+    contactId = existing?.id ?? null;
+    displayName = phone;
+  } else {
+    return;
+  }
+
+  if (contactId) {
+    // Already a lead — just record the qualification (tag + activity, no dup)
+    const { data: c } = await supabase.from("contacts").select("tags").eq("id", contactId).maybeSingle();
+    const tags: string[] = Array.isArray(c?.tags) ? c.tags : [];
+    if (!tags.includes(TAG)) {
+      await supabase.from("contacts").update({ tags: [...tags, TAG] }).eq("id", contactId);
+      await supabase.from("activities").insert({
+        related_entity_type: "contact", related_entity_id: contactId,
+        event_type: "note", event_source: "ai_agent",
+        summary: `🤖 Lead calificado por IA: ${reason}`,
+        created_by: fallbackUserId,
+      });
+    }
+    return;
+  }
+
+  // Create the lead in the default pipeline's first stage
+  const fullName = displayName || `${channel} ${session_key.slice(-6)}`;
+  const nameParts = fullName.split(" ");
+  const { data: pipeline } = await supabase.from("pipelines").select("id")
+    .eq("organization_id", organization_id)
+    .order("created_at", { ascending: true }).limit(1).maybeSingle();
+  const { data: stage } = pipeline
+    ? await supabase.from("pipeline_stages").select("id")
+        .eq("pipeline_id", pipeline.id).order("order", { ascending: true }).limit(1).maybeSingle()
+    : { data: null };
+
+  const insertData: Record<string, unknown> = {
+    full_name: fullName,
+    first_name: nameParts[0] || fullName,
+    last_name: nameParts.slice(1).join(" ") || null,
+    source: channel,
+    lead_status: "active",
+    organization_id,
+    owner_id: fallbackUserId,
+    created_by: fallbackUserId,
+    pipeline_id: pipeline?.id ?? null,
+    stage_id: stage?.id ?? null,
+    tags: [TAG],
+  };
+  if (channel === "whatsapp") {
+    insertData.primary_phone = session_key.startsWith("+") ? session_key : `+${session_key}`;
+  }
+  const { data: newContact, error } = await supabase.from("contacts")
+    .insert(insertData).select("id").single();
+  if (error || !newContact) {
+    console.warn("autoQualifyLead insert failed:", error?.message);
+    return;
+  }
+
+  if (convTable && convId) {
+    await supabase.from(convTable).update({ contact_id: newContact.id }).eq("id", convId);
+  }
+  await supabase.from("activities").insert({
+    related_entity_type: "contact", related_entity_id: newContact.id,
+    event_type: "note", event_source: "ai_agent",
+    summary: `🤖 Lead calificado por IA: ${reason}`,
+    created_by: fallbackUserId,
+  });
+  console.log(`[auto-qualify] Lead ${newContact.id} created (${channel}/${session_key}): ${reason}`);
 }

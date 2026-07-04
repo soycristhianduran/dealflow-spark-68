@@ -51,6 +51,7 @@ type WorkingHours = Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun"
 interface AgentConfig {
   id?: string;
   is_active: boolean;
+  auto_qualify: boolean;
   agent_name: string;
   business_name: string;
   business_description: string;
@@ -102,6 +103,7 @@ interface MediaItem {
 
 const DEFAULT_CONFIG: AgentConfig = {
   is_active: false,
+  auto_qualify: false,
   agent_name: "Asistente",
   business_name: "",
   business_description: "",
@@ -207,6 +209,7 @@ export default function AIAgentPage() {
         setConfig({
           id: data.id,
           is_active: data.is_active ?? false,
+          auto_qualify: data.auto_qualify ?? false,
           agent_name: data.agent_name ?? "Asistente",
           business_name: data.business_name ?? "",
           business_description: data.business_description ?? "",
@@ -338,6 +341,7 @@ export default function AIAgentPage() {
       const payload = {
         organization_id: organizationId,
         is_active: config.is_active,
+        auto_qualify: config.auto_qualify,
         agent_name: config.agent_name.trim() || "Asistente",
         business_name: config.business_name.trim() || null,
         business_description: config.business_description.trim() || null,
@@ -523,6 +527,17 @@ export default function AIAgentPage() {
                 <Switch
                   checked={!!config.channels.messenger}
                   onCheckedChange={v => set("channels", { ...config.channels, messenger: v })}
+                />
+              </div>
+              <div className="flex items-start justify-between rounded-lg border border-primary/30 bg-primary/5 p-3 gap-3">
+                <div>
+                  <p className="text-sm font-medium">{t("aIAgentPage.autoQualifyTitle")}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{t("aIAgentPage.autoQualifyDesc")}</p>
+                </div>
+                <Switch
+                  checked={config.auto_qualify}
+                  onCheckedChange={v => set("auto_qualify", v)}
+                  className="mt-0.5 shrink-0"
                 />
               </div>
             </CardContent>
