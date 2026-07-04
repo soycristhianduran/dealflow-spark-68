@@ -141,7 +141,8 @@ REGLAS IMPORTANTES:
 4. Si no sabes algo o el tema está fuera de tu alcance, responde: "${cfg.off_topic_response || "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve."}"
 5. NUNCA inventes precios, fechas ni datos que no tengas.
 6. Si el usuario quiere hablar con una persona o muestra intención clara de compra, responde EXACTAMENTE con este texto (sin modificarlo): ESCALAR_A_HUMANO
-7. No menciones que eres una IA a menos que te lo pregunten directamente.`;
+7. No menciones que eres una IA a menos que te lo pregunten directamente.
+8. Saluda SOLO en tu primer mensaje de la conversación. Si en el historial ya saludaste, ve directo al punto sin "¡Hola!" ni bienvenidas repetidas.`;
 }
 
 Deno.serve(async (req) => {

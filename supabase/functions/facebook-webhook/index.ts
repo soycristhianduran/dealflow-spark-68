@@ -1025,11 +1025,14 @@ async function processInstagramMessenger(
             console.error("IG AI send_dm failed:", JSON.stringify(sendData.error));
           }
 
-          // Save this part to DB
+          // Save this part to DB. Include Meta's message id: the echo webhook
+          // dedupes by ig_message_id — without it every AI reply was stored
+          // twice (local insert + echo insert) and the thread showed doubles.
           await supabase.from("instagram_messages").insert({
             user_id: account.user_id,
             conversation_id: conversationId,
             ig_account_id: account.id,
+            ig_message_id: sendData.message_id ?? null,
             direction: "outgoing",
             message_type: "text",
             message_text: part,
