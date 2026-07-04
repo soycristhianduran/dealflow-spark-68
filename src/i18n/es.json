@@ -1873,7 +1873,11 @@
     "stageChangeError": "No se pudo cambiar la etapa",
     "stageUpdated": "Etapa actualizada",
     "pipelinePlaceholder": "Pipeline",
-    "stagePlaceholder": "Etapa"
+    "stagePlaceholder": "Etapa",
+    "createLead": "Crear lead",
+    "createLeadTitle": "Crear un lead en el pipeline a partir de esta conversación",
+    "leadCreated": "Lead creado y vinculado a la conversación",
+    "leadCreateError": "Error al crear el lead: "
   },
   "whatsAppInboxPage": {
     "rightClickMarkUnread": "Clic derecho para marcar como no leído",

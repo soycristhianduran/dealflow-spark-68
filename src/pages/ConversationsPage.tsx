@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye,
+  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye, UserPlus,
 } from "lucide-react";
 import { WhatsAppIcon, InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import {
@@ -583,6 +583,54 @@ export default function ConversationsPage() {
     }
   }
 
+  // ── Create a lead from an IG/Messenger conversation (manual, one click) ───
+  const [creatingLead, setCreatingLead] = useState(false);
+  const createLeadFromConversation = async () => {
+    if (!selected || selected.contact_id || creatingLead || !organizationId) return;
+    if (selected.channel === "whatsapp") return; // WA links contacts by phone already
+    setCreatingLead(true);
+    try {
+      const fullName = selected.display_name || selected.participant_id || "Lead";
+      const nameParts = fullName.split(" ");
+      const { data: pipeline } = await supabase.from("pipelines").select("id")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: true }).limit(1).maybeSingle();
+      const { data: stage } = pipeline
+        ? await supabase.from("pipeline_stages").select("id")
+            .eq("pipeline_id", pipeline.id).order("order", { ascending: true }).limit(1).maybeSingle()
+        : { data: null };
+      const { data: newContact, error } = await supabase.from("contacts").insert({
+        full_name: fullName,
+        first_name: nameParts[0] || fullName,
+        last_name: nameParts.slice(1).join(" ") || null,
+        source: selected.channel,
+        lead_status: "active",
+        organization_id: organizationId,
+        owner_id: user?.id ?? null,
+        created_by: user?.id ?? null,
+        pipeline_id: pipeline?.id ?? null,
+        stage_id: stage?.id ?? null,
+      }).select("id").single();
+      if (error) throw error;
+
+      const table = selected.channel === "messenger" ? "messenger_conversations" : "instagram_conversations";
+      await supabase.from(table).update({ contact_id: newContact.id }).eq("id", selected.id);
+      setSelected(prev => prev ? { ...prev, contact_id: newContact.id } : prev);
+      if (selected.channel === "messenger") loadMsConversations(); else loadIgConversations();
+
+      // Fire contact_created automations (fire-and-forget)
+      supabase.functions.invoke("automation-runner", {
+        body: { action: "trigger_event", trigger_type: "contact_created", contact_id: newContact.id, trigger_data: { origin: selected.channel } },
+      }).catch(() => {});
+
+      toast.success(t("conversationsPage.leadCreated"));
+    } catch (e: any) {
+      toast.error(t("conversationsPage.leadCreateError") + (e?.message || ""));
+    } finally {
+      setCreatingLead(false);
+    }
+  };
+
   // ── Send text message ─────────────────────────────────────────────────────
   const handleSend = async () => {
     if (!selected || !draft.trim() || sending) return;
@@ -998,6 +1046,19 @@ export default function ConversationsPage() {
 
                 {/* Quick stage / pipeline changer */}
                 {selected.contact_id && <StagePipelinePicker contactId={selected.contact_id} />}
+
+                {/* Create lead from an IG/MS chat that isn't linked to a contact yet */}
+                {!selected.contact_id && selected.channel !== "whatsapp" && canEditConversations && (
+                  <button
+                    onClick={createLeadFromConversation}
+                    disabled={creatingLead}
+                    className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium border border-primary/40 text-primary hover:bg-primary/10 transition-colors"
+                    title={t("conversationsPage.createLeadTitle")}
+                  >
+                    {creatingLead ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserPlus className="h-3 w-3" />}
+                    <span className="hidden sm:inline">{t("conversationsPage.createLead")}</span>
+                  </button>
+                )}
 
                 {/* AI Agent toggle / status */}
                 {!agentGloballyActive ? (

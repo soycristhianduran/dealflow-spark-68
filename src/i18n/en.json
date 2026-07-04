@@ -1873,7 +1873,11 @@
     "stageChangeError": "Could not change the stage",
     "stageUpdated": "Stage updated",
     "pipelinePlaceholder": "Pipeline",
-    "stagePlaceholder": "Stage"
+    "stagePlaceholder": "Stage",
+    "createLead": "Create lead",
+    "createLeadTitle": "Create a pipeline lead from this conversation",
+    "leadCreated": "Lead created and linked to the conversation",
+    "leadCreateError": "Error creating lead: "
   },
   "whatsAppInboxPage": {
     "rightClickMarkUnread": "Right-click to mark as unread",
