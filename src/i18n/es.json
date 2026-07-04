@@ -1877,7 +1877,13 @@
     "createLead": "Crear lead",
     "createLeadTitle": "Crear un lead en el pipeline a partir de esta conversación",
     "leadCreated": "Lead creado y vinculado a la conversación",
-    "leadCreateError": "Error al crear el lead: "
+    "leadCreateError": "Error al crear el lead: ",
+    "deleteConversationTitle": "Eliminar conversación",
+    "deleteConversationDesc": "Se eliminará la conversación con {{name}} y todo su historial de mensajes del CRM. Esta acción no se puede deshacer. El chat en Meta (WhatsApp/Instagram/Messenger) no se ve afectado, y si la persona vuelve a escribir se creará una conversación nueva. El lead vinculado (si existe) NO se elimina.",
+    "conversationDeleted": "Conversación eliminada",
+    "conversationDeleteError": "Error al eliminar: ",
+    "deleting": "Eliminando...",
+    "delete": "Eliminar"
   },
   "whatsAppInboxPage": {
     "rightClickMarkUnread": "Clic derecho para marcar como no leído",

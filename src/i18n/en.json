@@ -1877,7 +1877,13 @@
     "createLead": "Create lead",
     "createLeadTitle": "Create a pipeline lead from this conversation",
     "leadCreated": "Lead created and linked to the conversation",
-    "leadCreateError": "Error creating lead: "
+    "leadCreateError": "Error creating lead: ",
+    "deleteConversationTitle": "Delete conversation",
+    "deleteConversationDesc": "The conversation with {{name}} and its full message history will be removed from the CRM. This cannot be undone. The chat on Meta's side is not affected, and if the person writes again a new conversation is created. The linked lead (if any) is NOT deleted.",
+    "conversationDeleted": "Conversation deleted",
+    "conversationDeleteError": "Error deleting: ",
+    "deleting": "Deleting...",
+    "delete": "Delete"
   },
   "whatsAppInboxPage": {
     "rightClickMarkUnread": "Right-click to mark as unread",

@@ -17,8 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye, UserPlus,
+  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye, UserPlus, Trash2,
 } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { WhatsAppIcon, InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import {
   AudioPlayer, MsgStatus, TemplatePicker, MEDIA_MSG_TYPES,
@@ -589,6 +593,42 @@ export default function ConversationsPage() {
     }
   }
 
+  // ── Delete a conversation (CRM-side only; Meta keeps its copy) ────────────
+  const [deleteConvTarget, setDeleteConvTarget] = useState<UnifiedConversation | null>(null);
+  const [deletingConv, setDeletingConv] = useState(false);
+  const confirmDeleteConversation = async () => {
+    const conv = deleteConvTarget;
+    if (!conv || deletingConv) return;
+    setDeletingConv(true);
+    try {
+      if (conv.channel === "whatsapp") {
+        // WA conversations are derived from messages — delete the thread's rows
+        const bare = conv.id.startsWith("+") ? conv.id.slice(1) : conv.id;
+        let q = supabase.from("whatsapp_messages").delete()
+          .or(`phone_number.eq.${conv.id},phone_number.eq.+${bare},phone_number.eq.${bare}`);
+        if (organizationId) q = q.eq("organization_id", organizationId);
+        const { error } = await q;
+        if (error) throw error;
+        wa.fetchConversations();
+      } else if (conv.channel === "messenger") {
+        const { error } = await supabase.from("messenger_conversations").delete().eq("id", conv.id);
+        if (error) throw error;
+        loadMsConversations();
+      } else {
+        const { error } = await supabase.from("instagram_conversations").delete().eq("id", conv.id);
+        if (error) throw error;
+        loadIgConversations();
+      }
+      if (selected?.channel === conv.channel && selected?.id === conv.id) setSelected(null);
+      toast.success(t("conversationsPage.conversationDeleted"));
+    } catch (e: any) {
+      toast.error(t("conversationsPage.conversationDeleteError") + (e?.message || ""));
+    } finally {
+      setDeletingConv(false);
+      setDeleteConvTarget(null);
+    }
+  };
+
   // ── Create a lead from an IG/Messenger conversation (manual, one click) ───
   const [creatingLead, setCreatingLead] = useState(false);
   const createLeadFromConversation = async () => {
@@ -1065,6 +1105,17 @@ export default function ConversationsPage() {
                   </button>
                 )}
 
+                {/* Delete conversation (CRM-side) */}
+                {canEditConversations && (
+                  <button
+                    onClick={() => setDeleteConvTarget(selected)}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors shrink-0"
+                    title={t("conversationsPage.deleteConversationTitle")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+
                 {/* AI Agent toggle / status */}
                 {!agentGloballyActive ? (
                   <button
@@ -1227,6 +1278,26 @@ export default function ConversationsPage() {
         onSend={handleSendTemplate}
         sending={sending}
       />
+      {/* ── Delete conversation confirmation ── */}
+      <AlertDialog open={!!deleteConvTarget} onOpenChange={open => { if (!open && !deletingConv) setDeleteConvTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("conversationsPage.deleteConversationTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("conversationsPage.deleteConversationDesc", { name: deleteConvTarget?.display_name || "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingConv}>{t("conversationsPage.cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); confirmDeleteConversation(); }}
+            >
+              {deletingConv ? t("conversationsPage.deleting") : t("conversationsPage.delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppLayout>
   );
 }
