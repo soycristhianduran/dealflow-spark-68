@@ -592,6 +592,7 @@ export default function DashboardPage() {
     // Switching to "custom" just opens the calendar — don't reload until the user
     // has actually picked a full range.
     if (period === "custom" && (!customRange.from || !customRange.to)) return;
+    if (!organizationId) return;
     setLoading(true);
     const vf = isVendor && myUserId ? myUserId : null;
 
@@ -621,7 +622,8 @@ export default function DashboardPage() {
       .not("pipeline_id", "is", null)
       .in("lead_status", ["won", "lost"])
       .gte("updated_at", startIso)
-      .lt("updated_at", endIso);
+      .lt("updated_at", endIso)
+      .eq("organization_id", organizationId);
     if (vf) curQ = curQ.eq("owner_id", vf);
 
     // Previous-period closed deals (same length window, immediately before).
@@ -631,7 +633,8 @@ export default function DashboardPage() {
       .not("pipeline_id", "is", null)
       .in("lead_status", ["won", "lost"])
       .gte("updated_at", prevIso)
-      .lt("updated_at", startIso);
+      .lt("updated_at", startIso)
+      .eq("organization_id", organizationId);
     if (vf) prevQ = prevQ.eq("owner_id", vf);
 
     // All active pipeline contacts (current state — not period-filtered).
@@ -641,6 +644,7 @@ export default function DashboardPage() {
     const stagesQ = supabase
       .from("pipeline_stages")
       .select("id, name, order, color")
+      .eq("organization_id", organizationId)
       .order("order", { ascending: true });
 
     // Lost reasons (all time)
@@ -650,7 +654,8 @@ export default function DashboardPage() {
       .eq("lead_status", "lost")
       .not("lost_reason", "is", null)
       .gte("updated_at", startIso)
-      .lt("updated_at", endIso);
+      .lt("updated_at", endIso)
+      .eq("organization_id", organizationId);
     if (vf) lostQ = lostQ.eq("owner_id", vf);
 
     // Upcoming meetings
@@ -659,6 +664,7 @@ export default function DashboardPage() {
       .select("id, title, start_at, meeting_type, contacts(full_name)")
       .eq("status", "scheduled")
       .gte("start_at", now.toISOString())
+      .eq("organization_id", organizationId)
       .order("start_at")
       .limit(4);
     if (vf) meetQ = meetQ.eq("advisor_id", vf);
@@ -668,6 +674,7 @@ export default function DashboardPage() {
       .from("tasks")
       .select("id, title, priority, task_type, due_date, due_time")
       .eq("status", "pending")
+      .eq("organization_id", organizationId)
       .order("due_date")
       .limit(5);
     if (vf) taskQ = taskQ.eq("owner_id", vf);
@@ -676,6 +683,7 @@ export default function DashboardPage() {
     let actQ = supabase
       .from("activities")
       .select("id, event_type, summary, created_at")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(8);
     if (vf) actQ = actQ.eq("created_by", vf);
@@ -686,11 +694,12 @@ export default function DashboardPage() {
       .select("objections")
       .not("objections", "is", null)
       .gte("created_at", startIso)
-      .lt("created_at", endIso);
+      .lt("created_at", endIso)
+      .eq("organization_id", organizationId);
 
     // Setup banner: total contacts + WhatsApp config
-    const totalCtQ = supabase.from("contacts").select("id", { count: "exact", head: true });
-    const waQ      = supabase.from("whatsapp_configs").select("id").limit(1);
+    const totalCtQ = supabase.from("contacts").select("id", { count: "exact", head: true }).eq("organization_id", organizationId);
+    const waQ      = supabase.from("whatsapp_configs").select("id").eq("organization_id", organizationId).limit(1);
 
     const [
       curRes, prevRes, activeRes, stagesRes,

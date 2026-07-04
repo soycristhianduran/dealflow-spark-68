@@ -1552,7 +1552,7 @@ function fmtConvTime(iso: string): string {
 function StagePipelinePicker({ contactId }: { contactId: string }) {
   const { t } = useTranslation();
   const { canEditContacts } = usePermissions();
-  const { defaultCurrency } = useOrganizationContext();
+  const { defaultCurrency, organizationId } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string; pipeline_id: string }[]>([]);
   const [pipelineId, setPipelineId] = useState<string>("");
@@ -1560,13 +1560,14 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    if (!organizationId) return;
     let active = true;
     (async () => {
       setLoaded(false);
       const [{ data: c }, { data: pls }, { data: sts }] = await Promise.all([
         supabase.from("contacts").select("pipeline_id, stage_id").eq("id", contactId).maybeSingle(),
-        supabase.from("pipelines").select("id, name").order("created_at"),
-        supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order"),
+        supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at"),
+        supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("organization_id", organizationId).order("order"),
       ]);
       if (!active) return;
       setPipelines((pls as any) || []);
@@ -1577,7 +1578,7 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
       setLoaded(true);
     })();
     return () => { active = false; };
-  }, [contactId]);
+  }, [contactId, organizationId]);
 
   const stagesForPipeline = stages.filter(s => s.pipeline_id === pipelineId);
 

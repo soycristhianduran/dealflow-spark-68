@@ -258,13 +258,14 @@ export default function ContactDetailPage() {
   };
 
   const loadPipelinesForEdit = useCallback(async (currentPipelineId?: string) => {
-    const { data } = await supabase.from("pipelines").select("id, name").order("created_at", { ascending: true });
+    if (!organizationId) return;
+    const { data } = await supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at", { ascending: true });
     setPipelines(data || []);
     if (currentPipelineId) {
       const { data: stages } = await supabase.from("pipeline_stages").select("id, name, color, order").eq("pipeline_id", currentPipelineId).order("order", { ascending: true });
       setStagesForPipeline(stages || []);
     }
-  }, []);
+  }, [organizationId]);
 
   const handlePipelineChange = async (newPipelineId: string) => {
     if (newPipelineId) {
@@ -287,9 +288,11 @@ export default function ContactDetailPage() {
     });
     setPplDirty(false);
     // Eagerly load pipelines so the selects work without clicking Editar
-    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
-      .then(({ data }) => setPipelines(data || []));
-  }, [contact?.id]);
+    if (organizationId) {
+      supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at", { ascending: true })
+        .then(({ data }) => setPipelines(data || []));
+    }
+  }, [contact?.id, organizationId]);
 
   const updatePpl = (changes: Partial<typeof ppl>) => {
     setPpl(p => ({ ...p, ...changes }));

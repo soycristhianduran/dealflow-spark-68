@@ -37,6 +37,7 @@ import {
   ChevronLeft, FolderOpen, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrganizationContext } from "@/context/OrganizationContext";
 import { LandingTemplates } from "@/components/landing/LandingTemplates";
 // @ts-expect-error — react-email-editor ships without bundled types in v1
 import EmailEditor from "react-email-editor";
@@ -602,6 +603,7 @@ function getPreviewUrl(slug: string) {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function LandingBuilderPage() {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   // Editor
   const editorRef = useRef<any>(null);
   const [editorReady, setEditorReady] = useState(false);
@@ -773,13 +775,15 @@ export default function LandingBuilderPage() {
 
   // ── Fetch pages ─────────────────────────────────────────────────────────────
   const fetchPages = useCallback(async () => {
+    if (!organizationId) return;
     const { data } = await supabase
       .from("landing_pages")
       .select("id,name,slug,html,design,prompt,mode,status,views,leads_count,updated_at,form_config,chat_history,funnel_id,page_role,page_order")
+      .eq("organization_id", organizationId)
       .order("page_order", { ascending: true });
     setPages((data || []) as LandingPage[]);
     setLoadingPages(false);
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => { fetchPages(); fetchFunnels(); }, [fetchPages, fetchFunnels]);
 
@@ -931,11 +935,12 @@ export default function LandingBuilderPage() {
 
   // ── Load pipelines + stages (for form config) ────────────────────────────────
   useEffect(() => {
-    supabase.from("pipelines").select("id, name").order("created_at", { ascending: true })
+    if (!organizationId) return;
+    supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("created_at", { ascending: true })
       .then(({ data }) => setPipelines(data || []));
-    supabase.from("pipeline_stages").select("id, name, pipeline_id").order("order", { ascending: true })
+    supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("organization_id", organizationId).order("order", { ascending: true })
       .then(({ data }) => setPipelineStages(data || []));
-  }, []);
+  }, [organizationId]);
 
   // ── Auto-detect form fields when HTML changes ────────────────────────────────
   // When the AI generates (or refines) a landing, we scan the #lead-form for

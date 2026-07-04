@@ -1371,15 +1371,17 @@ export default function MetaAdsPage() {
 
   /* ── ROAS attribution: contacts from Meta leads joined with won deals ── */
   const { data: roasContacts = [] } = useQuery({
-    queryKey: ["meta-roas-contacts", user?.id],
+    queryKey: ["meta-roas-contacts", user?.id, organizationId],
     queryFn: async () => {
       if (!user) return [];
-      const { data } = await supabase
+      let q = supabase
         .from("contacts")
         .select("meta_campaign_id, lead_status, budget, utm_campaign, campaign")
         .eq("owner_id", user.id)
         .or("meta_campaign_id.not.is.null,utm_campaign.not.is.null,campaign.not.is.null")
         .not("source", "is", null);
+      if (organizationId) q = q.eq("organization_id", organizationId);
+      const { data } = await q;
       return data || [];
     },
     enabled: !!user,

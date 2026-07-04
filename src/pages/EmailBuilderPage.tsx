@@ -108,13 +108,15 @@ export default function EmailBuilderPage() {
 
   // ── Load template list ──────────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
+    if (!organizationId) return;
     const { data } = await supabase
       .from("email_templates")
       .select("id, name, subject, design, html, updated_at")
+      .eq("organization_id", organizationId)
       .order("updated_at", { ascending: false });
     setTemplates((data || []) as Template[]);
     setLoadingTemplates(false);
-  }, []);
+  }, [organizationId]);
 
   useEffect(() => { fetchTemplates(); }, [fetchTemplates]);
 

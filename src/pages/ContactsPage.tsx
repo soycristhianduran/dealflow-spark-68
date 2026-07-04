@@ -484,9 +484,11 @@ export default function ContactsPage() {
   useEffect(() => {
     if (!emailBlastOpen) return;
     setLoadingEmailTpls(true);
-    supabase.from("email_templates")
+    let tplQuery = supabase.from("email_templates")
       .select("id, name, subject, html")
-      .not("html", "is", null)
+      .not("html", "is", null);
+    if (organizationId) tplQuery = tplQuery.eq("organization_id", organizationId);
+    tplQuery
       .order("updated_at", { ascending: false })
       .then(({ data }) => {
         setSavedTemplates((data || []) as { id: string; name: string; subject: string; html: string }[]);
@@ -498,7 +500,7 @@ export default function ContactsPage() {
         if (data?.email_from_name) setFromName(prev => prev || data.email_from_name);
         if (data?.email_from_email) setFromEmail(prev => prev || data.email_from_email);
       });
-  }, [emailBlastOpen]);
+  }, [emailBlastOpen, organizationId]);
 
   const visibleIds = contacts.map(c => c.id);
   const allChecked = visibleIds.length > 0 && visibleIds.every(id => selected.has(id));
@@ -1032,6 +1034,7 @@ export default function ContactsPage() {
         .order("created_at", { ascending: false })
         .limit(10000);
 
+      if (organizationId) query = query.eq("organization_id", organizationId);
       if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
       else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
       if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
@@ -1129,7 +1132,7 @@ export default function ContactsPage() {
     }
   }, [statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter,
       utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue,
-      dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId, t]);
+      dateFrom, dateTo, isVendor, isOwnerOrAdmin, myUserId, organizationId, t]);
 
   return (
     <AppLayout>

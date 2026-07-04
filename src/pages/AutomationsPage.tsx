@@ -757,6 +757,7 @@ function TriggerConfigEditor({
   onChange: (type: string, config: Record<string, any>) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const [metaForms, setMetaForms] = useState<{ form_id: string; form_name: string; page_id: string }[]>([]);
   const [loadingForms, setLoadingForms] = useState(false);
   const [landingPages, setLandingPages] = useState<{ id: string; name: string; slug: string }[]>([]);
@@ -795,17 +796,19 @@ function TriggerConfigEditor({
   // Load landing pages when trigger type is landing_form_submitted
   useEffect(() => {
     if (triggerType !== "landing_form_submitted") return;
+    if (!organizationId) return;
     setLoadingLandings(true);
     supabase
       .from("landing_pages")
       .select("id, name, slug")
       .eq("status", "published")
+      .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => {
         setLandingPages(data || []);
         setLoadingLandings(false);
       });
-  }, [triggerType]);
+  }, [triggerType, organizationId]);
 
   // Load email campaigns when trigger is email_opened / email_clicked
   useEffect(() => {
@@ -1244,19 +1247,22 @@ function WhatsAppStepEditor({ step, onChange }: {
   onChange: (updated: AutomationStep) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const c = step.config;
 
   const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string }[]>([]);
   const [loadingTpl, setLoadingTpl] = useState(false);
 
   useEffect(() => {
+    if (!organizationId) return;
     setLoadingTpl(true);
     supabase
       .from("whatsapp_templates")
       .select("id, name, language, status, body_text")
+      .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => { setTemplates(data || []); setLoadingTpl(false); });
-  }, []);
+  }, [organizationId]);
 
   const selectedTpl = templates.find(
     t => t.name === c.template_name && t.language === (c.language || t.language),
@@ -1561,13 +1567,15 @@ function MovePipelineStepEditor({ step, onChange }: {
   onChange: (updated: AutomationStep) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const [pipelines, setPipelines] = useState<{ id: string; name: string }[]>([]);
   const [stages, setStages] = useState<{ id: string; name: string }[]>([]);
   const c = step.config;
 
   useEffect(() => {
-    supabase.from("pipelines").select("id, name").order("name").then(({ data }) => setPipelines(data || []));
-  }, []);
+    if (!organizationId) return;
+    supabase.from("pipelines").select("id, name").eq("organization_id", organizationId).order("name").then(({ data }) => setPipelines(data || []));
+  }, [organizationId]);
 
   useEffect(() => {
     if (!c.pipeline_id) return;
@@ -1606,6 +1614,7 @@ function EmailStepEditor({ step, onChange }: {
   onChange: (updated: AutomationStep) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
@@ -1614,13 +1623,15 @@ function EmailStepEditor({ step, onChange }: {
   const [previewOpen, setPreviewOpen] = useState(false);
 
   useEffect(() => {
+    if (!organizationId) return;
     setLoadingTpl(true);
     supabase
       .from("email_templates")
       .select("id, name, subject, html")
+      .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => { setTemplates(data || []); setLoadingTpl(false); });
-  }, []);
+  }, [organizationId]);
 
   const handleSelectTemplate = (templateId: string) => {
     const tpl = templates.find(t => t.id === templateId);
