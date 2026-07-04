@@ -676,6 +676,17 @@ export default function ConversationsPage() {
       const fname = `voice-${Date.now()}.${ext}`;
       if (selected.channel === "whatsapp") {
         await wa.sendMedia(selected.id, base64, mime, fname, selected.contact_id);
+      } else if (selected.channel === "messenger") {
+        const { data, error } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: mime, filename: fname },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const { data: msgs } = await supabase
+          .from("messenger_messages")
+          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", selected.id)
+          .order("sent_at", { ascending: true });
+        setMsMessages((msgs || []) as MsMessageRow[]);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
@@ -757,6 +768,17 @@ export default function ConversationsPage() {
 
       if (selected.channel === "whatsapp") {
         await wa.sendMedia(selected.id, base64, file.type, file.name, selected.contact_id);
+      } else if (selected.channel === "messenger") {
+        const { data, error } = await supabase.functions.invoke("facebook-api", {
+          body: { action: "messenger_send_media", conversation_id: selected.id, file_base64: base64, mime_type: file.type, filename: file.name },
+        });
+        if (error || data?.error) throw new Error(data?.error || error?.message);
+        const { data: msgs } = await supabase
+          .from("messenger_messages")
+          .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
+          .eq("conversation_id", selected.id)
+          .order("sent_at", { ascending: true });
+        setMsMessages((msgs || []) as MsMessageRow[]);
       } else {
         const igConv = igConversations.find((c) => c.id === selected.id);
         if (!igConv) throw new Error(t("conversationsPage.instagramConversationNotFound"));
@@ -1021,8 +1043,7 @@ export default function ConversationsPage() {
                       </Button>
                     )}
 
-                    {/* Attach — WA/IG (Messenger is text-only for now) */}
-                    {!isMS && (
+                    {/* Attach — all channels */}
                     <Button
                       size="sm"
                       variant="outline"
@@ -1033,7 +1054,6 @@ export default function ConversationsPage() {
                     >
                       {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
-                    )}
 
                     <Input
                       className="flex-1 min-w-0"
@@ -1057,7 +1077,7 @@ export default function ConversationsPage() {
                       >
                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       </Button>
-                    ) : !isMS ? (
+                    ) : (
                       <Button
                         onClick={startRecording}
                         variant="outline"
@@ -1066,7 +1086,7 @@ export default function ConversationsPage() {
                       >
                         <Mic className="h-4 w-4" />
                       </Button>
-                    ) : null}
+                    )}
                   </div>
                 )}
               </div>
@@ -1263,10 +1283,12 @@ function MessageBubble({
       return new Date(msg.sent_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" });
     } catch { return ""; }
   })();
-  // WhatsApp uses chat-style green-on-light bubbles; IG uses pink for outgoing
+  // WhatsApp: green-on-light bubbles; IG: pink; Messenger: blue (official)
   const bubbleColor = out
     ? channel === "whatsapp"
       ? "bg-[#dcf8c6] dark:bg-green-800/40 text-gray-900 dark:text-gray-100"
+      : channel === "messenger"
+      ? "bg-[#007FFF] text-white"
       : "bg-pink-500 text-white"
     : channel === "whatsapp"
       ? "bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-border/40"
@@ -1275,7 +1297,7 @@ function MessageBubble({
   const isAudio = ["audio", "voice"].includes(msg.message_type);
   const isImage = msg.message_type === "image" || msg.message_type === "sticker";
   const isVideo = msg.message_type === "video";
-  const isDocument = msg.message_type === "document";
+  const isDocument = msg.message_type === "document" || msg.message_type === "file";
 
   // "meta:{id}" is a placeholder when the webhook stored the media reference
   // but the actual download failed — the user can click to retry the fetch.

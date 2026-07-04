@@ -1501,7 +1501,28 @@ async function processMessengerEvent(
   if (!page) return false;
 
   const msg = event.message;
-  if (!msg) return true; // postback/read/delivery — acked, nothing to store yet
+  if (!msg) {
+    // Delivery/read receipts → update outgoing message status (ticks in the UI)
+    try {
+      if (event.delivery?.watermark) {
+        await supabase.from("messenger_messages")
+          .update({ status: "delivered" })
+          .eq("page_id", pageId)
+          .eq("direction", "outgoing")
+          .eq("status", "sent")
+          .lte("sent_at", new Date(event.delivery.watermark).toISOString());
+      }
+      if (event.read?.watermark) {
+        await supabase.from("messenger_messages")
+          .update({ status: "read" })
+          .eq("page_id", pageId)
+          .eq("direction", "outgoing")
+          .in("status", ["sent", "delivered"])
+          .lte("sent_at", new Date(event.read.watermark).toISOString());
+      }
+    } catch (_) { /* non-fatal */ }
+    return true;
+  }
 
   const mid = msg.mid ?? null;
   const text: string = msg.text ?? "";
