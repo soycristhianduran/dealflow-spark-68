@@ -4574,5 +4574,12 @@
     "cancel": "Cancel",
     "applyCount": "Apply to {{count}} post(s)",
     "applyAll": "Apply to all"
+  },
+  "contactSocialThread": {
+    "empty": "No messages yet",
+    "placeholder": "{{channel}} message...",
+    "sendError": "Error sending: ",
+    "attachment": "Attachment",
+    "noParticipant": "Recipient not found"
   }
 }

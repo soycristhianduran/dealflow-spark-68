@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
+import { ContactSocialThread } from "@/components/crm/ContactSocialThread";
 import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
@@ -924,7 +925,7 @@ export default function ContactDetailPage() {
                         <Button
                           variant="outline" size="sm"
                           className="flex-col h-auto py-2 gap-1 text-xs"
-                          onClick={() => navigate(path(`/conversations?ch=${socialChat.channel}&id=${socialChat.convId}`))}
+                          onClick={() => setActiveTab("social")}
                           title={t("contactDetailPage.openSocialChat")}
                         >
                           {socialChat.channel === "ig" ? <InstagramIcon size={16} /> : <MessengerIcon size={16} />}
@@ -937,7 +938,7 @@ export default function ContactDetailPage() {
                           disabled={!contact.primary_phone && !socialChat}
                           onClick={() => {
                             if (contact.primary_phone) setActiveTab("whatsapp");
-                            else if (socialChat) navigate(path(`/conversations?ch=${socialChat.channel}&id=${socialChat.convId}`));
+                            else if (socialChat) setActiveTab("social");
                           }}
                           title={contact.primary_phone ? t("contactDetailPage.openWhatsAppChat") : t("contactDetailPage.noPhone")}
                         >
@@ -1155,6 +1156,16 @@ export default function ContactDetailPage() {
                 />
 
               </TabsContent>
+
+              {socialChat && (
+                <TabsContent value="social" className="mt-4">
+                  <ContactSocialThread
+                    channel={socialChat.channel}
+                    conversationId={socialChat.convId}
+                    contactName={contact.full_name}
+                  />
+                </TabsContent>
+              )}
 
               {contact.primary_phone && (
                 <TabsContent value="whatsapp" className="mt-4">

@@ -4574,5 +4574,12 @@
     "cancel": "Cancelar",
     "applyCount": "Aplicar a {{count}} publicación(es)",
     "applyAll": "Aplicar a todas"
+  },
+  "contactSocialThread": {
+    "empty": "Sin mensajes todavía",
+    "placeholder": "Mensaje de {{channel}}...",
+    "sendError": "Error al enviar: ",
+    "attachment": "Adjunto",
+    "noParticipant": "No se encontró el destinatario"
   }
 }
