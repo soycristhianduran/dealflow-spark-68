@@ -279,6 +279,7 @@ async function processLeadgenChange(
   };
   const customFields: Record<string, string> = {};
 
+  // Apply explicit mappings first (both standard columns and custom fields).
   if (hasCustomMappings) {
     for (const mapping of userMappings!) {
       const value = fields[mapping.fb_field_name.toLowerCase()] || "";
@@ -289,22 +290,33 @@ async function processLeadgenChange(
         contactData[mapping.contact_field] = value;
       }
     }
-  } else {
-    contactData.first_name = fields["first_name"] || fields["nombre"] || null;
-    contactData.last_name = fields["last_name"] || fields["apellido"] || fields["apellidos"] || null;
-    contactData.primary_email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || null;
-    contactData.primary_phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || null;
-    contactData.birthday = fields["date_of_birth"] || fields["fecha_de_nacimiento"] || fields["birthday"] || null;
-    contactData.city = fields["city"] || fields["ciudad"] || null;
-    contactData.country = fields["country"] || fields["país"] || null;
+  }
 
-    if (!contactData.first_name) {
-      const fullNameRaw = fields["full_name"] || fields["nombre_completo"] || fields["name"] || "";
-      if (fullNameRaw) {
-        const parts = fullNameRaw.trim().split(/\s+/);
-        contactData.first_name = parts[0] || null;
-        contactData.last_name = parts.slice(1).join(" ") || null;
-      }
+  // ALWAYS auto-detect name / email / phone / basics when the mapping didn't
+  // provide them. Previously, if the user only mapped custom fields (or forgot
+  // to map name/email/phone), the lead was created with NO contact info — which
+  // looks like "the lead never arrived". Auto-detection is a safety net so a
+  // Meta lead always keeps its core data regardless of how it was mapped.
+  if (!contactData.first_name)
+    contactData.first_name = fields["first_name"] || fields["nombre"] || contactData.first_name || null;
+  if (!contactData.last_name)
+    contactData.last_name = fields["last_name"] || fields["apellido"] || fields["apellidos"] || contactData.last_name || null;
+  if (!contactData.primary_email)
+    contactData.primary_email = fields["email"] || fields["correo"] || fields["correo_electrónico"] || contactData.primary_email || null;
+  if (!contactData.primary_phone)
+    contactData.primary_phone = fields["phone_number"] || fields["telefono"] || fields["teléfono"] || fields["phone"] || fields["número_de_teléfono"] || contactData.primary_phone || null;
+  if (!contactData.birthday)
+    contactData.birthday = fields["date_of_birth"] || fields["fecha_de_nacimiento"] || fields["birthday"] || contactData.birthday || null;
+  if (!contactData.city)
+    contactData.city = fields["city"] || fields["ciudad"] || contactData.city || null;
+  if (!contactData.country)
+    contactData.country = fields["country"] || fields["país"] || contactData.country || null;
+  if (!contactData.first_name) {
+    const fullNameRaw = fields["full_name"] || fields["nombre_completo"] || fields["name"] || "";
+    if (fullNameRaw) {
+      const parts = fullNameRaw.trim().split(/\s+/);
+      contactData.first_name = parts[0] || null;
+      contactData.last_name = contactData.last_name || parts.slice(1).join(" ") || null;
     }
   }
 

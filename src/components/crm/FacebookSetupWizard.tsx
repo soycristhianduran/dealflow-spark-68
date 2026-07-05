@@ -67,6 +67,14 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
   const [currentFormIndex, setCurrentFormIndex] = useState(0);
   const [allFormMappings, setAllFormMappings] = useState<Record<string, FieldMapping[]>>({});
   const [newCustomField, setNewCustomField] = useState("");
+  // Custom fields defined by the org in Configuración → Campos (mapping targets)
+  const [orgCustomFields, setOrgCustomFields] = useState<{ key: string; label: string }[]>([]);
+  useEffect(() => {
+    if (!organizationId) { setOrgCustomFields([]); return; }
+    supabase.from("custom_field_definitions")
+      .select("key, label").eq("organization_id", organizationId).order("position")
+      .then(({ data }) => setOrgCustomFields((data as { key: string; label: string }[]) || []));
+  }, [organizationId]);
 
   // Ad accounts & campaigns
   const [adAccounts, setAdAccounts] = useState<AdAccountItem[]>([]);
@@ -279,16 +287,19 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
 
   // Collect all custom fields defined across mappings for dropdown options
   const customFieldOptions = useMemo(() => {
-    const customs = new Set<string>();
+    const map = new Map<string, string>(); // key -> label
+    // Org-defined custom fields (from Settings) come first as proper targets.
+    orgCustomFields.forEach(cf => map.set(cf.key, cf.label || cf.key));
+    // Plus any ad-hoc custom fields already chosen in mappings.
     Object.values(allFormMappings).forEach(mappings => {
       mappings.forEach(m => {
-        if (m.is_custom_field && m.contact_field !== "__skip__") {
-          customs.add(m.contact_field);
+        if (m.is_custom_field && m.contact_field !== "__skip__" && !map.has(m.contact_field)) {
+          map.set(m.contact_field, m.contact_field);
         }
       });
     });
-    return Array.from(customs);
-  }, [allFormMappings]);
+    return Array.from(map.entries()).map(([key, label]) => ({ key, label }));
+  }, [allFormMappings, orgCustomFields]);
 
   const stepIndex: Record<Step, number> = { pages: 0, forms: 1, mapping: 2, messenger: 3, campaigns: 4, done: 5 };
   const steps = [
@@ -565,9 +576,9 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                             <>
                               <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground uppercase">{t("facebookSetupWizard.customFieldsLabel")}</div>
                               {customFieldOptions.map(cf => (
-                                <SelectItem key={`custom_${cf}`} value={cf}>
+                                <SelectItem key={`custom_${cf.key}`} value={cf.key}>
                                   <span className="flex items-center gap-1">
-                                    <Plus className="h-3 w-3 text-primary" /> {cf}
+                                    <Plus className="h-3 w-3 text-primary" /> {cf.label}
                                   </span>
                                 </SelectItem>
                               ))}
