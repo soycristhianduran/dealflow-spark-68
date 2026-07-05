@@ -15,7 +15,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import { ContactSocialThread } from "@/components/crm/ContactSocialThread";
-import { LostReasonDialog } from "@/components/crm/CloseLeadDialogs";
+import { LostReasonDialog, WonBudgetDialog } from "@/components/crm/CloseLeadDialogs";
 import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
@@ -383,7 +383,7 @@ export default function ContactDetailPage() {
   const isLostStageName = (n: string) => /perdid|lost/i.test(n || "");
   const [lostDlg, setLostDlg] = useState<{ stageId: string; pipelineId: string } | null>(null);
 
-  const quickChangeStage = async (newStageId: string, newPipelineId: string, budgetOverride?: { amount: number; currency: string }, lostReason?: string) => {
+  const quickChangeStage = async (newStageId: string, newPipelineId: string, budgetOverride?: { amount: number; currency: string; productId?: string | null }, lostReason?: string) => {
     if (!id || savingStage) return;
     const stageName = stagesForPicker.find(s => s.id === newStageId)?.name || "";
     // WON always confirms/updates the closing budget (prefilled with current).
@@ -404,7 +404,7 @@ export default function ContactDetailPage() {
     setStagePickerOpen(false);
     const prevStageId = contact?.stage_id;
     const update: Record<string, any> = { stage_id: newStageId, pipeline_id: newPipelineId };
-    if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; }
+    if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; if (budgetOverride.productId !== undefined) update.won_product_id = budgetOverride.productId; }
     if (lostReason) { update.lead_status = "lost"; update.lost_reason = lostReason; }
     const { error } = await supabase.from("contacts").update(update).eq("id", id);
     if (error) {
@@ -1251,59 +1251,21 @@ export default function ContactDetailPage() {
         adName={(contact as any)?.ad ?? null}
       />
 
-      {/* Closing-budget dialog — required when moving a lead to a WON stage */}
-      <Dialog open={!!wonDlg} onOpenChange={(o) => { if (!o) setWonDlg(null); }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{t("contactDetailPage.markAsWon")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {t("contactDetailPage.markAsWonDescPrefix")}<span className="font-medium">"{wonDlg?.stageName}"</span>{t("contactDetailPage.markAsWonDescSuffix")}
-            </p>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs font-medium">{t("contactDetailPage.closingBudget")}</label>
-                <Input
-                  type="number" min="0" autoFocus placeholder="0"
-                  value={wonAmt}
-                  onChange={(e) => setWonAmt(e.target.value)}
-                />
-              </div>
-              <div className="w-28">
-                <label className="text-xs font-medium">{t("contactDetailPage.currency")}</label>
-                <Select value={wonCur} onValueChange={setWonCur}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="USD">USD</SelectItem>
-                    <SelectItem value="COP">COP</SelectItem>
-                    <SelectItem value="MXN">MXN</SelectItem>
-                    <SelectItem value="EUR">EUR</SelectItem>
-                    <SelectItem value="ARS">ARS</SelectItem>
-                    <SelectItem value="PEN">PEN</SelectItem>
-                    <SelectItem value="CLP">CLP</SelectItem>
-                    <SelectItem value="BRL">BRL</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWonDlg(null)} disabled={savingStage}>{t("contactDetailPage.cancel")}</Button>
-            <Button
-              disabled={savingStage || !(Number(wonAmt) > 0)}
-              onClick={() => {
-                const d = wonDlg;
-                if (!d || !(Number(wonAmt) > 0)) return;
-                setWonDlg(null);
-                quickChangeStage(d.stageId, d.pipelineId, { amount: Number(wonAmt), currency: wonCur });
-              }}
-            >
-              {t("contactDetailPage.confirmSale")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Closing budget + product — required when moving a lead to a WON stage */}
+      <WonBudgetDialog
+        open={!!wonDlg}
+        onOpenChange={(o) => { if (!o) setWonDlg(null); }}
+        contactName={contact?.full_name}
+        initialAmount={contact?.budget && Number(contact.budget) > 0 ? Number(contact.budget) : null}
+        initialCurrency={contact?.budget_currency || defaultCurrency}
+        initialProductId={(contact as any)?.won_product_id ?? null}
+        onConfirm={async (amount, currency, productId) => {
+          const d = wonDlg;
+          if (!d) return;
+          setWonDlg(null);
+          await quickChangeStage(d.stageId, d.pipelineId, { amount, currency, productId });
+        }}
+      />
       <LostReasonDialog
         open={!!lostDlg}
         onOpenChange={(o) => { if (!o) setLostDlg(null); }}

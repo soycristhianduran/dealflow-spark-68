@@ -13,6 +13,10 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Trophy, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { supabase } from "@/integrations/supabase/client";
+import { useOrganizationContext } from "@/context/OrganizationContext";
+
+interface Product { id: string; name: string; default_price: number | null; currency: string | null; }
 
 export const LOST_REASONS = [
   "Precio muy alto",
@@ -29,32 +33,51 @@ const CURRENCIES = ["USD", "EUR", "COP", "MXN", "ARS", "BRL", "PEN", "CLP"];
 /** Budget confirmation for closing WON. Prefills the current budget so the
  *  user confirms or updates the real closing amount. */
 export function WonBudgetDialog({
-  open, onOpenChange, contactName, initialAmount, initialCurrency, onConfirm,
+  open, onOpenChange, contactName, initialAmount, initialCurrency, initialProductId, onConfirm,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   contactName?: string | null;
   initialAmount?: number | null;
   initialCurrency?: string | null;
-  onConfirm: (amount: number, currency: string) => Promise<void> | void;
+  initialProductId?: string | null;
+  onConfirm: (amount: number, currency: string, productId: string | null) => Promise<void> | void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const [amount, setAmount] = useState("");
   const [currency, setCurrency] = useState(initialCurrency || "USD");
+  const [productId, setProductId] = useState<string>("none");
+  const [products, setProducts] = useState<Product[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (open) {
-      setAmount(initialAmount && Number(initialAmount) > 0 ? String(initialAmount) : "");
-      setCurrency(initialCurrency || "USD");
+    if (!open || !organizationId) return;
+    setAmount(initialAmount && Number(initialAmount) > 0 ? String(initialAmount) : "");
+    setCurrency(initialCurrency || "USD");
+    setProductId(initialProductId || "none");
+    supabase.from("products")
+      .select("id, name, default_price, currency")
+      .eq("organization_id", organizationId).eq("is_active", true)
+      .order("name")
+      .then(({ data }) => setProducts((data as Product[]) || []));
+  }, [open, organizationId, initialAmount, initialCurrency, initialProductId]);
+
+  // Picking a product prefills its default price/currency if the amount is empty
+  const onProductChange = (val: string) => {
+    setProductId(val);
+    const p = products.find(x => x.id === val);
+    if (p && (!amount || Number(amount) <= 0)) {
+      if (p.default_price != null) setAmount(String(p.default_price));
+      if (p.currency) setCurrency(p.currency);
     }
-  }, [open, initialAmount, initialCurrency]);
+  };
 
   const confirm = async () => {
     const v = parseFloat(amount.replace(/,/g, "."));
     if (!v || v <= 0) return;
     setSaving(true);
-    try { await onConfirm(v, currency); onOpenChange(false); }
+    try { await onConfirm(v, currency, productId === "none" ? null : productId); onOpenChange(false); }
     finally { setSaving(false); }
   };
 
@@ -69,6 +92,18 @@ export function WonBudgetDialog({
         <p className="text-sm text-muted-foreground">
           {t("closeLeadDialogs.wonHelp", { name: contactName || "" })}
         </p>
+        {products.length > 0 && (
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{t("closeLeadDialogs.productLabel")}</label>
+            <Select value={productId} onValueChange={onProductChange}>
+              <SelectTrigger><SelectValue placeholder={t("closeLeadDialogs.productPlaceholder")} /></SelectTrigger>
+              <SelectContent className="z-[10001]">
+                <SelectItem value="none">{t("closeLeadDialogs.noProduct")}</SelectItem>
+                {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="flex gap-2 items-center">
           <Select value={currency} onValueChange={setCurrency}>
             <SelectTrigger className="w-24 shrink-0"><SelectValue /></SelectTrigger>

@@ -1731,8 +1731,8 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
         onOpenChange={(o) => { if (!o) setWonDlgStage(null); }}
         initialAmount={wonPrefill.amount}
         initialCurrency={wonPrefill.currency}
-        onConfirm={async (amount, currency) => {
-          if (wonDlgStage) await applyStage(wonDlgStage, { lead_status: "won", budget: amount, budget_currency: currency });
+        onConfirm={async (amount, currency, productId) => {
+          if (wonDlgStage) await applyStage(wonDlgStage, { lead_status: "won", budget: amount, budget_currency: currency, won_product_id: productId });
           setWonDlgStage(null);
         }}
       />

@@ -17,6 +17,7 @@ import { defaultStages } from "@/data/mock-data";
 import { Plus, Trash2, X, Pencil, ArrowUp, ArrowDown, Sun, Moon, Monitor, Upload, ImageIcon, Loader2, Mail, UserCheck, Clock, Link2, CheckCircle2, AlertCircle, UserX, RotateCcw, Key, Copy, Eye, EyeOff, Power, Lock } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useOrgTags, TAG_PALETTE, tagChipStyle } from "@/hooks/useOrgTags";
+import { ProductsSettings } from "@/components/crm/ProductsSettings";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { toast } from "sonner";
 import type { PipelineStage } from "@/types/crm";
@@ -498,6 +499,7 @@ export default function SettingsPage() {
             <TabsTrigger value="pipeline">{t("settingsPage.tabPipeline")}</TabsTrigger>
             <TabsTrigger value="equipo">{t("settingsPage.tabTeam")}</TabsTrigger>
             <TabsTrigger value="tags">{t("settingsPage.tabTags")}</TabsTrigger>
+            <TabsTrigger value="productos">{t("settingsPage.tabProducts")}</TabsTrigger>
             <TabsTrigger value="campos">{t("settingsPage.tabFields")}</TabsTrigger>
             <TabsTrigger value="email">{t("settingsPage.tabEmail")}</TabsTrigger>
             <TabsTrigger value="formulario">{t("settingsPage.tabWebForm")}</TabsTrigger>
@@ -782,6 +784,10 @@ export default function SettingsPage() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="productos" className="space-y-4">
+            <ProductsSettings />
           </TabsContent>
 
           <TabsContent value="tags" className="space-y-4">

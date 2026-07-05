@@ -1683,7 +1683,8 @@
     "fieldNameExists": "Ya existe un campo con ese nombre",
     "fieldCreateError": "Error al crear campo",
     "fieldCreated": "Campo creado",
-    "fieldDeleted": "Campo eliminado"
+    "fieldDeleted": "Campo eliminado",
+    "tabProducts": "Productos"
   },
   "contactDetailPage": {
     "callStatusCompleted": "Completada",
@@ -4591,6 +4592,20 @@
     "lostHelp": "Registrar la razón es obligatorio: te permite saber por qué pierdes negocios.",
     "customReasonPlaceholder": "Describe la razón...",
     "confirmLost": "Confirmar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "productLabel": "Producto / servicio vendido",
+    "productPlaceholder": "Selecciona un producto",
+    "noProduct": "Sin especificar"
+  },
+  "productsSettings": {
+    "title": "Productos y servicios",
+    "description": "Define tu catálogo. Al cerrar un lead como ganado podrás indicar cuál se vendió, y verás cuáles se venden más.",
+    "namePlaceholder": "Nombre del producto o servicio",
+    "pricePlaceholder": "Precio (opcional)",
+    "add": "Agregar",
+    "added": "Producto agregado",
+    "addError": "Error al agregar: ",
+    "deleteError": "Error al eliminar",
+    "empty": "Aún no tienes productos. Agrega el primero arriba."
   }
 }

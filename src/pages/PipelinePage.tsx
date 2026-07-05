@@ -465,10 +465,14 @@ export default function PipelinePage() {
   };
 
   // Complete a drop (shared by handleDrop and confirmWonDrop)
-  const completeDrop = async (contactId: string, stageId: string, newLeadStatus: "won" | "lost" | "active", budgetOverride?: { amount: number; currency: string }) => {
+  const completeDrop = async (contactId: string, stageId: string, newLeadStatus: "won" | "lost" | "active", budgetOverride?: { amount: number; currency: string; productId?: string | null }) => {
     const stage = stages.find(s => s.id === stageId);
     const update: Record<string, any> = { stage_id: stageId, lead_status: newLeadStatus };
-    if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; }
+    if (budgetOverride) {
+      update.budget = budgetOverride.amount;
+      update.budget_currency = budgetOverride.currency;
+      if (budgetOverride.productId !== undefined) update.won_product_id = budgetOverride.productId;
+    }
     setContacts(prev => prev.map(c => c.id === contactId ? { ...c, stage_id: stageId, lead_status: newLeadStatus, ...(budgetOverride ? { budget: budgetOverride.amount, budget_currency: budgetOverride.currency } : {}) } : c));
     await supabase.from("contacts").update(update).eq("id", contactId);
     supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
@@ -537,15 +541,11 @@ export default function PipelinePage() {
     setPendingLostDrop(null);
   };
 
-  // Confirm won drop with budget
-  const confirmWonDrop = async () => {
+  // Confirm won drop with budget + optional product (via the shared dialog)
+  const confirmWonDrop = async (amount: number, currency: string, productId: string | null) => {
     if (!pendingWonDrop) return;
-    const amount = parseFloat(wonBudgetAmount.replace(/,/g, "."));
-    if (!amount || amount <= 0) { toast.error(t("pipelinePage.enterValidValue")); return; }
-    setWonBudgetSaving(true);
-    await completeDrop(pendingWonDrop.contactId, pendingWonDrop.stageId, "won", { amount, currency: wonBudgetCurrency });
+    await completeDrop(pendingWonDrop.contactId, pendingWonDrop.stageId, "won", { amount, currency, productId });
     toast.success(t("pipelinePage.leadClosedWon"));
-    setWonBudgetSaving(false);
     setWonBudgetDialogOpen(false);
     setPendingWonDrop(null);
   };
@@ -1229,50 +1229,15 @@ export default function PipelinePage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Budget required dialog (won stage without budget) ── */}
-      <Dialog open={wonBudgetDialogOpen} onOpenChange={open => { if (!open && !wonBudgetSaving) { setWonBudgetDialogOpen(false); setPendingWonDrop(null); } }}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-green-500" /> {t("pipelinePage.whatWasDealValue")}
-            </DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            {t("pipelinePage.wonBudgetHelpPart1")} <strong>{contacts.find(c => c.id === pendingWonDrop?.contactId)?.full_name}</strong> {t("pipelinePage.wonBudgetHelpPart2")} <strong>{pendingWonDrop?.stageName}</strong> {t("pipelinePage.wonBudgetHelpPart3")}
-          </p>
-          <div className="flex gap-2 items-center">
-            <Select value={wonBudgetCurrency} onValueChange={setWonBudgetCurrency}>
-              <SelectTrigger className="w-24 shrink-0">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {["USD", "EUR", "COP", "MXN", "ARS", "BRL", "PEN", "CLP"].map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              autoFocus
-              type="number"
-              min="1"
-              placeholder="0.00"
-              value={wonBudgetAmount}
-              onChange={e => setWonBudgetAmount(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && confirmWonDrop()}
-              className="flex-1"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setWonBudgetDialogOpen(false); setPendingWonDrop(null); }} disabled={wonBudgetSaving}>
-              {t("pipelinePage.cancel")}
-            </Button>
-            <Button onClick={confirmWonDrop} disabled={wonBudgetSaving || !wonBudgetAmount} className="gap-1.5 bg-green-600 hover:bg-green-700">
-              {wonBudgetSaving && <Loader2 className="h-4 w-4 animate-spin" />}
-              {t("pipelinePage.confirmClose")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* ── Budget + product confirmation on WON (shared dialog) ── */}
+      <WonBudgetDialog
+        open={wonBudgetDialogOpen}
+        onOpenChange={open => { if (!open) { setWonBudgetDialogOpen(false); setPendingWonDrop(null); } }}
+        contactName={contacts.find(c => c.id === pendingWonDrop?.contactId)?.full_name}
+        initialAmount={wonBudgetAmount ? Number(wonBudgetAmount) : null}
+        initialCurrency={wonBudgetCurrency}
+        onConfirm={confirmWonDrop}
+      />
 
       {/* Reason required when creating a lead DIRECTLY in the lost column */}
       <LostReasonDialog
