@@ -376,8 +376,8 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
   if (!data) return null;
 
   // The RPC already returns one zero-filled point per day of the selected period.
-  const series: number[] = data.trend.map(t => t.n);
-  const seriesDates: string[] = data.trend.map(t => t.d);
+  const series: number[] = data.trend.map(pt => pt.n);
+  const seriesDates: string[] = data.trend.map(pt => pt.d);
 
   return (
     <div className="space-y-4 md:space-y-6">

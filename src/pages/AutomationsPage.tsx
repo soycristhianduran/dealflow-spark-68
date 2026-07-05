@@ -513,8 +513,8 @@ function StepPicker({ open, onClose, onSelect }: {
 
   const filteredGroups = STEP_GROUPS.map(group => ({
     ...group,
-    types: group.types.filter(t => {
-      const meta = STEP_META[t];
+    types: group.types.filter(st => {
+      const meta = STEP_META[st];
       return !query || meta.label.toLowerCase().includes(query.toLowerCase())
         || meta.description.toLowerCase().includes(query.toLowerCase());
     }),
@@ -1283,7 +1283,7 @@ function WhatsAppStepEditor({ step, onChange }: {
     onChange({ ...step, config: { ...c, variables: next } });
   };
 
-  const approvedTemplates = templates.filter(t => ["APPROVED", "approved"].includes(t.status));
+  const approvedTemplates = templates.filter(x => ["APPROVED", "approved"].includes(x.status));
   const displayTemplates = approvedTemplates.length > 0 ? approvedTemplates : templates;
 
   return (
@@ -1736,10 +1736,10 @@ function EmailStepEditor({ step, onChange }: {
                   <SelectValue placeholder={t("automationsPage.useEmailBuilderTemplate")} />
                 </SelectTrigger>
                 <SelectContent>
-                  {templates.map(t => (
-                    <SelectItem key={t.id} value={t.id}>
-                      <span className="font-medium">{t.name}</span>
-                      {t.subject && <span className="text-muted-foreground ml-2 text-xs">— {t.subject}</span>}
+                  {templates.map(tpl => (
+                    <SelectItem key={tpl.id} value={tpl.id}>
+                      <span className="font-medium">{tpl.name}</span>
+                      {tpl.subject && <span className="text-muted-foreground ml-2 text-xs">— {tpl.subject}</span>}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -2568,7 +2568,7 @@ function AutomationBuilder({
         trigger_config: primaryConfigWithPos,
         // Multi-trigger fields
         triggers: triggersToSave,
-        trigger_types: triggersToSave.map(t => t.type),
+        trigger_types: triggersToSave.map(trg => trg.type),
         steps: stepsWithPos, user_id: user.id, updated_at: new Date().toISOString(),
       };
       let err;

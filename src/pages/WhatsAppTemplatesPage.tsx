@@ -549,9 +549,9 @@ export default function WhatsAppTemplatesPage() {
             <div className="relative mt-5 flex flex-wrap gap-2">
               {[
                 { label: t("whatsAppTemplatesPage.statTotal"), value: templates.length, cls: "bg-background/70 text-foreground ring-border" },
-                { label: t("whatsAppTemplatesPage.statApproved"), value: templates.filter(t => t.status === "APPROVED").length, cls: "bg-green-100 text-green-700 ring-green-200" },
-                { label: t("whatsAppTemplatesPage.statPending"), value: templates.filter(t => t.status === "PENDING" || t.status === "IN_APPEAL").length, cls: "bg-yellow-100 text-yellow-700 ring-yellow-200" },
-                { label: t("whatsAppTemplatesPage.statRejected"), value: templates.filter(t => t.status === "REJECTED").length, cls: "bg-red-100 text-red-700 ring-red-200" },
+                { label: t("whatsAppTemplatesPage.statApproved"), value: templates.filter(x => x.status === "APPROVED").length, cls: "bg-green-100 text-green-700 ring-green-200" },
+                { label: t("whatsAppTemplatesPage.statPending"), value: templates.filter(x => x.status === "PENDING" || x.status === "IN_APPEAL").length, cls: "bg-yellow-100 text-yellow-700 ring-yellow-200" },
+                { label: t("whatsAppTemplatesPage.statRejected"), value: templates.filter(x => x.status === "REJECTED").length, cls: "bg-red-100 text-red-700 ring-red-200" },
               ].map(s => (
                 <div key={s.label} className={cn("inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1", s.cls)}>
                   <span className="font-bold tabular-nums">{s.value}</span>

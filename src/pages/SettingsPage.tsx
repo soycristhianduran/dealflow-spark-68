@@ -1658,8 +1658,8 @@ function CustomFieldsSection() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {FIELD_TYPES.map(t => (
-                    <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                  {FIELD_TYPES.map(ft => (
+                    <SelectItem key={ft.value} value={ft.value}>{ft.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

@@ -67,7 +67,7 @@ export function ShopifyIntegrationCard() {
       const { data, error } = await supabase.from("automations").insert({
         name: a.name, description: a.description, is_active: true,
         trigger_type: a.trigger_type, trigger_config: a.trigger_config,
-        triggers: a.triggers, trigger_types: a.triggers.map(t => t.type),
+        triggers: a.triggers, trigger_types: a.triggers.map(trg => trg.type),
         steps: a.steps, user_id: user.id, organization_id: organizationId,
         created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
       }).select("id").single();

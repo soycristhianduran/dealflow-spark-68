@@ -390,10 +390,10 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
               <div>
                 <Label className="text-xs">{t("importContactsDialog.tagsForAllLabel")}</Label>
                 <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                  {importTags.map(t => (
-                    <Badge key={t} variant="secondary" className="gap-1 py-1">
-                      {t}
-                      <button onClick={() => setImportTags(importTags.filter(x => x !== t))}><X className="h-3 w-3" /></button>
+                  {importTags.map(tag => (
+                    <Badge key={tag} variant="secondary" className="gap-1 py-1">
+                      {tag}
+                      <button onClick={() => setImportTags(importTags.filter(x => x !== tag))}><X className="h-3 w-3" /></button>
                     </Badge>
                   ))}
                   <div className="w-[200px]">

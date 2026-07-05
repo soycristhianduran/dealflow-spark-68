@@ -1377,7 +1377,7 @@ export default function ContactsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">{t("contactsPage.allTags")}</SelectItem>
-                      {allTags.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {allTags.map(tag => <SelectItem key={tag} value={tag}>{tag}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 ) : (
@@ -1920,10 +1920,10 @@ export default function ContactsPage() {
               </div>
               {pendingTags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {pendingTags.map(t => (
-                    <span key={t} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium">
-                      {t}
-                      <button onClick={() => setPendingTags(p => p.filter(x => x !== t))} className="hover:text-destructive">
+                  {pendingTags.map(tag => (
+                    <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2.5 py-0.5 text-xs font-medium">
+                      {tag}
+                      <button onClick={() => setPendingTags(p => p.filter(x => x !== tag))} className="hover:text-destructive">
                         <X className="h-3 w-3" />
                       </button>
                     </span>

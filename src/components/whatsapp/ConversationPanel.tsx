@@ -112,7 +112,7 @@ export function WhatsAppConversationPanel({
   useEffect(() => {
     return () => {
       if (recTimerRef.current) clearInterval(recTimerRef.current);
-      mediaRecorderRef.current?.stream?.getTracks().forEach((t) => t.stop());
+      mediaRecorderRef.current?.stream?.getTracks().forEach((trk) => trk.stop());
     };
   }, []);
 
@@ -166,7 +166,7 @@ export function WhatsAppConversationPanel({
 
     await new Promise<void>((resolve) => {
       mr.onstop = async () => {
-        mr.stream.getTracks().forEach((t) => t.stop());
+        mr.stream.getTracks().forEach((trk) => trk.stop());
         const mimeType = mr.mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         audioChunksRef.current = [];
@@ -195,7 +195,7 @@ export function WhatsAppConversationPanel({
     const mr = mediaRecorderRef.current;
     if (!mr) return;
     if (recTimerRef.current) clearInterval(recTimerRef.current);
-    mr.onstop = () => { mr.stream.getTracks().forEach((t) => t.stop()); };
+    mr.onstop = () => { mr.stream.getTracks().forEach((trk) => trk.stop()); };
     try { mr.stop(); } catch (_) { /* ignore */ }
     audioChunksRef.current = [];
     setRecording(false);

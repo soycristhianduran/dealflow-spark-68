@@ -266,8 +266,8 @@ export function CreateMeetingDialog({
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  {timeOptions.map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {timeOptions.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -282,8 +282,8 @@ export function CreateMeetingDialog({
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
-                  {timeOptions.map(t => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  {timeOptions.map(opt => (
+                    <SelectItem key={opt} value={opt}>{opt}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

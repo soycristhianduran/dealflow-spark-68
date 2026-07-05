@@ -130,11 +130,11 @@ export default function TasksPage() {
     return true;
   });
 
-  const pendingCount = tasks.filter(t => t.status === "pending").length;
+  const pendingCount = tasks.filter(x => x.status === "pending").length;
 
   const toggleStatus = async (task: TaskRow) => {
     const newStatus = nextStatus[task.status] || "pending";
-    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: newStatus } : t));
+    setTasks(prev => prev.map(x => x.id === task.id ? { ...x, status: newStatus } : x));
     await supabase.from("tasks").update({ status: newStatus }).eq("id", task.id);
   };
 
@@ -171,7 +171,7 @@ export default function TasksPage() {
   };
 
   const handleDelete = async (id: string) => {
-    setTasks(prev => prev.filter(t => t.id !== id));
+    setTasks(prev => prev.filter(x => x.id !== id));
     await supabase.from("tasks").delete().eq("id", id);
     toast.success(t("tasksPage.taskDeleted"));
   };

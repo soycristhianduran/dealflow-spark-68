@@ -101,10 +101,10 @@ export function TemplatePicker({
                 <SelectValue placeholder={t("templatePicker.selectTemplatePlaceholder")} />
               </SelectTrigger>
               <SelectContent>
-                {approved.map((t) => (
-                  <SelectItem key={t.name} value={t.name}>
-                    {t.name}
-                    {t.header_type && MEDIA_HEADER_TYPES.includes(t.header_type) ? " 🖼" : ""}
+                {approved.map((tpl) => (
+                  <SelectItem key={tpl.name} value={tpl.name}>
+                    {tpl.name}
+                    {tpl.header_type && MEDIA_HEADER_TYPES.includes(tpl.header_type) ? " 🖼" : ""}
                   </SelectItem>
                 ))}
               </SelectContent>
