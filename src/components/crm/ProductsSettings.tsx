@@ -9,6 +9,7 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { Loader2, Plus, Trash2, Package } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -25,17 +26,27 @@ export function ProductsSettings() {
   const [price, setPrice] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency || "USD");
   const [saving, setSaving] = useState(false);
+  const [requireProduct, setRequireProduct] = useState(false);
 
   const load = useCallback(async () => {
     if (!organizationId) { setProducts([]); setLoading(false); return; }
-    const { data } = await supabase.from("products")
-      .select("id, name, default_price, currency")
-      .eq("organization_id", organizationId).eq("is_active", true).order("name");
+    const [{ data }, { data: org }] = await Promise.all([
+      supabase.from("products").select("id, name, default_price, currency")
+        .eq("organization_id", organizationId).eq("is_active", true).order("name"),
+      supabase.from("organizations").select("require_won_product").eq("id", organizationId).maybeSingle(),
+    ]);
     setProducts((data as Product[]) || []);
+    setRequireProduct(!!org?.require_won_product);
     setLoading(false);
   }, [organizationId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const toggleRequire = async (v: boolean) => {
+    setRequireProduct(v);
+    const { error } = await supabase.from("organizations").update({ require_won_product: v }).eq("id", organizationId!);
+    if (error) { setRequireProduct(!v); toast.error(t("productsSettings.toggleError")); }
+  };
 
   const add = async () => {
     if (!name.trim() || !organizationId || saving) return;
@@ -67,6 +78,15 @@ export function ProductsSettings() {
           <Package className="h-4 w-4 text-primary" /> {t("productsSettings.title")}
         </h3>
         <p className="text-xs text-muted-foreground mt-1">{t("productsSettings.description")}</p>
+      </div>
+
+      {/* Require-product toggle */}
+      <div className="flex items-start justify-between rounded-lg border p-3 gap-3">
+        <div>
+          <p className="text-sm font-medium">{t("productsSettings.requireTitle")}</p>
+          <p className="text-xs text-muted-foreground mt-0.5">{t("productsSettings.requireDesc")}</p>
+        </div>
+        <Switch checked={requireProduct} onCheckedChange={toggleRequire} className="mt-0.5 shrink-0" />
       </div>
 
       {/* Add form */}

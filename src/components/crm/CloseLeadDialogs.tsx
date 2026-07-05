@@ -49,6 +49,7 @@ export function WonBudgetDialog({
   const [currency, setCurrency] = useState(initialCurrency || "USD");
   const [productId, setProductId] = useState<string>("none");
   const [products, setProducts] = useState<Product[]>([]);
+  const [requireProduct, setRequireProduct] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,7 +62,12 @@ export function WonBudgetDialog({
       .eq("organization_id", organizationId).eq("is_active", true)
       .order("name")
       .then(({ data }) => setProducts((data as Product[]) || []));
+    supabase.from("organizations").select("require_won_product").eq("id", organizationId).maybeSingle()
+      .then(({ data }) => setRequireProduct(!!data?.require_won_product));
   }, [open, organizationId, initialAmount, initialCurrency, initialProductId]);
+
+  // Product only required if the org enabled it AND there's a catalog to pick from
+  const productRequired = requireProduct && products.length > 0;
 
   // Picking a product prefills its default price/currency if the amount is empty
   const onProductChange = (val: string) => {
@@ -76,6 +82,7 @@ export function WonBudgetDialog({
   const confirm = async () => {
     const v = parseFloat(amount.replace(/,/g, "."));
     if (!v || v <= 0) return;
+    if (productRequired && productId === "none") return; // org requires a product
     setSaving(true);
     try { await onConfirm(v, currency, productId === "none" ? null : productId); onOpenChange(false); }
     finally { setSaving(false); }
@@ -94,11 +101,15 @@ export function WonBudgetDialog({
         </p>
         {products.length > 0 && (
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">{t("closeLeadDialogs.productLabel")}</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("closeLeadDialogs.productLabel")}{productRequired && <span className="text-destructive"> *</span>}
+            </label>
             <Select value={productId} onValueChange={onProductChange}>
-              <SelectTrigger><SelectValue placeholder={t("closeLeadDialogs.productPlaceholder")} /></SelectTrigger>
+              <SelectTrigger className={productRequired && productId === "none" ? "border-destructive" : ""}>
+                <SelectValue placeholder={t("closeLeadDialogs.productPlaceholder")} />
+              </SelectTrigger>
               <SelectContent className="z-[10001]">
-                <SelectItem value="none">{t("closeLeadDialogs.noProduct")}</SelectItem>
+                {!productRequired && <SelectItem value="none">{t("closeLeadDialogs.noProduct")}</SelectItem>}
                 {products.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -122,7 +133,7 @@ export function WonBudgetDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             {t("closeLeadDialogs.cancel")}
           </Button>
-          <Button onClick={confirm} disabled={saving || !amount} className="gap-1.5 bg-green-600 hover:bg-green-700">
+          <Button onClick={confirm} disabled={saving || !amount || (productRequired && productId === "none")} className="gap-1.5 bg-green-600 hover:bg-green-700">
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("closeLeadDialogs.confirmWon")}
           </Button>

@@ -4606,6 +4606,9 @@
     "added": "Product added",
     "addError": "Error adding: ",
     "deleteError": "Error deleting",
-    "empty": "No products yet. Add the first one above."
+    "empty": "No products yet. Add the first one above.",
+    "requireTitle": "Require a product when closing as won",
+    "requireDesc": "When on, choosing a product/service is mandatory to mark a lead as won. Recommended only if you sell a defined catalog.",
+    "toggleError": "Couldn't update the preference"
   }
 }

@@ -4606,6 +4606,9 @@
     "added": "Producto agregado",
     "addError": "Error al agregar: ",
     "deleteError": "Error al eliminar",
-    "empty": "Aún no tienes productos. Agrega el primero arriba."
+    "empty": "Aún no tienes productos. Agrega el primero arriba.",
+    "requireTitle": "Exigir producto al cerrar en ganado",
+    "requireDesc": "Si lo activas, será obligatorio elegir un producto/servicio al marcar un lead como ganado. Recomendado solo si vendes un catálogo definido.",
+    "toggleError": "No se pudo actualizar la preferencia"
   }
 }
