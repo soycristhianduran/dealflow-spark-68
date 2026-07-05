@@ -35,8 +35,8 @@ type Period = "week" | "month" | "quarter" | "year" | "custom";
 const DASH_BLOCKS: { id: string; label: string }[] = [
   { id: "kpis",       label: "Indicadores de ventas (KPIs)" },
   { id: "insights",   label: "Adquisición, Agente IA, Campañas y Conversión" },
-  { id: "funnel",     label: "Razones de pérdida" },
   { id: "products",   label: "Productos más vendidos" },
+  { id: "funnel",     label: "Razones de pérdida" },
   { id: "agenda",     label: "Citas, Tareas y Actividad reciente" },
   { id: "objections", label: "Objeciones principales (IA)" },
 ];
