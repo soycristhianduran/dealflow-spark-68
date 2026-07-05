@@ -122,7 +122,15 @@ export function useOrganization(): UseOrganizationResult {
 
         if (rpcError) throw rpcError;
 
-        const row = rpcRows?.[0];
+        let row = rpcRows?.[0];
+        if (!row) {
+          // Self-heal: the signup trigger should have provisioned an org; if it
+          // failed (e.g. a DB error swallowed at signup), fix it now and retry
+          // once instead of leaving the user stranded without a workspace.
+          await supabase.rpc("ensure_my_organization").then(() => null, () => null);
+          const { data: retryRows } = await supabase.rpc("get_my_organization");
+          row = retryRows?.[0];
+        }
         if (!row) {
           if (!cancelled) {
             setOrganizationId(null);
