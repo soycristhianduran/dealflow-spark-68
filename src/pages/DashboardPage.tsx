@@ -17,6 +17,8 @@ import {
   Zap, Mail, Sparkles, Sliders, Eye, EyeOff, ChevronUp, ChevronDown,
   Phone, FileText,
 } from "lucide-react";
+import { formatMoney } from "@/lib/money";
+import { Package } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -34,6 +36,7 @@ const DASH_BLOCKS: { id: string; label: string }[] = [
   { id: "kpis",       label: "Indicadores de ventas (KPIs)" },
   { id: "insights",   label: "Adquisición, Agente IA, Campañas y Conversión" },
   { id: "funnel",     label: "Razones de pérdida" },
+  { id: "products",   label: "Productos más vendidos" },
   { id: "agenda",     label: "Citas, Tareas y Actividad reciente" },
   { id: "objections", label: "Objeciones principales (IA)" },
 ];
@@ -53,6 +56,7 @@ interface KpiContactRow {
   budget: number | null;
   budget_currency: string;
   stage_id?: string | null;
+  won_product_id?: string | null;
 }
 
 /** Pipeline stage row with aggregated counts */
@@ -581,6 +585,7 @@ export default function DashboardPage() {
 
   // Ratio widgets
   const [lostReasons,   setLostReasons]   = useState<RatioRow[]>([]);
+  const [topProducts,   setTopProducts]   = useState<{ name: string; count: number; revenue: number; currency: string }[]>([]);
   const [topObjections, setTopObjections] = useState<RatioRow[]>([]);
 
   // Activity widgets
@@ -618,7 +623,7 @@ export default function DashboardPage() {
     // en este período", not when the lead was originally created.
     let curQ = supabase
       .from("contacts")
-      .select("id, lead_status, budget, budget_currency, stage_id")
+      .select("id, lead_status, budget, budget_currency, stage_id, won_product_id")
       .not("pipeline_id", "is", null)
       .in("lead_status", ["won", "lost"])
       .gte("updated_at", startIso)
@@ -755,6 +760,28 @@ export default function DashboardPage() {
     for (const row of (lostRes.data || []) as unknown as LostReasonRow[])
       if (row.lost_reason) rMap.set(row.lost_reason, (rMap.get(row.lost_reason) || 0) + 1);
     setLostReasons([...rMap.entries()].sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count })));
+
+    /* ---------- Top products sold (period, won deals) ---------- */
+    const wonWithProduct = wonCur.filter(d => (d as any).won_product_id);
+    const productIds = [...new Set(wonWithProduct.map(d => (d as any).won_product_id))];
+    if (productIds.length) {
+      const { data: prods } = await supabase.from("products").select("id, name").in("id", productIds);
+      const nameById = new Map((prods || []).map((p: any) => [p.id, p.name]));
+      const pAgg = new Map<string, { count: number; revenue: number; currency: string }>();
+      for (const d of wonWithProduct) {
+        const pid = (d as any).won_product_id as string;
+        const name = nameById.get(pid) || "—";
+        const cur2 = pAgg.get(name) || { count: 0, revenue: 0, currency: d.budget_currency || "USD" };
+        cur2.count += 1;
+        cur2.revenue += Number(d.budget || 0);
+        pAgg.set(name, cur2);
+      }
+      setTopProducts([...pAgg.entries()]
+        .map(([name, v]) => ({ name, ...v }))
+        .sort((a, b) => b.revenue - a.revenue));
+    } else {
+      setTopProducts([]);
+    }
 
     /* ---------- Objections ---------- */
     const oMap = new Map<string, number>();
@@ -995,6 +1022,58 @@ export default function DashboardPage() {
                             className="h-full rounded-full bg-destructive/65 transition-all duration-500"
                             style={{ width: `${pct}%` }}
                           />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        </div>
+
+        {/* ── Top products sold ──────────────────────────────────── */}
+        <div style={{ order: orderOf("products") }} hidden={isHidden("products")}>
+        <div className="grid gap-4 md:gap-6">
+          <Card className="rounded-2xl border border-border/60 shadow-sm dark:bg-slate-900/50 dark:border-white/[0.08] dark:shadow-lg dark:shadow-black/20">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                  <Package className="h-4 w-4 text-primary" />
+                  {t("dashboardPage.topProducts")}
+                </CardTitle>
+                {topProducts.length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {t("dashboardPage.topProductsTotal", {
+                      revenue: formatMoney(topProducts.reduce((a, p) => a + p.revenue, 0), topProducts[0].currency),
+                      count: topProducts.reduce((a, p) => a + p.count, 0),
+                    })}
+                  </span>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {topProducts.length === 0 ? (
+                <EmptyState
+                  icon={<Package className="h-10 w-10" />}
+                  text={t("dashboardPage.noProducts")}
+                  sub={t("dashboardPage.noProductsSub")}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {topProducts.map((pr) => {
+                    const pct = Math.round((pr.revenue / topProducts[0].revenue) * 100);
+                    return (
+                      <div key={pr.name}>
+                        <div className="flex items-center justify-between text-xs mb-1">
+                          <span className="font-medium text-foreground truncate pr-2">{pr.name}</span>
+                          <span className="text-muted-foreground shrink-0 tabular-nums">
+                            {formatMoney(pr.revenue, pr.currency)} · {t("dashboardPage.unitsCount", { count: pr.count })}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div className="h-full rounded-full bg-emerald-500/70 transition-all duration-500" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     );

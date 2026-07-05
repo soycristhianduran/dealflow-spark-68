@@ -16,7 +16,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import { ContactSocialThread } from "@/components/crm/ContactSocialThread";
 import { LostReasonDialog, WonBudgetDialog } from "@/components/crm/CloseLeadDialogs";
-import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
+import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye, Package } from "lucide-react";
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
@@ -91,6 +91,7 @@ export default function ContactDetailPage() {
   const [pplDirty, setPplDirty] = useState(false);
   const [savingPpl, setSavingPpl] = useState(false);
   const [budgetEditing, setBudgetEditing] = useState(false);
+  const [wonProductName, setWonProductName] = useState<string | null>(null);
   const [stagePickerOpen, setStagePickerOpen] = useState(false);
   const [adPreviewOpen, setAdPreviewOpen] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
@@ -432,6 +433,14 @@ export default function ContactDetailPage() {
   };
 
   // Re-fetches the contact row.  Extracted so the realtime hook can call it.
+    // Resolve the sold product's name for the "Producto vendido" card
+  useEffect(() => {
+    const pid = (contact as any)?.won_product_id;
+    if (!pid) { setWonProductName(null); return; }
+    supabase.from("products").select("name").eq("id", pid).maybeSingle()
+      .then(({ data }) => setWonProductName(data?.name ?? null));
+  }, [(contact as any)?.won_product_id]);
+
   const refetchContact = useCallback(async () => {
     if (!id) return;
     const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
@@ -904,6 +913,16 @@ export default function ContactDetailPage() {
                               {canEditContacts && <Pencil className="h-3 w-3 text-muted-foreground ml-auto opacity-0 group-hover:opacity-60 transition-opacity" />}
                             </button>
                           )}
+                        </div>
+                      )}
+
+                      {/* Product / service sold (won leads only) */}
+                      {contact.lead_status === "won" && wonProductName && (
+                        <div className="rounded-lg border bg-green-50/60 dark:bg-green-950/20 border-green-200 dark:border-green-900 p-2.5">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-0.5">{t("contactDetailPage.soldProduct")}</p>
+                          <p className="text-sm font-semibold text-green-700 dark:text-green-400 flex items-center gap-1.5">
+                            <Package className="h-3.5 w-3.5 shrink-0" /> {wonProductName}
+                          </p>
                         </div>
                       )}
 

@@ -1798,7 +1798,8 @@
     "fieldsSaveError": "Error saving fields",
     "fieldsSaved": "Fields saved",
     "defineFieldsHint": "Define fields in Settings → Fields to see them here.",
-    "openSocialChat": "Open the conversation in the CRM"
+    "openSocialChat": "Open the conversation in the CRM",
+    "soldProduct": "Product / service sold"
   },
   "conversationsPage": {
     "scopeWhatsApp": "WhatsApp",
@@ -2030,7 +2031,12 @@
     "block_insights": "Acquisition, AI Agent, Campaigns, and Conversion",
     "block_funnel": "Loss reasons",
     "block_agenda": "Meetings, Tasks, and Recent activity",
-    "block_objections": "Top objections (AI)"
+    "block_objections": "Top objections (AI)",
+    "topProducts": "Top selling products",
+    "topProductsTotal": "{{revenue}} · {{count}} sales",
+    "noProducts": "No product sales yet",
+    "noProductsSub": "Close won leads with a product and you'll see which ones bill the most here.",
+    "unitsCount": "{{count}} u."
   },
   "integrationsPage": {
     "headerTitle": "Integrations",

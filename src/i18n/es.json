@@ -1798,7 +1798,8 @@
     "fieldsSaveError": "Error al guardar campos",
     "fieldsSaved": "Campos guardados",
     "defineFieldsHint": "Define campos en Configuración → Campos para verlos aquí.",
-    "openSocialChat": "Abrir la conversación en el CRM"
+    "openSocialChat": "Abrir la conversación en el CRM",
+    "soldProduct": "Producto / servicio vendido"
   },
   "conversationsPage": {
     "scopeWhatsApp": "de WhatsApp",
@@ -2030,7 +2031,12 @@
     "block_insights": "Adquisición, Agente IA, Campañas y Conversión",
     "block_funnel": "Razones de pérdida",
     "block_agenda": "Citas, Tareas y Actividad reciente",
-    "block_objections": "Objeciones principales (IA)"
+    "block_objections": "Objeciones principales (IA)",
+    "topProducts": "Productos más vendidos",
+    "topProductsTotal": "{{revenue}} · {{count}} ventas",
+    "noProducts": "Aún no hay ventas con producto",
+    "noProductsSub": "Al cerrar leads en ganado con un producto, aquí verás cuáles facturan más.",
+    "unitsCount": "{{count}} u."
   },
   "integrationsPage": {
     "headerTitle": "Integraciones",
