@@ -52,6 +52,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { EnableNotifications } from "@/components/EnableNotifications";
 import { NotificationsBanner } from "@/components/NotificationsBanner";
+import { WonBudgetDialog, LostReasonDialog } from "@/components/crm/CloseLeadDialogs";
 
 type Channel = "whatsapp" | "instagram" | "messenger";
 type FilterMode = "all" | Channel;
@@ -1667,29 +1668,31 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     const { error } = await supabase.from("contacts").update({ pipeline_id: pid, stage_id: firstStage }).eq("id", contactId);
     if (error) toast.error(t("conversationsPage.pipelineChangeError")); else toast.success(t("conversationsPage.pipelineUpdated"));
   };
+  // Won/lost closing guards — same shared dialogs as the pipeline board.
+  const [wonDlgStage, setWonDlgStage] = useState<string | null>(null);
+  const [wonPrefill, setWonPrefill] = useState<{ amount: number | null; currency: string | null }>({ amount: null, currency: null });
+  const [lostDlgStage, setLostDlgStage] = useState<string | null>(null);
+
+  const applyStage = async (sid: string, extra: Record<string, any>) => {
+    setStageId(sid);
+    const { error } = await supabase.from("contacts").update({ stage_id: sid, ...extra }).eq("id", contactId);
+    if (error) toast.error(t("conversationsPage.stageChangeError"));
+    else toast.success(t("conversationsPage.stageUpdated"));
+  };
+
   const changeStage = async (sid: string) => {
     const stageName = stages.find(s => s.id === sid)?.name || "";
-    const isWon = /ganad|won/i.test(stageName);
-    const update: Record<string, any> = { stage_id: sid };
-    // Moving to a WON stage requires a closing budget (enforced by DB trigger).
-    if (isWon) {
+    if (/ganad|won/i.test(stageName)) {
       const { data: c } = await supabase.from("contacts").select("budget, budget_currency").eq("id", contactId).maybeSingle();
-      if (!c?.budget || Number(c.budget) <= 0) {
-        const raw = window.prompt(t("conversationsPage.closingBudgetPrompt", { stageName }), "");
-        if (raw === null) return; // cancelled
-        const amount = Number(raw.replace(/[^\d.]/g, ""));
-        if (!(amount > 0)) { toast.error(t("conversationsPage.invalidBudget")); return; }
-        update.budget = amount;
-        update.budget_currency = c?.budget_currency || defaultCurrency;
-      }
-      update.lead_status = "won";
+      setWonPrefill({ amount: c?.budget ? Number(c.budget) : null, currency: c?.budget_currency || defaultCurrency });
+      setWonDlgStage(sid);
+      return;
     }
-    setStageId(sid);
-    const { error } = await supabase.from("contacts").update(update).eq("id", contactId);
-    if (error) {
-      const won = error.message?.includes("BUDGET") || error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
-      toast.error(won ? t("conversationsPage.budgetRequiredForWon") : t("conversationsPage.stageChangeError"));
-    } else toast.success(t("conversationsPage.stageUpdated"));
+    if (/perdid|lost/i.test(stageName)) {
+      setLostDlgStage(sid);
+      return;
+    }
+    await applyStage(sid, {});
   };
 
   if (!loaded) return null;
@@ -1706,6 +1709,7 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
   }
 
   return (
+    <>
     <div className="hidden md:flex items-center gap-1.5">
       {pipelines.length > 1 && (
         <Select value={pipelineId} onValueChange={changePipeline}>
@@ -1722,5 +1726,24 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
         </SelectContent>
       </Select>
     </div>
+      <WonBudgetDialog
+        open={!!wonDlgStage}
+        onOpenChange={(o) => { if (!o) setWonDlgStage(null); }}
+        initialAmount={wonPrefill.amount}
+        initialCurrency={wonPrefill.currency}
+        onConfirm={async (amount, currency) => {
+          if (wonDlgStage) await applyStage(wonDlgStage, { lead_status: "won", budget: amount, budget_currency: currency });
+          setWonDlgStage(null);
+        }}
+      />
+      <LostReasonDialog
+        open={!!lostDlgStage}
+        onOpenChange={(o) => { if (!o) setLostDlgStage(null); }}
+        onConfirm={async (reason) => {
+          if (lostDlgStage) await applyStage(lostDlgStage, { lead_status: "lost", lost_reason: reason });
+          setLostDlgStage(null);
+        }}
+      />
+    </>
   );
 }

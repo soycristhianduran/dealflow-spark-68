@@ -2570,7 +2570,8 @@
     "allTags": "All tags",
     "clearFilters": "Clear filters",
     "viewList": "List",
-    "viewBoard": "Board"
+    "viewBoard": "Board",
+    "wonNeedsBudget": "To create a lead directly in Won you must set the budget."
   },
   "whatsAppSetupWizard": {
     "webhookReactivated": "Webhook reactivated — incoming messages should now arrive",
@@ -4581,5 +4582,15 @@
     "sendError": "Error sending: ",
     "attachment": "Attachment",
     "noParticipant": "Recipient not found"
+  },
+  "closeLeadDialogs": {
+    "wonTitle": "What was the deal value?",
+    "wonHelp": "Confirm or update the real closing amount for {{name}} before marking it as won.",
+    "confirmWon": "Confirm close",
+    "lostTitle": "Why was it lost?",
+    "lostHelp": "Recording the reason is mandatory: it tells you why you lose deals.",
+    "customReasonPlaceholder": "Describe the reason...",
+    "confirmLost": "Confirm",
+    "cancel": "Cancel"
   }
 }

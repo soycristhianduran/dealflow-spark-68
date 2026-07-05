@@ -2570,7 +2570,8 @@
     "allTags": "Todas las etiquetas",
     "clearFilters": "Limpiar filtros",
     "viewList": "Lista",
-    "viewBoard": "Embudo"
+    "viewBoard": "Embudo",
+    "wonNeedsBudget": "Para crear un lead directamente en Ganado debes indicar el presupuesto."
   },
   "whatsAppSetupWizard": {
     "webhookReactivated": "Webhook reactivado — los mensajes entrantes deberían llegar ahora",
@@ -4581,5 +4582,15 @@
     "sendError": "Error al enviar: ",
     "attachment": "Adjunto",
     "noParticipant": "No se encontró el destinatario"
+  },
+  "closeLeadDialogs": {
+    "wonTitle": "¿De cuánto fue el negocio?",
+    "wonHelp": "Confirma o actualiza el valor real de cierre de {{name}} antes de marcarlo como ganado.",
+    "confirmWon": "Confirmar cierre",
+    "lostTitle": "¿Por qué se perdió?",
+    "lostHelp": "Registrar la razón es obligatorio: te permite saber por qué pierdes negocios.",
+    "customReasonPlaceholder": "Describe la razón...",
+    "confirmLost": "Confirmar",
+    "cancel": "Cancelar"
   }
 }

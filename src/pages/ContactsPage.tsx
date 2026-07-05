@@ -19,6 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { LostReasonDialog } from "@/components/crm/CloseLeadDialogs";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useOrgTags, tagChipStyle } from "@/hooks/useOrgTags";
@@ -550,16 +551,25 @@ export default function ContactsPage() {
     done(t("contactsPage.leadsDeleted", { count: selected.size }));
   };
 
-  const handleBulkStatus = async () => {
+  const [bulkLostReasonOpen, setBulkLostReasonOpen] = useState(false);
+
+  const handleBulkStatus = async (lostReason?: string) => {
     if (!bulkStatus) return;
     // "Ganado" requires a closing budget per lead — block bulk and direct to the lead.
     if (bulkStatus === "won") {
       toast.error(t("contactsPage.wonRequiresBudget"));
       return;
     }
+    // "Perdido" requires a reason — one reason applies to every selected lead.
+    if (bulkStatus === "lost" && !lostReason) {
+      setBulkLostReasonOpen(true);
+      return;
+    }
     setBulkWorking(true);
     for (const part of chunkIds([...selected])) {
-      const { error } = await supabase.from("contacts").update({ lead_status: bulkStatus }).in("id", part);
+      const patch: Record<string, any> = { lead_status: bulkStatus };
+      if (bulkStatus === "lost" && lostReason) patch.lost_reason = lostReason;
+      const { error } = await supabase.from("contacts").update(patch).in("id", part);
       if (error) {
         const won = error.message?.includes("WON_") || error.message?.toLowerCase().includes("presupuesto");
         toast.error(won ? t("contactsPage.wonRequiresBudgetShort") : t("contactsPage.genericError", { message: error.message }));
@@ -2412,6 +2422,12 @@ export default function ContactsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      {/* Reason required for bulk 'lost' — applies to all selected leads */}
+      <LostReasonDialog
+        open={bulkLostReasonOpen}
+        onOpenChange={setBulkLostReasonOpen}
+        onConfirm={(reason) => handleBulkStatus(reason)}
+      />
     </AppLayout>
   );
 }

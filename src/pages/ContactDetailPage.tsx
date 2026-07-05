@@ -15,6 +15,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
 import { ContactSocialThread } from "@/components/crm/ContactSocialThread";
+import { LostReasonDialog } from "@/components/crm/CloseLeadDialogs";
 import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye } from "lucide-react";
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
@@ -379,15 +380,24 @@ export default function ContactDetailPage() {
 
   // Quick stage change — saves immediately, no Guardar needed
   const isWonStageName = (n: string) => /ganad|won/i.test(n || "");
+  const isLostStageName = (n: string) => /perdid|lost/i.test(n || "");
+  const [lostDlg, setLostDlg] = useState<{ stageId: string; pipelineId: string } | null>(null);
 
-  const quickChangeStage = async (newStageId: string, newPipelineId: string, budgetOverride?: { amount: number; currency: string }) => {
+  const quickChangeStage = async (newStageId: string, newPipelineId: string, budgetOverride?: { amount: number; currency: string }, lostReason?: string) => {
     if (!id || savingStage) return;
     const stageName = stagesForPicker.find(s => s.id === newStageId)?.name || "";
-    // Moving to a WON stage requires a closing budget — ask for it if missing.
-    if (isWonStageName(stageName) && !budgetOverride && (!contact?.budget || Number(contact.budget) <= 0)) {
+    // WON always confirms/updates the closing budget (prefilled with current).
+    if (isWonStageName(stageName) && !budgetOverride) {
       setStagePickerOpen(false);
       setWonDlg({ stageId: newStageId, pipelineId: newPipelineId, stageName });
-      setWonAmt(""); setWonCur(contact?.budget_currency || defaultCurrency);
+      setWonAmt(contact?.budget && Number(contact.budget) > 0 ? String(contact.budget) : "");
+      setWonCur(contact?.budget_currency || defaultCurrency);
+      return;
+    }
+    // LOST always captures a reason.
+    if (isLostStageName(stageName) && !lostReason) {
+      setStagePickerOpen(false);
+      setLostDlg({ stageId: newStageId, pipelineId: newPipelineId });
       return;
     }
     setSavingStage(true);
@@ -395,6 +405,7 @@ export default function ContactDetailPage() {
     const prevStageId = contact?.stage_id;
     const update: Record<string, any> = { stage_id: newStageId, pipeline_id: newPipelineId };
     if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; }
+    if (lostReason) { update.lead_status = "lost"; update.lost_reason = lostReason; }
     const { error } = await supabase.from("contacts").update(update).eq("id", id);
     if (error) {
       toast.error(error.message?.includes("BUDGET") || error.message?.includes("presupuesto") ? t("contactDetailPage.closingBudgetRequired") : t("contactDetailPage.stageChangeError") + error.message);
@@ -1293,6 +1304,14 @@ export default function ContactDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <LostReasonDialog
+        open={!!lostDlg}
+        onOpenChange={(o) => { if (!o) setLostDlg(null); }}
+        onConfirm={async (reason) => {
+          if (lostDlg) await quickChangeStage(lostDlg.stageId, lostDlg.pipelineId, undefined, reason);
+          setLostDlg(null);
+        }}
+      />
     </AppLayout>
   );
 }

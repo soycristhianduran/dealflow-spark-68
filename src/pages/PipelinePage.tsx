@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { formatMoney } from "@/lib/money";
 import { usePermissions } from "@/hooks/usePermissions";
+import { WonBudgetDialog, LostReasonDialog } from "@/components/crm/CloseLeadDialogs";
 import { useTranslation } from "react-i18next";
 
 interface Pipeline {
@@ -376,10 +377,28 @@ export default function PipelinePage() {
     setLeadDialogOpen(true);
   };
 
-  const handleCreateLead = async () => {
+  // Closing-stage guards for DIRECT CREATION in a won/lost column: won requires
+  // a budget, lost requires a reason (same rule as drag & drop — no back doors).
+  const [createLostReasonOpen, setCreateLostReasonOpen] = useState(false);
+  const [pendingCreateReason, setPendingCreateReason] = useState<string | null>(null);
+
+  const handleCreateLead = async (lostReasonArg?: string) => {
     if (!leadFullName.trim() || !selectedPipelineId || !leadStageId) {
       toast.error(t("pipelinePage.nameRequired"));
       return;
+    }
+    const targetStage = stages.find(s => s.id === leadStageId) as any;
+    const targetStatus = targetStage
+      ? (targetStage.is_won ? "won" : targetStage.is_lost ? "lost" : inferLeadStatus(targetStage.name))
+      : "active";
+    if (targetStatus === "won" && !(Number(leadBudget) > 0)) {
+      toast.error(t("pipelinePage.wonNeedsBudget"));
+      return;
+    }
+    const lostReason = lostReasonArg ?? pendingCreateReason;
+    if (targetStatus === "lost" && !lostReason) {
+      setCreateLostReasonOpen(true);
+      return; // resumes via the dialog's onConfirm
     }
     setSavingLead(true);
     const nameParts = leadFullName.trim().split(" ");
@@ -396,7 +415,8 @@ export default function PipelinePage() {
       pipeline_id: selectedPipelineId,
       expected_close_date: leadCloseDate || null,
       owner_id: session?.user?.id || null,
-      lead_status: "active",
+      lead_status: targetStatus,
+      ...(targetStatus === "lost" && lostReason ? { lost_reason: lostReason } : {}),
       ...(organizationId ? { organization_id: organizationId } : {}),
     }).select("id").single();
     setSavingLead(false);
@@ -421,6 +441,7 @@ export default function PipelinePage() {
     }
 
     toast.success(t("pipelinePage.leadCreated"));
+    setPendingCreateReason(null);
     setLeadDialogOpen(false);
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
@@ -680,24 +701,26 @@ export default function PipelinePage() {
   };
 
   const closeContact = async (contactId: string, status: "won" | "lost") => {
+    // Same rule as drag & drop: won always confirms/updates the budget,
+    // lost always captures a reason — route through the shared dialogs.
+    const wonStage = stages.find(st => (st as any).is_won);
+    const lostStage = stages.find(st => (st as any).is_lost);
     if (status === "won") {
       const c = contacts.find(x => x.id === contactId);
-      if (!c || !c.budget || Number(c.budget) <= 0) {
-        toast.error(t("pipelinePage.leadNeedsBudgetToWin"));
-        return;
-      }
+      setPendingWonDrop({ contactId, stageId: wonStage?.id ?? c?.stage_id ?? "", stageName: wonStage?.name ?? "Ganado" });
+      setWonBudgetAmount(c?.budget ? String(c.budget) : "");
+      setWonBudgetCurrency(c?.budget_currency || defaultCurrency);
+      setWonBudgetDialogOpen(true);
+      return;
     }
-    await supabase.from("contacts").update({ lead_status: status }).eq("id", contactId);
-    await supabase.from("activities").insert({
-      related_entity_id: contactId,
-      related_entity_type: "contact",
-      event_type: status === "won" ? "deal_won" : "deal_lost",
-      summary: status === "won" ? "Lead marcado como ganado 🎉" : "Lead marcado como perdido",
-      created_by: session?.user?.id || null,
-    });
-    toast.success(status === "won" ? t("pipelinePage.leadMarkedWon") : t("pipelinePage.leadMarkedLost"));
-    supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: contactId } }).catch(() => {});
-    if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
+    if (status === "lost") {
+      const c = contacts.find(x => x.id === contactId);
+      setPendingLostDrop({ contactId, stageId: lostStage?.id ?? c?.stage_id ?? "", stageName: lostStage?.name ?? "Perdido" });
+      setLostReasonSelected("");
+      setLostReasonCustom("");
+      setLostReasonDialogOpen(true);
+      return;
+    }
   };
 
   const currentPipeline = pipelines.find(p => p.id === selectedPipelineId);
@@ -1251,6 +1274,13 @@ export default function PipelinePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Reason required when creating a lead DIRECTLY in the lost column */}
+      <LostReasonDialog
+        open={createLostReasonOpen}
+        onOpenChange={setCreateLostReasonOpen}
+        onConfirm={(reason) => { setPendingCreateReason(reason); return handleCreateLead(reason); }}
+      />
 
       <AlertDialog open={!!deletePipelineTarget} onOpenChange={open => { if (!open) setDeletePipelineTarget(null); }}>
         <AlertDialogContent>
