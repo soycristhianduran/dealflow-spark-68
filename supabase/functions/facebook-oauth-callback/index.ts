@@ -246,10 +246,12 @@ Deno.serve(async (req) => {
     // Server-to-server, fire-and-forget — never blocks the redirect.
     try {
       const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+      // Scope to THIS org so it syncs in isolation (a full run could hit the
+      // worker resource limit and this org's bootstrap would never finish).
       fetch(`${SUPABASE_URL}/functions/v1/meta-auto-sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-cron-secret": "klosify-cron-2026" },
-        body: JSON.stringify({ trigger: "facebook-connect" }),
+        body: JSON.stringify(organizationId ? { organization_id: organizationId } : { user_id: userId }),
       }).catch(() => {});
     } catch (_) { /* non-fatal */ }
 

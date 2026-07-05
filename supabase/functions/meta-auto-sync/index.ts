@@ -20,13 +20,26 @@ Deno.serve(async (req) => {
 
   console.log("meta-auto-sync: job started");
 
-  // ── 1. Fetch all users with a valid (non-expired, not needs_reconnect) FB token ──
+  // Optional scope: sync a single org/user (used right after connecting, and to
+  // spread the daily load so one huge account never starves the newer ones).
+  let filterOrg: string | null = null;
+  let filterUser: string | null = null;
+  try {
+    const body = await req.json();
+    filterOrg = body?.organization_id ?? null;
+    filterUser = body?.user_id ?? null;
+  } catch { /* no body → full run */ }
+
+  // ── 1. Fetch users with a valid (non-expired, not needs_reconnect) FB token ──
   const now = new Date().toISOString();
-  const { data: tokens, error: tokensErr } = await supabase
+  let tokQ = supabase
     .from("facebook_tokens")
     .select("user_id, organization_id, access_token, token_expires_at, needs_reconnect")
     .or(`token_expires_at.is.null,token_expires_at.gt.${now}`)
     .neq("needs_reconnect", true);
+  if (filterOrg) tokQ = tokQ.eq("organization_id", filterOrg);
+  if (filterUser) tokQ = tokQ.eq("user_id", filterUser);
+  const { data: tokens, error: tokensErr } = await tokQ;
 
   if (tokensErr) {
     console.error("meta-auto-sync: failed to fetch tokens:", tokensErr.message);
@@ -38,6 +51,27 @@ Deno.serve(async (req) => {
 
   const validTokens = tokens ?? [];
   console.log(`meta-auto-sync: found ${validTokens.length} users with valid tokens`);
+
+  // FULL run (daily cron, no filter) → fan out: fire one isolated per-user
+  // invocation and return. Processing every org in one worker hit
+  // WORKER_RESOURCE_LIMIT once a few orgs had thousands of campaigns, so the
+  // newest orgs never synced. Per-user calls each get their own resources.
+  if (!filterOrg && !filterUser) {
+    const selfUrl = `${supabaseUrl}/functions/v1/meta-auto-sync`;
+    let dispatched = 0;
+    for (const tr of validTokens) {
+      fetch(selfUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-cron-secret": CRON_SECRET },
+        body: JSON.stringify({ user_id: tr.user_id }),
+      }).catch((e) => console.warn(`fan-out failed for ${tr.user_id}:`, e?.message));
+      dispatched++;
+    }
+    console.log(`meta-auto-sync: fanned out ${dispatched} per-user jobs`);
+    return new Response(JSON.stringify({ fanned_out: dispatched }), {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 
   const results: {
     user_id: string;
