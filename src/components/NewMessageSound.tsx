@@ -9,11 +9,26 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
  * Mounted once in AppLayout. Throttled so a burst of messages produces a
  * single sound instead of a machine-gun of beeps.
  */
+// Shared context, unlocked on the first user gesture — iOS suspends
+// AudioContexts created outside a gesture, which made the chime silent there.
+let sharedCtx: AudioContext | null = null;
+function getCtx(): AudioContext | null {
+  const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
+  if (!Ctx) return null;
+  if (!sharedCtx) sharedCtx = new Ctx();
+  return sharedCtx;
+}
+if (typeof window !== "undefined") {
+  const unlock = () => { try { getCtx()?.resume(); } catch { /* ignore */ } };
+  window.addEventListener("pointerdown", unlock, { once: true, passive: true });
+  window.addEventListener("keydown", unlock, { once: true, passive: true });
+}
+
 function chime() {
   try {
-    const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
+    const ctx = getCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") { ctx.resume().catch(() => {}); }
     // Two-tone "pop" — friendlier than a flat beep
     const play = (freq: number, at: number, dur: number) => {
       const o = ctx.createOscillator();
@@ -29,7 +44,6 @@ function chime() {
     };
     play(660, 0, 0.18);
     play(990, 0.12, 0.22);
-    setTimeout(() => ctx.close().catch(() => {}), 800);
   } catch { /* audio blocked — ignore */ }
 }
 

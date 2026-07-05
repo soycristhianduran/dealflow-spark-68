@@ -44,8 +44,9 @@ export function ContactSocialThread({ channel, conversationId, contactName }: {
       .from(msgTable)
       .select("id, direction, message_type, message_text, attachment_url, sent_at")
       .eq("conversation_id", conversationId)
-      .order("sent_at", { ascending: true });
-    setMessages((data || []) as Msg[]);
+      .order("sent_at", { ascending: false })
+      .limit(500);
+    setMessages(((data || []) as Msg[]).reverse());
     setLoading(false);
   }, [msgTable, conversationId]);
 

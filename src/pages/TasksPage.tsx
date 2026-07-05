@@ -113,7 +113,7 @@ export default function TasksPage() {
     if (!organizationId) return;
     fetchTasks();
     // Vendors only see their own contacts in the picker
-    let contactsQuery = supabase.from("contacts").select("id, full_name").eq("organization_id", organizationId);
+    let contactsQuery = supabase.from("contacts").select("id, full_name").eq("organization_id", organizationId).limit(1000);
     if (isVendor && myUserId) contactsQuery = contactsQuery.eq("owner_id", myUserId);
     contactsQuery.order("full_name").then(({ data }) => {
       if (data) setContacts(data);

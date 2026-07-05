@@ -340,11 +340,13 @@ export default function ConversationsPage() {
 
   // ── Thread loaders (shared by selection, sends and realtime) ─────────────
   const loadIgThread = useCallback(async (convId: string) => {
-    const { data } = await supabase
+    const { data: descRows } = await supabase
       .from("instagram_messages")
       .select("id, ig_message_id, direction, message_type, message_text, attachment_url, status, sent_at")
       .eq("conversation_id", convId)
-      .order("sent_at", { ascending: true });
+      .order("sent_at", { ascending: false })
+      .limit(500);
+    const data = (descRows || []).reverse();
     // Keep optimistic temp bubbles that haven't landed in the DB yet
     setIgMessages(prev => {
       const real = (data || []) as IgMessageRow[];
@@ -355,11 +357,13 @@ export default function ConversationsPage() {
   }, []);
 
   const loadMsThread = useCallback(async (convId: string) => {
-    const { data } = await supabase
+    const { data: descRows } = await supabase
       .from("messenger_messages")
       .select("id, direction, message_type, message_text, attachment_url, status, sent_at")
       .eq("conversation_id", convId)
-      .order("sent_at", { ascending: true });
+      .order("sent_at", { ascending: false })
+      .limit(500);
+    const data = (descRows || []).reverse();
     setMsMessages(prev => {
       const real = (data || []) as MsMessageRow[];
       const temps = prev.filter(m => m.id.startsWith("temp-") &&
@@ -1068,7 +1072,7 @@ export default function ConversationsPage() {
           ) : (
             <>
               {/* Chat header */}
-              <div className="border-b p-4 flex items-center gap-3">
+              <div className="border-b p-3 md:p-4 flex items-center gap-2 md:gap-3 flex-wrap">
                 {/* Back button — mobile only */}
                 <button
                   className="md:hidden mr-1 text-muted-foreground hover:text-foreground"
@@ -1705,14 +1709,14 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
     <div className="hidden md:flex items-center gap-1.5">
       {pipelines.length > 1 && (
         <Select value={pipelineId} onValueChange={changePipeline}>
-          <SelectTrigger className="h-8 w-[130px] text-xs"><SelectValue placeholder={t("conversationsPage.pipelinePlaceholder")} /></SelectTrigger>
+          <SelectTrigger className="h-8 w-[110px] sm:w-[130px] text-xs"><SelectValue placeholder={t("conversationsPage.pipelinePlaceholder")} /></SelectTrigger>
           <SelectContent>
             {pipelines.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
           </SelectContent>
         </Select>
       )}
       <Select value={stageId} onValueChange={changeStage}>
-        <SelectTrigger className="h-8 w-[150px] text-xs"><SelectValue placeholder={t("conversationsPage.stagePlaceholder")} /></SelectTrigger>
+        <SelectTrigger className="h-8 w-[120px] sm:w-[150px] text-xs"><SelectValue placeholder={t("conversationsPage.stagePlaceholder")} /></SelectTrigger>
         <SelectContent>
           {stagesForPipeline.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
         </SelectContent>
