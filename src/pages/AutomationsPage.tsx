@@ -1109,13 +1109,13 @@ function MultiTriggerEditor({
   const { t } = useTranslation();
   const list = triggers.length ? triggers : [{ type: "manual", config: {} }];
   const update = (idx: number, type: string, config: Record<string, any>) =>
-    onChange(list.map((t, i) => (i === idx ? { type, config } : t)));
+    onChange(list.map((x, i) => (i === idx ? { type, config } : x)));
   const remove = (idx: number) => {
     const next = list.filter((_, i) => i !== idx);
     onChange(next.length ? next : [{ type: "manual", config: {} }]);
   };
   const add = () => {
-    const used = new Set(list.map(t => t.type));
+    const used = new Set(list.map(x => x.type));
     const avail = Object.keys(TRIGGER_LABELS).find(k => !used.has(k)) || "contact_created";
     onChange([...list, { type: avail, config: {} }]);
   };
@@ -1127,7 +1127,7 @@ function MultiTriggerEditor({
           {t("automationsPage.multiTriggerInfoPre")}<strong>{t("automationsPage.multiTriggerInfoBold")}</strong>{t("automationsPage.multiTriggerInfoPost")}
         </div>
       )}
-      {list.map((t, idx) => (
+      {list.map((trg, idx) => (
         <div key={idx} className="rounded-xl border p-3 space-y-3">
           {list.length > 1 && (
             <div className="flex items-center justify-between">
@@ -1140,8 +1140,8 @@ function MultiTriggerEditor({
             </div>
           )}
           <TriggerConfigEditor
-            triggerType={t.type}
-            triggerConfig={t.config}
+            triggerType={trg.type}
+            triggerConfig={trg.config}
             onChange={(type, config) => update(idx, type, config)}
           />
         </div>
