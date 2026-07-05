@@ -13,6 +13,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { cn } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 interface FacebookSetupWizardProps {
   open: boolean;
@@ -212,13 +213,33 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
     }));
   };
 
-  const handleAddCustomField = () => {
-    if (!newCustomField.trim() || !currentForm) return;
-    const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
-    // This just adds it as an option - we don't modify the mapping here
+  // Create a REAL custom field (persisted to custom_field_definitions, like
+  // Configuración → Campos) and map it to the first unmapped Meta question.
+  const createAndMapCustomField = async (label: string) => {
+    const trimmed = label.trim();
+    if (!trimmed || !organizationId) return;
+    const fieldKey = trimmed.toLowerCase().replace(/\s+/g, "_");
+    // Persist the definition (idempotent — skip if the key already exists)
+    if (!orgCustomFields.some(cf => cf.key === fieldKey)) {
+      const { error } = await supabase.from("custom_field_definitions").insert({
+        organization_id: organizationId,
+        key: fieldKey,
+        label: trimmed,
+        field_type: "text",
+        position: orgCustomFields.length,
+      });
+      if (error && !String(error.message).toLowerCase().includes("duplicate")) {
+        toast.error(t("facebookSetupWizard.customFieldCreateError"));
+        return;
+      }
+      setOrgCustomFields(prev => [...prev, { key: fieldKey, label: trimmed }]);
+    }
     setNewCustomField("");
-    // Auto-select the new custom field for the first unmapped field
-    // (user can manually assign it via the dropdown)
+    // Auto-assign to the first still-unmapped Meta question, if any
+    if (currentForm) {
+      const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
+      if (firstUnmapped) updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
+    }
   };
 
   const handleSaveMappings = async () => {
@@ -603,13 +624,7 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        if (!newCustomField.trim()) return;
-                        const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
-                        const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
-                        if (firstUnmapped) {
-                          updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
-                        }
-                        setNewCustomField("");
+                        createAndMapCustomField(newCustomField);
                       }
                     }}
                   />
@@ -618,14 +633,7 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
                     variant="outline"
                     className="h-8 text-xs shrink-0"
                     disabled={!newCustomField.trim()}
-                    onClick={() => {
-                      const fieldKey = newCustomField.trim().toLowerCase().replace(/\s+/g, "_");
-                      const firstUnmapped = currentMappings.find(m => m.contact_field === "__skip__");
-                      if (firstUnmapped) {
-                        updateMapping(currentForm.id, firstUnmapped.fb_field_name, fieldKey, true);
-                      }
-                      setNewCustomField("");
-                    }}
+                    onClick={() => createAndMapCustomField(newCustomField)}
                   >
                     <Plus className="h-3 w-3 mr-1" /> {t("facebookSetupWizard.create")}
                   </Button>

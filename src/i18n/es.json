@@ -2965,7 +2965,8 @@
     "leadsDealsCount": "{{contacts}} leads, {{deals}} deals",
     "importingLeads": "Importando leads...",
     "importLeadsNow": "Importar leads ahora",
-    "close": "Cerrar"
+    "close": "Cerrar",
+    "customFieldCreateError": "No se pudo crear el campo personalizado"
   },
   "dashboardInsights": {
     "others": "Otros",
