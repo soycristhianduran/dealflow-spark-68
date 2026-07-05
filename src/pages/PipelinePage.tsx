@@ -11,7 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { Plus, Settings2, Loader2, MoreVertical, Pencil, Trash2, GripVertical, Trophy, XCircle, ChevronDown, FolderPlus, UserPlus, Filter, X, List, KanbanSquare } from "lucide-react";
@@ -121,6 +121,9 @@ export default function PipelinePage() {
   const [stages, setStages] = useState<Stage[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // One-shot guard: auto-creating the default pipeline may only happen once
+  // per mount — a dependency loop was inserting it repeatedly (blinking).
+  const autoCreatingRef = useRef(false);
   const [draggedContact, setDraggedContact] = useState<string | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
@@ -255,20 +258,27 @@ export default function PipelinePage() {
     let pid = selectedPipelineId;
     if (!pid || !list.find(p => p.id === pid)) {
       if (list.length === 0) {
-        const { data: newPipeline } = await supabase.from("pipelines").insert({ name: "Pipeline principal", ...(organizationId ? { organization_id: organizationId } : {}) }).select("id, name").single();
-        if (newPipeline) {
-          await seedDefaultStages(newPipeline.id);
-          setPipelines([newPipeline]);
-          pid = newPipeline.id;
+        // Auto-create the default pipeline exactly once — guarded so a
+        // re-render (or a stale read-after-insert) can't loop inserting it.
+        if (!autoCreatingRef.current && organizationId) {
+          autoCreatingRef.current = true;
+          const { data: newPipeline } = await supabase.from("pipelines")
+            .insert({ name: "Pipeline principal", organization_id: organizationId })
+            .select("id, name").single();
+          if (newPipeline) {
+            await seedDefaultStages(newPipeline.id);
+            setPipelines([newPipeline]);
+            pid = newPipeline.id;
+          }
         }
       } else {
         pid = list[0].id;
       }
     }
-    setSelectedPipelineId(pid);
+    if (pid && pid !== selectedPipelineId) setSelectedPipelineId(pid);
     if (pid) await fetchStagesAndContacts(pid);
     setLoading(false);
-  }, [selectedPipelineId, fetchPipelines, fetchStagesAndContacts, seedDefaultStages]);
+  }, [selectedPipelineId, organizationId, fetchPipelines, fetchStagesAndContacts, seedDefaultStages]);
 
   // Team members for the owner filter (owner/admin only — vendors/setters
   // already see just their own leads).
