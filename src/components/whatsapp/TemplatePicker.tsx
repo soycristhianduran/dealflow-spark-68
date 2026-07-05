@@ -46,7 +46,7 @@ export function TemplatePicker({
   const { templates, fetchTemplates } = useWhatsAppTemplates();
   const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
   const [scheduleAt, setScheduleAt] = useState("");
-  const approved = templates.filter((t) => t.status === "APPROVED");
+  const approved = templates.filter((x) => x.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
   const [mediaId, setMediaId] = useState("");

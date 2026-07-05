@@ -1307,17 +1307,17 @@ function WhatsAppStepEditor({ step, onChange }: {
               <SelectValue placeholder={t("automationsPage.selectTemplatePlaceholder")} />
             </SelectTrigger>
             <SelectContent>
-              {displayTemplates.map(t => (
-                <SelectItem key={`${t.name}||${t.language}`} value={`${t.name}||${t.language}`}>
+              {displayTemplates.map(tpl => (
+                <SelectItem key={`${tpl.name}||${tpl.language}`} value={`${tpl.name}||${tpl.language}`}>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium">{t.name}</span>
-                    <span className="text-muted-foreground text-xs">{t.language}</span>
+                    <span className="font-medium">{tpl.name}</span>
+                    <span className="text-muted-foreground text-xs">{tpl.language}</span>
                     <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${
-                      ["APPROVED", "approved"].includes(t.status)
+                      ["APPROVED", "approved"].includes(tpl.status)
                         ? "bg-green-100 text-green-700"
                         : "bg-amber-100 text-amber-700"
                     }`}>
-                      {t.status}
+                      {tpl.status}
                     </span>
                   </div>
                 </SelectItem>
@@ -2557,8 +2557,8 @@ function AutomationBuilder({
       const primaryConfigWithPos = nodePositions["trigger"]
         ? { ...(triggers[0]?.config ?? {}), _nodePos: nodePositions["trigger"] }
         : (triggers[0]?.config ?? {});
-      const triggersToSave = triggers.map((t, i) =>
-        i === 0 ? { type: t.type, config: primaryConfigWithPos } : { type: t.type, config: t.config ?? {} }
+      const triggersToSave = triggers.map((trg, i) =>
+        i === 0 ? { type: trg.type, config: primaryConfigWithPos } : { type: trg.type, config: trg.config ?? {} }
       );
 
       const payload = {
@@ -2924,26 +2924,26 @@ export default function AutomationsPage() {
               </DialogHeader>
               <div className="space-y-6 py-2">
                 {TEMPLATE_CATEGORIES.map(cat => {
-                  const items = AUTOMATION_TEMPLATES.filter(t => t.category === cat);
+                  const items = AUTOMATION_TEMPLATES.filter(x => x.category === cat);
                   if (!items.length) return null;
                   return (
                     <div key={cat}>
                       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{cat}</p>
                       <div className="grid gap-3 sm:grid-cols-2">
-                        {items.map(t => (
+                        {items.map(item => (
                           <button
-                            key={t.key}
-                            onClick={() => useTemplate(t)}
+                            key={item.key}
+                            onClick={() => useTemplate(item)}
                             className="text-left rounded-xl border bg-card p-4 hover:border-indigo-400 hover:shadow-md transition-all group"
                           >
                             <div className="flex items-start gap-3">
-                              <span className="text-2xl leading-none">{t.emoji}</span>
+                              <span className="text-2xl leading-none">{item.emoji}</span>
                               <div className="min-w-0 flex-1">
-                                <p className="font-semibold text-sm group-hover:text-indigo-600 transition-colors">{t.name}</p>
-                                <p className="text-xs text-muted-foreground mt-1 leading-snug">{t.description}</p>
-                                {t.badges && (
+                                <p className="font-semibold text-sm group-hover:text-indigo-600 transition-colors">{item.name}</p>
+                                <p className="text-xs text-muted-foreground mt-1 leading-snug">{item.description}</p>
+                                {item.badges && (
                                   <div className="flex flex-wrap gap-1 mt-2">
-                                    {t.badges.map(b => (
+                                    {item.badges.map(b => (
                                       <span key={b} className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">{b}</span>
                                     ))}
                                   </div>

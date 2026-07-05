@@ -177,7 +177,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           if (!field || field === "_ignore") return;
           const val = (row[i] ?? "").trim();
           if (!val) return;
-          if (field === "tags") c.tags = val.split(/[;,]/).map(t => t.trim()).filter(Boolean);
+          if (field === "tags") c.tags = val.split(/[;,]/).map(x => x.trim()).filter(Boolean);
           else c[field] = val;
         });
         if (!c.full_name) {

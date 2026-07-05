@@ -122,11 +122,11 @@ export default function TasksPage() {
 
   const today = format(new Date(), "yyyy-MM-dd");
 
-  const filtered = tasks.filter(t => {
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (tab === "today") return t.due_date === today && t.status !== "completed";
-    if (tab === "overdue") return t.due_date && t.due_date < today && t.status === "pending";
-    if (tab === "completed") return t.status === "completed";
+  const filtered = tasks.filter(tk => {
+    if (search && !tk.title.toLowerCase().includes(search.toLowerCase())) return false;
+    if (tab === "today") return tk.due_date === today && tk.status !== "completed";
+    if (tab === "overdue") return tk.due_date && tk.due_date < today && tk.status === "pending";
+    if (tab === "completed") return tk.status === "completed";
     return true;
   });
 

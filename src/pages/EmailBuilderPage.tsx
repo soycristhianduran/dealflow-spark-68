@@ -375,7 +375,7 @@ export default function EmailBuilderPage() {
                   borderColor: "transparent",
                 } : {}}
               >
-                {cat === "Todos" ? `Todos (${STARTER_TEMPLATES.length})` : `${cat} (${STARTER_TEMPLATES.filter(t => t.category === cat).length})`}
+                {cat === "Todos" ? `Todos (${STARTER_TEMPLATES.length})` : `${cat} (${STARTER_TEMPLATES.filter(x => x.category === cat).length})`}
               </button>
             ))}
           </div>
@@ -384,7 +384,7 @@ export default function EmailBuilderPage() {
           <div className="flex-1 overflow-y-auto p-5">
             <div className="grid grid-cols-3 gap-3">
               {STARTER_TEMPLATES
-                .filter(t => galleryCategory === "Todos" || t.category === galleryCategory)
+                .filter(x => galleryCategory === "Todos" || x.category === galleryCategory)
                 .map(tpl => (
                   <button
                     key={tpl.id}

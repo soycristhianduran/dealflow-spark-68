@@ -702,7 +702,7 @@ export default function AIAgentPage() {
                       <Switch checked={config.reminders_enabled} onCheckedChange={v => set("reminders_enabled", v)} />
                     </div>
                     {config.reminders_enabled && (() => {
-                      const approved = waTemplates.filter(t => (t.status || "").toUpperCase() === "APPROVED");
+                      const approved = waTemplates.filter(x => (x.status || "").toUpperCase() === "APPROVED");
                       const sorted = [...config.reminders].sort((a, b) => b.minutes - a.minutes);
                       const updateAt = (minutes: number, patch: Partial<AgentConfig["reminders"][number]>) =>
                         set("reminders", config.reminders.map(r => r.minutes === minutes ? { ...r, ...patch } : r));
@@ -728,8 +728,8 @@ export default function AIAgentPage() {
                                   <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={t("aIAgentPage.templatePlaceholder")} /></SelectTrigger>
                                   <SelectContent>
                                     <SelectItem value="__none__">{t("aIAgentPage.templateNone")}</SelectItem>
-                                    {approved.map(t => (
-                                      <SelectItem key={t.id} value={t.name}>{t.name} ({t.language})</SelectItem>
+                                    {approved.map(tpl => (
+                                      <SelectItem key={tpl.id} value={tpl.name}>{tpl.name} ({tpl.language})</SelectItem>
                                     ))}
                                   </SelectContent>
                                 </Select>

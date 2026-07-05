@@ -593,17 +593,17 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {templates.map((t) => {
-              const mediaChip = t.header_type && t.header_type !== "TEXT" && t.header_type !== "NONE"
-                ? (t.header_type === "IMAGE" ? { icon: "🖼", label: translate("whatsAppTemplatesPage.mediaImageCap") }
-                  : t.header_type === "VIDEO" ? { icon: "🎬", label: translate("whatsAppTemplatesPage.mediaVideoCap") }
-                  : t.header_type === "DOCUMENT" ? { icon: "📄", label: translate("whatsAppTemplatesPage.mediaDocumentCap") } : null)
+            {templates.map((tpl) => {
+              const mediaChip = tpl.header_type && tpl.header_type !== "TEXT" && tpl.header_type !== "NONE"
+                ? (tpl.header_type === "IMAGE" ? { icon: "🖼", label: translate("whatsAppTemplatesPage.mediaImageCap") }
+                  : tpl.header_type === "VIDEO" ? { icon: "🎬", label: translate("whatsAppTemplatesPage.mediaVideoCap") }
+                  : tpl.header_type === "DOCUMENT" ? { icon: "📄", label: translate("whatsAppTemplatesPage.mediaDocumentCap") } : null)
                 : null;
               return (
               <Card
-                key={t.id}
+                key={tpl.id}
                 className="group relative overflow-hidden border-border/70 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5 transition-all cursor-pointer"
-                onClick={() => setViewTemplate(t)}
+                onClick={() => setViewTemplate(tpl)}
               >
                 {/* left accent bar */}
                 <div className="absolute inset-y-0 left-0 w-1 bg-emerald-500/70 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -614,20 +614,20 @@ export default function WhatsAppTemplatesPage() {
                         <WhatsAppIcon className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
-                        <CardTitle className="text-sm font-semibold truncate">{t.name}</CardTitle>
+                        <CardTitle className="text-sm font-semibold truncate">{tpl.name}</CardTitle>
                         <div className="flex items-center gap-1.5 mt-1">
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{t.category}</span>
-                          <span className="text-[10px] text-muted-foreground">{t.language}</span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">{tpl.category}</span>
+                          <span className="text-[10px] text-muted-foreground">{tpl.language}</span>
                         </div>
                       </div>
                     </div>
-                    <TemplateStatusBadge status={t.status} />
+                    <TemplateStatusBadge status={tpl.status} />
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {t.header_text && (
+                  {tpl.header_text && (
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                      {t.header_text}
+                      {tpl.header_text}
                     </p>
                   )}
                   {mediaChip && (
@@ -635,36 +635,36 @@ export default function WhatsAppTemplatesPage() {
                       <span>{mediaChip.icon}</span>{mediaChip.label}
                     </span>
                   )}
-                  <p className="text-sm text-foreground line-clamp-3 whitespace-pre-wrap leading-relaxed">{t.body_text}</p>
-                  {t.footer_text && (
-                    <p className="text-xs text-muted-foreground italic">{t.footer_text}</p>
+                  <p className="text-sm text-foreground line-clamp-3 whitespace-pre-wrap leading-relaxed">{tpl.body_text}</p>
+                  {tpl.footer_text && (
+                    <p className="text-xs text-muted-foreground italic">{tpl.footer_text}</p>
                   )}
-                  {t.buttons && t.buttons.length > 0 && (
+                  {tpl.buttons && tpl.buttons.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {t.buttons.map((b, i) => (
+                      {tpl.buttons.map((b, i) => (
                         <span key={i} className="text-xs border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 font-medium">
                           {b.text}
                         </span>
                       ))}
                     </div>
                   )}
-                  {t.rejection_reason && t.rejection_reason !== "NONE" && (
+                  {tpl.rejection_reason && tpl.rejection_reason !== "NONE" && (
                     <p className="text-xs text-red-600 bg-red-50 dark:bg-red-950/30 rounded p-2">
-                      ⚠️ {t.rejection_reason}
+                      ⚠️ {tpl.rejection_reason}
                     </p>
                   )}
                   <div className="flex justify-end gap-1 pt-1 border-t mt-1" onClick={e => e.stopPropagation()}>
                     <Button
                       variant="ghost" size="sm"
                       className="h-7 px-2 text-muted-foreground hover:text-foreground"
-                      onClick={() => openEdit(t)}
+                      onClick={() => openEdit(tpl)}
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
                     <Button
                       variant="ghost" size="sm"
                       className="text-destructive hover:text-destructive h-7 px-2"
-                      onClick={() => setConfirmDelete(t.name)}
+                      onClick={() => setConfirmDelete(tpl.name)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>

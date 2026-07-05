@@ -694,7 +694,7 @@ export default function InstagramAutomationsPage() {
                         if (active) {
                           // don't allow deselecting all
                           if (triggerTypes.length === 1) return;
-                          setTriggerTypes(triggerTypes.filter(t => t !== opt.value));
+                          setTriggerTypes(triggerTypes.filter(x => x !== opt.value));
                         } else {
                           setTriggerTypes([...triggerTypes, opt.value]);
                         }

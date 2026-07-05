@@ -262,7 +262,7 @@ export function TemplatePicker({
 }) {
   const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
-  const approved = templates.filter((t) => t.status === "APPROVED");
+  const approved = templates.filter((x) => x.status === "APPROVED");
   const [selected, setSelected] = useState<string>("");
   const [vars, setVars] = useState<string[]>([]);
   const [mediaId, setMediaId] = useState("");
