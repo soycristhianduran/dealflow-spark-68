@@ -1692,7 +1692,9 @@ function StagePipelinePicker({ contactId }: { contactId: string }) {
       setLostDlgStage(sid);
       return;
     }
-    await applyStage(sid, {});
+    // Non-closing stage → reset to active (else a previously won/lost lead
+    // keeps its status and stays counted as a sale).
+    await applyStage(sid, { lead_status: "active", won_product_id: null, lost_reason: null });
   };
 
   if (!loaded) return null;

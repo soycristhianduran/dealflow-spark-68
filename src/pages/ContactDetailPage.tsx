@@ -406,7 +406,14 @@ export default function ContactDetailPage() {
     const prevStageId = contact?.stage_id;
     const update: Record<string, any> = { stage_id: newStageId, pipeline_id: newPipelineId };
     if (budgetOverride) { update.budget = budgetOverride.amount; update.budget_currency = budgetOverride.currency; update.lead_status = "won"; if (budgetOverride.productId !== undefined) update.won_product_id = budgetOverride.productId; }
-    if (lostReason) { update.lead_status = "lost"; update.lost_reason = lostReason; }
+    else if (lostReason) { update.lead_status = "lost"; update.lost_reason = lostReason; }
+    else {
+      // Moving to a NON-closing stage must reset the lead back to active — else
+      // it stays 'won'/'lost' (stale badge + still counted as a sale in reports).
+      update.lead_status = "active";
+      update.won_product_id = null;
+      update.lost_reason = null;
+    }
     const { error } = await supabase.from("contacts").update(update).eq("id", id);
     if (error) {
       toast.error(error.message?.includes("BUDGET") || error.message?.includes("presupuesto") ? t("contactDetailPage.closingBudgetRequired") : t("contactDetailPage.stageChangeError") + error.message);
