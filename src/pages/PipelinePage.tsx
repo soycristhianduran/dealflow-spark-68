@@ -493,16 +493,15 @@ export default function PipelinePage() {
       ? ((stage as any).is_won ? "won" : (stage as any).is_lost ? "lost" : inferLeadStatus(stage.name))
       : "active";
 
-    // If moving to a won stage, require budget > 0
+    // Moving to a won stage ALWAYS confirms/updates the closing budget —
+    // prefilled with the current estimate so one Enter confirms it.
     if (newLeadStatus === "won") {
       const contact = contacts.find(c => c.id === contactId);
-      if (!contact?.budget || Number(contact.budget) <= 0) {
-        setPendingWonDrop({ contactId, stageId, stageName: stage?.name ?? "" });
-        setWonBudgetAmount("");
-        setWonBudgetCurrency(contact?.budget_currency || defaultCurrency);
-        setWonBudgetDialogOpen(true);
-        return; // pause — will complete after user enters budget
-      }
+      setPendingWonDrop({ contactId, stageId, stageName: stage?.name ?? "" });
+      setWonBudgetAmount(contact?.budget && Number(contact.budget) > 0 ? String(contact.budget) : "");
+      setWonBudgetCurrency(contact?.budget_currency || defaultCurrency);
+      setWonBudgetDialogOpen(true);
+      return; // pause — completes after the user confirms the amount
     }
 
     // If moving to a lost stage, require a reason
