@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText, Eye } from "lucide-react";
+import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText, Eye, Plus, X } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -69,7 +69,7 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
-  appointment_slot_capacity: { enabled: boolean; capacity: number; days: number[]; hours: number[] };
+  appointment_slot_capacity: { enabled: boolean; rules: { days: number[]; hours: number[]; capacity: number }[] };
   appointments_paid: boolean;
   payment_link: string;
   payment_info: string;
@@ -122,7 +122,7 @@ const DEFAULT_CONFIG: AgentConfig = {
     { minutes: 60, template: null, lang: "es" },
   ],
   appointment_duration_min: 30,
-  appointment_slot_capacity: { enabled: false, capacity: 2, days: [1,2,4], hours: [9,10,11,12] },
+  appointment_slot_capacity: { enabled: false, rules: [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] },
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
   appointment_modality: "both",
@@ -229,7 +229,13 @@ export default function AIAgentPage() {
             : (Array.isArray(data.reminder_offsets) ? data.reminder_offsets as number[] : [1440, 60])
                 .map((m: number) => ({ minutes: m, template: data.reminder_template_name || null, lang: data.reminder_template_lang || "es" })),
           appointment_duration_min: data.appointment_duration_min ?? 30,
-          appointment_slot_capacity: data.appointment_slot_capacity ?? { enabled: false, capacity: 2, days: [1,2,4], hours: [9,10,11,12] },
+          appointment_slot_capacity: (() => {
+            const c: any = data.appointment_slot_capacity;
+            if (!c) return { enabled: false, rules: [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] };
+            if (Array.isArray(c.rules)) return { enabled: !!c.enabled, rules: c.rules.length ? c.rules : [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] };
+            // migrate legacy { enabled, capacity, days, hours }
+            return { enabled: !!c.enabled, rules: [{ days: c.days ?? [1,2,3,4,5], hours: c.hours ?? [9,10,11,12], capacity: c.capacity ?? 2 }] };
+          })(),
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
           appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
@@ -866,48 +872,65 @@ export default function AIAgentPage() {
                     </div>
                     {config.appointment_slot_capacity.enabled && (
                       <div className="space-y-3 pt-1">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs">{t("aIAgentPage.slotCapacityHowMany")}</Label>
-                          <Select
-                            value={String(config.appointment_slot_capacity.capacity)}
-                            onValueChange={v => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, capacity: Number(v) })}
-                          >
-                            <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                            <SelectContent>{[2,3,4,5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
-                          </Select>
-                          <span className="text-xs text-muted-foreground">{t("aIAgentPage.slotCapacityPeople")}</span>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">{t("aIAgentPage.slotCapacityDays")}</Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {[{n:1,l:"Lun"},{n:2,l:"Mar"},{n:3,l:"Mié"},{n:4,l:"Jue"},{n:5,l:"Vie"},{n:6,l:"Sáb"},{n:0,l:"Dom"}].map(({n,l}) => {
-                              const on = config.appointment_slot_capacity.days.includes(n);
-                              return (
-                                <button key={n} type="button"
-                                  onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, days: on ? config.appointment_slot_capacity.days.filter(x => x !== n) : [...config.appointment_slot_capacity.days, n] })}
-                                  className={`px-2.5 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>
-                                  {l}
+                        {config.appointment_slot_capacity.rules.map((rule, ri) => {
+                          const setRule = (patch: Partial<typeof rule>) => {
+                            const rules = config.appointment_slot_capacity.rules.map((r, i) => i === ri ? { ...r, ...patch } : r);
+                            set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules });
+                          };
+                          const toggle = (field: "days" | "hours", n: number) => {
+                            const cur = rule[field];
+                            setRule({ [field]: cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n] } as any);
+                          };
+                          return (
+                            <div key={ri} className="rounded-lg border bg-muted/20 p-3 space-y-3 relative">
+                              {config.appointment_slot_capacity.rules.length > 1 && (
+                                <button type="button"
+                                  onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules: config.appointment_slot_capacity.rules.filter((_, i) => i !== ri) })}
+                                  className="absolute top-2 right-2 text-muted-foreground hover:text-destructive">
+                                  <X className="h-3.5 w-3.5" />
                                 </button>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs">{t("aIAgentPage.slotCapacityHours")}</Label>
-                          <div className="flex flex-wrap gap-1.5">
-                            {Array.from({length: 15}, (_, i) => i + 7).map(h => {
-                              const on = config.appointment_slot_capacity.hours.includes(h);
-                              return (
-                                <button key={h} type="button"
-                                  onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, hours: on ? config.appointment_slot_capacity.hours.filter(x => x !== h) : [...config.appointment_slot_capacity.hours, h] })}
-                                  className={`px-2 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>
-                                  {h}:00
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.slotCapacityHint")}</p>
-                        </div>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <Label className="text-xs">{t("aIAgentPage.slotCapacityHowMany")}</Label>
+                                <Select value={String(rule.capacity)} onValueChange={v => setRule({ capacity: Number(v) })}>
+                                  <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                                  <SelectContent>{[2,3,4,5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                                </Select>
+                                <span className="text-xs text-muted-foreground">{t("aIAgentPage.slotCapacityPeople")}</span>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">{t("aIAgentPage.slotCapacityDays")}</Label>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {[{n:1,l:"Lun"},{n:2,l:"Mar"},{n:3,l:"Mié"},{n:4,l:"Jue"},{n:5,l:"Vie"},{n:6,l:"Sáb"},{n:0,l:"Dom"}].map(({n,l}) => {
+                                    const on = rule.days.includes(n);
+                                    return (
+                                      <button key={n} type="button" onClick={() => toggle("days", n)}
+                                        className={`px-2.5 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>{l}</button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <div className="space-y-1.5">
+                                <Label className="text-xs">{t("aIAgentPage.slotCapacityHours")}</Label>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {Array.from({length: 15}, (_, i) => i + 7).map(h => {
+                                    const on = rule.hours.includes(h);
+                                    return (
+                                      <button key={h} type="button" onClick={() => toggle("hours", h)}
+                                        className={`px-2 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>{h}:00</button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <button type="button"
+                          onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules: [...config.appointment_slot_capacity.rules, { days: [6,0], hours: [10,11], capacity: 2 }] })}
+                          className="flex items-center gap-1.5 text-xs text-primary hover:underline">
+                          <Plus className="h-3.5 w-3.5" /> {t("aIAgentPage.slotCapacityAddRule")}
+                        </button>
+                        <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.slotCapacityHint")}</p>
                       </div>
                     )}
                   </div>

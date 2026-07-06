@@ -2804,7 +2804,8 @@
     "slotCapacityPeople": "personas a la vez",
     "slotCapacityDays": "Días con cupos ampliados",
     "slotCapacityHours": "Horas con cupos ampliados",
-    "slotCapacityHint": "Ej: Lun/Mar/Jue a las 9, 10, 11 y 12 → 2 personas por hora; el resto, 1."
+    "slotCapacityHint": "Ej: Lun/Mar/Jue a las 9, 10, 11 y 12 → 2 personas por hora; el resto, 1.",
+    "slotCapacityAddRule": "Agregar otra regla (ej: fin de semana con horas distintas)"
   },
   "instagramAutomationsPage": {
     "buttonTextPlaceholder": "Texto del botón (máx 20 car.)",

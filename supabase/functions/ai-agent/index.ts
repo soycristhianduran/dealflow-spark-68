@@ -722,11 +722,19 @@ function slotCapacity(slotStartMs: number, cap: any): number {
   const bog = new Date(slotStartMs - 5 * 3600000);
   const dow = bog.getUTCDay();          // 0=Sun..6=Sat, Bogota
   const hour = bog.getUTCHours();       // start hour, Bogota
-  const days: number[] = Array.isArray(cap.days) ? cap.days : [];
-  const hours: number[] = Array.isArray(cap.hours) ? cap.hours : [];
-  const matchDay = days.length === 0 || days.includes(dow);
-  const matchHour = hours.length === 0 || hours.includes(hour);
-  return matchDay && matchHour ? Math.max(1, Number(cap.capacity) || 2) : 1;
+  // Support multiple rules; fall back to a single legacy rule (days/hours/capacity).
+  const rules: any[] = Array.isArray(cap.rules) && cap.rules.length
+    ? cap.rules
+    : [{ days: cap.days, hours: cap.hours, capacity: cap.capacity }];
+  let best = 1;
+  for (const r of rules) {
+    const days: number[] = Array.isArray(r?.days) ? r.days : [];
+    const hours: number[] = Array.isArray(r?.hours) ? r.hours : [];
+    const matchDay = days.length === 0 || days.includes(dow);
+    const matchHour = hours.length === 0 || hours.includes(hour);
+    if (matchDay && matchHour) best = Math.max(best, Math.max(1, Number(r?.capacity) || 2));
+  }
+  return best;
 }
 
 // Count the org's own CONFIRMED meetings that overlap a slot for this advisor.
