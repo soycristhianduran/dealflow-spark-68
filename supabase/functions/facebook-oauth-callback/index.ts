@@ -224,16 +224,24 @@ Deno.serve(async (req) => {
           .eq("page_id", page.id)
           .eq("is_active", true)
           .select("id");
-        // Re-subscribe the page to IG messaging. Reconnecting Meta can reset the
-        // page's webhook fields (we've seen it drop to just 'leadgen'), which
-        // silently stops inbound Instagram DMs. Only do this for pages that
-        // actually back an IG account here.
+        // Re-subscribe the page to its webhook fields. A POST to subscribed_apps
+        // REPLACES the whole field list, so we must UNION with what's already
+        // there — otherwise this dropped 'leadgen' (killing real-time Meta lead
+        // delivery) just to (re)add messaging. Preserve everything.
         if (updated && updated.length) {
-          await fetch(`${GRAPH_API}/${page.id}/subscribed_apps`, {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: `subscribed_fields=messages,messaging_postbacks&access_token=${encodeURIComponent(page.access_token)}`,
-          }).catch(() => {});
+          try {
+            const cur = await fetch(`${GRAPH_API}/${page.id}/subscribed_apps?access_token=${encodeURIComponent(page.access_token)}`);
+            const curData = await cur.json();
+            const fieldSet = new Set<string>(curData?.data?.[0]?.subscribed_fields ?? []);
+            fieldSet.add("messages");
+            fieldSet.add("messaging_postbacks");
+            fieldSet.add("leadgen"); // page backs an IG account here, but keep leads flowing too
+            await fetch(`${GRAPH_API}/${page.id}/subscribed_apps`, {
+              method: "POST",
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              body: `subscribed_fields=${encodeURIComponent([...fieldSet].join(","))}&access_token=${encodeURIComponent(page.access_token)}`,
+            });
+          } catch (_) { /* non-fatal */ }
         }
       }
     } catch (e) {
