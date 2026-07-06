@@ -2383,7 +2383,9 @@
         "description": "When someone submits a landing page form"
       }
     },
-    "refreshPermissions": "Refresh Meta permissions"
+    "refreshPermissions": "Refresh Meta permissions",
+    "leadFormsReceiving": "Forms receiving leads in real time",
+    "leadFormsNotReceiving": "Forms NOT receiving — reconnect or re-save your forms"
   },
   "whatsAppTemplatesPage": {
     "variablesLabel": "Variables:",

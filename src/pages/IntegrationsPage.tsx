@@ -710,6 +710,14 @@ export default function IntegrationsPage() {
   const [editingLabelValue, setEditingLabelValue] = useState("");
   const gcal = useGoogleCalendar();
   const fb = useFacebookIntegration();
+  // Lead-forms health: are the org's pages subscribed to leadgen (real-time)?
+  const [leadHealth, setLeadHealth] = useState<{ total: number; receiving: number } | null>(null);
+  useEffect(() => {
+    if (!fb.isConnected || !organizationId) { setLeadHealth(null); return; }
+    supabase.functions.invoke("facebook-api", { body: { action: "lead_forms_health", organization_id: organizationId } })
+      .then(({ data }) => { if (data && typeof data.total === "number") setLeadHealth({ total: data.total, receiving: data.receiving }); })
+      .catch(() => {});
+  }, [fb.isConnected, organizationId]);
   const wa = useWhatsAppIntegration();
   const ig = useInstagramIntegration();
 
@@ -915,6 +923,14 @@ export default function IntegrationsPage() {
                         <Badge variant="outline" className="text-xs">{t("integrationsPage.formsCount", { count: fb.status.forms.length })}</Badge>
                         <Badge variant="outline" className="text-xs">{t("integrationsPage.campaignsCount", { count: fb.status.campaigns_count })}</Badge>
                       </div>
+                      {leadHealth && leadHealth.total > 0 && (
+                        <div className={`flex items-center gap-1.5 text-[11px] font-medium ${leadHealth.receiving === leadHealth.total ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`} onClick={(e) => e.stopPropagation()}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${leadHealth.receiving === leadHealth.total ? "bg-emerald-500" : "bg-amber-500"}`} />
+                          {leadHealth.receiving === leadHealth.total
+                            ? t("integrationsPage.leadFormsReceiving")
+                            : t("integrationsPage.leadFormsNotReceiving")}
+                        </div>
+                      )}
                       {/* Re-run OAuth (no disconnect) — needed when the app adds
                           new permission scopes and the stored token predates them */}
                       <Button
