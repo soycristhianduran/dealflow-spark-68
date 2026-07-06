@@ -3695,7 +3695,13 @@
     "agentCredits": "Créditos Agente",
     "aiAnalyses": "Análisis IA",
     "aiAssistant": "Asistente IA",
-    "addons": "Add-ons: {{agent}} créd. agente · {{landing}} créd. landings · {{boost}} boost"
+    "addons": "Add-ons: {{agent}} créd. agente · {{landing}} créd. landings · {{boost}} boost",
+    "metaLeadHealthTitle": "Formularios de Meta (leads en tiempo real)",
+    "leadgenOk": "Recibiendo leads",
+    "leadgenMissing": "SIN leadgen — no recibe",
+    "leadgenError": "Error de token",
+    "noOrg": "Sin organización",
+    "metaLeadHealthHint": "Cada página con formularios debe estar suscrita a leadgen para recibir leads en tiempo real. En rojo = no recibe (reconectar o volver a guardar formularios)."
   },
   "aILeadAnalysisCard": {
     "couldNotApply": "No se pudo aplicar",

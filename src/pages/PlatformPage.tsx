@@ -276,6 +276,30 @@ export default function PlatformPage() {
           </div>
         )}
 
+        {/* Salud de formularios de Meta (suscripción a leadgen = leads en tiempo real) */}
+        {Array.isArray(data.meta_lead_health) && data.meta_lead_health.length > 0 && (
+          <div>
+            <SectionTitle>{t("platformPage.metaLeadHealthTitle")}</SectionTitle>
+            <div className={`${CARD} p-5`}>
+              <div className="space-y-2">
+                {data.meta_lead_health.map((h: any) => (
+                  <div key={h.page_id} className="flex items-center justify-between gap-3 py-1.5 border-b border-border/40 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold truncate">{h.page_name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{h.org || t("platformPage.noOrg")}</p>
+                    </div>
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium shrink-0 ${h.leadgen ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${h.leadgen ? "bg-emerald-500" : "bg-red-500"}`} />
+                      {h.leadgen ? t("platformPage.leadgenOk") : (h.error ? t("platformPage.leadgenError") : t("platformPage.leadgenMissing"))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-3">{t("platformPage.metaLeadHealthHint")}</p>
+            </div>
+          </div>
+        )}
+
         {/* Tendencia */}
         {trend.length > 0 && (
           <div>

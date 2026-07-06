@@ -3695,7 +3695,13 @@
     "agentCredits": "Agent Credits",
     "aiAnalyses": "AI Analyses",
     "aiAssistant": "AI Assistant",
-    "addons": "Add-ons: {{agent}} agent credits · {{landing}} landing credits · {{boost}} boost"
+    "addons": "Add-ons: {{agent}} agent credits · {{landing}} landing credits · {{boost}} boost",
+    "metaLeadHealthTitle": "Meta Lead Forms (real-time leads)",
+    "leadgenOk": "Receiving leads",
+    "leadgenMissing": "NO leadgen — not receiving",
+    "leadgenError": "Token error",
+    "noOrg": "No organization",
+    "metaLeadHealthHint": "Each page with forms must be subscribed to leadgen to receive real-time leads. Red = not receiving (reconnect or re-save forms)."
   },
   "aILeadAnalysisCard": {
     "couldNotApply": "Could not apply",

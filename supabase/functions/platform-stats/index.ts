@@ -254,6 +254,41 @@ Deno.serve(async (req) => {
     const mrrTrials = Math.round(trials.reduce((s, o) => s + priceOf(o), 0) * 100) / 100;
     const payingCount = stripeMrr != null ? stripeSubs : orgReport.filter((o) => o.status === "active").length;
 
+    // ── Meta Lead Forms health: is each page with selected forms actually
+    //    subscribed to the `leadgen` webhook? (missing = no real-time leads) ──
+    const metaLeadHealth: { org: string | null; page_name: string; page_id: string; leadgen: boolean; error?: string }[] = [];
+    try {
+      const { data: leadPages } = await db.rpc("platform_lead_form_pages");
+      // Fallback to a direct query if the RPC doesn't exist
+      const rows = leadPages ?? (await db
+        .from("facebook_lead_forms")
+        .select("page_id, facebook_pages!inner(page_name, page_access_token, organization_id)")
+      ).data;
+      const seen = new Set<string>();
+      for (const r of (rows ?? [])) {
+        const pageId = r.page_id;
+        const pg = r.facebook_pages ?? r;
+        if (!pageId || seen.has(pageId)) continue;
+        seen.add(pageId);
+        const tok = pg?.page_access_token;
+        let leadgen = false; let err: string | undefined;
+        if (tok) {
+          try {
+            const sr = await fetch(`https://graph.facebook.com/v21.0/${pageId}/subscribed_apps?access_token=${encodeURIComponent(tok)}`);
+            const sd = await sr.json();
+            if (sd?.error) err = sd.error.message;
+            else leadgen = (sd?.data?.[0]?.subscribed_fields ?? []).includes("leadgen");
+          } catch (e) { err = String(e); }
+        } else err = "sin token";
+        let orgName: string | null = null;
+        if (pg?.organization_id) {
+          const { data: o } = await db.from("organizations").select("name").eq("id", pg.organization_id).maybeSingle();
+          orgName = o?.name ?? null;
+        }
+        metaLeadHealth.push({ org: orgName, page_name: pg?.page_name ?? pageId, page_id: pageId, leadgen, error: err });
+      }
+    } catch (_) { /* non-fatal */ }
+
     return json({
       generated_at: new Date().toISOString(),
       summary: {
@@ -277,6 +312,7 @@ Deno.serve(async (req) => {
       vercel,
       cloudflare,
       integrations: health ?? {},
+      meta_lead_health: metaLeadHealth,
       orgs: orgReport,
     });
   } catch (e) {
