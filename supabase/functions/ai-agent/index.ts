@@ -511,10 +511,11 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
         let resultText = "";
         try {
           if (b.name === "check_availability") {
-            resultText = await checkAvailability(advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30);
+            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity);
           } else if (b.name === "book_appointment") {
             resultText = await bookAppointment(supabase, {
               organization_id, advisorUserId: advisorUserId!, contact_id,
+              slotCap: cfg.appointment_slot_capacity,
               durationMin: cfg.appointment_duration_min || 30,
               workingHours: cfg.working_hours,
               defaultAddress: cfg.meeting_address || null,
@@ -712,8 +713,35 @@ async function fetchBusy(advisorUserId: string, timeMinIso: string, timeMaxIso: 
 
 const overlaps = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && s2 < e1;
 
+// Per-slot capacity: how many concurrent appointments a slot allows. Default 1;
+// configured peak slots (specific weekdays + start-hours) allow more (e.g. 2).
+// cfg shape: { enabled, capacity, days:[0-6], hours:[9,10,...] } (Bogota time).
+function slotCapacity(slotStartMs: number, cap: any): number {
+  if (!cap?.enabled) return 1;
+  // Bogota = UTC-5 (no DST). Derive weekday + start hour in Bogota.
+  const bog = new Date(slotStartMs - 5 * 3600000);
+  const dow = bog.getUTCDay();          // 0=Sun..6=Sat, Bogota
+  const hour = bog.getUTCHours();       // start hour, Bogota
+  const days: number[] = Array.isArray(cap.days) ? cap.days : [];
+  const hours: number[] = Array.isArray(cap.hours) ? cap.hours : [];
+  const matchDay = days.length === 0 || days.includes(dow);
+  const matchHour = hours.length === 0 || hours.includes(hour);
+  return matchDay && matchHour ? Math.max(1, Number(cap.capacity) || 2) : 1;
+}
+
+// Count the org's own CONFIRMED meetings that overlap a slot for this advisor.
+async function crmBookedCount(supabase: any, advisorUserId: string, slotStartMs: number, slotEndMs: number): Promise<number> {
+  const { data } = await supabase.from("meetings")
+    .select("id")
+    .eq("advisor_id", advisorUserId)
+    .in("status", ["scheduled", "confirmed"])
+    .gte("start_at", new Date(slotStartMs - 60000).toISOString())
+    .lt("start_at", new Date(slotEndMs).toISOString());
+  return (data || []).length;
+}
+
 // Compute the real free slots for a day: working hours minus Google-busy minus past.
-async function checkAvailability(advisorUserId: string, dateIso: string, workingHours: any, durationMin: number): Promise<string> {
+async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any): Promise<string> {
   const m = (dateIso || "").match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "Fecha inválida. Usa formato YYYY-MM-DD.";
   const [_, y, mo, d] = m.map(Number) as unknown as number[];
@@ -734,7 +762,13 @@ async function checkAvailability(advisorUserId: string, dateIso: string, working
   const free: string[] = [];
   for (let t = dayStart; t + stepMs <= dayEnd; t += stepMs) {
     if (t < now) continue;
-    if (busyMs.some(([bs, be]) => overlaps(t, t + stepMs, bs, be))) continue;
+    const cap = slotCapacity(t, slotCap);
+    const googleBusy = busyMs.some(([bs, be]) => overlaps(t, t + stepMs, bs, be));
+    // occupied = our own concurrent CRM meetings; if none but Google shows busy,
+    // it's an external event taking 1 unit. Free when occupied < capacity.
+    const crm = await crmBookedCount(supabase, advisorUserId, t, t + stepMs);
+    const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
+    if (occupied >= cap) continue;
     // Label in Bogota HH:mm
     const label = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(t));
     free.push(label);
@@ -749,10 +783,10 @@ async function bookAppointment(
   supabase: any,
   args: {
     organization_id: string; advisorUserId: string; contact_id: string | null;
-    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any;
+    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any; slotCap?: any;
   },
 ): Promise<string> {
-  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, requiresPayment, input } = args;
+  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, requiresPayment, input, slotCap } = args;
 
   // Paid appointments: never book until the client confirmed payment.
   if (requiresPayment && !input?.payment_confirmed) {
@@ -782,12 +816,15 @@ async function bookAppointment(
 
   const endUtc = new Date(startUtc.getTime() + durationMin * 60000);
 
-  // Real availability check: reject if the slot overlaps something already on
-  // the advisor's Google Calendar (prevents double-booking).
+  // Capacity-aware availability: a slot may allow >1 concurrent appointment
+  // (configured peak hours). Reject only when the slot is at/over capacity.
+  const cap = slotCapacity(startUtc.getTime(), slotCap);
   const busy = await fetchBusy(advisorUserId, startUtc.toISOString(), endUtc.toISOString());
-  const clash = busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()));
-  if (clash) {
-    return "Esa hora ya está ocupada en la agenda. Usa check_availability para ofrecer otra hora libre.";
+  const googleBusy = busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()));
+  const crm = await crmBookedCount(supabase, advisorUserId, startUtc.getTime(), endUtc.getTime());
+  const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
+  if (occupied >= cap) {
+    return "Esa hora ya está llena (sin cupos disponibles). Usa check_availability para ofrecer otra hora libre.";
   }
 
   // Contact info for the title/attendee

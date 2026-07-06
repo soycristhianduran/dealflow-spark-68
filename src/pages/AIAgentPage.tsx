@@ -69,6 +69,7 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
+  appointment_slot_capacity: { enabled: boolean; capacity: number; days: number[]; hours: number[] };
   appointments_paid: boolean;
   payment_link: string;
   payment_info: string;
@@ -121,6 +122,7 @@ const DEFAULT_CONFIG: AgentConfig = {
     { minutes: 60, template: null, lang: "es" },
   ],
   appointment_duration_min: 30,
+  appointment_slot_capacity: { enabled: false, capacity: 2, days: [1,2,4], hours: [9,10,11,12] },
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
   appointment_modality: "both",
@@ -227,6 +229,7 @@ export default function AIAgentPage() {
             : (Array.isArray(data.reminder_offsets) ? data.reminder_offsets as number[] : [1440, 60])
                 .map((m: number) => ({ minutes: m, template: data.reminder_template_name || null, lang: data.reminder_template_lang || "es" })),
           appointment_duration_min: data.appointment_duration_min ?? 30,
+          appointment_slot_capacity: data.appointment_slot_capacity ?? { enabled: false, capacity: 2, days: [1,2,4], hours: [9,10,11,12] },
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
           appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
@@ -356,6 +359,7 @@ export default function AIAgentPage() {
         reminders_enabled: config.reminders_enabled,
         reminders: config.reminders,
         appointment_duration_min: config.appointment_duration_min,
+        appointment_slot_capacity: config.appointment_slot_capacity,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
         appointment_modality: config.appointment_modality,
@@ -846,6 +850,66 @@ export default function AIAgentPage() {
                         );
                       })}
                     </div>
+                  </div>
+
+                  {/* Concurrent capacity per slot */}
+                  <div className="rounded-lg border p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">{t("aIAgentPage.slotCapacityTitle")}</p>
+                        <p className="text-xs text-muted-foreground">{t("aIAgentPage.slotCapacityDesc")}</p>
+                      </div>
+                      <Switch
+                        checked={config.appointment_slot_capacity.enabled}
+                        onCheckedChange={v => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, enabled: v })}
+                      />
+                    </div>
+                    {config.appointment_slot_capacity.enabled && (
+                      <div className="space-y-3 pt-1">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs">{t("aIAgentPage.slotCapacityHowMany")}</Label>
+                          <Select
+                            value={String(config.appointment_slot_capacity.capacity)}
+                            onValueChange={v => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, capacity: Number(v) })}
+                          >
+                            <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                            <SelectContent>{[2,3,4,5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                          </Select>
+                          <span className="text-xs text-muted-foreground">{t("aIAgentPage.slotCapacityPeople")}</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">{t("aIAgentPage.slotCapacityDays")}</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {[{n:1,l:"Lun"},{n:2,l:"Mar"},{n:3,l:"Mié"},{n:4,l:"Jue"},{n:5,l:"Vie"},{n:6,l:"Sáb"},{n:0,l:"Dom"}].map(({n,l}) => {
+                              const on = config.appointment_slot_capacity.days.includes(n);
+                              return (
+                                <button key={n} type="button"
+                                  onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, days: on ? config.appointment_slot_capacity.days.filter(x => x !== n) : [...config.appointment_slot_capacity.days, n] })}
+                                  className={`px-2.5 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>
+                                  {l}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs">{t("aIAgentPage.slotCapacityHours")}</Label>
+                          <div className="flex flex-wrap gap-1.5">
+                            {Array.from({length: 15}, (_, i) => i + 7).map(h => {
+                              const on = config.appointment_slot_capacity.hours.includes(h);
+                              return (
+                                <button key={h} type="button"
+                                  onClick={() => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, hours: on ? config.appointment_slot_capacity.hours.filter(x => x !== h) : [...config.appointment_slot_capacity.hours, h] })}
+                                  className={`px-2 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>
+                                  {h}:00
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.slotCapacityHint")}</p>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Paid appointments */}
