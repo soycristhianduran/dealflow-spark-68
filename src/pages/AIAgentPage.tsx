@@ -69,7 +69,7 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
-  appointment_slot_capacity: { enabled: boolean; rules: { days: number[]; hours: number[]; capacity: number }[] };
+  appointment_slot_capacity: { enabled: boolean; rules: { days: number[]; hours: string[]; capacity: number }[] };
   appointments_paid: boolean;
   payment_link: string;
   payment_info: string;
@@ -122,7 +122,7 @@ const DEFAULT_CONFIG: AgentConfig = {
     { minutes: 60, template: null, lang: "es" },
   ],
   appointment_duration_min: 30,
-  appointment_slot_capacity: { enabled: false, rules: [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] },
+  appointment_slot_capacity: { enabled: false, rules: [{ days: [1,2,3,4,5], hours: ["09:00","10:00","11:00","12:00"], capacity: 2 }] },
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
   appointment_modality: "both",
@@ -231,10 +231,12 @@ export default function AIAgentPage() {
           appointment_duration_min: data.appointment_duration_min ?? 30,
           appointment_slot_capacity: (() => {
             const c: any = data.appointment_slot_capacity;
-            if (!c) return { enabled: false, rules: [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] };
-            if (Array.isArray(c.rules)) return { enabled: !!c.enabled, rules: c.rules.length ? c.rules : [{ days: [1,2,3,4,5], hours: [9,10,11,12], capacity: 2 }] };
-            // migrate legacy { enabled, capacity, days, hours }
-            return { enabled: !!c.enabled, rules: [{ days: c.days ?? [1,2,3,4,5], hours: c.hours ?? [9,10,11,12], capacity: c.capacity ?? 2 }] };
+            const toHHMM = (arr: any[]): string[] => (arr || []).map((h: any) =>
+              typeof h === "number" ? `${String(h).padStart(2, "0")}:00` : String(h));
+            const DEF = { days: [1,2,3,4,5], hours: ["09:00","10:00","11:00","12:00"], capacity: 2 };
+            if (!c) return { enabled: false, rules: [DEF] };
+            if (Array.isArray(c.rules)) return { enabled: !!c.enabled, rules: (c.rules.length ? c.rules : [DEF]).map((r: any) => ({ days: r.days ?? [], hours: toHHMM(r.hours), capacity: r.capacity ?? 2 })) };
+            return { enabled: !!c.enabled, rules: [{ days: c.days ?? [1,2,3,4,5], hours: toHHMM(c.hours), capacity: c.capacity ?? 2 }] };
           })(),
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
@@ -405,6 +407,35 @@ export default function AIAgentPage() {
       </AppLayout>
     );
   }
+
+
+  // Slot start-time options for the extended-capacity picker, generated from the
+  // widest working-hours window stepped by the appointment duration (so :30
+  // slots appear when appointments are 30 min). Stored/compared as "HH:MM".
+  const slotTimeOptions = (() => {
+    const step = config.appointment_duration_min || 30;
+    const wh = config.working_hours || {};
+    let minStart = 24 * 60, maxEnd = 0;
+    for (const k of Object.keys(wh)) {
+      const d: any = (wh as any)[k];
+      if (!d?.enabled) continue;
+      const [sh, sm] = String(d.start || "09:00").split(":").map(Number);
+      const [eh, em] = String(d.end || "18:00").split(":").map(Number);
+      minStart = Math.min(minStart, sh * 60 + sm);
+      maxEnd = Math.max(maxEnd, eh * 60 + em);
+    }
+    if (maxEnd <= minStart) { minStart = 7 * 60; maxEnd = 21 * 60; }
+    const out: string[] = [];
+    for (let t = minStart; t + step <= maxEnd; t += step) {
+      out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
+    }
+    return out;
+  })();
+  const toggleTime = (ri: number, hm: string) => {
+    const rules = config.appointment_slot_capacity.rules.map((r, i) =>
+      i === ri ? { ...r, hours: r.hours.includes(hm) ? r.hours.filter(x => x !== hm) : [...r.hours, hm] } : r);
+    set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules });
+  };
 
   return (
     <AppLayout>
@@ -877,9 +908,8 @@ export default function AIAgentPage() {
                             const rules = config.appointment_slot_capacity.rules.map((r, i) => i === ri ? { ...r, ...patch } : r);
                             set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules });
                           };
-                          const toggle = (field: "days" | "hours", n: number) => {
-                            const cur = rule[field];
-                            setRule({ [field]: cur.includes(n) ? cur.filter(x => x !== n) : [...cur, n] } as any);
+                          const toggleDay = (n: number) => {
+                            setRule({ days: rule.days.includes(n) ? rule.days.filter(x => x !== n) : [...rule.days, n] });
                           };
                           return (
                             <div key={ri} className="rounded-lg border bg-muted/20 p-3 space-y-3 relative">
@@ -904,7 +934,7 @@ export default function AIAgentPage() {
                                   {[{n:1,l:"Lun"},{n:2,l:"Mar"},{n:3,l:"Mié"},{n:4,l:"Jue"},{n:5,l:"Vie"},{n:6,l:"Sáb"},{n:0,l:"Dom"}].map(({n,l}) => {
                                     const on = rule.days.includes(n);
                                     return (
-                                      <button key={n} type="button" onClick={() => toggle("days", n)}
+                                      <button key={n} type="button" onClick={() => toggleDay(n)}
                                         className={`px-2.5 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>{l}</button>
                                     );
                                   })}
@@ -913,11 +943,11 @@ export default function AIAgentPage() {
                               <div className="space-y-1.5">
                                 <Label className="text-xs">{t("aIAgentPage.slotCapacityHours")}</Label>
                                 <div className="flex flex-wrap gap-1.5">
-                                  {Array.from({length: 15}, (_, i) => i + 7).map(h => {
-                                    const on = rule.hours.includes(h);
+                                  {slotTimeOptions.map(hm => {
+                                    const on = rule.hours.includes(hm);
                                     return (
-                                      <button key={h} type="button" onClick={() => toggle("hours", h)}
-                                        className={`px-2 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>{h}:00</button>
+                                      <button key={hm} type="button" onClick={() => toggleTime(ri, hm)}
+                                        className={`px-2 py-1 rounded-md text-xs border ${on ? "bg-primary text-primary-foreground border-primary" : "border-border text-muted-foreground hover:border-muted-foreground"}`}>{hm}</button>
                                     );
                                   })}
                                 </div>
