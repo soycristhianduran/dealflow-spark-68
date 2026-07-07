@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; contactMemory?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; contactMemory?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any; autoPipeline?: boolean }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -123,11 +123,16 @@ ${opts.media.map((m) => `- id: ${m.id} | ${m.name}${m.description ? ` — ${m.de
 ${opts.contactMemory}\n`
     : "";
 
+  // Pipeline moves + tagging are OFF by default; only when the org opts in
+  // (agent_auto_pipeline) does the agent manage stages/tags on its own.
+  const pipelineBlock = opts.autoPipeline
+    ? `- Etiqueta al lead según su interés.${opts.orgTags?.length ? ` Etiquetas disponibles: ${opts.orgTags.join(", ")}. Puedes crear una nueva si ninguna aplica.` : ""}
+${opts.stages?.length ? `- Mueve al lead de etapa según avance la conversación. Etapas: ${opts.stages.join(" → ")}. (Ej: si agenda cita, muévelo a la etapa de cita; si muestra intención de compra, a una etapa más avanzada.)\n` : ""}`
+    : `- NO muevas al lead de etapa del pipeline ni crees/agregues etiquetas por tu cuenta. Eso lo maneja el equipo manualmente.\n`;
+
   const crmBlock = `\nACCIONES EN EL CRM (hazlas en segundo plano, sin anunciárselas al cliente, usando update_lead):
 - Si el cliente da su NOMBRE o CORREO y no los teníamos, guárdalos (full_name / email).
-- Etiqueta al lead según su interés.${opts.orgTags?.length ? ` Etiquetas disponibles: ${opts.orgTags.join(", ")}. Puedes crear una nueva si ninguna aplica.` : ""}
-${opts.stages?.length ? `- Mueve al lead de etapa según avance la conversación. Etapas: ${opts.stages.join(" → ")}. (Ej: si agenda cita, muévelo a la etapa de cita; si muestra intención de compra, a una etapa más avanzada.)` : ""}
-- Registra una nota breve (note) con el interés o resumen relevante cuando sea útil.
+${pipelineBlock}- Registra una nota breve (note) con el interés o resumen relevante cuando sea útil.
 - MEMORIA PERSISTENTE (importante): cada vez que aprendas algo relevante y duradero del cliente (respuestas de evaluación, objetivos, condiciones/dolencias, objeciones, estado de pago, estado de la cita, contexto personal), llama a update_lead con el campo "memory" y guarda un RESUMEN COMPLETO y ACTUALIZADO de todo lo que sabes de esta persona (no solo lo nuevo — reescribe el resumen entero incluyendo lo anterior de la MEMORIA DEL CLIENTE si existe). Este resumen se recuerda para SIEMPRE en futuras conversaciones. Sé completo pero conciso (varias líneas, hasta ~1500 caracteres).\n`;
 
   return `Eres ${cfg.agent_name || "Asistente"}, el asistente virtual de ${cfg.business_name || "nuestra empresa"}.
@@ -450,7 +455,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, contactMemory, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
+    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, contactMemory, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting, autoPipeline: !!cfg.agent_auto_pipeline });
     if (cfg.auto_qualify) {
       system += `
 
@@ -534,7 +539,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
             });
             if (resultText.startsWith("Cita agendada correctamente")) bookedThisTurn = true;
           } else if (b.name === "update_lead") {
-            resultText = await updateLead(supabase, { organization_id, contact_id, advisorUserId, stages: contactStages, input: b.input });
+            resultText = await updateLead(supabase, { organization_id, contact_id, advisorUserId, stages: contactStages, input: b.input, autoPipeline: !!cfg.agent_auto_pipeline });
           } else if (b.name === "reschedule_appointment") {
             resultText = await rescheduleAppointment(supabase, {
               meeting: upcomingMeeting, advisorUserId: advisorUserId!, workingHours: cfg.working_hours,
@@ -936,9 +941,9 @@ async function bookAppointment(
 // CRM lead actions: name/email, tags, pipeline stage, note.
 async function updateLead(
   supabase: any,
-  args: { organization_id: string; contact_id: string | null; advisorUserId: string | null; stages: { id: string; name: string }[]; input: any },
+  args: { organization_id: string; contact_id: string | null; advisorUserId: string | null; stages: { id: string; name: string }[]; input: any; autoPipeline?: boolean },
 ): Promise<string> {
-  const { organization_id, contact_id, stages, input } = args;
+  const { organization_id, contact_id, stages, input, autoPipeline } = args;
   if (!contact_id) return "No hay un contacto asociado a esta conversación.";
   const done: string[] = [];
   const contactUpdate: Record<string, unknown> = {};
@@ -948,8 +953,9 @@ async function updateLead(
   // Persistent memory: overwrite the running summary of what we know about this client.
   if (input?.memory && String(input.memory).trim()) { contactUpdate.ai_memory = String(input.memory).slice(0, 2000); done.push("memoria"); }
 
-  // Tags: merge into contacts.tags + register in catalog
-  if (Array.isArray(input?.tags) && input.tags.length) {
+  // Tags: merge into contacts.tags + register in catalog (only if the org lets
+  // the agent manage the pipeline/tags automatically).
+  if (autoPipeline && Array.isArray(input?.tags) && input.tags.length) {
     const { data: c } = await supabase.from("contacts").select("tags").eq("id", contact_id).maybeSingle();
     const existing: string[] = Array.isArray(c?.tags) ? c.tags : [];
     const lower = new Set(existing.map((t: string) => t.toLowerCase()));
@@ -964,8 +970,8 @@ async function updateLead(
     done.push("etiquetas");
   }
 
-  // Stage: map name → id within the contact's pipeline
-  if (input?.stage) {
+  // Stage: map name → id within the contact's pipeline (only if opted in).
+  if (autoPipeline && input?.stage) {
     const match = stages.find(s => s.name.toLowerCase() === String(input.stage).toLowerCase());
     if (match) { contactUpdate.stage_id = match.id; done.push(`etapa "${match.name}"`); }
   }
