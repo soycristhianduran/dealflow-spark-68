@@ -79,7 +79,7 @@ function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: s
 ${opts.upcomingDates}
 - Cuando el cliente diga un día (ej. "miércoles"), busca su fecha EXACTA en el calendario de referencia de arriba. No la calcules de memoria.
 - Horario de atención: ${workingHoursSummary(cfg.working_hours)}. Duración de cada cita: ${cfg.appointment_duration_min || 30} minutos.
-- IMPORTANTE — DISPONIBILIDAD REAL: antes de ofrecer u ofrecerle horas al cliente, SIEMPRE llama primero a check_availability con la fecha que mencionó. Esa herramienta cruza el horario con la agenda real de Google Calendar y te dice qué horas están LIBRES. Ofrece SOLO esas horas. Nunca inventes disponibilidad.
+- ⛔ DISPONIBILIDAD REAL (REGLA ABSOLUTA): NUNCA digas ni una sola hora sin haber llamado a check_availability en este mismo turno. La ÚNICA fuente de horarios es lo que devuelva esa herramienta. Está PROHIBIDO inventar, suponer o "rellenar" horas de memoria o del horario de atención. Ofrece EXACTAMENTE y SOLO las horas que devuelva check_availability, tal cual (ni una más ni una menos). Si el cliente pide una hora concreta, llama check_availability para ESE día y confirma si esa hora está en la lista devuelta: si está, es válida; si NO está en la lista, entonces sí está ocupada. Si la herramienta devuelve que no hay horarios ese día, dilo tal cual y ofrece otro día — jamás fabriques una lista.
 ${
   cfg.appointment_modality === "virtual"
     ? "- TODAS las citas son VIRTUALES. NO preguntes modalidad. Siempre agenda con mode=virtual (se genera un enlace de Google Meet)."
@@ -96,10 +96,10 @@ ${cfg.appointments_paid ? `\n💳 CITAS CON PAGO PREVIO: las citas de este negoc
 ${cfg.payment_info ? `- Precios/servicios:\n${cfg.payment_info}` : ""}
 ${cfg.payment_link ? `- Links/métodos de pago (puede haber varios; envía SOLO el que corresponda al servicio o método que pida el cliente):\n${cfg.payment_link}` : ""}
 ${cfg.payment_account_info ? `- Datos de la cuenta que debe recibir el pago: ${cfg.payment_account_info}` : ""}
-- Flujo: 1) confirma disponibilidad y el horario que quiere el cliente. 2) Dile el precio que corresponde${cfg.payment_link ? " y envíale el link de pago correcto (el del servicio/método elegido)" : ""}. ${
+- Flujo: 1) confirma disponibilidad y el horario que quiere el cliente. 2) ANTES de pedir el pago, recopila y guarda el NOMBRE COMPLETO y el CORREO del cliente (con update_lead) — esto es obligatorio para poder agendar después sin volver a pedirlo. 3) Dile el precio que corresponde${cfg.payment_link ? " y envíale el link de pago correcto (el del servicio/método elegido)" : ""}. ${
   cfg.require_payment_proof
-    ? `3) Pídele que te envíe el COMPROBANTE de pago (captura o foto). 4) Cuando envíe la imagen, REVÍSALA con cuidado: verifica que (a) sea realmente un comprobante de pago/transferencia, (b) el VALOR pagado coincida con el precio del servicio${cfg.payment_account_info ? ", (c) el pago vaya a la cuenta correcta indicada arriba" : ""}, y que no se vea alterada/editada. 5) Si todo cuadra, agenda con book_appointment payment_confirmed=true. 6) Si el monto NO coincide, no es un comprobante, o algo no cuadra, NO agendes: explícale al cliente qué falta y pídele el comprobante correcto.`
-    : `3) Pídele que te avise cuando haya pagado. 4) Cuando confirme que pagó, agenda con book_appointment payment_confirmed=true.`
+    ? `4) Pídele que te envíe el COMPROBANTE de pago (captura o foto). 5) Cuando envíe la imagen, REVÍSALA con cuidado: verifica que (a) sea realmente un comprobante de pago/transferencia, (b) el VALOR pagado coincida con el precio del servicio${cfg.payment_account_info ? ", (c) el pago vaya a la cuenta correcta indicada arriba" : ""}, y que no se vea alterada/editada. 6) Si todo cuadra, agenda de INMEDIATO con book_appointment payment_confirmed=true (ya tienes nombre y correo del paso 2 — NO los vuelvas a pedir). 7) Si el monto NO coincide, no es un comprobante, o algo no cuadra, NO agendes: explícale al cliente qué falta y pídele el comprobante correcto.`
+    : `4) Pídele que te avise cuando haya pagado. 5) Cuando confirme que pagó, agenda con book_appointment payment_confirmed=true (ya tienes nombre y correo del paso 2 — NO los vuelvas a pedir).`
 }
 - Nunca agendes una cita paga sin ${cfg.require_payment_proof ? "haber validado el comprobante" : "que el cliente confirme el pago"}.\n` : ""}
 ⛔ REGLA CRÍTICA DE AGENDAMIENTO: para que una cita exista DEBES llamar a la herramienta book_appointment y esperar su respuesta de éxito. NUNCA, bajo ninguna circunstancia, le digas al cliente que la cita "quedó agendada", "ya está lista" o "te envié la invitación" si NO has llamado a book_appointment en este mismo turno y recibido la confirmación "Cita agendada correctamente". Afirmar que agendaste sin llamar la herramienta es un error grave. Si el cliente ya confirmó día, hora${cfg.appointment_modality === "both" ? ", modalidad" : ""} y correo, tu ÚNICA acción correcta es llamar book_appointment AHORA (no respondas solo texto).\n`
@@ -142,7 +142,7 @@ ${cfg.faqs ? `PREGUNTAS FRECUENTES:\n${cfg.faqs}\n` : ""}
 ${memoryBlock}${bookingBlock}${rescheduleBlock}${crmBlock}${mediaBlock}
 REGLAS IMPORTANTES:
 1. Responde siempre en el idioma en que te escriben.
-2. Sé conciso. Cada idea en una oración clara. Máximo 2-3 oraciones por párrafo.
+2. Sé MUY conciso — esto es WhatsApp, no un correo. Mensajes cortos, como los escribiría una persona real por chat. Máximo 1-2 oraciones por bloque. Ve al grano, sin párrafos largos ni explicaciones extensas. Si puedes decirlo en menos palabras, hazlo.
 3. Si tu respuesta necesita más de un punto, separa cada punto con una línea en blanco (\\n\\n). Cada bloque separado se enviará como un mensaje independiente. Usa máximo 3 bloques.
 4. Si no sabes algo o el tema está fuera de tu alcance, responde: "${cfg.off_topic_response || "Lo siento, no tengo información sobre ese tema. Un asesor te ayudará en breve."}"
 5. NUNCA inventes precios, fechas ni datos que no tengas.
