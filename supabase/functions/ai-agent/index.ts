@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; contactMemory?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -118,11 +118,17 @@ ${opts.media.map((m) => `- id: ${m.id} | ${m.name}${m.description ? ` — ${m.de
     : "";
 
   // CRM actions (lead qualification)
+  const memoryBlock = opts.contactMemory
+    ? `\nMEMORIA DEL CLIENTE (de conversaciones anteriores — YA SABES esto sobre esta persona, NO se lo vuelvas a preguntar; retómalo con naturalidad):
+${opts.contactMemory}\n`
+    : "";
+
   const crmBlock = `\nACCIONES EN EL CRM (hazlas en segundo plano, sin anunciárselas al cliente, usando update_lead):
 - Si el cliente da su NOMBRE o CORREO y no los teníamos, guárdalos (full_name / email).
 - Etiqueta al lead según su interés.${opts.orgTags?.length ? ` Etiquetas disponibles: ${opts.orgTags.join(", ")}. Puedes crear una nueva si ninguna aplica.` : ""}
 ${opts.stages?.length ? `- Mueve al lead de etapa según avance la conversación. Etapas: ${opts.stages.join(" → ")}. (Ej: si agenda cita, muévelo a la etapa de cita; si muestra intención de compra, a una etapa más avanzada.)` : ""}
-- Registra una nota breve (note) con el interés o resumen relevante cuando sea útil.\n`;
+- Registra una nota breve (note) con el interés o resumen relevante cuando sea útil.
+- MEMORIA PERSISTENTE (importante): cada vez que aprendas algo relevante y duradero del cliente (respuestas de evaluación, objetivos, condiciones/dolencias, objeciones, estado de pago, estado de la cita, contexto personal), llama a update_lead con el campo "memory" y guarda un RESUMEN COMPLETO y ACTUALIZADO de todo lo que sabes de esta persona (no solo lo nuevo — reescribe el resumen entero incluyendo lo anterior de la MEMORIA DEL CLIENTE si existe). Este resumen se recuerda para SIEMPRE en futuras conversaciones. Sé completo pero conciso (varias líneas, hasta ~1500 caracteres).\n`;
 
   return `Eres ${cfg.agent_name || "Asistente"}, el asistente virtual de ${cfg.business_name || "nuestra empresa"}.
 Tu rol es atender consultas de clientes por ${["WhatsApp", "Instagram", "Messenger"].join("/")} de forma rápida y útil.
@@ -133,7 +139,7 @@ ${regionBlock}
 ${cfg.business_description ? `SOBRE EL NEGOCIO:\n${cfg.business_description}\n` : ""}
 ${cfg.products ? `PRODUCTOS Y SERVICIOS:\n${cfg.products}\n` : ""}
 ${cfg.faqs ? `PREGUNTAS FRECUENTES:\n${cfg.faqs}\n` : ""}
-${bookingBlock}${rescheduleBlock}${crmBlock}${mediaBlock}
+${memoryBlock}${bookingBlock}${rescheduleBlock}${crmBlock}${mediaBlock}
 REGLAS IMPORTANTES:
 1. Responde siempre en el idioma en que te escriben.
 2. Sé conciso. Cada idea en una oración clara. Máximo 2-3 oraciones por párrafo.
@@ -299,12 +305,14 @@ Deno.serve(async (req) => {
     // Email already on file for this contact (so the agent can confirm it
     // instead of asking from scratch).
     let contactEmailOnFile: string | null = null;
+    let contactMemory: string | null = null;
     let contactStages: { id: string; name: string }[] = [];
     let upcomingMeeting: { id: string; title: string; start_at: string; google_event_id: string | null; meeting_type: string | null } | null = null;
     if (contact_id) {
       const { data: cInfo } = await supabase.from("contacts")
-        .select("primary_email, pipeline_id").eq("id", contact_id).maybeSingle();
+        .select("primary_email, pipeline_id, ai_memory").eq("id", contact_id).maybeSingle();
       contactEmailOnFile = cInfo?.primary_email || null;
+      contactMemory = cInfo?.ai_memory || null;
       // Pipeline stages for this contact's pipeline (for CRM stage moves)
       const pid = cInfo?.pipeline_id || "00000000-0000-0000-0000-000000000001";
       const { data: stages } = await supabase.from("pipeline_stages")
@@ -399,6 +407,7 @@ Deno.serve(async (req) => {
           tags: { type: "array", items: { type: "string" }, description: "Etiquetas a agregar al lead." },
           stage: { type: "string", description: "Nombre EXACTO de la etapa del pipeline a la que mover el lead (de la lista de etapas disponibles)." },
           note: { type: "string", description: "Nota breve sobre el interés o resumen para el vendedor." },
+          memory: { type: "string", description: "Resumen COMPLETO y actualizado de todo lo relevante que sabes del cliente (evaluación, objetivos, dolencias, objeciones, estado de pago/cita, contexto personal). Reescribe el resumen entero incluyendo lo anterior. Se recuerda para siempre en futuras conversaciones." },
         },
       },
     });
@@ -441,7 +450,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
+    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, contactMemory, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting });
     if (cfg.auto_qualify) {
       system += `
 
@@ -932,6 +941,8 @@ async function updateLead(
 
   if (input?.full_name) { contactUpdate.full_name = String(input.full_name).slice(0, 120); done.push("nombre"); }
   if (input?.email && /\S+@\S+\.\S+/.test(input.email)) { contactUpdate.primary_email = input.email; done.push("correo"); }
+  // Persistent memory: overwrite the running summary of what we know about this client.
+  if (input?.memory && String(input.memory).trim()) { contactUpdate.ai_memory = String(input.memory).slice(0, 2000); done.push("memoria"); }
 
   // Tags: merge into contacts.tags + register in catalog
   if (Array.isArray(input?.tags) && input.tags.length) {
