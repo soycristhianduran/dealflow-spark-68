@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText, Eye, Plus, X } from "lucide-react";
+import { Bot, Loader2, Save, MessageCircle, Instagram, Zap, Info, CalendarClock, Upload, Trash2, Image as ImageIcon, FileText, Eye, Plus, X, BookOpen, ArrowUpRight } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -470,6 +470,23 @@ export default function AIAgentPage() {
 
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="mx-auto max-w-3xl space-y-6">
+
+          {/* Setup guide link */}
+          <a
+            href="https://claude.ai/code/artifact/e5c2d7d2-2fe4-48ca-8e00-c9a3f64fe377"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 rounded-xl border border-primary-soft bg-primary-soft/60 p-4 text-sm transition-colors hover:bg-primary-soft"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white">
+              <BookOpen className="h-5 w-5" />
+            </span>
+            <div className="flex-1">
+              <p className="font-semibold text-foreground">Guía de configuración del agente</p>
+              <p className="text-muted-foreground">Paso a paso con plantillas listas para copiar. Ideal si es tu primera vez.</p>
+            </div>
+            <ArrowUpRight className="h-4 w-4 shrink-0 text-primary-deep" />
+          </a>
 
           {/* Warning: no WhatsApp connected */}
           {hasWhatsApp === false && (
