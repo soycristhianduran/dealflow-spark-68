@@ -66,6 +66,7 @@ interface AgentConfig {
   reminders_enabled: boolean;
   reminders: { minutes: number; template: string | null; lang: string }[];
   appointment_duration_min: number;
+  appointment_slot_interval_min: number | null;
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
@@ -122,6 +123,7 @@ const DEFAULT_CONFIG: AgentConfig = {
     { minutes: 60, template: null, lang: "es" },
   ],
   appointment_duration_min: 30,
+  appointment_slot_interval_min: null,
   appointment_slot_capacity: { enabled: false, rules: [{ days: [1,2,3,4,5], hours: ["09:00","10:00","11:00","12:00"], capacity: 2 }] },
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
@@ -229,6 +231,7 @@ export default function AIAgentPage() {
             : (Array.isArray(data.reminder_offsets) ? data.reminder_offsets as number[] : [1440, 60])
                 .map((m: number) => ({ minutes: m, template: data.reminder_template_name || null, lang: data.reminder_template_lang || "es" })),
           appointment_duration_min: data.appointment_duration_min ?? 30,
+          appointment_slot_interval_min: data.appointment_slot_interval_min ?? null,
           appointment_slot_capacity: (() => {
             const c: any = data.appointment_slot_capacity;
             const toHHMM = (arr: any[]): string[] => (arr || []).map((h: any) =>
@@ -383,6 +386,7 @@ export default function AIAgentPage() {
         reminders_enabled: config.reminders_enabled,
         reminders: config.reminders,
         appointment_duration_min: config.appointment_duration_min,
+        appointment_slot_interval_min: config.appointment_slot_interval_min,
         appointment_slot_capacity: config.appointment_slot_capacity,
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
@@ -429,7 +433,10 @@ export default function AIAgentPage() {
   // widest working-hours window stepped by the appointment duration (so :30
   // slots appear when appointments are 30 min). Stored/compared as "HH:MM".
   const slotTimeOptions = (() => {
-    const step = config.appointment_duration_min || 30;
+    const dur = config.appointment_duration_min || 30;
+    // Iterate by the configured interval (e.g. 30 min) so :30 starts appear
+    // even for 1h appointments; slot must still fit (t + dur <= end).
+    const step = config.appointment_slot_interval_min || dur;
     const wh = config.working_hours || {};
     let minStart = 24 * 60, maxEnd = 0;
     for (const k of Object.keys(wh)) {
@@ -442,7 +449,7 @@ export default function AIAgentPage() {
     }
     if (maxEnd <= minStart) { minStart = 7 * 60; maxEnd = 21 * 60; }
     const out: string[] = [];
-    for (let t = minStart; t + step <= maxEnd; t += step) {
+    for (let t = minStart; t + dur <= maxEnd; t += step) {
       out.push(`${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`);
     }
     return out;
@@ -836,6 +843,22 @@ export default function AIAgentPage() {
                           <SelectItem value="60">{t("aIAgentPage.duration1hour")}</SelectItem>
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Intervalo entre horarios</Label>
+                      <Select
+                        value={config.appointment_slot_interval_min ? String(config.appointment_slot_interval_min) : "auto"}
+                        onValueChange={v => set("appointment_slot_interval_min", v === "auto" ? null : Number(v))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="auto">Igual a la duración</SelectItem>
+                          <SelectItem value="15">Cada 15 minutos</SelectItem>
+                          <SelectItem value="30">Cada 30 minutos</SelectItem>
+                          <SelectItem value="60">Cada hora</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Cada cuánto empieza un horario. Ej: citas de 1h "Cada 30 min" → 8:00, 8:30, 9:00…</p>
                     </div>
                     <div className="space-y-2">
                       <Label>{t("aIAgentPage.appointmentModality")}</Label>

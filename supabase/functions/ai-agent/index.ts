@@ -520,7 +520,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
         let resultText = "";
         try {
           if (b.name === "check_availability") {
-            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity);
+            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity, cfg.appointment_slot_interval_min || null);
           } else if (b.name === "book_appointment") {
             resultText = await bookAppointment(supabase, {
               organization_id, advisorUserId: advisorUserId!, contact_id,
@@ -766,7 +766,7 @@ async function crmBookedCount(supabase: any, advisorUserId: string, slotStartMs:
 }
 
 // Compute the real free slots for a day: working hours minus Google-busy minus past.
-async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any): Promise<string> {
+async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any, intervalMin?: number | null): Promise<string> {
   const m = (dateIso || "").match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "Fecha inválida. Usa formato YYYY-MM-DD.";
   const [_, y, mo, d] = m.map(Number) as unknown as number[];
@@ -782,16 +782,20 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
   const busy = await fetchBusy(advisorUserId, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
   const busyMs = busy.map(b => [new Date(b.start).getTime(), new Date(b.end).getTime()] as [number, number]);
 
-  const stepMs = durationMin * 60000;
+  // Slot length = the appointment duration. Iteration step = the configured
+  // interval (e.g. 30 min) so 1h appointments can start every half hour;
+  // defaults to the duration when no interval is set (unchanged behavior).
+  const durMs = durationMin * 60000;
+  const stepMs = (intervalMin && intervalMin > 0 ? intervalMin : durationMin) * 60000;
   const now = Date.now();
   const free: string[] = [];
-  for (let t = dayStart; t + stepMs <= dayEnd; t += stepMs) {
+  for (let t = dayStart; t + durMs <= dayEnd; t += stepMs) {
     if (t < now) continue;
     const cap = slotCapacity(t, slotCap);
-    const googleBusy = busyMs.some(([bs, be]) => overlaps(t, t + stepMs, bs, be));
+    const googleBusy = busyMs.some(([bs, be]) => overlaps(t, t + durMs, bs, be));
     // occupied = our own concurrent CRM meetings; if none but Google shows busy,
     // it's an external event taking 1 unit. Free when occupied < capacity.
-    const crm = await crmBookedCount(supabase, advisorUserId, t, t + stepMs);
+    const crm = await crmBookedCount(supabase, advisorUserId, t, t + durMs);
     const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
     if (occupied >= cap) continue;
     // Label in Bogota HH:mm
