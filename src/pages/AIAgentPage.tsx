@@ -347,6 +347,22 @@ export default function AIAgentPage() {
 
   async function handleSave() {
     if (!organizationId) return;
+
+    // Guard: reject any enabled day whose closing time is <= opening time.
+    // An invalid range (e.g. end before start) silently breaks availability,
+    // so block the save with a clear message instead of storing bad hours.
+    if (config.appointments_enabled) {
+      const badDay = DAY_LABELS.find(({ key }) => {
+        const d = config.working_hours[key];
+        return d?.enabled && d.start && d.end && d.end <= d.start;
+      });
+      if (badDay) {
+        const d = config.working_hours[badDay.key];
+        toast.error(`Horario inválido en ${badDay.label}: la hora de fin (${d.end}) debe ser posterior a la de inicio (${d.start}).`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
