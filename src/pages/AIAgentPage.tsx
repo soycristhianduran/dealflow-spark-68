@@ -473,7 +473,7 @@ export default function AIAgentPage() {
 
           {/* Setup guide link */}
           <a
-            href="https://claude.ai/code/artifact/e5c2d7d2-2fe4-48ca-8e00-c9a3f64fe377"
+            href="/guia-agente-chat"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 rounded-xl border border-primary-soft bg-primary-soft/60 p-4 text-sm transition-colors hover:bg-primary-soft"

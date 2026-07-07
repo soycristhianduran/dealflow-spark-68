@@ -1,0 +1,300 @@
+<style>
+  :root{
+    --ground:#FBF9F6; --ink:#131A2B; --navy:#141B2D; --navy-2:#1E2740;
+    --muted:#5C6576; --faint:#8A93A3;
+    --line:#EBE5DC; --card:#FFFFFF;
+    --accent:#F97316; --accent-deep:#E0530E; --accent-ink:#B2440E; --accent-tint:#FFF1E6;
+    --good:#2F7A4F; --good-tint:#E9F3ED; --warn-ink:#8A5200; --warn-tint:#FBF1DC;
+    --mono:'SFMono-Regular',ui-monospace,'JetBrains Mono',Menlo,Consolas,monospace;
+    --sans:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box}
+  .wrap{max-width:820px;margin:0 auto;padding:0 0 4rem;font-family:var(--sans);
+    color:var(--ink);background:var(--ground);line-height:1.62;font-size:16px}
+  .wrap h1,.wrap h2,.wrap h3{line-height:1.2;text-wrap:balance;font-weight:600;margin:0}
+  .pad{padding-left:1.4rem;padding-right:1.4rem}
+
+  header.head{background:var(--navy);color:#fff;padding:1.7rem 1.4rem 1.9rem;
+    border-bottom:3px solid var(--accent)}
+  .brand{display:flex;align-items:center;gap:.6rem}
+  .brand-txt{font-size:15px;font-weight:600;letter-spacing:-.01em;color:#fff}
+  .brand-txt b{color:var(--accent)}
+  .eyebrow{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:#FFB877;font-weight:600;margin-top:1.4rem}
+  header.head h1{font-size:31px;letter-spacing:-.02em;margin:.5rem 0 0;color:#fff}
+  .lede{color:#B9C0CE;font-size:17px;margin:.65rem 0 0;max-width:60ch}
+  .meta{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:1.2rem}
+  .chip{font-size:12px;color:#CBD2DE;border:1px solid #33405C;border-radius:100px;padding:3px 11px;background:var(--navy-2)}
+
+  .callout{background:var(--accent-tint);border:1px solid #F6CDA6;border-radius:12px;
+    padding:1rem 1.15rem;margin:1.6rem 0}
+  .callout p{margin:.35rem 0 0;color:#5a4636}
+  .callout strong{color:var(--accent-ink)}
+
+  .step{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:1.35rem 1.4rem;margin:1.15rem 0;box-shadow:0 1px 2px rgba(20,27,45,.03)}
+  .step-h{display:flex;align-items:baseline;gap:.7rem;margin-bottom:.1rem}
+  .num{font-family:var(--mono);font-size:13px;font-weight:600;color:#fff;
+    background:linear-gradient(150deg,#FFA01E,#FF6B2C 46%,#E8460E);
+    min-width:27px;height:27px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+    flex:none;transform:translateY(3px)}
+  .step-h h2{font-size:19px;letter-spacing:-.01em}
+  .field-tag{display:inline-block;font-family:var(--mono);font-size:11.5px;color:var(--accent-ink);
+    background:var(--accent-tint);border:1px solid #F6D6BB;border-radius:5px;padding:2px 7px;margin:.6rem 0 0}
+  .step p{margin:.7rem 0 0}
+  .step ul{margin:.6rem 0 0;padding-left:1.15rem}
+  .step li{margin:.28rem 0}
+  .k{font-family:var(--mono);font-size:13.5px;background:#F1EDE6;border-radius:4px;padding:1px 5px;color:#33302B}
+
+  .tmpl{margin:.9rem 0 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#FCFAF7}
+  .tmpl-bar{display:flex;align-items:center;justify-content:space-between;
+    padding:.45rem .7rem .45rem .8rem;background:#F5F0E9;border-bottom:1px solid var(--line)}
+  .tmpl-bar span{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .copy{font-family:var(--sans);font-size:12.5px;color:#fff;background:var(--accent);
+    border:none;border-radius:6px;padding:4px 12px;cursor:pointer;font-weight:500}
+  .copy:hover{background:var(--accent-deep)}
+  .copy:active{transform:scale(.97)}
+  .tmpl pre{margin:0;padding:.85rem 1rem;font-family:var(--mono);font-size:13px;line-height:1.6;
+    white-space:pre-wrap;word-break:break-word;color:#33302B;overflow-x:auto}
+
+  .note{border-left:3px solid var(--accent);padding:.15rem 0 .15rem .85rem;margin:.85rem 0 0;color:var(--muted);font-size:14.5px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.6rem;margin:.8rem 0 0}
+  .mini{border:1px solid var(--line);border-radius:9px;padding:.7rem .85rem;background:#FCFAF7}
+  .mini b{font-size:13.5px}
+  .mini p{margin:.2rem 0 0;font-size:13.5px;color:var(--muted)}
+
+  .pitfalls{background:var(--warn-tint);border:1px solid #EAD3A0;border-radius:14px;padding:1.3rem 1.4rem;margin:1.7rem 0 0}
+  .pitfalls h2{font-size:19px;margin-bottom:.3rem;color:var(--warn-ink)}
+  .pitfalls li{margin:.45rem 0}
+  .pitfalls b{color:var(--warn-ink)}
+
+  .check{background:var(--good-tint);border:1px solid #BEDDC9;border-radius:14px;padding:1.3rem 1.4rem;margin:1.4rem 0 0}
+  .check h2{font-size:19px;color:#1F5637}
+  .check ul{list-style:none;padding:0;margin:.7rem 0 0}
+  .check li{display:flex;gap:.6rem;align-items:flex-start;margin:.4rem 0;font-size:15px}
+  .check li::before{content:"";width:16px;height:16px;border:2px solid var(--good);border-radius:4px;flex:none;margin-top:4px}
+  footer.foot{margin-top:2.2rem;padding-top:1.1rem;border-top:1px solid var(--line);color:var(--faint);font-size:13px}
+  .body{padding-top:1.6rem}
+</style>
+
+<div class="wrap">
+  <header class="head">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 100 100" role="img" aria-label="Klosify">
+        <defs><linearGradient id="kg" x1="20" y1="6" x2="80" y2="91" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stop-color="#FFA01E"/><stop offset="46%" stop-color="#FF6B2C"/><stop offset="100%" stop-color="#E8460E"/>
+        </linearGradient></defs>
+        <rect x="17" y="6" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="61" y="6" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="17" y="28" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="39" y="28" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="17" y="50" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="39" y="50" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="17" y="72" width="19" height="19" rx="5" fill="url(#kg)"/>
+        <rect x="61" y="72" width="19" height="19" rx="5" fill="url(#kg)"/>
+      </svg>
+      <span class="brand-txt"><b>Klosify</b> CRM</span>
+    </div>
+    <div class="eyebrow">Agente de IA</div>
+    <h1>Guía de configuración del agente, paso a paso</h1>
+    <p class="lede">Cómo alimentar tu asistente de WhatsApp para que atienda, califique y agende citas como tu mejor vendedor — sin escribir una sola línea de código.</p>
+    <div class="meta">
+      <span class="chip">Tiempo estimado: 20–30 min</span>
+      <span class="chip">Sin conocimientos técnicos</span>
+      <span class="chip">13 pasos + checklist</span>
+    </div>
+  </header>
+
+  <div class="pad body">
+  <div class="callout">
+    <strong>Antes de empezar: cómo “piensa” el agente</strong>
+    <p>En Klosify no pegas un prompt gigante. El agente se arma solo a partir de <strong>campos que tú llenas</strong>. Las herramientas (consultar el calendario, agendar, cobrar) y la fecha son <strong>automáticas</strong> — no las escribes. Tu trabajo es darle buen contenido en cada campo. Esta guía te dice exactamente qué poner en cada uno.</p>
+  </div>
+
+  <section class="step">
+    <div class="step-h"><span class="num">1</span><h2>Identidad del agente</h2></div>
+    <p>Lo primero que ve el cliente. Dale un nombre humano y cercano.</p>
+    <div class="field-tag">Nombre del agente · Nombre del negocio</div>
+    <ul>
+      <li><span class="k">Nombre del agente</span> — un nombre de persona (ej. <span class="k">Ana</span>, <span class="k">Sofía</span>, <span class="k">Mateo</span>). Evita “Bot” o “Asistente”.</li>
+      <li><span class="k">Nombre del negocio</span> — cómo se llama tu marca tal como la conocen tus clientes.</li>
+      <li><span class="k">Tono</span> — amigable/cálido para la mayoría de negocios; formal solo si tu marca lo pide.</li>
+      <li><span class="k">Región</span> — tu país (ej. <span class="k">Panamá</span>, <span class="k">Colombia</span>). Ajusta el modo de hablar para que suene local.</li>
+    </ul>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">2</span><h2>Descripción del negocio</h2></div>
+    <p>El campo <strong>más importante</strong>. Aquí va la personalidad del agente, su misión y cómo debe conversar. Si quieres que <em>lleve</em> a la gente a agendar (y no solo responda dudas), tienes que escribirlo aquí. Usa esta plantilla y cámbiala por tu negocio:</p>
+    <div class="field-tag">Descripción del negocio · hasta 12.000 caracteres</div>
+    <div class="tmpl">
+      <div class="tmpl-bar"><span>Plantilla — reemplaza lo que está en [corchetes]</span><button class="copy">Copiar</button></div>
+      <pre>IDENTIDAD: Eres [Nombre], asistente de [Negocio]. Acompañas a [tipo de cliente] y conoces sus dudas y necesidades reales.
+
+MISIÓN: No solo respondes preguntas — tu meta es entender lo que necesita la persona y, cuando sea el momento, guiarla a [agendar una cita / dejar sus datos / comprar]. Sin sonar como vendedor insistente.
+
+AL PRESENTARTE (solo en tu primer mensaje): "¡Hola! Soy [Nombre] de [Negocio]. ¿En qué puedo ayudarte hoy?" Si la persona ya llega con una pregunta, respóndela y preséntate en el mismo mensaje.
+
+PERSONALIDAD:
+- Hablas claro, cálido y cercano, como una persona real por chat.
+- Directo y útil. No prometes cosas imposibles ni presionas.
+
+CÓMO CONVERSAS:
+1) Entiende: haz 1 a 3 preguntas clave para conocer el caso. Ejemplos para tu negocio: "[pregunta 1]", "[pregunta 2]", "[pregunta 3]".
+2) Conecta: con base en lo que responda, muéstrale que [tu servicio] es para su caso.
+3) Invita: propón el siguiente paso ([la cita / la asesoría]) y cierra con "¿Qué día y hora te viene mejor?".
+
+QUÉ NUNCA HACES:
+- Inventar precios, fechas o datos que no tengas.
+- Sonar robótico o repetir el saludo si ya saludaste.
+
+INFORMACIÓN CLAVE DEL NEGOCIO:
+- [Diferenciador 1 — qué te hace distinto]
+- [Diferenciador 2]
+- Redes / web (solo si preguntan): [enlaces]</pre>
+    </div>
+    <div class="note">Consejo: escribe como le hablarías a un cliente nuevo. Entre más específico seas sobre tu forma de vender, mejor lo imita el agente.</div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">3</span><h2>Productos y servicios</h2></div>
+    <p>Qué ofreces, en qué consiste y a grandes rasgos los precios. El agente lo usa para responder con precisión.</p>
+    <div class="field-tag">Productos y servicios</div>
+    <div class="tmpl">
+      <div class="tmpl-bar"><span>Plantilla</span><button class="copy">Copiar</button></div>
+      <pre>[SERVICIO PRINCIPAL]:
+- En qué consiste: [descripción breve].
+- Qué incluye: [lo que recibe el cliente].
+- Duración / modalidad: [ej. 1 hora, presencial o virtual].
+
+[OTROS SERVICIOS / PROGRAMAS]:
+- [Nombre]: [descripción] — [rango de precio o "se explica en la cita"].
+
+Contacto: [teléfono].</pre>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">4</span><h2>Preguntas frecuentes (FAQs)</h2></div>
+    <p>Las dudas que más te preguntan, con su respuesta. Cada bloque en formato pregunta → respuesta corta.</p>
+    <div class="field-tag">FAQs</div>
+    <div class="tmpl">
+      <div class="tmpl-bar"><span>Plantilla</span><button class="copy">Copiar</button></div>
+      <pre>¿CUÁNTO CUESTA?
+[Respuesta clara. Si hay oferta, menciónala.]
+
+¿DÓNDE ATIENDEN / CÓMO ES?
+[Presencial en (dirección) o virtual.]
+
+¿CUÁNTO DURA / QUÉ INCLUYE?
+[Respuesta.]
+
+¿[PREGUNTA TÍPICA DE TU RUBRO]?
+[Respuesta.]
+
+HORARIOS: [días y horas].
+TELÉFONO: [número].</pre>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">5</span><h2>Respuestas automáticas</h2></div>
+    <p>Dos frases fijas para casos especiales.</p>
+    <div class="grid2">
+      <div class="mini"><b>Cuando piden un humano</b><p>Ej: “Soy asistente virtual. Si prefieres, coordino que te llame un asesor.”</p></div>
+      <div class="mini"><b>Cuando preguntan algo fuera de tema</b><p>Ej: “Eso lo revisa mejor un asesor o se ve en tu cita. ¿Agendamos?”</p></div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">6</span><h2>Canales</h2></div>
+    <p>Enciende dónde quieres que el agente responda: <span class="k">WhatsApp</span>, <span class="k">Instagram</span> o <span class="k">Messenger</span> (según los tengas conectados en Integraciones).</p>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">7</span><h2>Activar citas</h2></div>
+    <p>Enciende <span class="k">Activar citas</span> para que el agente pueda agendar. Esto le da la <strong>capacidad</strong>; la <strong>misión</strong> de llevar a agendar la escribiste en el paso 2.</p>
+    <div class="note">Requiere tener el <strong>Google Calendar conectado</strong> — de ahí lee la disponibilidad real y nunca ofrece una hora ocupada.</div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">8</span><h2>Duración e intervalo</h2></div>
+    <ul>
+      <li><span class="k">Duración de la cita</span> — cuánto dura cada cita (15, 30, 45 o 60 min).</li>
+      <li><span class="k">Intervalo entre horarios</span> — cada cuánto puede empezar una cita. Ej: cita de 1 h con intervalo “cada 30 min” ofrece 8:00, 8:30, 9:00… Déjalo en “igual a la duración” si quieres solo horas en punto.</li>
+    </ul>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">9</span><h2>Horarios de atención</h2></div>
+    <p>Marca los días activos y su rango de horas. El agente solo ofrecerá citas dentro de estas ventanas.</p>
+    <div class="note">Revisa que la hora de <strong>fin sea mayor que la de inicio</strong> en cada día. Un rango invertido (ej. fin 5:30 <em>a.m.</em>) deja ese día sin horarios. Klosify ahora te avisa si pasa.</div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">10</span><h2>Modalidad y cupos simultáneos</h2></div>
+    <ul>
+      <li><span class="k">Modalidad</span> — presencial (pon la dirección), virtual (genera link de Meet), o ambas (el agente pregunta).</li>
+      <li><span class="k">Cupos simultáneos</span> — opcional. Permite atender a más de una persona a la misma hora, solo en los días/horas que elijas. Útil si tienes varios especialistas.</li>
+    </ul>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">11</span><h2>Citas con pago previo</h2></div>
+    <p>Si cobras antes de agendar, enciende <span class="k">Las citas requieren pago previo</span>. El agente pide primero nombre y correo, luego envía los medios de pago, valida el comprobante y recién ahí agenda.</p>
+    <div class="grid2">
+      <div class="mini"><b>Precios / info de pago</b><p>El valor y la oferta, si aplica.</p></div>
+      <div class="mini"><b>Links / métodos de pago</b><p>Yappy, ACH, link de tarjeta, etc.</p></div>
+      <div class="mini"><b>Requerir comprobante</b><p>Actívalo para que valide la captura del pago.</p></div>
+      <div class="mini"><b>Nombres válidos del comprobante</b><p>A qué nombres debe llegar el dinero.</p></div>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">12</span><h2>Gestión del pipeline (opcional)</h2></div>
+    <p>Apagado por defecto. Si lo enciendes, el agente puede mover leads de etapa y crear etiquetas solo. <strong>Si lo activas, dile exactamente a qué etapa mover en cada momento</strong> — si no, adivina por el nombre y se puede equivocar. Agrega esto a tu Descripción del negocio:</p>
+    <div class="tmpl">
+      <div class="tmpl-bar"><span>Plantilla — reglas de pipeline</span><button class="copy">Copiar</button></div>
+      <pre>GESTIÓN DEL PIPELINE (usa EXACTAMENTE estas reglas):
+- Cuando el cliente elige día y hora → mover a la etapa "[Agenda cita]".
+- Cuando envía el comprobante y queda validado → mover a "[Confirma cita]".
+- Cuando no está interesado → mover a "[No interesado]".
+[Agrega todas tus etapas y cuándo entrar a cada una.]</pre>
+    </div>
+  </section>
+
+  <section class="step">
+    <div class="step-h"><span class="num">13</span><h2>Memoria y recordatorios</h2></div>
+    <ul>
+      <li><span class="k">Memoria</span> — automática. El agente recuerda a cada cliente (su caso, sus respuestas) en futuras conversaciones y no vuelve a preguntar lo mismo. No configuras nada.</li>
+      <li><span class="k">Recordatorios</span> — opcional. Avisa al cliente antes de su cita (ej. 1 día y 1 hora antes).</li>
+    </ul>
+  </section>
+
+  <div class="pitfalls">
+    <h2>Errores comunes a evitar</h2>
+    <ul>
+      <li><b>Dejar la Descripción vacía o genérica.</b> Sin misión escrita, el agente solo responde y no lleva a agendar.</li>
+      <li><b>Horario con fin antes del inicio.</b> Rompe la disponibilidad de ese día. Revisa cada rango.</li>
+      <li><b>Activar el pipeline sin dar reglas.</b> El agente moverá leads a etapas equivocadas. Dale el mapa exacto (paso 12).</li>
+      <li><b>No conectar el Google Calendar.</b> Sin él, el agente no puede ver disponibilidad ni agendar.</li>
+      <li><b>Precios en la Descripción en vez de en Citas con pago.</b> Ponlos en los campos de pago para que el flujo no se contradiga.</li>
+    </ul>
+  </div>
+
+  <div class="check">
+    <h2>Checklist final antes de activar</h2>
+    <ul>
+      <li>Nombre del agente, negocio, tono y región puestos</li>
+      <li>Descripción con identidad, misión y cómo conversa</li>
+      <li>Productos y FAQs cargados</li>
+      <li>Google Calendar conectado</li>
+      <li>Citas activadas: duración, intervalo, horarios y modalidad correctos</li>
+      <li>Si cobras: pago, comprobante y nombres válidos configurados</li>
+      <li>Canal (WhatsApp/Instagram) encendido</li>
+      <li>Probaste una conversación real de principio a fin</li>
+    </ul>
+  </div>
+
+  <footer class="foot">Guía de configuración del Agente IA · Klosify CRM. Adáptala a tu negocio y compártela con tu equipo.</footer>
+  </div>
+</div>

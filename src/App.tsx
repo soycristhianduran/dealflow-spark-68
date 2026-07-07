@@ -40,6 +40,7 @@ import AutomationsPage from "./pages/AutomationsPage";
 import DataDeletionPage from "./pages/DataDeletionPage";
 import DataDeletionStatusPage from "./pages/DataDeletionStatusPage";
 import PrivacyPage from "./pages/PrivacyPage";
+import AgentGuidePage from "./pages/AgentGuidePage";
 import TermsPage from "./pages/TermsPage";
 import PricingPage from "./pages/PricingPage";
 import BillingPage from "./pages/BillingPage";
@@ -181,6 +182,7 @@ function AppRoutes() {
       <Route path="/ig/verify/:token" element={<IgVerifyPage />} />
       <Route path="/privacy" element={<PrivacyPage />} />
       <Route path="/privacidad" element={<PrivacyPage />} />
+      <Route path="/guia-agente-chat" element={<AgentGuidePage />} />
       <Route path="/terms" element={<TermsPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/lista-vip" element={<WaitlistVIPPage />} />
