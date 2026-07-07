@@ -254,6 +254,15 @@ Deno.serve(async (req) => {
       let subscribeError: string | null = null;
       let subscribeRaw: any = null;
       try {
+        // POSTing subscribed_apps REPLACES the field list, so we must UNION with
+        // whatever the page already has (e.g. `leadgen` from Meta lead forms) —
+        // otherwise connecting Instagram silently kills real-time lead delivery.
+        const fields = new Set(["messages", "messaging_postbacks"]);
+        try {
+          const curRes = await fetch(`${GRAPH_API}/${page_id}/subscribed_apps?access_token=${encodeURIComponent(page_access_token)}`);
+          const cur = await curRes.json();
+          for (const f of (cur?.data?.[0]?.subscribed_fields ?? [])) fields.add(f);
+        } catch (_) { /* best-effort — fall back to the base set */ }
         const subRes = await fetch(`${GRAPH_API}/${page_id}/subscribed_apps`, {
           method: "POST",
           headers: {
@@ -264,8 +273,8 @@ Deno.serve(async (req) => {
             // `messaging_seen` is no longer a valid subscribable field on the
             // current Graph API version → Meta rejects the WHOLE subscription
             // with error 100, so the page never receives IG DMs. Keep the
-            // essential, valid fields only.
-            subscribed_fields: "messages,messaging_postbacks",
+            // essential, valid fields plus whatever was already subscribed.
+            subscribed_fields: [...fields].join(","),
           }),
         });
         subscribeRaw = await subRes.json();
