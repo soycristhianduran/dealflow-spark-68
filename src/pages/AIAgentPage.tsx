@@ -652,7 +652,7 @@ export default function AIAgentPage() {
                   value={config.business_description}
                   onChange={e => set("business_description", e.target.value)}
                   rows={3}
-                  maxLength={4000}
+                  maxLength={12000}
                 />
               </div>
               <div className="space-y-2">
