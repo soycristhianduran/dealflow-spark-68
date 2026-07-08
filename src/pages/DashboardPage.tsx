@@ -145,15 +145,15 @@ function PeriodSelector({
   const customLabel = value === "custom" && customRange.from && customRange.to
     ? `${pretty(customRange.from)} → ${pretty(customRange.to)}` : t("dashboardPage.periodCustom");
   return (
-    <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1">
+    <div className="flex items-center gap-1 rounded-lg border bg-muted/50 p-1 max-w-full overflow-x-auto scrollbar-thin">
       {PERIOD_OPTIONS.map((opt) => (
-        <button key={opt.value} onClick={() => onChange(opt.value)} className={btn(value === opt.value)}>
+        <button key={opt.value} onClick={() => onChange(opt.value)} className={`${btn(value === opt.value)} whitespace-nowrap shrink-0`}>
           {t(`dashboardPage.${periodLabelKey[opt.value]}`)}
         </button>
       ))}
       <Popover open={calOpen} onOpenChange={(o) => { setCalOpen(o); if (o) onChange("custom"); }}>
         <PopoverTrigger asChild>
-          <button className={`${btn(value === "custom")} inline-flex items-center gap-1.5`}>
+          <button className={`${btn(value === "custom")} inline-flex items-center gap-1.5 whitespace-nowrap shrink-0`}>
             <CalendarDays className="h-3.5 w-3.5" /> {customLabel}
           </button>
         </PopoverTrigger>
@@ -861,7 +861,7 @@ export default function DashboardPage() {
         title="Dashboard"
         subtitle={format(new Date(), "EEEE, d 'de' MMMM yyyy", { locale: es })}
       />
-      <main className="flex-1 overflow-y-auto p-4 md:p-6 flex flex-col gap-4 md:gap-6 scrollbar-thin">
+      <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 flex flex-col gap-4 md:gap-6 scrollbar-thin">
 
         {/* ── Setup banner (shown to new workspaces) ─────────────── */}
         {!setupDismissed && (
@@ -911,8 +911,8 @@ export default function DashboardPage() {
             <h2 className="text-lg font-bold text-foreground tracking-tight">{t("dashboardPage.performanceSummary")}</h2>
             <p className="text-xs text-muted-foreground mt-0.5">{t("dashboardPage.businessAtAGlance")}</p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" className="gap-1.5 rounded-lg" onClick={() => setCustomizeOpen(true)}>
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
+            <Button variant="outline" size="sm" className="gap-1.5 rounded-lg shrink-0" onClick={() => setCustomizeOpen(true)}>
               <Sliders className="h-3.5 w-3.5" /> {t("dashboardPage.customize")}
             </Button>
             <PeriodSelector value={period} onChange={setPeriod} customRange={customRange} onCustomChange={setCustomRange} />

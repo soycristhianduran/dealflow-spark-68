@@ -519,12 +519,12 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
               {data.vendors.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-4 text-center">{t("dashboardInsights.noLeadsAssignedAdvisors")}</p>
               ) : data.vendors.map(v => (
-                <div key={v.owner_id} className="flex items-center gap-2 rounded-lg border p-2.5">
+                <div key={v.owner_id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
                   <div className="h-7 w-7 rounded-full bg-violet-100 dark:bg-violet-950 flex items-center justify-center text-[11px] font-semibold text-violet-700 dark:text-violet-300 shrink-0">
                     {(vendorNames[v.owner_id] || "?").slice(0, 2).toUpperCase()}
                   </div>
                   <span className="text-sm flex-1 truncate min-w-0">{vendorNames[v.owner_id] || t("dashboardInsights.advisor")}</span>
-                  <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-3 shrink-0 max-w-full flex-wrap text-[11px] text-muted-foreground">
                     <span className="text-center"><b className="block text-foreground text-xs">{v.leads.toLocaleString()}</b>{t("dashboardInsights.leadsLower")}</span>
                     <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>{t("dashboardInsights.appointments")}</span>
                     <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>{t("dashboardInsights.won")}</span>
@@ -546,12 +546,12 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
             </CardHeader>
             <CardContent className="space-y-2">
               {(data.setters ?? []).map(s => (
-                <div key={s.setter_id} className="flex items-center gap-2 rounded-lg border p-2.5">
+                <div key={s.setter_id} className="flex flex-wrap items-center gap-2 rounded-lg border p-2.5">
                   <div className="h-7 w-7 rounded-full bg-cyan-100 dark:bg-cyan-950 flex items-center justify-center text-[11px] font-semibold text-cyan-700 dark:text-cyan-300 shrink-0">
                     {(vendorNames[s.setter_id] || "?").slice(0, 2).toUpperCase()}
                   </div>
                   <span className="text-sm flex-1 truncate min-w-0">{vendorNames[s.setter_id] || t("dashboardInsights.setter")}</span>
-                  <div className="flex items-center gap-3 shrink-0 text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-3 shrink-0 max-w-full flex-wrap text-[11px] text-muted-foreground">
                     <span className="text-center"><b className="block text-foreground text-xs">{s.leads.toLocaleString()}</b>{t("dashboardInsights.leadsLower")}</span>
                     <span className="text-center"><b className="block text-foreground text-xs">{s.citas}</b>{t("dashboardInsights.appointments")}</span>
                     <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{s.ganados}</b>{t("dashboardInsights.won")}</span>
