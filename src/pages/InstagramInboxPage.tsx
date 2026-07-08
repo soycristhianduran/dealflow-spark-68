@@ -63,10 +63,12 @@ export default function InstagramInboxPage() {
   // ---- Load conversations -----------------------------------------------
   const loadConversations = useCallback(async () => {
     if (!user) return;
+    // Race guard: wait for the org context — querying without the org filter
+    // mixes conversations from every org the user belongs to.
+    if (!organizationId) { setConversations([]); setLoadingConvs(false); return; }
     setLoadingConvs(true);
     // Inbox is shared org-wide — scope by organization, not the connecting user.
-    let convQ = supabase.from("instagram_conversations").select("*");
-    convQ = organizationId ? convQ.eq("organization_id", organizationId) : convQ.eq("user_id", user.id);
+    const convQ = supabase.from("instagram_conversations").select("*").eq("organization_id", organizationId);
     const { data, error } = await convQ.order("last_message_at", { ascending: false });
     if (error) {
       toast.error(t("instagramInboxPage.loadConversationsError", { message: error.message }));

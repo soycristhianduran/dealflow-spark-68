@@ -192,7 +192,7 @@ export default function ContactsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
   const { path } = useWorkspace();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, loading: orgLoading } = useOrganizationContext();
   const { tags: orgCatalogTags, colorOf } = useOrgTags();
   const { isOwnerOrAdmin, isVendor, isSetter, myUserId, canEditContacts, canExportData } = usePermissions();
 
@@ -323,6 +323,11 @@ export default function ContactsPage() {
   }, [organizationId, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isSetter, isOwnerOrAdmin, myUserId]);
 
   const fetchContacts = useCallback(async () => {
+    // Race guard: on a hard refresh the org context resolves AFTER the first
+    // render. Querying with organizationId=null drops the org filter and RLS
+    // returns leads from EVERY org the user belongs to (cross-org mix in the
+    // UI). Wait for the org to resolve; the effect re-runs when it does.
+    if (orgLoading || !organizationId) { setLoading(true); return; }
     setLoading(true);
     const from = currentPage * pageSize;
     const to = from + pageSize - 1;
@@ -343,11 +348,12 @@ export default function ContactsPage() {
     }
     setTotalCount(count ?? 0);
     setLoading(false);
-  }, [currentPage, pageSize, applyFilters]);
+  }, [currentPage, pageSize, applyFilters, orgLoading, organizationId]);
 
   // Select EVERY lead matching the current filters (across all pages), capped for
   // safety. Sets a flag so the UI can show "all N selected".
   const selectAllAcrossPages = useCallback(async () => {
+    if (orgLoading || !organizationId) return; // same race guard as fetchContacts
     // PostgREST caps every response at 1000 rows regardless of .limit(), so a
     // single query only ever returns the first 1000 ids (the "1000 of 1102" bug).
     // Page through with .range() until we have every matching id (or hit the cap).
@@ -371,7 +377,7 @@ export default function ContactsPage() {
     }
     setSelected(new Set(ids));
     setAllMatchingSelected(true);
-  }, [applyFilters]);
+  }, [applyFilters, orgLoading, organizationId]);
 
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 

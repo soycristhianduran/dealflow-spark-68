@@ -57,9 +57,12 @@ export function useWhatsAppTemplates() {
     try {
       // Templates are shared org-wide — scope by organization so every member
       // (not just the user who synced) sees the same approved templates.
-      let q = supabase.from("whatsapp_templates").select("*").order("created_at", { ascending: false });
-      if (organizationId) q = q.eq("organization_id", organizationId);
-      const { data: local } = await q;
+      // Race guard: without the org filter RLS mixes every org's templates.
+      if (!organizationId) { setTemplates([]); return; }
+      const { data: local } = await supabase
+        .from("whatsapp_templates").select("*")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false });
       setTemplates(local || []);
     } catch (e: any) {
       toast.error("Error al cargar plantillas: " + e.message);
