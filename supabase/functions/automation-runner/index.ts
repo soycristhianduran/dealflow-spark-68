@@ -667,6 +667,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           automation_enrollment_id: enr.id,
           contact_id: contact.id,
           user_id: enr.user_id,
+          organization_id: contact.organization_id,
           email_address: contact.primary_email,
           status: "sent",
           provider_message_id: data.id,
@@ -788,6 +789,10 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           (headerType === "IMAGE" || headerType === "VIDEO" || headerType === "DOCUMENT");
         await supabase.from("whatsapp_messages").insert({
           user_id: enr.user_id,
+          // Explicit org — without it a trigger defaults to the AUTOMATION
+          // OWNER's org, so multi-org owners (gestor) got the message logged
+          // in the wrong workspace and it never showed in the conversation.
+          organization_id: contact.organization_id,
           contact_id: contact.id,
           wa_message_id: data.messages?.[0]?.id,
           phone_number: contact.primary_phone.replace(/[^0-9]/g, ""),
