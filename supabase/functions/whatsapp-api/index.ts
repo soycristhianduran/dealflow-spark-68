@@ -1386,13 +1386,19 @@ Deno.serve(async (req) => {
       const { wa_media_id, message_id } = body;
       if (!wa_media_id) throw new Error("wa_media_id es obligatorio");
 
+      // The inbox is ORG-WIDE: any member can open a conversation, but the WA
+      // config row belongs to the user who connected the number. Scope by org
+      // (primary number first) — filtering by the VIEWER's user_id made media
+      // fail for every member except the connector. user_id only as legacy
+      // fallback when no org context exists.
       let fmQ = supabase
         .from("whatsapp_configs")
         .select("access_token")
-        .eq("user_id", user.id)
         .eq("is_active", true);
-      if (orgId) fmQ = fmQ.eq("organization_id", orgId);
-      const { data: config } = await fmQ.maybeSingle();
+      if (orgId) fmQ = fmQ.eq("organization_id", orgId).order("is_primary", { ascending: false });
+      else fmQ = fmQ.eq("user_id", user.id);
+      const { data: fmConfigs } = await fmQ.limit(1);
+      const config = fmConfigs?.[0];
       if (!config?.access_token) throw new Error("WhatsApp no está configurado o token inválido");
 
       // Step 1: get download URL from Meta
