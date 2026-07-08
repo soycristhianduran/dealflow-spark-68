@@ -102,8 +102,8 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
   };
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-card px-4 md:px-6 shrink-0">
-      <div className="flex items-center gap-3">
+    <header className="flex h-14 items-center justify-between gap-3 border-b bg-card px-4 md:px-6 shrink-0">
+      <div className="flex items-center gap-3 min-w-0 flex-1">
         <Sheet open={open} onOpenChange={setOpen} modal={false}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-9 w-9 md:hidden">
@@ -172,13 +172,13 @@ export function AppHeader({ title, subtitle, actions }: AppHeaderProps) {
           </SheetContent>
         </Sheet>
 
-        <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">{title}</h1>
-          {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold text-foreground tracking-tight truncate">{title}</h1>
+          {subtitle && <p className="text-xs text-muted-foreground truncate">{subtitle}</p>}
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         {actions}
         {/* ── Global search ── */}
         <div ref={searchRef} className="relative hidden md:block">

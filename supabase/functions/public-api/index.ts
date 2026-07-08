@@ -424,6 +424,19 @@ Deno.serve(async (req) => {
     // Merge custom_fields with existing ones (don't overwrite)
     const updateFields = await mergeCustomFields(admin, resourceId, fields);
 
+    // Keep full_name in sync: a PATCH that adds/changes first/last name must
+    // recompute it, otherwise leads created with only an email keep the email
+    // as their display name forever.
+    if (!updateFields.full_name && (updateFields.first_name || updateFields.last_name)) {
+      const { data: cur } = await admin
+        .from("contacts").select("first_name, last_name")
+        .eq("id", resourceId).maybeSingle();
+      const first = (updateFields.first_name as string) ?? cur?.first_name ?? "";
+      const last = (updateFields.last_name as string) ?? cur?.last_name ?? "";
+      const composed = [first, last].filter(Boolean).join(" ").trim();
+      if (composed) updateFields.full_name = composed;
+    }
+
     const { data, error } = await admin
       .from("contacts")
       .update(updateFields)
