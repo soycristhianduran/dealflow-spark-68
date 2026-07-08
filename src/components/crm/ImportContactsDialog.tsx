@@ -29,6 +29,7 @@ const FIELDS: { value: string; labelKey: string }[] = [
   { value: "notes", labelKey: "fieldNotes" },
   { value: "birthday", labelKey: "fieldBirthday" },
   { value: "tags", labelKey: "fieldTags" },
+  { value: "budget", labelKey: "fieldBudget" },
 ];
 
 const ALIASES: Record<string, string[]> = {
@@ -44,7 +45,26 @@ const ALIASES: Record<string, string[]> = {
   notes: ["notes", "notas", "nota", "mensaje", "comentario", "comentarios"],
   birthday: ["birthday", "cumpleaños", "cumpleanos", "nacimiento", "fecha nacimiento", "fecha de nacimiento"],
   tags: ["tags", "etiquetas", "etiqueta"],
+  budget: ["presupuesto", "budget", "monto", "valor", "importe", "sale", "venta"],
 };
+
+// "B/. 709", "$1,234.56", "1.234,56" → 709 / 1234.56 / 1234.56
+function parseBudget(raw: string): number | null {
+  let s = raw.replace(/[^\d.,-]/g, "");
+  if (!s) return null;
+  const lastComma = s.lastIndexOf(","), lastDot = s.lastIndexOf(".");
+  if (lastComma > -1 && lastDot > -1) {
+    // Both present: the LAST one is the decimal separator
+    if (lastComma > lastDot) s = s.replace(/\./g, "").replace(",", ".");
+    else s = s.replace(/,/g, "");
+  } else if (lastComma > -1) {
+    // Only commas: decimal if 1-2 trailing digits, thousands otherwise
+    const frac = s.length - lastComma - 1;
+    s = (frac === 1 || frac === 2) ? s.replace(",", ".") : s.replace(/,/g, "");
+  }
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : null;
+}
 
 function autoMap(header: string): string {
   const h = header.trim().toLowerCase();
@@ -178,6 +198,10 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
           const val = (row[i] ?? "").trim();
           if (!val) return;
           if (field === "tags") c.tags = val.split(/[;,]/).map(x => x.trim()).filter(Boolean);
+          else if (field === "budget") {
+            const n = parseBudget(val);
+            if (n !== null) c.budget = n;
+          }
           else c[field] = val;
         });
         if (!c.full_name) {

@@ -3255,6 +3255,7 @@
     "fieldNotes": "Notes",
     "fieldBirthday": "Birthday (YYYY-MM-DD)",
     "fieldTags": "Tags (separated by ;)",
+    "fieldBudget": "Budget",
     "errNotEnoughData": "The file does not have enough data.",
     "errReadFile": "Could not read the file. Use a valid CSV or Excel (.xlsx).",
     "errNoOrganization": "Organization not found.",
