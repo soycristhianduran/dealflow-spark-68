@@ -312,7 +312,10 @@ export function useWhatsAppInbox() {
     } catch (e: any) {
       toast.error("No se pudo cargar el media: " + e.message);
     }
-  }, []);
+    // organizationId in deps — with [] this closed over the first-render value
+    // (null), so the backend fell back to the viewer's own config and media
+    // downloads failed for multi-org users with a 190 from the wrong token.
+  }, [organizationId]);
 
   const sendMedia = useCallback(
     async (phone: string, fileBase64: string, mimeType: string, filename: string, contactId?: string | null) => {
@@ -384,7 +387,9 @@ export function useWhatsAppInbox() {
         setSending(false);
       }
     },
-    []
+    // organizationId in deps — [] froze the first-render null and the backend
+    // rejected send_media for multi-org users ("organization_id es obligatorio").
+    [organizationId]
   );
 
   const sendTemplate = useCallback(
@@ -442,7 +447,7 @@ export function useWhatsAppInbox() {
         setSending(false);
       }
     },
-    [fetchMessages]
+    [fetchMessages, organizationId]
   );
 
   // Realtime: new messages
