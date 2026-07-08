@@ -4,7 +4,7 @@
 //  support, and grants the non-billable "gestor" role by email.
 // ══════════════════════════════════════════════════════════════════════
 import { useEffect, useState } from "react";
-import { Shield, Building2, LogIn, Search, Loader2, ShieldCheck, ShieldAlert, LifeBuoy } from "lucide-react";
+import { Shield, Building2, LogIn, Search, Loader2, ShieldCheck, ShieldAlert, LifeBuoy, UserPlus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +28,10 @@ export default function PlatformOrgsPage() {
   const [denied, setDenied] = useState(false);
   const [q, setQ] = useState("");
   const [entering, setEntering] = useState<string | null>(null);
+  // Non-billable "gestor" assignment (inline per-org form)
+  const [gestorOrg, setGestorOrg] = useState<string | null>(null);
+  const [gestorEmail, setGestorEmail] = useState("");
+  const [assigning, setAssigning] = useState(false);
   const [auditing, setAuditing] = useState(false);
   const [audit, setAudit] = useState<{ findings: AuditFinding[] } | null>(null);
 
@@ -51,6 +55,24 @@ export default function PlatformOrgsPage() {
       setLoading(false);
     })();
   }, []);
+
+  const assignGestor = async (org: PlatformOrg) => {
+    const email = gestorEmail.trim();
+    if (!email) return;
+    setAssigning(true);
+    const { data, error } = await supabase.rpc("platform_assign_gestor_by_email", {
+      p_email: email, p_org_id: org.organization_id,
+    });
+    setAssigning(false);
+    if (error) { toast({ title: "No se pudo asignar", description: error.message, variant: "destructive" }); return; }
+    if (data === "user_not_found") {
+      toast({ title: "Usuario no encontrado", description: `No existe una cuenta con el correo ${email}. Pídele que se registre primero en Klosify.`, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Gestor asignado", description: `${email} ahora administra ${org.org_name} sin ocupar un asiento facturable.` });
+    setGestorOrg(null); setGestorEmail("");
+    setOrgs(prev => prev.map(x => x.organization_id === org.organization_id ? { ...x, member_count: x.member_count + 1 } : x));
+  };
 
   const enterOrg = async (org: PlatformOrg) => {
     setEntering(org.organization_id);
@@ -135,10 +157,36 @@ export default function PlatformOrgsPage() {
                   <div className="font-medium text-slate-900 truncate">{o.org_name}</div>
                   <div className="text-xs text-muted-foreground">/{o.org_slug} · {o.member_count} usuario{o.member_count === 1 ? "" : "s"}</div>
                 </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => { setGestorOrg(gestorOrg === o.organization_id ? null : o.organization_id); setGestorEmail(""); }}
+                >
+                  <UserPlus className="h-4 w-4 mr-1.5" /> Gestor
+                </Button>
                 <Button size="sm" onClick={() => enterOrg(o)} disabled={entering === o.organization_id}>
                   {entering === o.organization_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><LogIn className="h-4 w-4 mr-1.5" /> Entrar</>}
                 </Button>
               </div>
+              {gestorOrg === o.organization_id && (
+                <div className="mt-3 flex items-center gap-2 rounded-md border bg-slate-50 p-3">
+                  <Input
+                    type="email"
+                    autoFocus
+                    value={gestorEmail}
+                    onChange={(e) => setGestorEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") assignGestor(o); }}
+                    placeholder="correo@delgestor.com"
+                    className="flex-1 bg-white"
+                  />
+                  <Button size="sm" onClick={() => assignGestor(o)} disabled={assigning || !gestorEmail.trim()}>
+                    {assigning ? <Loader2 className="h-4 w-4 animate-spin" /> : "Asignar gestor"}
+                  </Button>
+                </div>
+              )}
+              {gestorOrg === o.organization_id && (
+                <p className="mt-1.5 text-xs text-muted-foreground pl-1">La persona debe tener cuenta en Klosify. Tendrá gestión completa de esta organización sin ocupar un asiento facturable.</p>
+              )}
             </div>
           ))}
         </div>
