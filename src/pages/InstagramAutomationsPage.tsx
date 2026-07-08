@@ -226,15 +226,19 @@ export default function InstagramAutomationsPage() {
   const loadAutomations = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const { data, error } = await supabase
+    // Scope by ORGANIZATION, not user — a user who belongs to several orgs
+    // must only see the current workspace's automations.
+    let query = supabase
       .from("instagram_comment_automations")
       .select("*")
-      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
+    if (organizationId) query = query.eq("organization_id", organizationId);
+    else query = query.eq("user_id", user.id);
+    const { data, error } = await query;
     if (error) toast.error(t("instagramAutomationsPage.loadError") + error.message);
     setAutomations((data || []) as Automation[]);
     setLoading(false);
-  }, [user]);
+  }, [user, organizationId]);
 
   useEffect(() => { loadAutomations(); }, [loadAutomations]);
 
@@ -308,12 +312,15 @@ export default function InstagramAutomationsPage() {
     // Resolve ig_account_id (required only when the automation runs on Instagram)
     let igAccountId: string | null = null;
     if (hasIg) {
-      const { data: account } = await supabase
+      // Scope by org — the user may have IG accounts in several workspaces.
+      let acctQ = supabase
         .from("instagram_accounts")
         .select("id")
-        .eq("user_id", user.id)
         .eq("is_active", true)
-        .maybeSingle();
+        .limit(1);
+      if (organizationId) acctQ = acctQ.eq("organization_id", organizationId);
+      else acctQ = acctQ.eq("user_id", user.id);
+      const { data: account } = await acctQ.maybeSingle();
       if (!account) {
         toast.error(t("instagramAutomationsPage.connectFirstError"));
         setSaving(false);
