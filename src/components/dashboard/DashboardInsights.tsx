@@ -284,14 +284,19 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
     (async () => {
       const { data: ins } = await supabase.rpc("dashboard_extra", { p_org: organizationId, p_vendor: vendorId, p_start: periodStart ?? null, p_end: periodEnd ?? null });
       if (ins) setData(ins as Insights);
-      // Last WhatsApp campaign
+      // Last WhatsApp campaign — org-scoped: without the filter, RLS returned
+      // campaigns from EVERY org a multi-org user belongs to (cross-org leak).
       const { data: camp } = await supabase.from("whatsapp_campaigns")
         .select("name, total_recipients, sent_count, delivered_count, read_count, failed_count, sent_at, status")
+        .eq("organization_id", organizationId)
         .eq("status", "sent").order("sent_at", { ascending: false }).limit(1).maybeSingle();
       setLastCamp(camp);
-      // Grouped objections + positive signals (categorize raw AI analysis arrays)
+      // Grouped objections + positive signals — scoped via the contact's org
+      // (the analyses table itself has no organization_id column).
       const { data: analyses } = await supabase.from("contact_ai_analyses")
-        .select("objections, signals_detected").order("analyzed_at", { ascending: false }).limit(1000);
+        .select("objections, signals_detected, contacts!inner(organization_id)")
+        .eq("contacts.organization_id", organizationId)
+        .order("analyzed_at", { ascending: false }).limit(1000);
       const objs: string[] = [];
       const sigs: string[] = [];
       for (const a of (analyses || [])) {

@@ -136,9 +136,13 @@ export function FacebookSetupWizard({ open, onOpenChange }: FacebookSetupWizardP
 
     // Merge the saved pipeline mapping so previously-chosen pipelines are kept
     // (getLeadForms returns the LIVE FB forms, without the saved pipeline_id).
-    const { data: savedForms } = await supabase
+    // Org-scoped: without the filter, saved forms from a multi-org user's
+    // OTHER workspaces bled into this mapping (cross-org leak).
+    let savedQ = supabase
       .from("facebook_lead_forms")
       .select("form_id, pipeline_id");
+    if (organizationId) savedQ = savedQ.eq("organization_id", organizationId);
+    const { data: savedForms } = await savedQ;
     const savedMap = new Map<string, string | null>((savedForms || []).map((s: any) => [s.form_id, s.pipeline_id]));
     // Pre-select ONLY the forms that were already integrated (saved). On a
     // first-time setup nothing is pre-selected so the user picks what they want.

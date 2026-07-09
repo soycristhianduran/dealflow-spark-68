@@ -1132,6 +1132,10 @@ export default function LandingBuilderPage() {
           funnel_id: selectedFunnelId,
           page_order: nextOrder,
           page_role: detectPageRole(newPageName),
+          // Explicit org — the default trigger derives it from the WRITING
+          // user, which files pages into the wrong workspace for multi-org
+          // users (gestor working inside a client org).
+          ...(organizationId ? { organization_id: organizationId } : {}),
         })
         .select()
         .single();
@@ -1258,6 +1262,7 @@ export default function LandingBuilderPage() {
           funnel_id: selectedFunnelId,
           page_order: funnelPages.length,
           page_role: detectedRole,
+          ...(organizationId ? { organization_id: organizationId } : {}),
         })
         .select()
         .single();

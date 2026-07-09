@@ -771,29 +771,33 @@ function TriggerConfigEditor({
     { value: "expected_close_date", label: t("automationsPage.fieldExpectedCloseDate") },
   ]);
   useEffect(() => {
-    if (triggerType !== "contact_date") return;
-    supabase.from("custom_field_definitions").select("key, label, field_type").ilike("field_type", "%date%")
+    if (triggerType !== "contact_date" || !organizationId) return;
+    supabase.from("custom_field_definitions").select("key, label, field_type")
+      .eq("organization_id", organizationId)
+      .ilike("field_type", "%date%")
       .then(({ data }) => {
         if (data?.length) setDateFields(prev => {
           const base = prev.filter(p => !p.value.startsWith("custom:"));
           return [...base, ...data.map((f: any) => ({ value: `custom:${f.key}`, label: f.label }))];
         });
       });
-  }, [triggerType]);
+  }, [triggerType, organizationId]);
 
-  // Load Meta forms from DB when trigger type is meta_lead_form
+  // Load Meta forms from DB when trigger type is meta_lead_form (org-scoped —
+  // multi-org users must not see other workspaces' forms)
   useEffect(() => {
-    if (triggerType !== "meta_lead_form") return;
+    if (triggerType !== "meta_lead_form" || !organizationId) return;
     setLoadingForms(true);
     supabase
       .from("facebook_lead_forms")
       .select("form_id, form_name, page_id")
+      .eq("organization_id", organizationId)
       .order("form_name", { ascending: true })
       .then(({ data }) => {
         setMetaForms(data || []);
         setLoadingForms(false);
       });
-  }, [triggerType]);
+  }, [triggerType, organizationId]);
 
   // Load landing pages when trigger type is landing_form_submitted
   useEffect(() => {
@@ -813,18 +817,20 @@ function TriggerConfigEditor({
   }, [triggerType, organizationId]);
 
   // Load email campaigns when trigger is email_opened / email_clicked
+  // (org-scoped — other workspaces' campaigns must never appear here)
   useEffect(() => {
-    if (triggerType !== "email_opened" && triggerType !== "email_clicked") return;
+    if ((triggerType !== "email_opened" && triggerType !== "email_clicked") || !organizationId) return;
     setLoadingCampaigns(true);
     supabase
       .from("email_campaigns")
       .select("id, name")
+      .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         setEmailCampaigns(data || []);
         setLoadingCampaigns(false);
       });
-  }, [triggerType]);
+  }, [triggerType, organizationId]);
 
   return (
     <div className="space-y-4">
@@ -2019,6 +2025,7 @@ function WaitStepEditor({ step, onChange }: {
   onChange: (updated: AutomationStep) => void;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
   const waitMode = c.mode ?? "duration";
@@ -2029,9 +2036,11 @@ function WaitStepEditor({ step, onChange }: {
     { value: "expected_close_date", label: t("automationsPage.fieldExpectedCloseDate") },
   ]);
   useEffect(() => {
+    if (!organizationId) return; // org-scoped: never mix other orgs' field defs
     supabase
       .from("custom_field_definitions")
       .select("key, label, field_type")
+      .eq("organization_id", organizationId)
       .ilike("field_type", "%date%")
       .then(({ data }) => {
         if (data?.length) {
@@ -2041,7 +2050,7 @@ function WaitStepEditor({ step, onChange }: {
           ]);
         }
       });
-  }, []);
+  }, [organizationId]);
 
   return (
     <div className="space-y-3">

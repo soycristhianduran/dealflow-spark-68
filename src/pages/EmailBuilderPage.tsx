@@ -173,6 +173,9 @@ export default function EmailBuilderPage() {
       try {
         const { data: row, error } = await supabase.from("email_templates").insert({
           name: newName.trim(), subject, design: data.design, html: data.html,
+          // Explicit org — default trigger uses the writer's org, wrong for
+          // multi-org users working inside a client workspace.
+          ...(organizationId ? { organization_id: organizationId } : {}),
         }).select("id").single();
         if (error) throw error;
         toast.success(t("emailBuilderPage.templateCreated"));
