@@ -105,9 +105,22 @@ export function CreateMeetingDialog({
       setSyncToGcal(true);
 
       {
+        // The browse list is capped at 1,000 rows by PostgREST — on large orgs
+        // the pre-selected contact may not be in it, which made the field look
+        // empty (and dropped the email invite). Fetch it directly and merge.
+        const preselectedId = editingMeeting?.contact_id || defaultContactId || "";
         let cq = supabase.from("contacts").select("id, full_name, primary_email").order("full_name");
         if (organizationId) cq = cq.eq("organization_id", organizationId);
-        cq.then(({ data }) => { if (data) setContacts(data); });
+        Promise.all([
+          cq,
+          preselectedId
+            ? supabase.from("contacts").select("id, full_name, primary_email").eq("id", preselectedId).maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]).then(([{ data: list }, { data: pre }]) => {
+          const merged = list ? [...list] : [];
+          if (pre && !merged.some(c => c.id === pre.id)) merged.unshift(pre);
+          setContacts(merged);
+        });
       }
     }
   }, [open, defaultDate, defaultStartTime, defaultEndTime, defaultContactId, editingMeeting]);
