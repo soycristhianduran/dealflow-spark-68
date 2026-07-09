@@ -931,6 +931,37 @@ async function bookAppointment(
   const when = new Intl.DateTimeFormat("es-CO", {
     timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
   }).format(startUtc);
+
+  // Fire "meeting_scheduled" automations (e.g. WhatsApp confirmation template)
+  // with ready-to-use {{meeting.*}} variables. Best-effort, never blocks the reply.
+  if (contact_id) {
+    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full" }).format(startUtc);
+    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        action: "trigger_event",
+        trigger_type: "meeting_scheduled",
+        contact_id,
+        trigger_data: {
+          origin: "ai_agent",
+          meeting: {
+            titulo: title,
+            fecha: fmtDate,
+            hora: fmtTime,
+            fecha_hora: `${fmtDate} a las ${fmtTime}`,
+            tipo: isVirtual ? "videollamada" : "presencial",
+            lugar_o_link: isVirtual ? (meetLink || "") : (address || ""),
+          },
+        },
+      }),
+    }).catch((e) => console.warn("[ai-agent] meeting_scheduled trigger failed:", e?.message));
+  }
+
   const detail = isVirtual
     ? (meetLink ? ` Es virtual; el enlace de Google Meet es: ${meetLink}` : " Es virtual (el enlace de Meet llegará en la invitación).")
     : (address ? ` Es presencial en: ${address}.` : " Es presencial.");

@@ -169,6 +169,7 @@ export function CreateMeetingDialog({
       meetingId = inserted?.id ?? null;
     }
 
+    let finalLink = location.trim();
     if (!error) {
       const isVirtual = meetingType === "video_call";
       const gcalParams = {
@@ -187,7 +188,7 @@ export function CreateMeetingDialog({
         const gcalResult = await gcal.createEvent(gcalParams);
         if (gcalResult?.google_event_id) {
           const upd: Record<string, unknown> = { google_event_id: gcalResult.google_event_id };
-          if (gcalResult.meet_link && isVirtual && !location.trim()) upd.location_or_link = gcalResult.meet_link;
+          if (gcalResult.meet_link && isVirtual && !location.trim()) { upd.location_or_link = gcalResult.meet_link; finalLink = gcalResult.meet_link; }
           await supabase.from("meetings").update(upd).eq("id", meetingId);
           toast.success(t("createMeetingDialog.alsoAddedToGoogleCalendar"), { icon: "📅" });
         }
@@ -195,6 +196,31 @@ export function CreateMeetingDialog({
         // Update the existing Google Calendar event silently (don't regenerate Meet)
         await gcal.updateEvent(editingMeeting.google_event_id, { ...gcalParams, create_meet: false });
       }
+    }
+
+    // Fire the "meeting_scheduled" automation trigger (new meetings with a
+    // contact only) so orgs can send e.g. a WhatsApp confirmation template.
+    // Exposes {{meeting.fecha}}, {{meeting.hora}}, {{meeting.titulo}}, etc.
+    if (!error && !isEditing && payload.contact_id) {
+      supabase.functions.invoke("automation-runner", {
+        body: {
+          action: "trigger_event",
+          trigger_type: "meeting_scheduled",
+          contact_id: payload.contact_id,
+          trigger_data: {
+            origin: "manual",
+            meeting: {
+              titulo: payload.title,
+              fecha: format(date, "EEEE d 'de' MMMM 'de' yyyy", { locale: es }),
+              hora: startTime,
+              hora_fin: endTime,
+              fecha_hora: `${format(date, "EEEE d 'de' MMMM", { locale: es })} a las ${startTime}`,
+              tipo: meetingType === "video_call" ? "videollamada" : meetingType === "in_person" ? "presencial" : "llamada",
+              lugar_o_link: finalLink,
+            },
+          },
+        },
+      }).catch(() => { /* best-effort — the meeting itself is already saved */ });
     }
 
     setSaving(false);
