@@ -128,6 +128,21 @@ Deno.serve(async (req) => {
       const { data: { user }, error: userError } = await supabase.auth.getUser(token);
       if (userError || !user) return json({ error: "Invalid user" }, 401);
       userId = user.id;
+      // A signed-in user may act on ANOTHER member's calendar (body.user_id)
+      // when they share an organization — e.g. a gestor/teammate editing a
+      // meeting whose Google event lives in the advisor's calendar. Without
+      // this, edits silently targeted the EDITOR's calendar and the client
+      // never got the updated invite.
+      if (bodyRaw.user_id && bodyRaw.user_id !== user.id) {
+        const [{ data: mine }, { data: theirs }] = await Promise.all([
+          supabase.from("organization_members").select("organization_id").eq("user_id", user.id),
+          supabase.from("organization_members").select("organization_id").eq("user_id", bodyRaw.user_id),
+        ]);
+        const myOrgs = new Set((mine ?? []).map((m: any) => m.organization_id));
+        const shared = (theirs ?? []).some((m: any) => myOrgs.has(m.organization_id));
+        if (!shared) return json({ error: "forbidden: no shared organization with target user" }, 403);
+        userId = bodyRaw.user_id;
+      }
     }
     const user = { id: userId };
 

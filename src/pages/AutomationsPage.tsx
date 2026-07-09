@@ -1211,6 +1211,13 @@ const CONTACT_FIELDS = [
   { value: "{{contact.city}}",         label: "Ciudad" },
   { value: "{{contact.country}}",      label: "País" },
   { value: "{{contact.notes}}",        label: "Notas" },
+  // Cita — disponibles cuando el disparador es "Cita agendada" / "Cita reagendada"
+  { value: "{{meeting.fecha}}",        label: "Cita — Fecha" },
+  { value: "{{meeting.hora}}",         label: "Cita — Hora" },
+  { value: "{{meeting.fecha_hora}}",   label: "Cita — Fecha y hora" },
+  { value: "{{meeting.lugar_o_link}}", label: "Cita — Lugar o link" },
+  { value: "{{meeting.titulo}}",       label: "Cita — Título" },
+  { value: "{{meeting.tipo}}",         label: "Cita — Tipo" },
 ];
 
 /** Detecta cuántas variables {{N}} usa el body de la plantilla */

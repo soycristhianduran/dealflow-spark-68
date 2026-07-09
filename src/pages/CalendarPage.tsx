@@ -67,7 +67,7 @@ export default function CalendarPage() {
     setLoading(true);
     let query = supabase
       .from("meetings")
-      .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, google_event_id, contacts(full_name)")
+      .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, google_event_id, advisor_id, contacts(full_name)")
       .eq("organization_id", organizationId)
       .order("start_at", { ascending: true });
     if (isVendor && myUserId) query = query.eq("advisor_id", myUserId);
@@ -310,6 +310,8 @@ export default function CalendarPage() {
           notes: editingMeeting.notes,
           contact_id: editingMeeting.contact_id,
           status: editingMeeting.status,
+          google_event_id: editingMeeting.google_event_id ?? null,
+          advisor_id: (editingMeeting as any).advisor_id ?? null,
         } : undefined}
       />
     </AppLayout>

@@ -27,6 +27,9 @@ interface EditingMeeting {
   contact_id: string | null;
   status: string;
   google_event_id?: string | null;
+  // Calendar owner — the Google event lives in THIS user's calendar (may
+  // differ from whoever is editing, e.g. gestor editing an advisor's meeting).
+  advisor_id?: string | null;
 }
 
 interface CreateMeetingDialogProps {
@@ -192,9 +195,15 @@ export function CreateMeetingDialog({
           await supabase.from("meetings").update(upd).eq("id", meetingId);
           toast.success(t("createMeetingDialog.alsoAddedToGoogleCalendar"), { icon: "📅" });
         }
-      } else if (isEditing && gcal.isConnected && editingMeeting?.google_event_id) {
-        // Update the existing Google Calendar event silently (don't regenerate Meet)
-        await gcal.updateEvent(editingMeeting.google_event_id, { ...gcalParams, create_meet: false });
+      } else if (isEditing && editingMeeting?.google_event_id) {
+        // Update the existing Google Calendar event silently (don't regenerate
+        // Meet). Target the ADVISOR's calendar when the editor isn't the owner
+        // — otherwise the real event never changed and the client's invite
+        // email/calendar went stale.
+        const ownerId = editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id
+          ? editingMeeting.advisor_id
+          : undefined;
+        await gcal.updateEvent(editingMeeting.google_event_id, { ...gcalParams, create_meet: false, user_id: ownerId });
       }
     }
 
@@ -250,8 +259,12 @@ export function CreateMeetingDialog({
     if (!confirm(t("createMeetingDialog.deleteConfirm"))) return;
     setDeleting(true);
     // Remove from Google Calendar first (best-effort), then from the CRM.
-    if (editingMeeting.google_event_id && gcal.isConnected) {
-      await gcal.deleteEvent(editingMeeting.google_event_id);
+    // Target the advisor's calendar when the deleter isn't the event owner.
+    if (editingMeeting.google_event_id) {
+      const ownerId = editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id
+        ? editingMeeting.advisor_id
+        : undefined;
+      await gcal.deleteEvent(editingMeeting.google_event_id, ownerId);
     }
     const { error } = await supabase.from("meetings").delete().eq("id", editingMeeting.id);
     setDeleting(false);

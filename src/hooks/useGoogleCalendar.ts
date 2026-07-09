@@ -134,7 +134,9 @@ export function useGoogleCalendar() {
   // ── Internal invoker ─────────────────────────────────────────────────────────
   const invokeCalendarFn = useCallback(
     async (body: Record<string, unknown>) => {
-      if (!isConnected) return null;
+      // When acting on ANOTHER member's calendar (body.user_id), the current
+      // user's own connection is irrelevant — the target's tokens are used.
+      if (!isConnected && !body.user_id) return null;
       const { data, error } = await supabase.functions.invoke(
         "create-calendar-event",
         { body }
@@ -180,14 +182,17 @@ export function useGoogleCalendar() {
         location?: string;
         attendee_email?: string;
         create_meet?: boolean;
+        // Calendar OWNER when it isn't the current user (e.g. a teammate
+        // editing a meeting that lives in the advisor's Google Calendar).
+        user_id?: string;
       }
     ) => invokeCalendarFn({ action: "update", google_event_id: googleEventId, ...params }),
     [invokeCalendarFn]
   );
 
   const deleteEvent = useCallback(
-    async (googleEventId: string) =>
-      invokeCalendarFn({ action: "delete", google_event_id: googleEventId }),
+    async (googleEventId: string, ownerUserId?: string) =>
+      invokeCalendarFn({ action: "delete", google_event_id: googleEventId, ...(ownerUserId ? { user_id: ownerUserId } : {}) }),
     [invokeCalendarFn]
   );
 
