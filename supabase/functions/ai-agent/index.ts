@@ -325,7 +325,7 @@ Deno.serve(async (req) => {
       contactStages = (stages as any) || [];
       // Next upcoming appointment (for reschedule/cancel)
       const { data: mtg } = await supabase.from("meetings")
-        .select("id, title, start_at, google_event_id, meeting_type")
+        .select("id, title, start_at, google_event_id, meeting_type, location_or_link")
         .eq("contact_id", contact_id).eq("status", "scheduled")
         .gt("start_at", new Date().toISOString())
         .order("start_at", { ascending: true }).limit(1).maybeSingle();
@@ -544,6 +544,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
             resultText = await rescheduleAppointment(supabase, {
               meeting: upcomingMeeting, advisorUserId: advisorUserId!, workingHours: cfg.working_hours,
               durationMin: cfg.appointment_duration_min || 30, input: b.input,
+              contact_id, attendeeEmail: contactEmailOnFile,
             });
           } else if (b.name === "cancel_appointment") {
             resultText = await cancelAppointment(supabase, { meeting: upcomingMeeting, advisorUserId: advisorUserId! });
@@ -1028,9 +1029,9 @@ async function updateLead(
 // Reschedule the contact's upcoming appointment.
 async function rescheduleAppointment(
   supabase: any,
-  args: { meeting: any; advisorUserId: string; workingHours: any; durationMin: number; input: any },
+  args: { meeting: any; advisorUserId: string; workingHours: any; durationMin: number; input: any; contact_id?: string | null; attendeeEmail?: string | null },
 ): Promise<string> {
-  const { meeting, advisorUserId, workingHours, durationMin, input } = args;
+  const { meeting, advisorUserId, workingHours, durationMin, input, contact_id, attendeeEmail } = args;
   if (!meeting) return "El cliente no tiene una cita próxima para reagendar.";
   const iso: string = input?.new_datetime_iso;
   const m = (iso || "").match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
@@ -1068,11 +1069,44 @@ async function rescheduleAppointment(
         body: JSON.stringify({
           action: "update", user_id: advisorUserId, google_event_id: meeting.google_event_id,
           title: meeting.title, start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
+          // Include the attendee so Google emails them the updated invite
+          // (without it sendUpdates=none and the lead's calendar goes stale).
+          attendee_email: attendeeEmail || undefined,
         }),
       });
     } catch (e) { console.warn("[ai-agent] reschedule gcal failed:", e); }
   }
   const when = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(startUtc);
+
+  // Fire "meeting_rescheduled" automations (e.g. WhatsApp notice with the new time).
+  if (contact_id) {
+    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full" }).format(startUtc);
+    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({
+        action: "trigger_event",
+        trigger_type: "meeting_rescheduled",
+        contact_id,
+        trigger_data: {
+          origin: "ai_agent",
+          meeting: {
+            titulo: meeting.title,
+            fecha: fmtDate,
+            hora: fmtTime,
+            fecha_hora: `${fmtDate} a las ${fmtTime}`,
+            tipo: meeting.meeting_type === "video_call" ? "videollamada" : "presencial",
+            lugar_o_link: meeting.location_or_link || "",
+          },
+        },
+      }),
+    }).catch((e) => console.warn("[ai-agent] meeting_rescheduled trigger failed:", e?.message));
+  }
+
   return `Cita reagendada correctamente para ${when}. Confírmaselo al cliente.`;
 }
 

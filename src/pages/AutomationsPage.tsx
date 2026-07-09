@@ -208,6 +208,7 @@ const TRIGGER_LABELS: Record<string, string> = {
   tag_added:               "Tag añadido",
   contact_stage_changed:   "Etapa de lead cambiada",
   meeting_scheduled:       "Cita agendada",
+  meeting_rescheduled:     "Cita reagendada",
   whatsapp_incoming:       "WhatsApp entrante",
   scheduled:               "Programado",
   contact_date:            "Fecha del contacto (cumpleaños / renovación)",

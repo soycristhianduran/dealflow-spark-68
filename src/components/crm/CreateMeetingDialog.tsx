@@ -198,14 +198,22 @@ export function CreateMeetingDialog({
       }
     }
 
-    // Fire the "meeting_scheduled" automation trigger (new meetings with a
-    // contact only) so orgs can send e.g. a WhatsApp confirmation template.
-    // Exposes {{meeting.fecha}}, {{meeting.hora}}, {{meeting.titulo}}, etc.
-    if (!error && !isEditing && payload.contact_id) {
+    // Fire meeting automations so orgs can send e.g. a WhatsApp template with
+    // {{meeting.fecha}}, {{meeting.hora}}, etc.
+    //  - create → "meeting_scheduled"
+    //  - edit that CHANGES date/time → "meeting_rescheduled" (note-only edits
+    //    don't notify anyone)
+    const dateTimeChanged = isEditing && (
+      (defaultDate && format(date, "yyyy-MM-dd") !== format(defaultDate, "yyyy-MM-dd")) ||
+      (defaultStartTime && startTime !== defaultStartTime) ||
+      (defaultEndTime && endTime !== defaultEndTime)
+    );
+    const meetingTrigger = !isEditing ? "meeting_scheduled" : dateTimeChanged ? "meeting_rescheduled" : null;
+    if (!error && payload.contact_id && meetingTrigger) {
       supabase.functions.invoke("automation-runner", {
         body: {
           action: "trigger_event",
-          trigger_type: "meeting_scheduled",
+          trigger_type: meetingTrigger,
           contact_id: payload.contact_id,
           trigger_data: {
             origin: "manual",
@@ -216,7 +224,7 @@ export function CreateMeetingDialog({
               hora_fin: endTime,
               fecha_hora: `${format(date, "EEEE d 'de' MMMM", { locale: es })} a las ${startTime}`,
               tipo: meetingType === "video_call" ? "videollamada" : meetingType === "in_person" ? "presencial" : "llamada",
-              lugar_o_link: finalLink,
+              lugar_o_link: finalLink || location.trim(),
             },
           },
         },
