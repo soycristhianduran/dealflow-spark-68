@@ -272,9 +272,17 @@ Deno.serve(async (req) => {
           }
 
           const kommoTags = (lead._embedded?.tags ?? []).map((t: any) => t.name).filter(Boolean);
-          const fullName = (lead.name && !/^\d+$/.test(lead.name.trim()) && !/^lead #/i.test(lead.name.trim()))
-            ? lead.name.trim()
-            : ([firstName, lastName].filter(Boolean).join(" ") || email || phone);
+          // Prefer the CONTACT's real name. Kommo auto-names chat leads
+          // "Facebook №…"/"WhatsApp №…" (and sometimes just the phone) — those
+          // are junk, not people. Fall back lead.name → phone/email last.
+          const isJunkName = (s: string) =>
+            !s || /^\d+$/.test(s) || /^lead\s*#/i.test(s) || /№/.test(s) ||
+            /^(facebook|whatsapp|instagram|telegram)\b/i.test(s);
+          const contactName = [firstName, lastName].filter(Boolean).join(" ").trim();
+          const leadName = (lead.name ?? "").trim();
+          const fullName = (!isJunkName(contactName) && contactName)
+            || (!isJunkName(leadName) && leadName)
+            || phone || email;
 
           const cf: Record<string, unknown> = {
             kommo_lead_id: String(lead.id),
