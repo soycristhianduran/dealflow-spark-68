@@ -60,6 +60,20 @@ function normalizeContact(data: any): any {
   return { ...data, custom_fields: flat };
 }
 
+// Human-readable Spanish labels for raw meeting enums (stored in English).
+const MEETING_STATUS_ES: Record<string, string> = {
+  scheduled: "Programada",
+  confirmed: "Confirmada",
+  completed: "Completada",
+  cancelled: "Cancelada",
+  no_show: "No asistió",
+};
+const MEETING_TYPE_ES: Record<string, string> = {
+  video_call: "Videollamada",
+  in_person: "Presencial",
+  phone_call: "Llamada",
+};
+
 export default function ContactDetailPage() {
   const { t } = useTranslation();
   const { id } = useParams();
@@ -74,6 +88,7 @@ export default function ContactDetailPage() {
   const [meetings, setMeetings] = useState<any[]>([]);
   const [activities, setActivities] = useState<any[]>([]);
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+  const [editingMeeting, setEditingMeeting] = useState<any | null>(null);
   const [editingContact, setEditingContact] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
   const [editForm, setEditForm] = useState<{
@@ -1238,15 +1253,22 @@ export default function ContactDetailPage() {
 
               <TabsContent value="meetings" className="mt-4 space-y-3">
                 {meetings.length > 0 ? meetings.map(meeting => (
-                  <Card key={meeting.id} className="border shadow-sm">
+                  <Card
+                    key={meeting.id}
+                    className="border shadow-sm cursor-pointer transition-shadow hover:shadow-md hover:border-primary/40"
+                    onClick={() => { setEditingMeeting(meeting); setMeetingDialogOpen(true); }}
+                  >
                     <CardContent className="p-4">
-                      <p className="text-sm font-medium text-foreground">{meeting.title}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-medium text-foreground">{meeting.title}</p>
+                        <span className="text-xs text-muted-foreground shrink-0">{t("contactDetailPage.editMeetingHint")}</span>
+                      </div>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(meeting.start_at).toLocaleString()} - {new Date(meeting.end_at).toLocaleTimeString()}
+                        {new Date(meeting.start_at).toLocaleString("es", { dateStyle: "full", timeStyle: "short" })} – {new Date(meeting.end_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}
                       </p>
                       <div className="flex gap-2 mt-2">
-                        <Badge variant="outline" className="text-xs">{meeting.status}</Badge>
-                        {meeting.meeting_type && <Badge variant="secondary" className="text-xs">{meeting.meeting_type}</Badge>}
+                        <Badge variant="outline" className="text-xs">{MEETING_STATUS_ES[meeting.status] || meeting.status}</Badge>
+                        {meeting.meeting_type && <Badge variant="secondary" className="text-xs">{MEETING_TYPE_ES[meeting.meeting_type] || meeting.meeting_type}</Badge>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1265,9 +1287,23 @@ export default function ContactDetailPage() {
 
       <CreateMeetingDialog
         open={meetingDialogOpen}
-        onOpenChange={setMeetingDialogOpen}
+        onOpenChange={(o) => { setMeetingDialogOpen(o); if (!o) setEditingMeeting(null); }}
         onCreated={fetchRelated}
         defaultContactId={id}
+        defaultDate={editingMeeting ? new Date(editingMeeting.start_at) : undefined}
+        defaultStartTime={editingMeeting ? new Date(editingMeeting.start_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: false }) : undefined}
+        defaultEndTime={editingMeeting ? new Date(editingMeeting.end_at).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit", hour12: false }) : undefined}
+        editingMeeting={editingMeeting ? {
+          id: editingMeeting.id,
+          title: editingMeeting.title,
+          meeting_type: editingMeeting.meeting_type,
+          location_or_link: editingMeeting.location_or_link,
+          notes: editingMeeting.notes,
+          contact_id: editingMeeting.contact_id,
+          status: editingMeeting.status,
+          google_event_id: editingMeeting.google_event_id ?? null,
+          advisor_id: editingMeeting.advisor_id ?? null,
+        } : undefined}
       />
 
       <AdPreviewDialog

@@ -1782,6 +1782,7 @@
     "nextAction": "Próxima acción",
     "noTasksTitle": "Sin tareas asociadas",
     "noTasksDesc": "Las tareas que crees para este contacto (follow-up, llamada, etc.) aparecerán aquí.",
+    "editMeetingHint": "Editar ✎",
     "noMeetingsTitle": "Sin citas asociadas",
     "noMeetingsDesc": "Agenda una llamada o reunión con este contacto desde el botón 'Agendar' arriba.",
     "markAsWon": "Marcar como ganado",

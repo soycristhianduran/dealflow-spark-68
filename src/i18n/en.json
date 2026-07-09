@@ -1782,6 +1782,7 @@
     "nextAction": "Next action",
     "noTasksTitle": "No associated tasks",
     "noTasksDesc": "Tasks you create for this contact (follow-up, call, etc.) will appear here.",
+    "editMeetingHint": "Edit ✎",
     "noMeetingsTitle": "No associated meetings",
     "noMeetingsDesc": "Schedule a call or meeting with this contact using the 'Schedule' button above.",
     "markAsWon": "Mark as won",
