@@ -56,6 +56,7 @@ const FIELD_OPTIONS = [
   { value: "city", labelKey: "fieldCity" },
   { value: "country", labelKey: "fieldCountry" },
   { value: "preferred_channel", labelKey: "fieldPreferredChannel" },
+  { value: "budget", labelKey: "fieldBudget" },
   { value: "score", labelKey: "fieldCrmActivity" },
 ];
 
@@ -894,7 +895,7 @@ export default function ContactsPage() {
   const handleBulkFieldChange = async () => {
     if (!fieldName || !fieldValue.trim()) { toast.error(t("contactsPage.selectFieldAndValue")); return; }
     setBulkWorking(true);
-    const value = fieldName === "score" ? Number(fieldValue) : fieldValue.trim();
+    const value = (fieldName === "score" || fieldName === "budget") ? Number(fieldValue) : fieldValue.trim();
     for (const part of chunkIds([...selected])) {
       const { error } = await supabase.from("contacts").update({ [fieldName]: value }).in("id", part);
       if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
@@ -1887,12 +1888,12 @@ export default function ContactsPage() {
                   </Select>
                 ) : (
                   <Input
-                    type={fieldName === "score" ? "number" : "text"}
-                    min={fieldName === "score" ? 0 : undefined}
+                    type={fieldName === "score" || fieldName === "budget" ? "number" : "text"}
+                    min={fieldName === "score" ? 0 : fieldName === "budget" ? 0 : undefined}
                     max={fieldName === "score" ? 100 : undefined}
                     value={fieldValue}
                     onChange={e => setFieldValue(e.target.value)}
-                    placeholder={fieldName === "score" ? "0 – 100" : t("contactsPage.newValue")}
+                    placeholder={fieldName === "score" ? "0 – 100" : fieldName === "budget" ? "Ej: 44" : t("contactsPage.newValue")}
                     className="mt-1"
                   />
                 )}

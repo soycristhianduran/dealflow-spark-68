@@ -703,6 +703,7 @@
     "fieldCity": "City",
     "fieldCountry": "Country",
     "fieldPreferredChannel": "Preferred channel",
+    "fieldBudget": "Budget",
     "fieldCrmActivity": "CRM activity",
     "colPhone": "Phone",
     "colEmail": "Email",
