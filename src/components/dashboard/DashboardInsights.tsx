@@ -309,7 +309,7 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
 
       // Resolve advisor names (owner view)
       if (isOwner) {
-        const { data: members } = await supabase.functions.invoke("org-invitations", { body: { action: "list_members" } });
+        const { data: members } = await supabase.functions.invoke("org-invitations", { body: { action: "list_members", organization_id: organizationId } });
         const map: Record<string, string> = {};
         for (const m of (members?.members || [])) map[m.user_id] = m.full_name || m.email || "—";
         setVendorNames(map);

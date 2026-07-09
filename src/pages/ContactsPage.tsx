@@ -423,7 +423,7 @@ export default function ContactsPage() {
   // Fetch team members via edge function (bypasses RLS on profiles table).
   // Used for: owner filter dropdown, reassign dialog, Vendedor column display.
   useEffect(() => {
-    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members", organization_id: organizationId } })
       .then(({ data }) => {
         if (data?.members) {
           const list = (data.members as { user_id: string; full_name?: string; email?: string }[]).map(m => ({

@@ -224,7 +224,7 @@ export default function SettingsPage() {
     setTeamLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "list_members" },
+        body: { action: "list_members", organization_id: organizationId },
       });
       if (error) throw error;
       if (data?.members) setMembers(data.members);

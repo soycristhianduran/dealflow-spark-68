@@ -345,23 +345,30 @@ Deno.serve(async (req) => {
 
   // ── List members ───────────────────────────────────────────────────────────
   if (action === "list_members") {
-    const { data: membership } = await supabase
+    // Resolve the ACTIVE workspace: callers pass organization_id and we verify
+    // the caller belongs to it. Without this, multi-org users (gestor) got
+    // .single() errors (several memberships) or ANOTHER org's member list.
+    let orgId: string | null = body.organization_id ?? null;
+    const { data: myMemberships } = await supabase
       .from("organization_members")
       .select("organization_id")
-      .eq("user_id", user.id)
-      .single();
-
-    if (!membership) return new Response(JSON.stringify({ members: [], invitations: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      .eq("user_id", user.id);
+    const myOrgIds = new Set((myMemberships ?? []).map((m: any) => m.organization_id));
+    if (orgId && !myOrgIds.has(orgId)) {
+      return new Response(JSON.stringify({ error: "No perteneces a esa organización" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    if (!orgId) orgId = (myMemberships?.[0]?.organization_id as string) ?? null; // legacy single-org fallback
+    if (!orgId) return new Response(JSON.stringify({ members: [], invitations: [] }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const { data: members } = await supabase
       .from("organization_members")
       .select("id, role, created_at, user_id")
-      .eq("organization_id", membership.organization_id);
+      .eq("organization_id", orgId);
 
     const { data: invitations } = await supabase
       .from("organization_invitations")
       .select("id, email, role, created_at, expires_at, accepted_at")
-      .eq("organization_id", membership.organization_id)
+      .eq("organization_id", orgId)
       .is("accepted_at", null)
       .gt("expires_at", new Date().toISOString());
 

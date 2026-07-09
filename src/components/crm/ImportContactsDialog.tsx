@@ -145,7 +145,7 @@ export function ImportContactsDialog({ open, onOpenChange, onImported }: {
       .then(({ data }) => { setPipelines(data || []); if (data?.[0] && !pipelineId) setPipelineId(data[0].id); });
     supabase.from("pipeline_stages").select("id, name, pipeline_id").eq("organization_id", organizationId).order("order")
       .then(({ data }) => setStages(data || []));
-    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members", organization_id: organizationId } })
       .then(({ data }) => {
         const list = (data?.members as { user_id: string; full_name?: string; email?: string }[] | undefined) || [];
         setMembers(list.map(m => ({ user_id: m.user_id, name: m.full_name || m.email || "Sin nombre" })));

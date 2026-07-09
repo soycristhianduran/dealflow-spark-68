@@ -320,7 +320,7 @@ export default function PipelinePage() {
   // already see just their own leads).
   useEffect(() => {
     if (!isOwnerOrAdmin) return;
-    supabase.functions.invoke("org-invitations", { body: { action: "list_members" } })
+    supabase.functions.invoke("org-invitations", { body: { action: "list_members", organization_id: organizationId } })
       .then(({ data }) => {
         if (data?.members) {
           setMembers((data.members as { user_id: string; full_name?: string; email?: string }[]).map(m => ({
