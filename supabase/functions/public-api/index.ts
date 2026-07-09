@@ -345,14 +345,24 @@ Deno.serve(async (req) => {
     // Default source to "api" if not provided
     if (!fields.source) fields.source = "api";
 
-    // full_name is NOT NULL — always compute it
-    if (!fields.full_name) {
+    // full_name is NOT NULL — always compute it. Callers sometimes map
+    // full_name to the EMAIL/PHONE while sending the real name in
+    // first_name — a junk-looking full_name never wins over a real name.
+    {
       const first = (fields.first_name as string) || "";
       const last = (fields.last_name as string) || "";
-      fields.full_name = [first, last].filter(Boolean).join(" ")
-        || (fields.primary_email as string)
-        || (fields.primary_phone as string)
-        || "Sin nombre";
+      const composed = [first, last].filter(Boolean).join(" ").trim();
+      const fn = (fields.full_name as string) || "";
+      const junk = !fn
+        || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fn.trim())        // an email
+        || /^\+?[\d\s().-]{7,}$/.test(fn.trim());               // a phone
+      if (junk) {
+        fields.full_name = composed
+          || fn
+          || (fields.primary_email as string)
+          || (fields.primary_phone as string)
+          || "Sin nombre";
+      }
     }
 
     // Match an existing lead by NORMALIZED phone (digits-only) or email so the
@@ -426,15 +436,22 @@ Deno.serve(async (req) => {
 
     // Keep full_name in sync: a PATCH that adds/changes first/last name must
     // recompute it, otherwise leads created with only an email keep the email
-    // as their display name forever.
-    if (!updateFields.full_name && (updateFields.first_name || updateFields.last_name)) {
-      const { data: cur } = await admin
-        .from("contacts").select("first_name, last_name")
-        .eq("id", resourceId).maybeSingle();
-      const first = (updateFields.first_name as string) ?? cur?.first_name ?? "";
-      const last = (updateFields.last_name as string) ?? cur?.last_name ?? "";
-      const composed = [first, last].filter(Boolean).join(" ").trim();
-      if (composed) updateFields.full_name = composed;
+    // as their display name forever. A junk full_name (email/phone mapped by
+    // the caller) never wins over a real name either.
+    {
+      const fn = (updateFields.full_name as string) || "";
+      const fnJunk = !!fn && (
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fn.trim()) ||
+        /^\+?[\d\s().-]{7,}$/.test(fn.trim()));
+      if ((!updateFields.full_name || fnJunk) && (updateFields.first_name || updateFields.last_name)) {
+        const { data: cur } = await admin
+          .from("contacts").select("first_name, last_name")
+          .eq("id", resourceId).maybeSingle();
+        const first = (updateFields.first_name as string) ?? cur?.first_name ?? "";
+        const last = (updateFields.last_name as string) ?? cur?.last_name ?? "";
+        const composed = [first, last].filter(Boolean).join(" ").trim();
+        if (composed) updateFields.full_name = composed;
+      }
     }
 
     const { data, error } = await admin
