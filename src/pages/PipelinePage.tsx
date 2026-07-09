@@ -129,6 +129,11 @@ export default function PipelinePage() {
   // Rendering 10k+ DOM cards froze the board after large migrations.
   const CARDS_PER_COLUMN = 50;
   const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
+  // Two-phase load: a light server snapshot (top 50/column + exact per-stage
+  // count/sum aggregates) paints the board instantly; the full contact set
+  // streams in the background for filters/search/drag beyond the top cards.
+  const [stageAggs, setStageAggs] = useState<Record<string, { n: number; total: number }>>({});
+  const [fullLoaded, setFullLoaded] = useState(false);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
   const [dragOverStageCol, setDragOverStageCol] = useState<string | null>(null);
@@ -254,12 +259,32 @@ export default function PipelinePage() {
       return results.flatMap(r => r.data ?? []);
     };
 
-    const [{ data: stagesData }, contactsData] = await Promise.all([
+    // Phase 1 — instant paint: stages + light snapshot (top 50 per column and
+    // exact per-stage count/sum computed in the DB).
+    const [{ data: stagesData }, { data: snap }] = await Promise.all([
       supabase.from("pipeline_stages").select("*").eq("pipeline_id", pid).order("order", { ascending: true }),
-      fetchAllContacts(),
+      supabase.rpc("pipeline_board_snapshot", {
+        p_pipeline: pid,
+        p_limit: CARDS_PER_COLUMN,
+        p_owner: isVendor && myUserId ? myUserId : null,
+        p_setter: isSetter && myUserId ? myUserId : null,
+      }),
     ]);
     setStages(stagesData || []);
-    setContacts(contactsData || []);
+    if (snap?.top) {
+      const aggs: Record<string, { n: number; total: number }> = {};
+      for (const a of snap.aggregates ?? []) aggs[a.stage_id] = { n: Number(a.n), total: Number(a.total_budget) };
+      setStageAggs(aggs);
+      setFullLoaded(false);
+      setContacts(snap.top);
+    }
+
+    // Phase 2 — stream the full set in the background (filters/search/drag
+    // beyond the top cards). Replaces the snapshot when it lands.
+    fetchAllContacts().then((all) => {
+      setContacts(all);
+      setFullLoaded(true);
+    }).catch(() => { /* snapshot keeps the board usable */ });
   }, [isVendor, isSetter, myUserId]);
 
   const fetchData = useCallback(async () => {
@@ -606,8 +631,15 @@ export default function PipelinePage() {
     [contacts],
   );
 
+  // Until the full set streams in (and no client filters are active), the
+  // exact count/sum come from the server snapshot aggregates.
+  const useAggs = !fullLoaded && activeFilterCount === 0;
   const getStageValue = (stageId: string) =>
-    filteredContacts.filter(c => c.stage_id === stageId).reduce((sum, c) => sum + Number(c.budget || 0), 0);
+    useAggs && stageAggs[stageId]
+      ? stageAggs[stageId].total
+      : filteredContacts.filter(c => c.stage_id === stageId).reduce((sum, c) => sum + Number(c.budget || 0), 0);
+  const getStageCount = (stageId: string, loadedCount: number) =>
+    useAggs && stageAggs[stageId] ? stageAggs[stageId].n : loadedCount;
 
   // Stage CRUD
   const openAddStage = () => {
@@ -962,7 +994,7 @@ export default function PipelinePage() {
                         : <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: stage.color }} />}
                       <span className="text-sm font-semibold text-foreground truncate">{stage.name}</span>
                       <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-muted text-xs font-medium text-muted-foreground shrink-0">
-                        {stageContacts.length}
+                        {getStageCount(stage.id, stageContacts.length)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
