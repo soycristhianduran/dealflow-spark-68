@@ -125,6 +125,10 @@ export default function PipelinePage() {
   // per mount — a dependency loop was inserting it repeatedly (blinking).
   const autoCreatingRef = useRef(false);
   const [draggedContact, setDraggedContact] = useState<string | null>(null);
+  // Cards RENDERED per column (data/filters/sums still use the full set).
+  // Rendering 10k+ DOM cards froze the board after large migrations.
+  const CARDS_PER_COLUMN = 50;
+  const [visibleByStage, setVisibleByStage] = useState<Record<string, number>>({});
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
   const [draggedStageId, setDraggedStageId] = useState<string | null>(null);
   const [dragOverStageCol, setDragOverStageCol] = useState<string | null>(null);
@@ -223,24 +227,31 @@ export default function PipelinePage() {
   }, [organizationId]);
 
   const fetchStagesAndContacts = useCallback(async (pid: string) => {
-    // Paginate past Supabase's 1,000-row default cap so the board shows ALL leads.
+    // Paginate past Supabase's 1,000-row default cap so the board shows ALL
+    // leads — pages fetched in PARALLEL (post-migration boards hold 10k+
+    // contacts; serial paging made the kanban take many seconds to appear).
     const fetchAllContacts = async (): Promise<any[]> => {
-      const all: any[] = [];
       const PAGE = 1000;
-      for (let from = 0; ; from += PAGE) {
+      const baseQuery = () => {
         let q = supabase.from("contacts")
           .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status, owner_id, source, tags, created_at")
           .eq("pipeline_id", pid)
-          .order("created_at", { ascending: false })
-          .range(from, from + PAGE - 1);
+          .order("created_at", { ascending: false });
         if (isSetter && myUserId) q = q.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
         else if (isVendor && myUserId) q = q.eq("owner_id", myUserId);
-        const { data } = await q;
-        if (!data?.length) break;
-        all.push(...data);
-        if (data.length < PAGE) break;
-      }
-      return all;
+        return q;
+      };
+      let countQ = supabase.from("contacts").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
+      if (isSetter && myUserId) countQ = countQ.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
+      else if (isVendor && myUserId) countQ = countQ.eq("owner_id", myUserId);
+      const { count } = await countQ;
+      const total = count ?? 0;
+      if (!total) return [];
+      const pages = Math.ceil(total / PAGE);
+      const results = await Promise.all(
+        Array.from({ length: pages }, (_, i) => baseQuery().range(i * PAGE, i * PAGE + PAGE - 1)),
+      );
+      return results.flatMap(r => r.data ?? []);
     };
 
     const [{ data: stagesData }, contactsData] = await Promise.all([
@@ -1004,7 +1015,7 @@ export default function PipelinePage() {
 
                   {/* Cards */}
                   <div className="flex-1 space-y-2 p-2 overflow-y-auto scrollbar-thin">
-                    {stageContacts.map((contact) => (
+                    {stageContacts.slice(0, visibleByStage[stage.id] ?? CARDS_PER_COLUMN).map((contact) => (
                       <div
                         key={contact.id}
                         draggable={!manageMode && canEditContacts}
@@ -1053,6 +1064,17 @@ export default function PipelinePage() {
                         )}
                       </div>
                     ))}
+                    {stageContacts.length > (visibleByStage[stage.id] ?? CARDS_PER_COLUMN) && (
+                      <button
+                        onClick={() => setVisibleByStage(prev => ({
+                          ...prev,
+                          [stage.id]: (prev[stage.id] ?? CARDS_PER_COLUMN) + 100,
+                        }))}
+                        className="w-full rounded-lg border border-dashed py-2 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+                      >
+                        Mostrar más ({(visibleByStage[stage.id] ?? CARDS_PER_COLUMN)} de {stageContacts.length})
+                      </button>
+                    )}
                     {stageContacts.length === 0 && (
                       <p className="text-xs text-muted-foreground text-center py-6">{t("pipelinePage.noLeads")}</p>
                     )}
