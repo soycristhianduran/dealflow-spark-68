@@ -613,25 +613,19 @@ export default function ContactsPage() {
   };
 
   const handleBulkReassign = async () => {
-    if (!selectedOwner) return;
+    if (!selectedOwner || !organizationId) return;
     setBulkWorking(true);
-    const batches = chunkIds([...selected]);
-
-    for (const part of batches) {
-      // 1. Update contact owner
-      const { error } = await supabase.from("contacts").update({ owner_id: selectedOwner }).in("id", part);
+    // Single transactional RPC: reassigns contacts + WhatsApp history + IG
+    // conversations/messages in ONE round-trip. The old per-batch loop made
+    // 4 sequential HTTP calls per 100 leads (minutes on 10k selections).
+    const ids = [...selected];
+    for (let i = 0; i < ids.length; i += 5000) { // chunk only to keep payloads modest
+      const { error } = await supabase.rpc("bulk_reassign_contacts", {
+        p_org: organizationId,
+        p_ids: ids.slice(i, i + 5000),
+        p_owner: selectedOwner,
+      });
       if (error) { toast.error(t("contactsPage.genericError", { message: error.message })); setBulkWorking(false); return; }
-      // 2. Migrate WhatsApp message history to the new owner
-      await supabase.from("whatsapp_messages").update({ user_id: selectedOwner }).in("contact_id", part);
-      // 3. Migrate Instagram conversations + their messages
-      const { data: igConvs } = await supabase.from("instagram_conversations").select("id").in("contact_id", part);
-      if (igConvs?.length) {
-        const convIds = igConvs.map((c: any) => c.id);
-        for (const cpart of chunkIds(convIds)) {
-          await supabase.from("instagram_conversations").update({ user_id: selectedOwner }).in("id", cpart);
-          await supabase.from("instagram_messages").update({ user_id: selectedOwner }).in("conversation_id", cpart);
-        }
-      }
     }
 
     setReassignOpen(false);
