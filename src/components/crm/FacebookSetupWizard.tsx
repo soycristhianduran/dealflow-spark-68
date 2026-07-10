@@ -38,6 +38,7 @@ const STANDARD_CONTACT_FIELDS = [
   { value: "city", label: "Ciudad" },
   { value: "country", label: "País" },
   { value: "language", label: "Idioma" },
+  { value: "budget", label: "Presupuesto" },
   { value: "notes", label: "Notas" },
   { value: "utm_source", label: "UTM Source" },
   { value: "utm_medium", label: "UTM Medium" },

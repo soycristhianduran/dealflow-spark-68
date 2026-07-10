@@ -79,7 +79,31 @@ const STANDARD_COLUMNS = new Set([
   "birthday", "city", "country", "language", "timezone",
   "preferred_channel", "notes", "source", "campaign", "adset", "ad",
   "landing_page", "utm_source", "utm_medium", "utm_campaign", "utm_content",
+  "budget",
 ]);
+
+// Meta budget answers arrive as free text or ranges ("$1.000.000 - $2.000.000",
+// "entre 2 y 3 millones"). Extract the first amount as a number; return null
+// when nothing numeric is found so we never write garbage into a numeric column.
+function parseBudget(raw: string): number | null {
+  const text = raw.toLowerCase();
+  const m = text.replace(/[$\s]/g, "").match(/\d[\d.,]*/);
+  if (!m) return null;
+  let numStr = m[0];
+  // "1.000.000" / "1,000,000" thousand separators vs "1.5" decimal: if the last
+  // group after a separator has 3 digits, treat separators as thousands.
+  const lastSep = Math.max(numStr.lastIndexOf("."), numStr.lastIndexOf(","));
+  if (lastSep !== -1 && numStr.length - lastSep - 1 === 3) {
+    numStr = numStr.replace(/[.,]/g, "");
+  } else {
+    numStr = numStr.replace(/,/g, ".").replace(/\.(?=.*\.)/g, "");
+  }
+  let value = parseFloat(numStr);
+  if (!isFinite(value)) return null;
+  if (/millón|millon|million/.test(text) && value < 1000) value = value * 1_000_000;
+  else if (/\bmil\b|\bk\b/.test(text) && value < 1000) value = value * 1_000;
+  return value > 0 ? value : null;
+}
 
 async function verifySignature(rawBody: string, signatureHeader: string | null, appSecret: string): Promise<boolean> {
   if (!signatureHeader || !signatureHeader.startsWith("sha256=")) return false;
@@ -286,6 +310,12 @@ async function processLeadgenChange(
       if (!value) continue;
       if (mapping.is_custom_field) {
         customFields[mapping.contact_field] = value;
+      } else if (mapping.contact_field === "budget") {
+        // Numeric column: parse the answer; keep the raw text in custom_fields
+        // so the original range ("2 a 3 millones") is never lost.
+        const parsed = parseBudget(value);
+        if (parsed !== null) contactData.budget = parsed;
+        customFields["presupuesto_original"] = value;
       } else if (STANDARD_COLUMNS.has(mapping.contact_field)) {
         contactData[mapping.contact_field] = value;
       }
