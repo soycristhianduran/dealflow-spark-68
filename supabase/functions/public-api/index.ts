@@ -437,20 +437,25 @@ Deno.serve(async (req) => {
     // Keep full_name in sync: a PATCH that adds/changes first/last name must
     // recompute it, otherwise leads created with only an email keep the email
     // as their display name forever. A junk full_name (email/phone mapped by
-    // the caller) never wins over a real name either.
+    // the caller) NEVER wins over a real name — even when the patch carries
+    // no name fields at all (it must not overwrite a good stored name).
     {
+      const isJunk = (s: string) => !!s && (
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) ||
+        /^\+?[\d\s().-]{7,}$/.test(s.trim()));
       const fn = (updateFields.full_name as string) || "";
-      const fnJunk = !!fn && (
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fn.trim()) ||
-        /^\+?[\d\s().-]{7,}$/.test(fn.trim()));
-      if ((!updateFields.full_name || fnJunk) && (updateFields.first_name || updateFields.last_name)) {
+      const namesInPatch = !!(updateFields.first_name || updateFields.last_name);
+      if (!fn ? namesInPatch : isJunk(fn)) {
         const { data: cur } = await admin
-          .from("contacts").select("first_name, last_name")
+          .from("contacts").select("first_name, last_name, full_name")
           .eq("id", resourceId).maybeSingle();
         const first = (updateFields.first_name as string) ?? cur?.first_name ?? "";
         const last = (updateFields.last_name as string) ?? cur?.last_name ?? "";
         const composed = [first, last].filter(Boolean).join(" ").trim();
-        if (composed) updateFields.full_name = composed;
+        if (composed && !isJunk(composed)) updateFields.full_name = composed;
+        else if (isJunk(fn) && cur?.full_name && !isJunk(cur.full_name)) {
+          delete updateFields.full_name; // keep the good stored name
+        }
       }
     }
 
