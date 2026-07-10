@@ -407,7 +407,7 @@
     "generate": "Generate",
     "funnelNameLabel": "Funnel name",
     "funnelNamePlaceholder": "e.g. May Webinar, Product Launch...",
-    "funnelHint": "Group several pages within a single funnel (main, thank you, upsell…)",
+    "funnelHint": "Each % is the stage's share of total leads.",
     "cancel": "Cancel",
     "createFunnel": "Create funnel",
     "inFunnel": "in {{name}}",

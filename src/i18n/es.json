@@ -3004,7 +3004,7 @@
     "noStagesInPipeline": "Sin etapas en este pipeline.",
     "conversion": "Conversión",
     "gaugeSub": "{{last}} de {{first}}",
-    "funnelHint": "El % es la conversión desde la etapa anterior.",
+    "funnelHint": "El % es la participación de cada etapa sobre el total de leads.",
     "byAdvisor": "Por vendedor",
     "noLeadsAssignedAdvisors": "Aún no hay leads asignados a vendedores.",
     "advisor": "Vendedor",

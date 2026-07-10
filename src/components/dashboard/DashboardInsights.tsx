@@ -485,26 +485,29 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
             {(() => {
               const fn = data.funnels[pipelineIdx];
               if (!fn || fn.stages.length === 0) return <p className="text-sm text-muted-foreground py-4 text-center">{t("dashboardInsights.noStagesInPipeline")}</p>;
-              const first = fn.stages[0]?.count || 0;
-              const last = fn.stages[fn.stages.length - 1]?.count || 0;
-              const overall = first > 0 ? (last / first) * 100 : 0;
+              // Real funnel math: stage counts are CURRENT leads per stage, so
+              // "conversion from the previous stage" produces nonsense (2043%).
+              // Overall conversion = WON / total leads in the funnel, and each
+              // stage shows its share of the total.
+              const total = fn.stages.reduce((sum, s) => sum + (s.count || 0), 0);
+              const won = fn.stages.filter(s => /ganad/i.test(s.name)).reduce((sum, s) => sum + (s.count || 0), 0);
+              const overall = total > 0 ? (won / total) * 100 : 0;
               return (<>
                 <div className="flex items-center justify-center pb-3">
-                  <RadialGauge value={overall} label={t("dashboardInsights.conversion")} sub={t("dashboardInsights.gaugeSub", { last, first })} />
+                  <RadialGauge value={overall} label={t("dashboardInsights.conversion")} sub={t("dashboardInsights.gaugeSub", { last: won, first: total })} />
                 </div>
                 {fn.stages.map((s, i) => {
-                const prev = i > 0 ? fn.stages[i - 1].count : null;
-                const conv = prev && prev > 0 ? Math.round((s.count / prev) * 100) : null;
+                const pct = total > 0 ? Math.round(((s.count || 0) / total) * 100) : 0;
+                const isWon = /ganad/i.test(s.name);
+                const isLost = /perdid/i.test(s.name);
                 return (
                   <div key={s.name + i} className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: s.color || "#94a3b8" }} />
                     <span className="text-xs flex-1 truncate">{s.name}</span>
-                    <span className="text-xs font-semibold tabular-nums">{s.count}</span>
-                    {conv !== null && (
-                      <span className={`text-[10px] tabular-nums w-12 text-right ${conv >= 50 ? "text-emerald-600" : conv >= 25 ? "text-amber-600" : "text-red-500"}`}>
-                        {conv}%
-                      </span>
-                    )}
+                    <span className="text-xs font-semibold tabular-nums w-12 text-right">{(s.count || 0).toLocaleString()}</span>
+                    <span className={`text-[10px] tabular-nums w-10 text-right ${isWon ? "text-emerald-600 font-semibold" : isLost ? "text-red-500" : "text-muted-foreground"}`}>
+                      {pct}%
+                    </span>
                   </div>
                 );
               })}
