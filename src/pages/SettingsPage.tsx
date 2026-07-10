@@ -245,7 +245,7 @@ export default function SettingsPage() {
     setInviting(true);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "invite", email: inviteEmail.trim(), role: inviteRole },
+        body: { action: "invite", organization_id: organizationId, email: inviteEmail.trim(), role: inviteRole },
       });
       // Prefer the specific error message from the function body over the generic HTTP error
       if (data?.error) throw new Error(data.error);
@@ -266,7 +266,7 @@ export default function SettingsPage() {
     setUpdatingRoleFor(memberUserId);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "update_role", member_user_id: memberUserId, new_role: newRole },
+        body: { action: "update_role", organization_id: organizationId, member_user_id: memberUserId, new_role: newRole },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -283,7 +283,7 @@ export default function SettingsPage() {
     setResendingInvite(invitationId);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "resend_invitation", invitation_id: invitationId },
+        body: { action: "resend_invitation", organization_id: organizationId, invitation_id: invitationId },
       });
       if (data?.error) throw new Error(data.error);
       if (error) throw error;
@@ -300,7 +300,7 @@ export default function SettingsPage() {
     setCancelingInvite(invitationId);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "cancel_invitation", invitation_id: invitationId },
+        body: { action: "cancel_invitation", organization_id: organizationId, invitation_id: invitationId },
       });
       if (data?.error) throw new Error(data.error);
       if (error) throw error;
@@ -317,7 +317,7 @@ export default function SettingsPage() {
     setRemovingMember(memberUserId);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "remove_member", member_user_id: memberUserId },
+        body: { action: "remove_member", organization_id: organizationId, member_user_id: memberUserId },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
@@ -397,7 +397,7 @@ export default function SettingsPage() {
   const handleSaveGeneral = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "save_general", name: orgName.trim() || undefined, timezone, default_currency: currency },
+        body: { action: "save_general", organization_id: organizationId, name: orgName.trim() || undefined, timezone, default_currency: currency },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success(t("settingsPage.settingsSaved"));
@@ -411,7 +411,7 @@ export default function SettingsPage() {
     setSlugSaving(true);
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "save_slug", slug: slugInput },
+        body: { action: "save_slug", organization_id: organizationId, slug: slugInput },
       });
       if (error) throw error;
       if (data?.error) {

@@ -93,6 +93,28 @@ function brandedInviteEmail(opts: {
 const ok = (data: any) => new Response(JSON.stringify(data), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 const err = (msg: string) => new Response(JSON.stringify({ error: msg }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+// Roles that may manage the team and org settings. 'gestor' is a non-billable
+// technical manager with owner-equivalent management powers (never billing).
+const MANAGER_ROLES = ["owner", "admin", "gestor"];
+
+// Resolve which org a management action targets. Multi-org users (gestores)
+// MUST send body.organization_id — deriving the org from the caller's first
+// membership caused cross-org mutations. Single-org users may omit it.
+// Returns the caller's membership { organization_id, role } in that org,
+// or null when the caller has no manager role there / the target is ambiguous.
+async function resolveManagedOrg(supabase: any, userId: string, requestedOrgId?: string) {
+  let q = supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", userId)
+    .in("role", MANAGER_ROLES);
+  if (requestedOrgId) q = q.eq("organization_id", requestedOrgId);
+  const { data: memberships } = await q;
+  if (!memberships?.length) return null;
+  if (memberships.length > 1) return null; // multi-org sin organization_id explícita: ambiguo
+  return memberships[0] as { organization_id: string; role: string };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -195,20 +217,10 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Rol inválido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get user's organization — fetch any role, then check permission in code
-    const { data: membership, error: memErr } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    console.log("membership lookup:", JSON.stringify({ membership, memErr, userId: user.id }));
+    const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
 
     if (!membership) {
-      return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
-    if (!["owner", "admin"].includes(membership.role)) {
-      return new Response(JSON.stringify({ error: `Sin permisos (rol actual: ${membership.role})` }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ error: "Sin permisos en esta organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const orgId = membership.organization_id;
@@ -395,12 +407,7 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Parámetros inválidos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    const { data: myMembership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .in("role", ["owner", "admin"])
-      .single();
+    const myMembership = await resolveManagedOrg(supabase, user.id, body.organization_id);
 
     if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes cambiar tu propio rol" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
@@ -430,15 +437,19 @@ Deno.serve(async (req) => {
   if (action === "remove_member") {
     const { member_user_id } = body;
 
-    const { data: myMembership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .in("role", ["owner", "admin"])
-      .single();
+    const myMembership = await resolveManagedOrg(supabase, user.id, body.organization_id);
 
     if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     if (member_user_id === user.id) return new Response(JSON.stringify({ error: "No puedes removerte a ti mismo" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+    const { data: targetMember } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("organization_id", myMembership.organization_id)
+      .eq("user_id", member_user_id)
+      .maybeSingle();
+    if (!targetMember) return new Response(JSON.stringify({ error: "Miembro no encontrado" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (targetMember.role === "owner") return new Response(JSON.stringify({ error: "No puedes remover al propietario" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     await supabase.from("organization_members")
       .delete()
@@ -475,14 +486,8 @@ Deno.serve(async (req) => {
     const { invitation_id } = body;
     if (!invitation_id) return err("invitation_id requerido");
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!membership) return err("No perteneces a ninguna organización");
-    if (!["owner", "admin"].includes(membership.role)) return err("Sin permisos");
+    const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
+    if (!membership) return err("Sin permisos");
 
     const { data: invitation } = await supabase
       .from("organization_invitations")
@@ -535,14 +540,8 @@ Deno.serve(async (req) => {
     const { invitation_id } = body;
     if (!invitation_id) return err("invitation_id requerido");
 
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!membership) return err("No perteneces a ninguna organización");
-    if (!["owner", "admin"].includes(membership.role)) return err("Sin permisos");
+    const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
+    if (!membership) return err("Sin permisos");
 
     const { error: delErr } = await supabase
       .from("organization_invitations")
@@ -559,17 +558,8 @@ Deno.serve(async (req) => {
   // ── Save general org settings (name, timezone) ────────────────────────────
   if (action === "save_general") {
     const { name, timezone, default_currency } = body;
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    // Only owner/admin may change org settings.
-    if (!["owner", "admin"].includes(membership.role)) {
-      return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-    }
+    const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
+    if (!membership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     const patch: Record<string, unknown> = {};
     if (typeof name === "string" && name.trim()) patch.name = name.trim();
@@ -592,15 +582,8 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: "Formato de slug inválido" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Get user's organization (service role bypasses RLS)
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
-
-    if (!membership) return new Response(JSON.stringify({ error: "No perteneces a ninguna organización" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
+    if (!membership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     // Check slug is not taken by another org
     const { data: existing } = await supabase
