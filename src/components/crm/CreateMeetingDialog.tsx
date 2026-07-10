@@ -165,7 +165,7 @@ export function CreateMeetingDialog({
     } else {
       const { data: inserted, error: insertErr } = await supabase
         .from("meetings")
-        .insert({ ...payload, advisor_id: session?.user?.id || null })
+        .insert({ ...payload, advisor_id: session?.user?.id || null, ...(organizationId ? { organization_id: organizationId } : {}) })
         .select("id")
         .single();
       error = insertErr;

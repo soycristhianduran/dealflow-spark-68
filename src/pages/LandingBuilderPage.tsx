@@ -804,7 +804,7 @@ export default function LandingBuilderPage() {
     if (!newFunnelName.trim()) return;
     const { data, error } = await supabase
       .from("landing_funnels")
-      .insert({ name: newFunnelName.trim() })
+      .insert({ name: newFunnelName.trim(), ...(organizationId ? { organization_id: organizationId } : {}) })
       .select()
       .single();
     if (error) { toast.error(t("landingBuilderPage.errorCreateFunnel")); return; }

@@ -56,6 +56,7 @@ export default function CompaniesPage() {
     if (!form.name.trim()) { toast.error(t("companiesPage.nameRequired")); return; }
     setSaving(true);
     const { error } = await supabase.from("companies").insert({
+      ...(organizationId ? { organization_id: organizationId } : {}),
       name: form.name.trim(),
       industry: form.industry.trim() || null,
       company_size: form.company_size.trim() || null,
