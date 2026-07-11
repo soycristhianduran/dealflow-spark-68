@@ -409,6 +409,18 @@ async function processLeadgenLead(
     if (contactData.primary_phone) patch.primary_phone = contactData.primary_phone;
     if (contactData.first_name)    patch.first_name    = contactData.first_name;
     if (contactData.last_name)     patch.last_name     = contactData.last_name;
+    // Respuestas del formulario: campos personalizados mapeados + presupuesto +
+    // atribución. Antes el camino de "lead existente" las descartaba — típico
+    // en campañas formulario→WhatsApp, donde el mensaje crea el contacto primero
+    // y el lead del formulario llega después como "duplicado".
+    if (contactData.budget != null) patch.budget = contactData.budget;
+    for (const k of ["campaign", "adset", "ad", "meta_campaign_id", "meta_adset_id", "meta_ad_id"]) {
+      if (contactData[k] != null) patch[k] = contactData[k];
+    }
+    if (Object.keys(customFields).length) {
+      const { data: curCf } = await supabase.from("contacts").select("custom_fields").eq("id", existingContactId).maybeSingle();
+      patch.custom_fields = { ...(curCf?.custom_fields ?? {}), ...customFields };
+    }
     if (Object.keys(patch).length) {
       const { error: patchErr } = await supabase.from("contacts").update(patch).eq("id", existingContactId);
       if (patchErr) console.warn("Could not patch existing contact:", patchErr.message);
@@ -2193,9 +2205,14 @@ async function reconcileMetaLeads(supabase: any): Promise<any> {
       const st = knownStatus.get(lead.id);
       if (st && st !== "error") continue; // ya procesado o asumido
 
-      if (!st && form.organization_id) {
-        // Sin registro (lead anterior al log): si ya hay contacto con ese
-        // teléfono/email, se asume procesado y no se reprocesa.
+      const ageMs = now - new Date(lead.created_time).getTime();
+      if (!st && form.organization_id && ageMs > 24 * 3600_000) {
+        // Sin registro Y lead viejo (anterior al log): si ya hay contacto con
+        // ese teléfono/email, se asume procesado y no se reprocesa (evita
+        // reactivaciones/automatizaciones retroactivas). Los leads RECIENTES
+        // sin registro sí se procesan completos aunque exista el contacto —
+        // p. ej. campañas formulario→WhatsApp donde el chat crea el contacto
+        // antes de que llegue el lead del formulario con sus respuestas.
         const detRes = await fetch(`${GRAPH_API}/${lead.id}?fields=field_data&access_token=${token}`);
         const det = await detRes.json();
         if (!detRes.ok) continue;
