@@ -444,6 +444,14 @@ export default function ContactDetailPage() {
           summary: t("contactDetailPage.stageChangedTo", { stage: stageName }),
         });
         supabase.functions.invoke("analyze-contact-ai", { body: { contact_id: id } }).catch(() => {});
+        supabase.functions.invoke("automation-runner", {
+          body: {
+            action: "trigger_event",
+            trigger_type: "contact_stage_changed",
+            contact_id: id,
+            trigger_data: { stage_id: newStageId, stage_name: stageName, pipeline_id: newPipelineId },
+          },
+        }).catch(() => {});
       }
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
       setContact(normalizeContact(data));
