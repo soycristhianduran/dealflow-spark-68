@@ -416,6 +416,55 @@ Deno.serve(async (req) => {
                 }
               }
 
+              // ── Atribución de clic-a-WhatsApp (CTWA) ────────────────────
+              // Meta incluye `referral` cuando el chat nace de un anuncio:
+              // guarda el ctwa_clid (llave para CAPI de mensajería) y, si el
+              // contacto aún no tiene campaña, resuelve campaña/adset/anuncio.
+              const referral = (msg as any).referral;
+              if (contact && referral && (referral.ctwa_clid || referral.source_id)) {
+                try {
+                  const patch: Record<string, unknown> = {};
+                  if (referral.ctwa_clid) patch.ctwa_clid = referral.ctwa_clid;
+                  const { data: cur } = await supabase
+                    .from("contacts")
+                    .select("meta_ad_id, source, campaign")
+                    .eq("id", contact.id)
+                    .maybeSingle();
+                  if (cur && !cur.meta_ad_id && referral.source_id) {
+                    patch.meta_ad_id = referral.source_id;
+                    if (!cur.source || cur.source === "whatsapp") patch.source = "facebook_ads";
+                    patch.ad = referral.headline || null;
+                    // Resolver nombres de campaña/adset con el token de Meta de la org
+                    const { data: fbTok } = await supabase
+                      .from("facebook_tokens")
+                      .select("access_token")
+                      .eq("organization_id", config.organization_id)
+                      .eq("needs_reconnect", false)
+                      .order("updated_at", { ascending: false })
+                      .limit(1)
+                      .maybeSingle();
+                    if (fbTok?.access_token) {
+                      const adRes = await fetch(
+                        `https://graph.facebook.com/v21.0/${referral.source_id}?fields=name,campaign{id,name},adset{id,name}&access_token=${fbTok.access_token}`,
+                      );
+                      const adJson = await adRes.json();
+                      if (adRes.ok) {
+                        patch.ad = adJson.name || patch.ad;
+                        if (adJson.campaign) { patch.campaign = adJson.campaign.name; patch.meta_campaign_id = adJson.campaign.id; }
+                        if (adJson.adset) { patch.adset = adJson.adset.name; patch.meta_adset_id = adJson.adset.id; }
+                      }
+                    }
+                    if (!patch.campaign && referral.source_url) patch.campaign = referral.source_url;
+                  }
+                  if (Object.keys(patch).length) {
+                    await supabase.from("contacts").update(patch).eq("id", contact.id);
+                    console.log(`CTWA attribution saved for contact ${contact.id} (ad ${referral.source_id || "?"})`);
+                  }
+                } catch (e) {
+                  console.warn("CTWA attribution failed (non-fatal):", e);
+                }
+              }
+
               // Save incoming message
               await supabase.from("whatsapp_messages").insert({
                 user_id: config.user_id,

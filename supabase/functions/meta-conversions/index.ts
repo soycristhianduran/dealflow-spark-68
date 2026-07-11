@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
     const { data: contact } = await supabase
       .from("contacts")
-      .select("primary_email, primary_phone, first_name, last_name, budget, budget_currency, city, country, won_product_id")
+      .select("primary_email, primary_phone, first_name, last_name, budget, budget_currency, city, country, won_product_id, ctwa_clid")
       .eq("id", contact_id)
       .eq("organization_id", organization_id)
       .maybeSingle();
@@ -107,8 +107,25 @@ Deno.serve(async (req) => {
     if (ingestion?.leadgen_id && /^\d+$/.test(ingestion.leadgen_id)) {
       userData.lead_id = Number(ingestion.leadgen_id);
     }
-    if (!userData.em && !userData.ph && !userData.lead_id) {
-      await log("skipped", mapping.event_name, "Contacto sin email/teléfono/lead_id — Meta no podría atribuirlo");
+    // Leads de clic-a-WhatsApp (CTWA): la atribución va por ctwa_clid y el
+    // evento se marca como canal de mensajería, no como evento de sistema.
+    let actionSource = "system_generated";
+    if (contact.ctwa_clid) {
+      userData.ctwa_clid = contact.ctwa_clid;
+      const { data: waCfg } = await supabase
+        .from("whatsapp_configs")
+        .select("waba_id")
+        .eq("organization_id", organization_id)
+        .eq("is_active", true)
+        .order("is_primary", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (waCfg?.waba_id) userData.whatsapp_business_account_id = waCfg.waba_id;
+      actionSource = "business_messaging";
+    }
+
+    if (!userData.em && !userData.ph && !userData.lead_id && !userData.ctwa_clid) {
+      await log("skipped", mapping.event_name, "Contacto sin email/teléfono/lead_id/ctwa_clid — Meta no podría atribuirlo");
       return ok({ skipped: "no identifiers" });
     }
 
@@ -117,9 +134,12 @@ Deno.serve(async (req) => {
       event_time: Math.floor(Date.now() / 1000),
       // event_id estable por contacto+etapa: Meta deduplica reintentos.
       event_id: `${contact_id}:${stage_id}`,
-      action_source: "system_generated",
+      action_source: actionSource,
       user_data: userData,
     };
+    if (actionSource === "business_messaging") {
+      event.messaging_channel = "whatsapp";
+    }
     // Valor de la conversión (habilita "Valor de conversión" y ROAS en el
     // administrador de anuncios). Prioridad: producto ganado > presupuesto.
     let value: number | null = null;
