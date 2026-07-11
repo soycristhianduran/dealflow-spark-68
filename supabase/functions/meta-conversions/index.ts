@@ -82,7 +82,7 @@ Deno.serve(async (req) => {
 
     const { data: contact } = await supabase
       .from("contacts")
-      .select("primary_email, primary_phone, first_name, last_name, budget, budget_currency, city, country")
+      .select("primary_email, primary_phone, first_name, last_name, budget, budget_currency, city, country, won_product_id")
       .eq("id", contact_id)
       .eq("organization_id", organization_id)
       .maybeSingle();
@@ -120,9 +120,26 @@ Deno.serve(async (req) => {
       action_source: "system_generated",
       user_data: userData,
     };
-    // Valor de la conversión cuando el contacto tiene presupuesto (útil en Purchase).
-    if (contact.budget && Number(contact.budget) > 0) {
-      event.custom_data = { value: Number(contact.budget), currency: contact.budget_currency || "COP" };
+    // Valor de la conversión (habilita "Valor de conversión" y ROAS en el
+    // administrador de anuncios). Prioridad: producto ganado > presupuesto.
+    let value: number | null = null;
+    let currency = contact.budget_currency || "COP";
+    if (contact.won_product_id) {
+      const { data: product } = await supabase
+        .from("products")
+        .select("default_price, currency")
+        .eq("id", contact.won_product_id)
+        .maybeSingle();
+      if (product?.default_price && Number(product.default_price) > 0) {
+        value = Number(product.default_price);
+        currency = product.currency || currency;
+      }
+    }
+    if (value === null && contact.budget && Number(contact.budget) > 0) {
+      value = Number(contact.budget);
+    }
+    if (value !== null) {
+      event.custom_data = { value, currency };
     }
 
     const res = await fetch(`${GRAPH_API}/${settings.pixel_id}/events?access_token=${tok.access_token}`, {
