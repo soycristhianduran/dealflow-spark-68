@@ -19,6 +19,7 @@ import { useFacebookIntegration } from "@/hooks/useFacebookIntegration";
 import { useWhatsAppIntegration } from "@/hooks/useWhatsAppIntegration";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { FacebookSetupWizard } from "@/components/crm/FacebookSetupWizard";
+import { MetaConversionsDialog } from "@/components/crm/MetaConversionsDialog";
 import { WhatsAppSetupWizard } from "@/components/crm/WhatsAppSetupWizard";
 import { InstagramSetupWizard } from "@/components/crm/InstagramSetupWizard";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -701,6 +702,7 @@ export default function IntegrationsPage() {
   const { organizationId } = useOrganizationContext();
   const [selectedIntegration, setSelectedIntegration] = useState<Integration | null>(null);
   const [fbWizardOpen, setFbWizardOpen] = useState(false);
+  const [capiOpen, setCapiOpen] = useState(false);
   const [waWizardOpen, setWaWizardOpen] = useState(false);
   const [igWizardOpen, setIgWizardOpen] = useState(false);
   const [waWizardStartStep, setWaWizardStartStep] = useState<1 | 2>(1);
@@ -1118,6 +1120,7 @@ export default function IntegrationsPage() {
 
       {/* Facebook Setup Wizard */}
       <FacebookSetupWizard open={fbWizardOpen} onOpenChange={setFbWizardOpen} />
+      <MetaConversionsDialog open={capiOpen} onOpenChange={setCapiOpen} />
 
       {/* WhatsApp Setup Wizard */}
       <WhatsAppSetupWizard open={waWizardOpen} onOpenChange={(v) => { setWaWizardOpen(v); if (!v) { setWaWizardStartStep(1); wa.refreshConfig?.(); } }} startStep={waWizardStartStep} />
@@ -1182,9 +1185,14 @@ export default function IntegrationsPage() {
 
               {/* Facebook: open wizard button */}
               {selectedIntegration.id === "facebook" && fb.isConnected && (
-                <Button variant="outline" className="w-full" onClick={() => { setSelectedIntegration(null); setFbWizardOpen(true); }}>
-                  {t("integrationsPage.manageFbResources")}
-                </Button>
+                <>
+                  <Button variant="outline" className="w-full" onClick={() => { setSelectedIntegration(null); setFbWizardOpen(true); }}>
+                    {t("integrationsPage.manageFbResources")}
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => { setSelectedIntegration(null); setCapiOpen(true); }}>
+                    Conversiones de Meta (CAPI)
+                  </Button>
+                </>
               )}
 
               {/* Features */}
