@@ -456,6 +456,17 @@ Deno.serve(async (req) => {
                     }
                     if (!patch.campaign && referral.source_url) patch.campaign = referral.source_url;
                   }
+                  // Si el anunciante puso UTMs manuales en la URL del anuncio
+                  // (estilo Kommo), capturarlos también en los campos utm_*.
+                  if (referral.source_url && referral.source_url.includes("utm_")) {
+                    try {
+                      const u = new URL(referral.source_url);
+                      for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
+                        const v = u.searchParams.get(k);
+                        if (v) patch[k] = v;
+                      }
+                    } catch (_) { /* URL inválida — ignorar */ }
+                  }
                   if (Object.keys(patch).length) {
                     await supabase.from("contacts").update(patch).eq("id", contact.id);
                     console.log(`CTWA attribution saved for contact ${contact.id} (ad ${referral.source_id || "?"})`);
