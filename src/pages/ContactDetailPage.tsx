@@ -451,6 +451,11 @@ export default function ContactDetailPage() {
             contact_id: id,
             trigger_data: { stage_id: newStageId, stage_name: stageName, pipeline_id: newPipelineId },
           },
+        }).then(async () => {
+          // Las automatizaciones pueden modificar el contacto (p. ej. presupuesto):
+          // re-cargar la ficha cuando terminen para reflejarlo sin refrescar a mano.
+          const { data: fresh } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
+          if (fresh) setContact(normalizeContact(fresh));
         }).catch(() => {});
       }
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
