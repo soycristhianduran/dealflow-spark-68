@@ -594,11 +594,20 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     contact: {
       first_name: contact.first_name || "",
       last_name: contact.last_name || "",
+      full_name: contact.full_name || `${contact.first_name || ""} ${contact.last_name || ""}`.trim(),
       name: `${contact.first_name || ""} ${contact.last_name || ""}`.trim(),
       email: contact.primary_email || "",
+      primary_email: contact.primary_email || "",
       phone: contact.primary_phone || "",
+      primary_phone: contact.primary_phone || "",
       company: contact.company_name || "",
+      company_name: contact.company_name || "",
+      city: contact.city || "",
+      country: contact.country || "",
+      notes: contact.notes || "",
     },
+    // Campos personalizados del contacto → {{custom.<clave>}}
+    custom: contact.custom_fields ?? {},
     // Trigger context (e.g. abandoned cart) → {{cart.recovery_url}}, {{cart.total}}…
     ...(enr.trigger_data || {}),
   };

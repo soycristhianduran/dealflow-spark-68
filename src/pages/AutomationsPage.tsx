@@ -1267,6 +1267,8 @@ function WhatsAppStepEditor({ step, onChange }: {
 
   const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string }[]>([]);
   const [loadingTpl, setLoadingTpl] = useState(false);
+  // Campos personalizados de la org → variables {{custom.<clave>}}
+  const [customFieldVars, setCustomFieldVars] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     if (!organizationId) return;
@@ -1277,6 +1279,14 @@ function WhatsAppStepEditor({ step, onChange }: {
       .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => { setTemplates(data || []); setLoadingTpl(false); });
+    supabase
+      .from("custom_field_definitions")
+      .select("key, label")
+      .eq("organization_id", organizationId)
+      .order("position", { ascending: true })
+      .then(({ data }) => {
+        setCustomFieldVars((data ?? []).map((d: any) => ({ value: `{{custom.${d.key}}}`, label: `Campo — ${d.label}` })));
+      });
   }, [organizationId]);
 
   const selectedTpl = templates.find(
@@ -1371,6 +1381,12 @@ function WhatsAppStepEditor({ step, onChange }: {
                 </SelectTrigger>
                 <SelectContent>
                   {CONTACT_FIELDS.map(f => (
+                    <SelectItem key={f.value} value={f.value} className="text-xs">
+                      <span className="font-medium">{f.label}</span>
+                      <span className="text-muted-foreground ml-2">{f.value}</span>
+                    </SelectItem>
+                  ))}
+                  {customFieldVars.map(f => (
                     <SelectItem key={f.value} value={f.value} className="text-xs">
                       <span className="font-medium">{f.label}</span>
                       <span className="text-muted-foreground ml-2">{f.value}</span>
