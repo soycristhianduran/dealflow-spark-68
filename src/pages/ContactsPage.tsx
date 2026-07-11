@@ -383,12 +383,19 @@ export default function ContactsPage() {
   useEffect(() => { fetchContacts(); }, [fetchContacts]);
 
   useEffect(() => {
+    // Filtrado por organización: sin esto, cualquier cambio de contactos de
+    // OTRA org (p. ej. una migración masiva) re-consultaba esta página en bucle.
+    if (!organizationId) return;
     const channel = supabase
-      .channel("contacts-changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "contacts" }, () => fetchContacts())
+      .channel(`contacts-changes-${organizationId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "contacts", filter: `organization_id=eq.${organizationId}` },
+        () => fetchContacts(),
+      )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [fetchContacts]);
+  }, [fetchContacts, organizationId]);
 
   useEffect(() => { setSelected(new Set()); setAllMatchingSelected(false); }, [statusFilter, search, ownerFilter]);
   // Changing page size resets to the first page so ranges stay consistent.
