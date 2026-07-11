@@ -163,6 +163,16 @@ async function fireMetaLeadAutomations(
   }
 }
 
+// Registro persistente de cada entrega de leadgen (tabla meta_lead_ingestions)
+// para que el cron de conciliación pueda detectar y reprocesar leads que Meta
+// no entregó o cuyo procesamiento falló en silencio.
+async function logIngestion(supabase: any, leadgenId: string, patch: Record<string, unknown>) {
+  const { error } = await supabase
+    .from("meta_lead_ingestions")
+    .upsert({ leadgen_id: leadgenId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "leadgen_id" });
+  if (error) console.warn(`Could not log ingestion for ${leadgenId}:`, error.message);
+}
+
 async function processLeadgenChange(
   supabase: any,
   pageId: string,
@@ -174,6 +184,25 @@ async function processLeadgenChange(
     console.warn("Skipping change without leadgen_id/form_id", change);
     return;
   }
+  await logIngestion(supabase, leadgenId, { form_id: formId, page_id: pageId, status: "received" });
+  try {
+    const contactId = await processLeadgenLead(supabase, pageId, change, leadgenId, formId);
+    await logIngestion(supabase, leadgenId, contactId
+      ? { status: "processed", contact_id: contactId, error: null }
+      : { status: "error", error: "processing aborted (ver logs de la función)" });
+  } catch (e: any) {
+    console.error(`Error processing leadgen ${leadgenId}:`, e);
+    await logIngestion(supabase, leadgenId, { status: "error", error: String(e?.message ?? e) });
+  }
+}
+
+async function processLeadgenLead(
+  supabase: any,
+  pageId: string,
+  change: any,
+  leadgenId: string,
+  formId: string,
+): Promise<string | null> {
 
   console.log(`Processing leadgen ${leadgenId} (form ${formId}, page ${pageId})`);
 
@@ -186,11 +215,11 @@ async function processLeadgenChange(
 
   if (pageErr) {
     console.error(`DB error loading page ${pageId}:`, pageErr);
-    return;
+    return null;
   }
   if (!pageData) {
     console.error(`No facebook_pages row for page_id=${pageId}; lead dropped`);
-    return;
+    return null;
   }
 
   const { user_id: userId, page_access_token: pageToken } = pageData;
@@ -210,6 +239,8 @@ async function processLeadgenChange(
       .maybeSingle();
     organizationId = membership?.organization_id ?? null;
   }
+
+  if (organizationId) await logIngestion(supabase, leadgenId, { organization_id: organizationId });
 
   const isTestLead = String(leadgenId).startsWith("TEST_");
   let fields: Record<string, string> = {};
@@ -236,7 +267,7 @@ async function processLeadgenChange(
     const leadData = await leadRes.json();
     if (!leadRes.ok) {
       console.error(`Graph API error fetching lead ${leadgenId}:`, JSON.stringify(leadData));
-      return;
+      return null;
     }
     for (const fd of leadData.field_data || []) {
       fields[(fd.name || "").toLowerCase()] = (fd.values || [])[0] || "";
@@ -379,8 +410,8 @@ async function processLeadgenChange(
     if (contactData.first_name)    patch.first_name    = contactData.first_name;
     if (contactData.last_name)     patch.last_name     = contactData.last_name;
     if (Object.keys(patch).length) {
-      await supabase.from("contacts").update(patch).eq("id", existingContactId)
-        .catch((e: any) => console.warn("Could not patch existing contact:", e));
+      const { error: patchErr } = await supabase.from("contacts").update(patch).eq("id", existingContactId);
+      if (patchErr) console.warn("Could not patch existing contact:", patchErr.message);
     }
 
     // ── Re-assign to pipeline/stage (treat as fresh lead) ─────────────────
@@ -398,26 +429,27 @@ async function processLeadgenChange(
         .maybeSingle();
 
       if (stage) {
-        await supabase.from("contacts")
+        const { error: reassignErr } = await supabase.from("contacts")
           .update({ pipeline_id: pipeline.id, stage_id: stage.id, lead_status: "active" })
-          .eq("id", existingContactId)
-          .catch((e: any) => console.warn("Could not re-assign pipeline:", e));
+          .eq("id", existingContactId);
+        if (reassignErr) console.warn("Could not re-assign pipeline:", reassignErr.message);
       }
     }
 
     // ── Log activity with context: returning lead, new form submission ─────
-    await supabase.from("activities").insert({
+    const { error: actErr } = await supabase.from("activities").insert({
       related_entity_type: "contact",
       related_entity_id: existingContactId,
       event_type: "note",
       event_source: "facebook_lead_form",
       summary: `🔁 Lead existente volvió a interactuar — nuevo formulario de Meta\nFormulario: ${formId} · Lead ID: ${leadgenId}\nContacto reactivado como nueva oportunidad.`,
-    }).catch((e: any) => console.warn("Could not log re-activation activity:", e));
+    });
+    if (actErr) console.warn("Could not log re-activation activity:", actErr.message);
 
     // ── Fire automations via the runner (org-scoped trigger_event) ──────────
     await fireMetaLeadAutomations(supabase, existingContactId, formId, pageId);
 
-    return;
+    return existingContactId;
   }
 
   const { data: newContact, error: contactErr } = await supabase
@@ -428,7 +460,7 @@ async function processLeadgenChange(
 
   if (contactErr || !newContact) {
     console.error(`Error creating contact from lead ${leadgenId}:`, contactErr);
-    return;
+    throw new Error(`insert failed: ${contactErr?.message ?? "no row returned"}`);
   }
   console.log(`Created contact ${newContact.id} from lead ${leadgenId}`);
 
@@ -446,7 +478,7 @@ async function processLeadgenChange(
 
   if (!pipeline) {
     console.warn(`No pipeline configured — contact created without deal (${newContact.id})`);
-    return;
+    return newContact.id;
   }
 
   const { data: stage } = await supabase
@@ -459,7 +491,7 @@ async function processLeadgenChange(
 
   if (!stage) {
     console.warn(`Pipeline ${pipeline.id} has no stages — contact created without deal`);
-    return;
+    return newContact.id;
   }
 
   // Leads+Deals Unification: contacts ARE the pipeline entity — update the
@@ -474,15 +506,17 @@ async function processLeadgenChange(
   } else {
     console.log(`Assigned contact ${newContact.id} → pipeline ${pipeline.id}, stage ${stage.id}`);
     // Activity log so the timeline shows the initial stage assignment
-    await supabase.from("activities").insert({
+    const { error: actErr2 } = await supabase.from("activities").insert({
       related_entity_type: "contact",
       related_entity_id: newContact.id,
       event_type: "stage_changed",
       event_source: "facebook_lead_form",
       summary: `Contacto creado desde Facebook Lead Form`,
-    }).catch((e: any) => console.warn("Could not log activity:", e));
+    });
+    if (actErr2) console.warn("Could not log activity:", actErr2.message);
   }
 
+  return newContact.id;
 }
 
 // ============================================================================
@@ -2106,6 +2140,94 @@ async function processInstagramNewFollower(
   }
 }
 
+// ============================================================================
+// CONCILIACIÓN DE LEADS (cron cada 15 min)
+// Compara los leads del formulario en Meta contra meta_lead_ingestions y
+// reprocesa los que nunca llegaron o quedaron en error. Los leads anteriores
+// al registro que ya corresponden a un contacto se marcan como procesados sin
+// tocarlos (reprocesarlos dispararía reactivaciones/automatizaciones dobles).
+async function reconcileMetaLeads(supabase: any): Promise<any> {
+  const results: any[] = [];
+  const { data: forms } = await supabase
+    .from("facebook_lead_forms")
+    .select("form_id, page_id, organization_id")
+    .eq("is_syncing", true);
+
+  const seen = new Set<string>();
+  for (const form of forms || []) {
+    if (!form.form_id || !form.page_id || seen.has(form.form_id)) continue;
+    seen.add(form.form_id);
+
+    const { data: page } = await supabase
+      .from("facebook_pages")
+      .select("page_access_token")
+      .eq("page_id", form.page_id)
+      .limit(1)
+      .maybeSingle();
+    const token = page?.page_access_token;
+    if (!token) continue;
+
+    const res = await fetch(`${GRAPH_API}/${form.form_id}/leads?fields=id,created_time&limit=100&access_token=${token}`);
+    const json = await res.json();
+    if (!res.ok) {
+      results.push({ form: form.form_id, error: json?.error?.message || "Graph error" });
+      continue;
+    }
+
+    // Ventana: últimas 48 h, y al menos 10 min de antigüedad para darle
+    // tiempo al webhook normal antes de intervenir.
+    const now = Date.now();
+    const leads = (json.data || []).filter((l: any) => {
+      const t = new Date(l.created_time).getTime();
+      return t > now - 48 * 3600_000 && t < now - 10 * 60_000;
+    });
+    if (!leads.length) continue;
+
+    const { data: known } = await supabase
+      .from("meta_lead_ingestions")
+      .select("leadgen_id, status")
+      .in("leadgen_id", leads.map((l: any) => l.id));
+    const knownStatus = new Map<string, string>((known || []).map((r: any) => [r.leadgen_id, r.status]));
+
+    for (const lead of leads) {
+      const st = knownStatus.get(lead.id);
+      if (st && st !== "error") continue; // ya procesado o asumido
+
+      if (!st && form.organization_id) {
+        // Sin registro (lead anterior al log): si ya hay contacto con ese
+        // teléfono/email, se asume procesado y no se reprocesa.
+        const detRes = await fetch(`${GRAPH_API}/${lead.id}?fields=field_data&access_token=${token}`);
+        const det = await detRes.json();
+        if (!detRes.ok) continue;
+        const f: Record<string, string> = {};
+        for (const fd of det.field_data || []) f[(fd.name || "").toLowerCase()] = (fd.values || [])[0] || "";
+        const phone = f["phone_number"] || f["telefono"] || f["teléfono"] || f["phone"] || f["número_de_teléfono"] || null;
+        const email = f["email"] || f["correo"] || f["correo_electrónico"] || null;
+        if (phone || email) {
+          const { data: matchId } = await supabase.rpc("match_contact", {
+            p_org: form.organization_id, p_phone: phone, p_email: email,
+          });
+          if (matchId) {
+            await logIngestion(supabase, lead.id, {
+              form_id: form.form_id, page_id: form.page_id,
+              organization_id: form.organization_id,
+              status: "assumed_processed", contact_id: matchId,
+            });
+            continue;
+          }
+        }
+      }
+
+      console.log(`Reconcile: reprocessing missing lead ${lead.id} (form ${form.form_id})`);
+      await processLeadgenChange(supabase, form.page_id, {
+        value: { leadgen_id: lead.id, form_id: form.form_id },
+      });
+      results.push({ form: form.form_id, recovered: lead.id });
+    }
+  }
+  return { ok: true, recovered: results };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -2139,6 +2261,18 @@ Deno.serve(async (req) => {
   // ===== POST: Incoming webhook events =====
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  // ----- Conciliación interna (cron pg_cron, no viene de Meta) -----
+  if (req.headers.get("x-reconcile-key") === (Deno.env.get("META_RECONCILE_KEY") || "klosify-meta-reconcile-2026")) {
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    try {
+      const result = await reconcileMetaLeads(sb);
+      return new Response(JSON.stringify(result), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    } catch (e: any) {
+      console.error("Reconcile error:", e);
+      return new Response(JSON.stringify({ ok: false, error: String(e?.message ?? e) }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
   }
 
   const rawBody = await req.text();
