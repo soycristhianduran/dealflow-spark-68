@@ -345,7 +345,13 @@ async function processLeadgenLead(
         // Numeric column: parse the answer; keep the raw text in custom_fields
         // so the original range ("2 a 3 millones") is never lost.
         const parsed = parseBudget(value);
-        if (parsed !== null) contactData.budget = parsed;
+        if (parsed !== null) {
+          contactData.budget = parsed;
+          // Moneda por defecto de la organización (no el USD de la columna)
+          const { data: orgRow } = await supabase.from("organizations")
+            .select("default_currency").eq("id", organizationId).maybeSingle();
+          if (orgRow?.default_currency) contactData.budget_currency = orgRow.default_currency;
+        }
         customFields["presupuesto_original"] = value;
       } else if (STANDARD_COLUMNS.has(mapping.contact_field)) {
         contactData[mapping.contact_field] = value;
@@ -413,7 +419,10 @@ async function processLeadgenLead(
     // atribución. Antes el camino de "lead existente" las descartaba — típico
     // en campañas formulario→WhatsApp, donde el mensaje crea el contacto primero
     // y el lead del formulario llega después como "duplicado".
-    if (contactData.budget != null) patch.budget = contactData.budget;
+    if (contactData.budget != null) {
+      patch.budget = contactData.budget;
+      if (contactData.budget_currency) patch.budget_currency = contactData.budget_currency;
+    }
     for (const k of ["campaign", "adset", "ad", "meta_campaign_id", "meta_adset_id", "meta_ad_id"]) {
       if (contactData[k] != null) patch[k] = contactData[k];
     }

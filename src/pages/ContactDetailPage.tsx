@@ -935,7 +935,6 @@ export default function ContactDetailPage() {
                                 autoFocus
                                 placeholder="0"
                                 onKeyDown={e => { if (e.key === "Enter" || e.key === "Escape") setBudgetEditing(false); }}
-                                onBlur={() => setBudgetEditing(false)}
                               />
                               <Select value={ppl.budget_currency} onValueChange={v => updatePpl({ budget_currency: v })}>
                                 <SelectTrigger className="h-8 w-16 text-xs shrink-0"><SelectValue /></SelectTrigger>
