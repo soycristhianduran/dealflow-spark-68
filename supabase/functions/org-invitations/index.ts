@@ -461,12 +461,15 @@ Deno.serve(async (req) => {
 
   // ── Get current org info (bypasses RLS) ───────────────────────────────────
   if (action === "get_org") {
-    const { data: membership } = await supabase
+    // Workspace activo explícito (usuarios multi-org): validar membresía en ESA
+    // org. Sin él, .limit(1) devolvía una org arbitraria — un gestor viendo
+    // Configuración cargaba nombre/moneda de OTRA org y al guardar la pisaba.
+    let q = supabase
       .from("organization_members")
       .select("organization_id, role")
-      .eq("user_id", user.id)
-      .limit(1)
-      .maybeSingle();
+      .eq("user_id", user.id);
+    if (body.organization_id) q = q.eq("organization_id", body.organization_id);
+    const { data: membership } = await q.limit(1).maybeSingle();
 
     if (!membership) return new Response(JSON.stringify({ org: null }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 

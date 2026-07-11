@@ -170,7 +170,7 @@ export default function SettingsPage() {
     const loadOrgSlug = async () => {
       try {
         const { data } = await supabase.functions.invoke("org-invitations", {
-          body: { action: "get_org" },
+          body: { action: "get_org", organization_id: organizationId },
         });
         if (data?.org?.slug) {
           setOrgSlug(data.org.slug);
@@ -197,8 +197,8 @@ export default function SettingsPage() {
         }
       }
     };
-    loadOrgSlug();
-  }, []);
+    if (organizationId) loadOrgSlug();
+  }, [organizationId]);
 
   // Load email sender config
   useEffect(() => {
