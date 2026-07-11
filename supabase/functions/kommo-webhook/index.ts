@@ -184,8 +184,9 @@ Deno.serve(async (req) => {
     }
 
     // ── Webhook de Kommo (form-urlencoded) ──────────────────────────────────
-    const key = url.searchParams.get("key") ?? "";
-    const orgId = url.searchParams.get("org") ?? "";
+    // Kommo re-escapa "&" como "&amp;" en algunas rutas — aceptar ambas formas.
+    const key = url.searchParams.get("key") ?? url.searchParams.get("amp;key") ?? "";
+    const orgId = url.searchParams.get("org") ?? url.searchParams.get("amp;org") ?? "";
     if (!key || key !== (Deno.env.get("KOMMO_WEBHOOK_KEY") ?? "")) return json({ error: "forbidden" }, 403);
     if (!orgId) return json({ error: "org requerida" }, 400);
 
