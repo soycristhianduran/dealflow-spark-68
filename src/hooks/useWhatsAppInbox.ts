@@ -457,12 +457,16 @@ export function useWhatsAppInbox() {
       userId = data.user?.id ?? null;
     });
 
+    if (!organizationId) return;
     const channel = supabase
-      .channel("wa_inbox_realtime")
+      .channel(`wa_inbox_realtime_${organizationId}`)
       // ── Status updates (delivered / read) ────────────────────────────────
+      // Filtrado por organización: el mismo número puede existir como contacto
+      // en varias orgs (usuarios multi-org) y sin filtro los mensajes de otra
+      // organización se inyectaban en el hilo abierto.
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "whatsapp_messages" },
+        { event: "UPDATE", schema: "public", table: "whatsapp_messages", filter: `organization_id=eq.${organizationId}` },
         (payload) => {
           const msg = payload.new as WaMessage;
           // Reflect status change in the currently open conversation
@@ -476,7 +480,7 @@ export function useWhatsAppInbox() {
       // ── New incoming / outgoing messages ─────────────────────────────────
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "whatsapp_messages" },
+        { event: "INSERT", schema: "public", table: "whatsapp_messages", filter: `organization_id=eq.${organizationId}` },
         (payload) => {
           const msg = payload.new as WaMessage;
 
@@ -546,7 +550,7 @@ export function useWhatsAppInbox() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedPhone, fetchConversations]);
+  }, [selectedPhone, fetchConversations, organizationId]);
 
   return {
     conversations,
