@@ -455,7 +455,16 @@ export default function ContactDetailPage() {
           // Las automatizaciones pueden modificar el contacto (p. ej. presupuesto):
           // re-cargar la ficha cuando terminen para reflejarlo sin refrescar a mano.
           const { data: fresh } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
-          if (fresh) setContact(normalizeContact(fresh));
+          if (fresh) {
+            setContact(normalizeContact(fresh));
+            // El widget de presupuesto/cierre lee del estado `ppl`, no de `contact`.
+            setPpl(p => ({
+              ...p,
+              budget: fresh.budget != null ? String(fresh.budget) : "",
+              budget_currency: fresh.budget_currency || p.budget_currency,
+              expected_close_date: fresh.expected_close_date || p.expected_close_date,
+            }));
+          }
         }).catch(() => {});
       }
       const { data } = await supabase.from("contacts").select("*").eq("id", id).maybeSingle();
