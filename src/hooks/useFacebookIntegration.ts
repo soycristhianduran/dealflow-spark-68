@@ -260,6 +260,7 @@ export function useFacebookIntegration() {
   }, [organizationId]);
 
   const getPages = useCallback(async (): Promise<FbPage[]> => {
+    if (!organizationId) { toast.error("Espera a que cargue tu organización e intenta de nuevo"); return []; }
     const { data, error } = await supabase.functions.invoke("facebook-api", {
       body: { action: "get_pages", organization_id: organizationId },
     });
