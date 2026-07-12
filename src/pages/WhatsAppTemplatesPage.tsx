@@ -16,6 +16,7 @@ import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { FlowCardsInline, FlowCreateForm } from "@/components/crm/WhatsAppFlowsSection";
+import { WhatsAppPhonePreview } from "@/components/crm/WhatsAppPhonePreview";
 import {
   Plus, RefreshCw, Trash2, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -325,6 +326,7 @@ export default function WhatsAppTemplatesPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [createKind, setCreateKind] = useState<"template" | "flow">("template");
+  const [flowPreview, setFlowPreview] = useState<{ body: string; cta: string }>({ body: "", cta: "Abrir formulario" });
   const [editTemplate, setEditTemplate] = useState<WhatsAppTemplate | null>(null);
   const [viewTemplate, setViewTemplate] = useState<WhatsAppTemplate | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -953,10 +955,12 @@ export default function WhatsAppTemplatesPage() {
 
       {/* ── CREATE DIALOG ── */}
       <Dialog open={showCreate} onOpenChange={(v) => { setShowCreate(v); if (!v) setCreateKind("template"); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("whatsAppTemplatesPage.createDialogTitle")}</DialogTitle>
           </DialogHeader>
+          <div className="grid gap-6 md:grid-cols-[1fr_290px]">
+          <div className="min-w-0">
           {/* Tipo: plantilla de mensaje o Flow (formulario nativo) */}
           <div className="grid grid-cols-2 gap-2">
             <button type="button" onClick={() => setCreateKind("template")}
@@ -971,7 +975,7 @@ export default function WhatsAppTemplatesPage() {
             </button>
           </div>
           {createKind === "flow" && (
-            <FlowCreateForm onDone={() => { setShowCreate(false); setCreateKind("template"); }} />
+            <FlowCreateForm onDone={() => { setShowCreate(false); setCreateKind("template"); }} onPreviewChange={setFlowPreview} />
           )}
           <div className="space-y-4 py-2" style={createKind === "flow" ? { display: "none" } : undefined}>
             <div className="grid grid-cols-2 gap-3">
@@ -1187,6 +1191,20 @@ export default function WhatsAppTemplatesPage() {
                 )}
               </div>
             )}
+          </div>
+          </div>
+          {/* Teléfono en vivo */}
+          <div className="hidden md:block pt-1">
+            <WhatsAppPhonePreview
+              headerType={createKind === "flow" ? "NONE" : form.headerType}
+              headerText={form.headerText}
+              headerPreview={form.headerPreview}
+              bodyText={createKind === "flow" ? flowPreview.body : form.bodyText}
+              footerText={createKind === "flow" ? "" : form.footerText}
+              buttons={createKind === "flow" ? [flowPreview.cta || "Abrir formulario"] : form.buttons.map(b => b.text)}
+              variableExamples={form.variableExamples}
+            />
+          </div>
           </div>
           {createKind === "template" && (
           <DialogFooter>

@@ -26,7 +26,7 @@ const FIELD_TYPES = [
 
 /** Formulario de creación de un WhatsApp Flow (una pantalla, hasta 10 campos).
  *  Se usa dentro del diálogo "Nueva plantilla" (tipo Flow) y en la sección de Flows. */
-export function FlowCreateForm({ onDone }: { onDone: () => void }) {
+export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void; onPreviewChange?: (p: { body: string; cta: string }) => void }) {
   const { organizationId } = useOrganizationContext();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -34,6 +34,11 @@ export function FlowCreateForm({ onDone }: { onDone: () => void }) {
   const [fields, setFields] = useState<FieldDef[]>([{ label: "", type: "text", options: "", required: true }]);
   const [tplBody, setTplBody] = useState("");
   const [tplCta, setTplCta] = useState("Abrir formulario");
+
+  useEffect(() => {
+    onPreviewChange?.({ body: tplBody, cta: tplCta });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tplBody, tplCta]);
 
   const setField = (i: number, patch: Partial<FieldDef>) =>
     setFields(prev => prev.map((f, idx) => idx === i ? { ...f, ...patch } : f));
