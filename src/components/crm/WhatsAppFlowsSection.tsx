@@ -331,15 +331,26 @@ export function FlowCardsInline({ hideIds }: { hideIds?: string[] }) {
   };
 
   const remove = async (id: string) => {
-    if (!confirm("¿Eliminar este Flow (solo borradores)?")) return;
-    await supabase.functions.invoke("whatsapp-api", {
+    if (!confirm("¿Eliminar este borrador de Flow?")) return;
+    const { data } = await supabase.functions.invoke("whatsapp-api", {
       body: { action: "delete_flow", organization_id: organizationId, flow_id: id },
     });
+    if (data?.error) toast.error(data.error); else toast.success("Flow eliminado");
+    load();
+  };
+
+  const deprecate = async (id: string) => {
+    if (!confirm("Un Flow publicado no se puede borrar, solo descontinuar. Quedará inutilizable y desaparecerá de la lista. ¿Continuar?")) return;
+    const { data } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "deprecate_flow", organization_id: organizationId, flow_id: id },
+    });
+    if (data?.error) toast.error(data.error); else toast.success("Flow descontinuado");
     load();
   };
 
   const hidden = new Set(hideIds ?? []);
-  const visible = flows.filter(f => !hidden.has(String(f.id)));
+  // Ocultar descontinuados/inhabilitados — ya no son usables.
+  const visible = flows.filter(f => !hidden.has(String(f.id)) && !["DEPRECATED", "BLOCKED", "THROTTLED"].includes(String(f.status).toUpperCase()));
   return (
     <>
       {visible.map(f => (
@@ -438,11 +449,13 @@ export function WhatsAppFlowsSection() {
                 <Badge variant={f.status === "PUBLISHED" ? "default" : "outline"} className="text-[10px]">
                   {f.status === "PUBLISHED" ? "Publicado" : f.status === "DRAFT" ? "Borrador" : f.status}
                 </Badge>
-                {f.status === "DRAFT" && (
+                {f.status === "DRAFT" ? (
                   <>
                     <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => publish(f.id)}>Publicar</Button>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => remove(f.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
                   </>
+                ) : (
+                  <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => deprecate(f.id)}>Descontinuar</Button>
                 )}
               </div>
             </div>

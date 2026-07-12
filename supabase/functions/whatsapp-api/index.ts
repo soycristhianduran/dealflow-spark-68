@@ -854,7 +854,7 @@ Deno.serve(async (req) => {
     }
 
     // ── WHATSAPP FLOWS (formularios nativos) ─────────────────────────────────
-    if (["list_flows", "create_flow", "create_flow_v2", "publish_flow", "delete_flow"].includes(action)) {
+    if (["list_flows", "create_flow", "create_flow_v2", "publish_flow", "delete_flow", "deprecate_flow"].includes(action)) {
       let fq = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
@@ -1158,8 +1158,23 @@ Deno.serve(async (req) => {
       }
 
       if (action === "delete_flow") {
+        // Meta solo permite DELETE en borradores.
         const dl = await fetch(`${GRAPH_API}/${body.flow_id}?access_token=${fcfg.access_token}`, { method: "DELETE" });
-        return fjson(await dl.json());
+        const dj = await dl.json();
+        if (!dl.ok || dj.error) return fjson({ error: dj?.error?.message || "No se pudo eliminar (¿está publicado? usa Descontinuar)" });
+        if (orgId) await supabase.from("org_whatsapp_flows").delete().eq("flow_id", String(body.flow_id)).then(() => {}, () => {});
+        return fjson(dj);
+      }
+
+      if (action === "deprecate_flow") {
+        // Un Flow PUBLICADO no se borra; se descontinúa (queda inutilizable).
+        const dp = await fetch(`${GRAPH_API}/${body.flow_id}/deprecate`, {
+          method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` },
+        });
+        const pj = await dp.json();
+        if (!dp.ok || pj.error) return fjson({ error: pj?.error?.message || "No se pudo descontinuar" });
+        if (orgId) await supabase.from("org_whatsapp_flows").delete().eq("flow_id", String(body.flow_id)).then(() => {}, () => {});
+        return fjson(pj);
       }
     }
 
