@@ -335,7 +335,7 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
 }
 
 /** Tarjetas de Flows para el grid del catálogo de plantillas (sin contenedor propio). */
-export function FlowCardsInline() {
+export function FlowCardsInline({ hideIds }: { hideIds?: string[] }) {
   const { organizationId } = useOrganizationContext();
   const [flows, setFlows] = useState<Flow[]>([]);
 
@@ -365,9 +365,11 @@ export function FlowCardsInline() {
     load();
   };
 
+  const hidden = new Set(hideIds ?? []);
+  const visible = flows.filter(f => !hidden.has(String(f.id)));
   return (
     <>
-      {flows.map(f => (
+      {visible.map(f => (
         <div key={f.id} className="rounded-xl border bg-card p-4 space-y-2 border-emerald-200/60">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">

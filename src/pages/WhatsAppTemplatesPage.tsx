@@ -598,7 +598,8 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            <FlowCardsInline />
+            {/* Flows sueltos: los que ya viven dentro de una plantilla no se duplican */}
+            <FlowCardsInline hideIds={templates.flatMap(t => (t.buttons ?? []) as any[]).filter((b: any) => b?.type === "FLOW" && b?.flow_id).map((b: any) => String(b.flow_id))} />
             {templates.map((tpl) => {
               const mediaChip = tpl.header_type && tpl.header_type !== "TEXT" && tpl.header_type !== "NONE"
                 ? (tpl.header_type === "IMAGE" ? { icon: "🖼", label: translate("whatsAppTemplatesPage.mediaImageCap") }
@@ -647,11 +648,24 @@ export default function WhatsAppTemplatesPage() {
                   )}
                   {tpl.buttons && tpl.buttons.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
-                      {tpl.buttons.map((b, i) => (
+                      {tpl.buttons.map((b: any, i) => (
                         <span key={i} className="text-xs border border-emerald-500/20 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400 rounded-md px-2 py-0.5 font-medium">
-                          {b.text}
+                          {b.type === "FLOW" ? "📋 " : ""}{b.text}
                         </span>
                       ))}
+                      {(tpl.buttons as any[]).some((b: any) => b?.type === "FLOW" && b?.flow_id) && (
+                        <button
+                          type="button"
+                          className="text-[11px] text-muted-foreground underline decoration-dotted"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const fid = (tpl.buttons as any[]).find((b: any) => b?.type === "FLOW")?.flow_id;
+                            if (fid) { navigator.clipboard.writeText(String(fid)); toast.success("ID del Flow copiado"); }
+                          }}
+                        >
+                          Incluye formulario · copiar ID
+                        </button>
+                      )}
                     </div>
                   )}
                   {tpl.rejection_reason && tpl.rejection_reason !== "NONE" && (
