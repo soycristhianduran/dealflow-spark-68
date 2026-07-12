@@ -301,6 +301,7 @@ function stepSummary(step: AutomationStep): string {
 // ── Flow context (shared callbacks between nodes/edges and builder) ────────────
 interface FlowActions {
   onInsertStep: (index: number) => void;
+  onAddBranchStep: (whatsappStepId: string, buttonMatch: string) => void;
   onSelectNode: (id: string | null) => void;
   onDeleteStep: (id: string) => void;
   selectedId: string | null;
@@ -310,7 +311,7 @@ interface FlowActions {
   steps: AutomationStep[];
 }
 const FlowCtx = createContext<FlowActions>({
-  onInsertStep: () => {}, onSelectNode: () => {}, onDeleteStep: () => {},
+  onInsertStep: () => {}, onAddBranchStep: () => {}, onSelectNode: () => {}, onDeleteStep: () => {},
   selectedId: null, triggerType: "manual", triggerConfig: {}, triggers: [], steps: [],
 });
 
@@ -488,7 +489,7 @@ function TriggerNode(_: NodeProps) {
 
 // ── Custom: Step node ─────────────────────────────────────────────────────────
 function StepNode({ data }: NodeProps) {
-  const { onSelectNode, onDeleteStep, selectedId, steps } = useContext(FlowCtx);
+  const { onSelectNode, onDeleteStep, selectedId, steps, onAddBranchStep } = useContext(FlowCtx);
   const step = (data as StepNodeData).step;
   // Defensive: fall back to "wait" metadata if type is unknown
   const meta = STEP_META[step?.type] ?? STEP_META["wait"];
@@ -544,7 +545,17 @@ function StepNode({ data }: NodeProps) {
                 <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
                 {branchesOn && (
                   <>
-                    <span className="shrink-0 text-[10px] text-slate-400">→ {dest || "definir"}</span>
+                    {dest ? (
+                      <span className="shrink-0 text-[10px] text-slate-400">→ {dest}</span>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
+                        className="shrink-0 flex items-center gap-0.5 rounded-md border border-emerald-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 nodrag"
+                        title="Agregar acción para este botón"
+                      >
+                        <Plus className="h-2.5 w-2.5" /> acción
+                      </button>
+                    )}
                     {/* Punto de salida de la rama de este botón */}
                     <Handle type="source" id={`br-btn-${i}`} position={Position.Right}
                       className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" style={{ right: -6 }} />
@@ -2936,13 +2947,26 @@ function AutomationBuilder({
   // UI state — declared BEFORE any useEffect / useMemo that references them
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [insertIndex, setInsertIndex] = useState<number | null>(null);
+  const [branchWire, setBranchWire] = useState<{ stepId: string; match: string } | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
 
   // Flow actions (shared via context) — also before the useEffect
   const onInsertStep = useCallback((idx: number) => {
+    setBranchWire(null);
     setInsertIndex(idx);
+    setPickerOpen(true);
+  }, []);
+
+  // "+" desde un botón: agrega un paso y lo conecta como rama de ese botón.
+  const onAddBranchStep = useCallback((stepId: string, match: string) => {
+    setSteps(prev => {
+      const idx = prev.findIndex(s => s.id === stepId);
+      setInsertIndex(idx >= 0 ? idx + 1 : prev.length);
+      return prev;
+    });
+    setBranchWire({ stepId, match });
     setPickerOpen(true);
   }, []);
 
@@ -2980,21 +3004,58 @@ function AutomationBuilder({
   }, []);
 
   const ctxValue = useMemo(
-    () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps }),
-    [onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps]
+    () => ({ onInsertStep, onAddBranchStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps }),
+    [onInsertStep, onAddBranchStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps]
   );
 
   // Handle step picker selection
+  // Al insertar en la posición `at`, cualquier referencia de salto >= at debe +1.
+  const shiftStepIndices = (st: AutomationStep, at: number): AutomationStep => {
+    const bump = (v: any) => (v != null && Number(v) >= at ? Number(v) + 1 : v);
+    const cfg: any = { ...st.config };
+    if (st.type === "reply_switch") {
+      cfg.cases = (cfg.cases ?? []).map((c: any) => ({ ...c, next_index: bump(c.next_index) }));
+      cfg.default_next_index = bump(cfg.default_next_index);
+    }
+    if (st.type === "reply_condition" || st.type === "condition") {
+      cfg.true_next_index = bump(cfg.true_next_index);
+      cfg.false_next_index = bump(cfg.false_next_index);
+    }
+    if (st.type === "wait_reply") cfg.timeout_next_index = bump(cfg.timeout_next_index);
+    if (st.type === "send_whatsapp" && cfg.branches?.enabled) {
+      const br = { ...cfg.branches };
+      br.cases = (br.cases ?? []).map((c: any) => ({ ...c, next_index: bump(c.next_index) }));
+      br.default_next_index = bump(br.default_next_index);
+      br.no_reply_next_index = bump(br.no_reply_next_index);
+      cfg.branches = br;
+    }
+    return { ...st, config: cfg };
+  };
+
   const handlePickStep = (type: AutomationStep["type"]) => {
     if (insertIndex === null) return;
+    const at = insertIndex;
+    const wire = branchWire;
     const newStep: AutomationStep = { id: genId(), type, config: defaultConfig(type) };
     setSteps(prev => {
-      const next = [...prev];
-      next.splice(insertIndex, 0, newStep);
+      const shifted = prev.map(s => shiftStepIndices(s, at));
+      const next = [...shifted];
+      next.splice(at, 0, newStep);
+      if (wire) {
+        const wi = next.findIndex(s => s.id === wire.stepId);
+        if (wi >= 0) {
+          const st = next[wi];
+          const br = { ...(st.config.branches ?? {}), enabled: true };
+          const cases = [...(br.cases ?? [])].filter((c: any) => c.match !== wire.match);
+          cases.push({ match: wire.match, next_index: at });
+          next[wi] = { ...st, config: { ...st.config, branches: { ...br, cases } } };
+        }
+      }
       return next;
     });
     setSelectedId(newStep.id);
     setInsertIndex(null);
+    setBranchWire(null);
   };
 
   // Update step config
