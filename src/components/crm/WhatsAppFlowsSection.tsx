@@ -81,9 +81,10 @@ const CONTENT_ELEMENTS: { kind: FlowElement["kind"]; label: string }[] = [
   { kind: "image", label: "🖼 Imagen" },
 ];
 
-export function FlowCreateForm({ onDone, onPreviewChange }: {
+export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
   onDone: () => void;
   onPreviewChange?: (p: { body: string; cta: string; title: string; elements: FlowElement[] }) => void;
+  onEditingSection?: (s: "message" | "form") => void;
 }) {
   const { organizationId } = useOrganizationContext();
   const [saving, setSaving] = useState(false);
@@ -107,10 +108,13 @@ export function FlowCreateForm({ onDone, onPreviewChange }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tplBody, tplCta, title, elements]);
 
-  const addContent = (kind: FlowElement["kind"]) =>
+  const addContent = (kind: FlowElement["kind"]) => {
+    onEditingSection?.("form");
     setElements(prev => [...prev, { kind, text: "" }]);
+  };
 
   const addField = (val: string) => {
+    onEditingSection?.("form");
     setFieldPick("");
     if (val === "__new__") {
       setElements(prev => [...prev, { kind: "field", key: "", label: "", ftype: "text", required: true }]);
@@ -125,8 +129,10 @@ export function FlowCreateForm({ onDone, onPreviewChange }: {
     }
   };
 
-  const setEl = (i: number, patch: Partial<FlowElement>) =>
+  const setEl = (i: number, patch: Partial<FlowElement>) => {
+    onEditingSection?.("form");
     setElements(prev => prev.map((e, idx) => idx === i ? { ...e, ...patch } : e));
+  };
   const move = (i: number, dir: -1 | 1) =>
     setElements(prev => {
       const j = i + dir;
@@ -268,11 +274,12 @@ export function FlowCreateForm({ onDone, onPreviewChange }: {
 
       <div className="rounded-xl border p-3 space-y-2 bg-muted/30">
         <Label className="text-xs font-semibold">Mensaje de la plantilla que envía el formulario</Label>
-        <Textarea rows={3} value={tplBody} onChange={e => setTplBody(e.target.value)}
+        <Textarea rows={3} value={tplBody} onFocus={() => onEditingSection?.("message")}
+          onChange={e => setTplBody(e.target.value)}
           placeholder="Hola, para agendar tu valoración necesitamos unos datos. Toca el botón 👇" />
         <div>
           <Label className="text-xs">Texto del botón (CTA, máx 25)</Label>
-          <Input maxLength={25} value={tplCta} onChange={e => setTplCta(e.target.value)} />
+          <Input maxLength={25} value={tplCta} onFocus={() => onEditingSection?.("message")} onChange={e => setTplCta(e.target.value)} />
         </div>
         <p className="text-[11px] text-muted-foreground">
           La plantilla con el botón que abre el formulario pasa por revisión de Meta (24-48h). Las respuestas del formulario se mapean automáticamente: los campos estándar al perfil del lead y los personalizados a sus campos.

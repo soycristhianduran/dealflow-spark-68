@@ -327,6 +327,7 @@ export default function WhatsAppTemplatesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [createKind, setCreateKind] = useState<"template" | "flow">("template");
   const [flowPreview, setFlowPreview] = useState<{ body: string; cta: string; title?: string; elements?: any[] }>({ body: "", cta: "Abrir formulario" });
+  const [flowPreviewTab, setFlowPreviewTab] = useState<"message" | "form">("form");
   const [editTemplate, setEditTemplate] = useState<WhatsAppTemplate | null>(null);
   const [viewTemplate, setViewTemplate] = useState<WhatsAppTemplate | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -975,7 +976,7 @@ export default function WhatsAppTemplatesPage() {
             </button>
           </div>
           {createKind === "flow" && (
-            <FlowCreateForm onDone={() => { setShowCreate(false); setCreateKind("template"); }} onPreviewChange={setFlowPreview} />
+            <FlowCreateForm onDone={() => { setShowCreate(false); setCreateKind("template"); }} onPreviewChange={setFlowPreview} onEditingSection={setFlowPreviewTab} />
           )}
           <div className="space-y-4 py-2" style={createKind === "flow" ? { display: "none" } : undefined}>
             <div className="grid grid-cols-2 gap-3">
@@ -1194,7 +1195,19 @@ export default function WhatsAppTemplatesPage() {
           </div>
           </div>
           {/* Teléfono en vivo */}
-          <div className="hidden md:block pt-1">
+          <div className="hidden md:block pt-1 space-y-2">
+            {createKind === "flow" && (
+              <div className="mx-auto flex w-[270px] rounded-lg border p-0.5 text-xs">
+                <button type="button" onClick={() => setFlowPreviewTab("message")}
+                  className={`flex-1 rounded-md py-1 font-medium transition ${flowPreviewTab === "message" ? "bg-orange-500 text-white" : "text-muted-foreground"}`}>
+                  Mensaje
+                </button>
+                <button type="button" onClick={() => setFlowPreviewTab("form")}
+                  className={`flex-1 rounded-md py-1 font-medium transition ${flowPreviewTab === "form" ? "bg-orange-500 text-white" : "text-muted-foreground"}`}>
+                  Formulario
+                </button>
+              </div>
+            )}
             <WhatsAppPhonePreview
               headerType={createKind === "flow" ? "NONE" : form.headerType}
               headerText={form.headerText}
@@ -1203,7 +1216,7 @@ export default function WhatsAppTemplatesPage() {
               footerText={createKind === "flow" ? "" : form.footerText}
               buttons={createKind === "flow" ? [flowPreview.cta || "Abrir formulario"] : form.buttons.map(b => b.text)}
               variableExamples={form.variableExamples}
-              flowForm={createKind === "flow" ? { title: flowPreview.title || "Tu Flow", elements: flowPreview.elements || [] } : null}
+              flowForm={createKind === "flow" && flowPreviewTab === "form" ? { title: flowPreview.title || "Tu Flow", elements: flowPreview.elements || [] } : null}
             />
           </div>
           </div>
