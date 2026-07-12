@@ -889,7 +889,8 @@ Deno.serve(async (req) => {
           const req = f.required !== false;
           if (f.type === "select" && Array.isArray(f.options) && f.options.length) {
             children.push({ type: "Dropdown", name: nm, label: String(f.label).slice(0, 30), required: req,
-              "data-source": f.options.slice(0, 20).map((o: string, oi: number) => ({ id: `opt_${oi}_${slug(o).slice(0, 20)}`, title: String(o).slice(0, 30) })) });
+              // id = el propio texto de la opción: lo que se guarda en el lead es legible ("Mañana")
+              "data-source": f.options.slice(0, 20).map((o: string) => ({ id: String(o).slice(0, 30), title: String(o).slice(0, 30) })) });
           } else if (f.type === "textarea") {
             children.push({ type: "TextArea", name: nm, label: String(f.label).slice(0, 20), required: req });
           } else if (f.type === "date") {
@@ -906,6 +907,30 @@ Deno.serve(async (req) => {
           screens: [{ id: "FORM", title: String(title || name).slice(0, 30), terminal: true,
             layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children }] } }],
         };
+
+        // Registrar los campos en el catálogo de la organización para que la
+        // ficha, los filtros y el selector de variables los muestren con su
+        // etiqueta. Momento deliberado (creación del Flow), no en cada webhook.
+        if (orgId) {
+          const { data: existingDefs } = await supabase
+            .from("custom_field_definitions")
+            .select("key")
+            .eq("organization_id", orgId);
+          const existingKeys = new Set((existingDefs ?? []).map((d: any) => d.key));
+          const newDefs = [...used]
+            .filter((k) => !existingKeys.has(k))
+            .map((k, idx) => {
+              const orig = fields.find((f) => slug(f.label) === k || slug(f.label).startsWith(k.replace(/_\d+$/, "")));
+              return {
+                organization_id: orgId,
+                key: k,
+                label: orig?.label?.slice(0, 60) || k,
+                field_type: orig?.type === "number" ? "number" : orig?.type === "date" ? "date" : "text",
+                position: 100 + idx,
+              };
+            });
+          if (newDefs.length) await supabase.from("custom_field_definitions").insert(newDefs).then(() => {}, () => {});
+        }
 
         const cr = await fetch(`${GRAPH_API}/${fcfg.waba_id}/flows`, {
           method: "POST",
