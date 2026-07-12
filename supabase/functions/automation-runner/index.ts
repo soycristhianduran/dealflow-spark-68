@@ -316,16 +316,35 @@ Deno.serve(async (req) => {
       let resumed = 0;
       for (const enr of waitingEnrs ?? []) {
         const td = { ...(enr.trigger_data ?? {}), reply: { text: String(reply_text ?? "") } };
-        // Guarded update: si otro runner ya lo movió, no lo tocamos dos veces.
+        const stepsArr: any[] = enr.automations?.steps ?? [];
+        const curStep = stepsArr[enr.current_step_index];
+        // Destino por defecto: paso siguiente (comportamiento del paso "Esperar respuesta").
+        let targetIndex = enr.current_step_index + 1;
+        // send_whatsapp con ramas por botón: emparejar la respuesta con un botón.
+        if (curStep?.type === "send_whatsapp" && curStep.config?.branches?.enabled) {
+          const br = curStep.config.branches;
+          const rt = String(reply_text ?? "").toLowerCase().trim();
+          const hit = (br.cases ?? []).find((c: any) => {
+            const m = String(c.match ?? "").toLowerCase().trim();
+            return m && (rt === m || rt.includes(m));
+          });
+          if (hit) targetIndex = Number(hit.next_index);
+          else if (br.default_next_index != null) targetIndex = Number(br.default_next_index);
+          else targetIndex = stepsArr.length; // sin coincidencia y sin default → termina
+        }
         const { data: claimed } = await supabase
           .from("automation_enrollments")
-          .update({ status: "active", next_run_at: new Date().toISOString(), current_step_index: enr.current_step_index + 1, trigger_data: td })
+          .update({ status: "active", next_run_at: new Date().toISOString(), current_step_index: targetIndex, trigger_data: td })
           .eq("id", enr.id)
           .eq("status", "waiting_reply")
           .select("id");
         if (claimed && claimed.length) {
-          const fresh = { ...enr, status: "active", current_step_index: enr.current_step_index + 1, trigger_data: td };
-          try { await processEnrollment(fresh, supabase); } catch (e) { console.error("incoming_reply process error:", e); }
+          if (targetIndex >= stepsArr.length) {
+            await supabase.from("automation_enrollments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", enr.id);
+          } else {
+            const fresh = { ...enr, status: "active", current_step_index: targetIndex, trigger_data: td };
+            try { await processEnrollment(fresh, supabase); } catch (e) { console.error("incoming_reply process error:", e); }
+          }
           resumed++;
         }
       }
@@ -618,6 +637,24 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   }
 
   const step = steps[stepIndex];
+
+  // Reanudación por TIMEOUT de un send_whatsapp con ramas por botón: no hubo
+  // respuesta dentro del plazo. Saltamos a la rama "sin respuesta" sin reenviar.
+  if (enr.status === "waiting_reply" && step?.type === "send_whatsapp" && step.config?.branches?.enabled) {
+    const br = step.config.branches;
+    const target = br.no_reply_next_index != null ? Number(br.no_reply_next_index)
+      : br.default_next_index != null ? Number(br.default_next_index)
+      : steps.length;
+    if (target >= steps.length) {
+      await supabase.from("automation_enrollments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", enr.id);
+      return;
+    }
+    const nextEnr = { ...enr, status: "active", current_step_index: target };
+    await supabase.from("automation_enrollments").update({ status: "active", current_step_index: target, next_run_at: new Date().toISOString() }).eq("id", enr.id);
+    try { await processEnrollment(nextEnr, supabase, depth + 1); } catch (_) {}
+    return;
+  }
+
   const ctx = {
     contact: {
       first_name: contact.first_name || "",
@@ -1320,6 +1357,21 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   }
 
   // Advance to next step; jumpToIndex wins over extraSkip (set by condition step)
+  // send_whatsapp con ramas por botón: en vez de avanzar, esperar la respuesta.
+  if (step.type === "send_whatsapp" && step.config?.branches?.enabled) {
+    const br = step.config.branches;
+    const val = Number(br.timeout_value ?? 24);
+    const unit = br.timeout_unit ?? "hours";
+    const ms = unit === "minutes" ? val * 60_000 : unit === "days" ? val * 86_400_000 : val * 3_600_000;
+    await supabase.from("automation_enrollments").update({
+      current_step_index: stepIndex,  // permanece en el mensaje mientras espera
+      status: "waiting_reply",
+      next_run_at: new Date(Date.now() + Math.max(ms, 60_000)).toISOString(),
+      logs,
+    }).eq("id", enr.id);
+    return;
+  }
+
   const nextIndex = jumpToIndex !== null ? jumpToIndex : stepIndex + 1 + extraSkip;
 
   if (nextIndex >= steps.length) {

@@ -1282,9 +1282,11 @@ function HighlightedBody({ body, variables }: { body: string; variables: string[
 }
 
 // ── WhatsApp template selector sub-component ──────────────────────────────────
-function WhatsAppStepEditor({ step, onChange }: {
+function WhatsAppStepEditor({ step, onChange, steps = [], stepIndex = -1 }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
+  steps?: AutomationStep[];
+  stepIndex?: number;
 }) {
   const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
@@ -1393,11 +1395,79 @@ function WhatsAppStepEditor({ step, onChange }: {
           )}
         </div>
       )}
-      {Array.isArray(selectedTpl?.buttons) && selectedTpl.buttons.length > 0 && (
-        <p className="text-[11px] text-muted-foreground">
-          💡 Esta plantilla tiene botones: agrega después un paso <strong>"Esperar respuesta"</strong> y <strong>"Según la respuesta"</strong> para reaccionar al botón que toque el contacto.
-        </p>
-      )}
+      {(() => {
+        const qrButtons = (selectedTpl?.buttons ?? []).filter((b: any) => {
+          const ty = String(b?.type ?? "").toUpperCase();
+          return (ty === "QUICK_REPLY" || ty === "") && b.text;
+        });
+        if (!qrButtons.length) return null;
+        const br = c.branches || {};
+        const setBr = (patch: any) => set("branches", { ...br, ...patch });
+        const laterSteps = steps.map((st, idx) => ({ st, idx })).filter(({ idx }) => idx > stepIndex);
+        const stepLabel = (st: AutomationStep, idx: number) => `${idx + 1}. ${STEP_META[st.type]?.label ?? st.type}${stepSummary(st) ? ` · ${stepSummary(st)}` : ""}`.slice(0, 55);
+        const StepPicker = ({ value, onPick, placeholder }: { value: any; onPick: (v: number | null) => void; placeholder: string }) => (
+          <Select value={value != null ? String(value) : ""} onValueChange={v => onPick(v === "__none__" ? null : parseInt(v))}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={placeholder} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" className="text-xs italic">continúa al siguiente paso</SelectItem>
+              {laterSteps.map(({ st, idx }) => <SelectItem key={st.id} value={String(idx)} className="text-xs">{stepLabel(st, idx)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+        return (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Ramas por botón</Label>
+              <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                <input type="checkbox" checked={!!br.enabled} onChange={e => setBr({ enabled: e.target.checked })} />
+                Activar
+              </label>
+            </div>
+            {!br.enabled ? (
+              <p className="text-[11px] text-muted-foreground">Actívalo para reaccionar según el botón que toque el contacto (enviar otro WhatsApp, email, llamada, mover etapa…). Añade los pasos de cada rama al flujo y elígelos abajo.</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">Esperar respuesta hasta</span>
+                  <Input type="number" min={1} className="h-7 w-16 text-xs" value={br.timeout_value ?? 24}
+                    onChange={e => setBr({ timeout_value: parseInt(e.target.value) || 24 })} />
+                  <Select value={br.timeout_unit ?? "hours"} onValueChange={v => setBr({ timeout_unit: v })}>
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="minutes">minutos</SelectItem>
+                      <SelectItem value="hours">horas</SelectItem>
+                      <SelectItem value="days">días</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {qrButtons.map((b: any, i: number) => {
+                  const cases = br.cases ?? [];
+                  const cur = cases.find((x: any) => x.match === b.text);
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="shrink-0 w-32 truncate rounded bg-white dark:bg-emerald-900/30 border px-2 py-1 text-[11px] font-medium" title={b.text}>▸ {b.text}</span>
+                      <StepPicker value={cur?.next_index} placeholder="¿qué acción? →"
+                        onPick={(v) => {
+                          const others = (br.cases ?? []).filter((x: any) => x.match !== b.text);
+                          setBr({ cases: v == null ? others : [...others, { match: b.text, next_index: v }] });
+                        }} />
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 w-32 text-[11px] text-muted-foreground">Otra respuesta</span>
+                  <StepPicker value={br.default_next_index} placeholder="continúa" onPick={(v) => setBr({ default_next_index: v })} />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="shrink-0 w-32 text-[11px] text-muted-foreground">Sin respuesta</span>
+                  <StepPicker value={br.no_reply_next_index} placeholder="continúa" onPick={(v) => setBr({ no_reply_next_index: v })} />
+                </div>
+                <p className="text-[10px] text-muted-foreground">Cierra cada rama con "Fin de rama" para que no siga con la otra.</p>
+              </>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Mapper de variables ── */}
       {selectedTpl && varCount > 0 && (
@@ -2477,7 +2547,7 @@ function StepConfigEditor({ step, onChange, steps = [], stepIndex = -1 }: {
 
   if (step.type === "send_email") return <EmailStepEditor step={step} onChange={onChange} />;
 
-  if (step.type === "send_whatsapp") return <WhatsAppStepEditor step={step} onChange={onChange} />;
+  if (step.type === "send_whatsapp") return <WhatsAppStepEditor step={step} onChange={onChange} steps={steps} stepIndex={stepIndex} />;
 
   if (step.type === "add_tag") return (
     <div>
