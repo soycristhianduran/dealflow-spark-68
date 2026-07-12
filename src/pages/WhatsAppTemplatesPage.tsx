@@ -326,7 +326,7 @@ export default function WhatsAppTemplatesPage() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [createKind, setCreateKind] = useState<"template" | "flow">("template");
-  const [flowPreview, setFlowPreview] = useState<{ body: string; cta: string }>({ body: "", cta: "Abrir formulario" });
+  const [flowPreview, setFlowPreview] = useState<{ body: string; cta: string; title?: string; fields?: { label: string; type: string; options?: string[] }[] }>({ body: "", cta: "Abrir formulario" });
   const [editTemplate, setEditTemplate] = useState<WhatsAppTemplate | null>(null);
   const [viewTemplate, setViewTemplate] = useState<WhatsAppTemplate | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -1203,6 +1203,7 @@ export default function WhatsAppTemplatesPage() {
               footerText={createKind === "flow" ? "" : form.footerText}
               buttons={createKind === "flow" ? [flowPreview.cta || "Abrir formulario"] : form.buttons.map(b => b.text)}
               variableExamples={form.variableExamples}
+              flowForm={createKind === "flow" ? { title: flowPreview.title || "Tu Flow", fields: flowPreview.fields || [] } : null}
             />
           </div>
           </div>

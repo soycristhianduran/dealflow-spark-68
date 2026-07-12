@@ -14,6 +14,29 @@ import { useOrganizationContext } from "@/context/OrganizationContext";
 interface Flow { id: string; name: string; status: string; categories?: string[] }
 interface FieldDef { label: string; type: string; options: string; required: boolean }
 
+// Formularios prediseñados (estilo Kommo) — punto de partida editable
+const FLOW_PRESETS: { key: string; label: string; desc: string; title: string; fields: FieldDef[] }[] = [
+  { key: "agendamiento", label: "Agendar cita", desc: "Día, franja horaria y datos de contacto",
+    title: "Agenda tu cita", fields: [
+      { label: "¿Qué día prefieres?", type: "date", options: "", required: true },
+      { label: "Franja horaria", type: "select", options: "Mañana, Tarde", required: true },
+      { label: "Teléfono de contacto", type: "phone", options: "", required: true },
+    ] },
+  { key: "feedback", label: "Compartir feedback", desc: "Comentarios sobre tu producto o servicio",
+    title: "Cuéntanos tu opinión", fields: [
+      { label: "¿Cómo calificas tu experiencia?", type: "select", options: "Excelente, Buena, Regular, Mala", required: true },
+      { label: "¿Qué podemos mejorar?", type: "textarea", options: "", required: false },
+    ] },
+  { key: "evento", label: "Inscripción a evento", desc: "Registro de asistentes",
+    title: "Inscríbete al evento", fields: [
+      { label: "Nombre completo", type: "text", options: "", required: true },
+      { label: "Email", type: "email", options: "", required: true },
+      { label: "¿Cuántas personas asisten?", type: "number", options: "", required: true },
+    ] },
+  { key: "custom", label: "Formulario personalizado", desc: "Crea un Flow a tu medida",
+    title: "", fields: [{ label: "", type: "text", options: "", required: true }] },
+];
+
 const FIELD_TYPES = [
   { value: "text", label: "Texto corto" },
   { value: "textarea", label: "Texto largo" },
@@ -26,7 +49,7 @@ const FIELD_TYPES = [
 
 /** Formulario de creación de un WhatsApp Flow (una pantalla, hasta 10 campos).
  *  Se usa dentro del diálogo "Nueva plantilla" (tipo Flow) y en la sección de Flows. */
-export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void; onPreviewChange?: (p: { body: string; cta: string }) => void }) {
+export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void; onPreviewChange?: (p: { body: string; cta: string; title: string; fields: { label: string; type: string; options?: string[] }[] }) => void }) {
   const { organizationId } = useOrganizationContext();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
@@ -34,11 +57,28 @@ export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void
   const [fields, setFields] = useState<FieldDef[]>([{ label: "", type: "text", options: "", required: true }]);
   const [tplBody, setTplBody] = useState("");
   const [tplCta, setTplCta] = useState("Abrir formulario");
+  const [preset, setPreset] = useState<string>("custom");
+
+  const applyPreset = (key: string) => {
+    setPreset(key);
+    const p = FLOW_PRESETS.find(x => x.key === key);
+    if (p && key !== "custom") {
+      setTitle(p.title);
+      setFields(p.fields.map(f => ({ ...f })));
+      if (!name) setName(p.key === "agendamiento" ? "agendamiento_cita" : p.key);
+    }
+  };
 
   useEffect(() => {
-    onPreviewChange?.({ body: tplBody, cta: tplCta });
+    onPreviewChange?.({
+      body: tplBody, cta: tplCta, title: title || "Tu Flow",
+      fields: fields.filter(f => f.label.trim()).map(f => ({
+        label: f.label, type: f.type,
+        options: f.type === "select" ? f.options.split(",").map(o => o.trim()).filter(Boolean) : undefined,
+      })),
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tplBody, tplCta]);
+  }, [tplBody, tplCta, title, fields]);
 
   const setField = (i: number, patch: Partial<FieldDef>) =>
     setFields(prev => prev.map((f, idx) => idx === i ? { ...f, ...patch } : f));
@@ -75,6 +115,18 @@ export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void
 
   return (
     <div className="space-y-4">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Empieza desde un formulario prediseñado o crea uno personalizado</Label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {FLOW_PRESETS.map(pr => (
+            <button key={pr.key} type="button" onClick={() => applyPreset(pr.key)}
+              className={`rounded-lg border p-2 text-left transition ${preset === pr.key ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20" : "hover:border-muted-foreground/30"}`}>
+              <p className="text-xs font-semibold">{pr.label}</p>
+              <p className="text-[10px] text-muted-foreground leading-tight">{pr.desc}</p>
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-xs">Nombre interno</Label>

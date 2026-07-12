@@ -18,6 +18,9 @@ export function WhatsAppPhonePreview({
   footerText?: string;
   buttons?: string[];
   variableExamples?: string[];
+  // Si se pasa, la pantalla muestra el FORMULARIO del Flow (hoja nativa de
+  // WhatsApp) en lugar del chat.
+  flowForm?: { title: string; fields: { label: string; type: string; options?: string[] }[] } | null;
 }) {
   const now = new Date();
   const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -64,6 +67,47 @@ export function WhatsAppPhonePreview({
             </div>
           </div>
 
+          {flowForm ? (
+            /* ── Hoja del Flow (formulario nativo) ── */
+            <div className="flex min-h-[430px] max-h-[460px] flex-col bg-[#111b21]">
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/10">
+                <span className="text-[#8696a0] text-sm">✕</span>
+                <p className="text-[12px] font-semibold text-white truncate px-2">{flowForm.title || "Tu Flow"}</p>
+                <span className="text-[#8696a0] text-sm">⋮</span>
+              </div>
+              <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+                {flowForm.fields.length === 0 && (
+                  <p className="text-[11px] italic text-[#8696a0]">Añade campos al formulario para verlos aquí…</p>
+                )}
+                {flowForm.fields.map((f, i) => (
+                  <div key={i} className="space-y-1">
+                    <p className="text-[10px] text-[#8696a0]">{f.label || `Campo ${i + 1}`}</p>
+                    {f.type === "select" ? (
+                      <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#e9edef]">
+                        <span className="text-[#8696a0]">{(f.options && f.options[0]) || "Selecciona…"}</span>
+                        <span className="text-[#8696a0]">▾</span>
+                      </div>
+                    ) : f.type === "textarea" ? (
+                      <div className="h-14 rounded-md border border-white/15 bg-[#1f2c34]" />
+                    ) : f.type === "date" ? (
+                      <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
+                        <span>dd/mm/aaaa</span><span>📅</span>
+                      </div>
+                    ) : (
+                      <div className="rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
+                        {f.type === "email" ? "correo@ejemplo.com" : f.type === "phone" ? "+57 300 000 0000" : f.type === "number" ? "0" : "Escribe aquí…"}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="px-3 pb-2 pt-1 space-y-1.5">
+                <div className="rounded-full bg-[#00a884] py-2 text-center text-[12px] font-semibold text-white">Enviar</div>
+                <p className="text-center text-[9px] text-[#8696a0]">Gestionado por tu negocio · <span className="text-[#53bdeb]">Ver más</span></p>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Fondo del chat (patrón doodle simulado) */}
           <div
             className="min-h-[430px] max-h-[460px] overflow-y-auto px-2.5 py-3 space-y-1"
@@ -113,6 +157,9 @@ export function WhatsAppPhonePreview({
               </div>
             )}
           </div>
+
+          </>
+          )}
 
           {/* Barra de entrada */}
           <div className="flex items-center gap-1.5 bg-[#1f2c34] px-2.5 py-2">
