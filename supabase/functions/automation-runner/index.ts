@@ -1116,7 +1116,24 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
             flow_token: `${enr.id}:${contact.id}`,
             mode: cfg.draft_mode ? "draft" : "published",
           };
-          if (cfg.screen) {
+          // Personalización: si el Flow declara claves dinámicas (creado desde
+          // Klosify), se rellenan desde el contacto y se envían como data.
+          const { data: flowMeta } = await supabase
+            .from("org_whatsapp_flows")
+            .select("data_keys")
+            .eq("flow_id", String(cfg.flow_id))
+            .maybeSingle();
+          const dataKeys: string[] = Array.isArray(flowMeta?.data_keys) ? flowMeta.data_keys : [];
+          const screenName = String(cfg.screen || "FORM");
+          if (dataKeys.length) {
+            const dataPayload: Record<string, string> = {};
+            for (const k of dataKeys) {
+              const v = (contact as any)[k] ?? contact.custom_fields?.[k] ?? "";
+              dataPayload[k] = String(v ?? "");
+            }
+            params.flow_action = "navigate";
+            params.flow_action_payload = { screen: screenName, data: dataPayload };
+          } else if (cfg.screen) {
             params.flow_action = "navigate";
             params.flow_action_payload = { screen: String(cfg.screen) };
           }

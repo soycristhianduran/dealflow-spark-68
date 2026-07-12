@@ -143,7 +143,8 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
 
   const pickImage = (i: number, file: File | null) => {
     if (!file) return;
-    if (file.size > 150_000) { toast.error("Imagen muy pesada — máximo ~150KB (los Flows viajan con la imagen embebida)"); return; }
+    if (file.size > 300_000) { toast.error("Imagen muy pesada — Meta permite hasta ~300KB por imagen en Flows"); return; }
+    if (elements.filter(e => e.kind === "image" && e.src).length >= 3) { toast.error("Meta permite máximo 3 imágenes por pantalla"); return; }
     const reader = new FileReader();
     reader.onload = () => {
       const b64 = String(reader.result).split(",")[1] || "";
@@ -222,7 +223,7 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
       <div className="space-y-2">
         {elements.length === 0 && (
           <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-            Añade textos, imagen y campos — se muestran en el teléfono a la derecha en el orden de esta lista.
+            Añade textos, imágenes (máx 3, ~300KB c/u) y campos. En los textos puedes usar {"{{first_name}}"} o {"{{tu_campo}}"} para personalizar con datos del lead.
           </p>
         )}
         {elements.map((el, i) => (
@@ -282,7 +283,7 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
           <Input maxLength={25} value={tplCta} onFocus={() => onEditingSection?.("message")} onChange={e => setTplCta(e.target.value)} />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          La plantilla con el botón que abre el formulario pasa por revisión de Meta (24-48h). Las respuestas del formulario se mapean automáticamente: los campos estándar al perfil del lead y los personalizados a sus campos.
+          Puedes usar variables {"{{1}}"}, {"{{2}}"}… en el cuerpo (se mapean al enviar, como en cualquier plantilla). Pasa por revisión de Meta (24-48h). Las respuestas del formulario se mapean automáticamente al lead.
         </p>
       </div>
 

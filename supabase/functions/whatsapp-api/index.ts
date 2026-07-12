@@ -884,12 +884,27 @@ Deno.serve(async (req) => {
         const children: any[] = [];
         const payload: Record<string, string> = {};
         const usedKeys = new Set<string>();
+        // Personalización dentro del Flow: tokens {{clave}} en los textos se
+        // convierten a ${data.<clave>} y se declaran en el schema de la pantalla.
+        // Las claves válidas: first_name, last_name, full_name, city o cualquier
+        // campo personalizado del contacto. El paso "Enviar WhatsApp Flow" las
+        // rellena desde el lead al enviar.
+        const dataKeys = new Set<string>();
+        const tokenize = (t: string) => String(t).replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, k) => {
+          const key = String(k).replace(/^contact\./, "").replace(/^custom\./, "").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 30);
+          dataKeys.add(key);
+          return "${data." + key + "}";
+        });
+        let imageCount = 0;
         for (const el of elements.slice(0, 20)) {
-          if (el.kind === "heading_lg" && el.text) children.push({ type: "TextHeading", text: String(el.text).slice(0, 80) });
-          else if (el.kind === "heading_sm" && el.text) children.push({ type: "TextSubheading", text: String(el.text).slice(0, 80) });
-          else if (el.kind === "body" && el.text) children.push({ type: "TextBody", text: String(el.text).slice(0, 4096) });
-          else if (el.kind === "caption" && el.text) children.push({ type: "TextCaption", text: String(el.text).slice(0, 300) });
-          else if (el.kind === "image" && el.src) children.push({ type: "Image", src: String(el.src), height: 180, "scale-type": "cover" });
+          if (el.kind === "heading_lg" && el.text) children.push({ type: "TextHeading", text: tokenize(String(el.text).slice(0, 80)) });
+          else if (el.kind === "heading_sm" && el.text) children.push({ type: "TextSubheading", text: tokenize(String(el.text).slice(0, 80)) });
+          else if (el.kind === "body" && el.text) children.push({ type: "TextBody", text: tokenize(String(el.text).slice(0, 4096)) });
+          else if (el.kind === "caption" && el.text) children.push({ type: "TextCaption", text: tokenize(String(el.text).slice(0, 300)) });
+          else if (el.kind === "image" && el.src) {
+            if (++imageCount > 3) continue; // Meta: máximo 3 imágenes por pantalla
+            children.push({ type: "Image", src: String(el.src), height: 180, "scale-type": "cover" });
+          }
           else if (el.kind === "field" && el.key && el.label) {
             let nm = String(el.key).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40) || "campo";
             let k = 2; const base = nm;
@@ -912,11 +927,13 @@ Deno.serve(async (req) => {
         }
         if (!Object.keys(payload).length) throw new Error("El formulario necesita al menos un campo");
         children.push({ type: "Footer", label: "Enviar", "on-click-action": { name: "complete", payload } });
-        const flowJson = {
-          version: "7.2",
-          screens: [{ id: "FORM", title: String(title || name).slice(0, 30), terminal: true,
-            layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children }] } }],
-        };
+        const screenDef: any = { id: "FORM", title: String(title || name).slice(0, 30), terminal: true,
+          layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children }] } };
+        if (dataKeys.size) {
+          screenDef.data = {};
+          for (const k of dataKeys) screenDef.data[k] = { type: "string", "__example__": "Ejemplo" };
+        }
+        const flowJson = { version: "7.2", screens: [screenDef] };
 
         // Registrar campos personalizados nuevos en el catálogo (claves custom.*)
         if (orgId) {
@@ -960,17 +977,33 @@ Deno.serve(async (req) => {
           published = !!pj.success;
           if (pj.error) publishError = pj.error.message;
         }
-        // Plantilla portadora (cuerpo + botón FLOW)
+        // Guardar metadatos locales (claves dinámicas para el paso de envío)
+        if (orgId) {
+          await supabase.from("org_whatsapp_flows").upsert({
+            flow_id: String(flowId), organization_id: orgId, name, data_keys: [...dataKeys],
+          }, { onConflict: "flow_id" }).then(() => {}, () => {});
+        }
+
+        // Plantilla portadora (cuerpo + botón FLOW). Admite variables {{1}}..{{N}}
+        // con sus ejemplos (Meta los exige para aprobar).
         let templateResult: any = null;
         if (published && body.template_body) {
           const tplName = String(body.template_name || `${name}_tpl`).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 60);
+          const tplBodyText = String(body.template_body).slice(0, 1024);
+          const varMatches = tplBodyText.match(/\{\{\d+\}\}/g) ?? [];
+          const varCount = varMatches.length ? Math.max(...varMatches.map((m: string) => parseInt(m.replace(/\D/g, ""), 10))) : 0;
+          const bodyComponent: any = { type: "BODY", text: tplBodyText };
+          if (varCount > 0) {
+            const examples: string[] = Array.isArray(body.template_examples) ? body.template_examples : [];
+            bodyComponent.example = { body_text: [Array.from({ length: varCount }, (_, i) => examples[i] || "Ejemplo")] };
+          }
           const tplRes = await fetch(`${GRAPH_API}/${fcfg.waba_id}/message_templates`, {
             method: "POST",
             headers: { Authorization: `Bearer ${fcfg.access_token}`, "Content-Type": "application/json" },
             body: JSON.stringify({
               name: tplName, language: "es", category: body.template_category || "MARKETING",
               components: [
-                { type: "BODY", text: String(body.template_body).slice(0, 1024) },
+                bodyComponent,
                 { type: "BUTTONS", buttons: [{ type: "FLOW", text: String(body.template_cta || "Abrir formulario").slice(0, 25), flow_id: flowId, navigate_screen: "FORM", flow_action: "NAVIGATE" }] },
               ],
             }),
