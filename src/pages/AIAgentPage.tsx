@@ -241,8 +241,8 @@ export default function AIAgentPage() {
               typeof h === "number" ? `${String(h).padStart(2, "0")}:00` : String(h));
             const DEF = { days: [1,2,3,4,5], hours: ["09:00","10:00","11:00","12:00"], capacity: 2 };
             if (!c) return { enabled: false, rules: [DEF] };
-            if (Array.isArray(c.rules)) return { enabled: !!c.enabled, rules: (c.rules.length ? c.rules : [DEF]).map((r: any) => ({ days: r.days ?? [], hours: toHHMM(r.hours), capacity: r.capacity ?? 2 })) };
-            return { enabled: !!c.enabled, rules: [{ days: c.days ?? [1,2,3,4,5], hours: toHHMM(c.hours), capacity: c.capacity ?? 2 }] };
+            if (Array.isArray(c.rules)) return { enabled: !!c.enabled, mode: c.mode === "only" ? "only" : "boost", rules: (c.rules.length ? c.rules : [DEF]).map((r: any) => ({ days: r.days ?? [], hours: toHHMM(r.hours), capacity: r.capacity ?? 2 })) };
+            return { enabled: !!c.enabled, mode: c.mode === "only" ? "only" : "boost", rules: [{ days: c.days ?? [1,2,3,4,5], hours: toHHMM(c.hours), capacity: c.capacity ?? 2 }] };
           })(),
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
