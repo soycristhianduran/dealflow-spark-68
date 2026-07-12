@@ -544,22 +544,26 @@ function StepNode({ data }: NodeProps) {
               <div key={i} className="relative flex items-center gap-1.5">
                 <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
                 {branchesOn && (
-                  <>
-                    {dest ? (
-                      <span className="shrink-0 text-[10px] text-slate-400">→ {dest}</span>
-                    ) : (
+                  dest ? (
+                    <>
                       <button
                         onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
-                        className="shrink-0 flex items-center gap-0.5 rounded-md border border-emerald-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 nodrag"
-                        title="Agregar acción para este botón"
-                      >
-                        <Plus className="h-2.5 w-2.5" /> acción
-                      </button>
-                    )}
-                    {/* Punto de salida de la rama de este botón */}
-                    <Handle type="source" id={`br-btn-${i}`} position={Position.Right}
-                      className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" style={{ right: -6 }} />
-                  </>
+                        className="shrink-0 text-[10px] text-slate-500 hover:text-emerald-600 hover:underline nodrag"
+                        title="Cambiar la acción de este botón"
+                      >→ {dest} ✎</button>
+                      {/* Anclaje de la línea de rama (solo cuando ya hay destino) */}
+                      <Handle type="source" id={`br-btn-${i}`} position={Position.Right}
+                        className="!bg-emerald-500 !w-2 !h-2 !border !border-white" style={{ right: -5 }} />
+                    </>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
+                      className="shrink-0 flex items-center gap-0.5 rounded-md bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600 nodrag"
+                      title="Agregar la acción que se ejecuta si tocan este botón"
+                    >
+                      <Plus className="h-2.5 w-2.5" /> Agregar acción
+                    </button>
+                  )
                 )}
               </div>
             );
