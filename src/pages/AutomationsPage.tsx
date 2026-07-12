@@ -1225,7 +1225,7 @@ function NodeConfigPanel({
           <MultiTriggerEditor triggers={triggers} onChange={onTriggersChange} />
         )}
 
-        {step && <StepConfigEditor step={step} onChange={onStepChange} />}
+        {step && <StepConfigEditor step={step} onChange={onStepChange} steps={steps} stepIndex={steps.findIndex(s => s.id === step.id)} />}
       </div>
     </div>
   );
@@ -2265,13 +2265,38 @@ function EnrollAutomationEditor({ step, onChange }: {
 }
 
 // ── Step config fields ────────────────────────────────────────────────────────
-function StepConfigEditor({ step, onChange }: {
+function StepConfigEditor({ step, onChange, steps = [], stepIndex = -1 }: {
   step: AutomationStep;
   onChange: (updated: AutomationStep) => void;
+  steps?: AutomationStep[];
+  stepIndex?: number;
 }) {
   const { t } = useTranslation();
+  const { organizationId } = useOrganizationContext();
   const c = step.config;
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
+
+  // Pasos posteriores a este (destinos válidos de una rama)
+  const laterSteps = steps.map((s, idx) => ({ s, idx })).filter(({ idx }) => idx > stepIndex);
+  const stepLabel = (s: AutomationStep, idx: number) => `${idx + 1}. ${STEP_META[s.type]?.label ?? s.type}${stepSummary(s) ? ` · ${stepSummary(s)}` : ""}`.slice(0, 60);
+
+  // Detectar botones de la plantilla enviada en el paso anterior más cercano
+  const detectButtons = async () => {
+    let tplName = "";
+    for (let i = stepIndex - 1; i >= 0; i--) {
+      if (steps[i].type === "send_whatsapp" && steps[i].config?.template_name) { tplName = steps[i].config.template_name; break; }
+      if (steps[i].type === "send_whatsapp_interactive") { // botones definidos en el propio paso
+        const btns = (steps[i].config?.buttons ?? []).filter((b: string) => b && b.trim());
+        if (btns.length) { set("cases", btns.map((b: string) => ({ match: b, next_index: stepIndex + 1 }))); return; }
+      }
+    }
+    if (!tplName || !organizationId) { toast.error("No encontré una plantilla con botones en los pasos anteriores"); return; }
+    const { data } = await supabase.from("whatsapp_templates").select("buttons").eq("organization_id", organizationId).eq("name", tplName).maybeSingle();
+    const btns = (data?.buttons ?? []).map((b: any) => b.text).filter(Boolean);
+    if (!btns.length) { toast.error("Esa plantilla no tiene botones"); return; }
+    set("cases", btns.map((b: string) => ({ match: b, next_index: stepIndex + 1 })));
+    toast.success(`${btns.length} botón(es) detectado(s)`);
+  };
 
   if (step.type === "wait") return <WaitStepEditor step={step} onChange={onChange} />;
 
@@ -2303,32 +2328,44 @@ function StepConfigEditor({ step, onChange }: {
 
   if (step.type === "reply_switch") return (
     <div className="space-y-3">
-      <Label className="text-xs font-semibold">Ramas — una por botón o respuesta esperada</Label>
+      <div className="flex items-center justify-between">
+        <Label className="text-xs font-semibold">Ramas — un camino por cada botón</Label>
+        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={detectButtons}>Detectar botones ↑</Button>
+      </div>
       {(c.cases ?? []).map((cs: any, i: number) => (
-        <div key={i} className="flex items-center gap-2">
-          <Input className="flex-1" placeholder='Texto del botón — ej: "AGENDAR CITA"' value={cs.match ?? ""}
-            onChange={e => {
-              const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], match: e.target.value }; set("cases", cases);
-            }} />
-          <span className="text-xs text-muted-foreground shrink-0">→ paso</span>
-          <Input type="number" min={0} className="w-20 shrink-0" value={cs.next_index ?? 0}
-            onChange={e => {
-              const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], next_index: parseInt(e.target.value) || 0 }; set("cases", cases);
-            }} />
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive shrink-0"
-            onClick={() => set("cases", (c.cases ?? []).filter((_: any, idx: number) => idx !== i))}>×</Button>
+        <div key={i} className="rounded-lg border p-2 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold text-muted-foreground shrink-0">Si toca</span>
+            <Input className="h-7 text-xs flex-1" placeholder='Ej: "QUIERO AGENDAR"' value={cs.match ?? ""}
+              onChange={e => { const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], match: e.target.value }; set("cases", cases); }} />
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive shrink-0"
+              onClick={() => set("cases", (c.cases ?? []).filter((_: any, idx: number) => idx !== i))}>×</Button>
+          </div>
+          <div className="flex items-center gap-2 pl-1">
+            <span className="text-[10px] text-muted-foreground shrink-0">ir a →</span>
+            <Select value={String(cs.next_index ?? "")} onValueChange={v => { const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], next_index: parseInt(v) }; set("cases", cases); }}>
+              <SelectTrigger className="h-7 text-xs"><SelectValue placeholder="elige el paso destino…" /></SelectTrigger>
+              <SelectContent>
+                {laterSteps.map(({ s, idx }) => <SelectItem key={s.id} value={String(idx)} className="text-xs">{stepLabel(s, idx)}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       ))}
-      <Button variant="outline" size="sm" onClick={() => set("cases", [...(c.cases ?? []), { match: "", next_index: 0 }])}>+ Añadir rama</Button>
+      <Button variant="outline" size="sm" onClick={() => set("cases", [...(c.cases ?? []), { match: "", next_index: stepIndex + 1 }])}>+ Añadir rama</Button>
       <div>
-        <Label className="text-xs">Si nada coincide, ir al paso (opcional)</Label>
-        <Input type="number" min={0} className="mt-1 w-28" value={c.default_next_index ?? ""}
-          placeholder="continúa"
-          onChange={e => set("default_next_index", e.target.value === "" ? null : parseInt(e.target.value) || 0)} />
+        <Label className="text-xs">Si no coincide con ningún botón, ir a (opcional)</Label>
+        <Select value={c.default_next_index != null ? String(c.default_next_index) : ""} onValueChange={v => set("default_next_index", v === "__none__" ? null : parseInt(v))}>
+          <SelectTrigger className="h-7 text-xs mt-1"><SelectValue placeholder="continúa al siguiente paso" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__" className="text-xs italic">continúa al siguiente paso</SelectItem>
+            {laterSteps.map(({ s, idx }) => <SelectItem key={s.id} value={String(idx)} className="text-xs">{stepLabel(s, idx)}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
       <p className="text-xs text-muted-foreground flex items-start gap-1">
         <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-        Los pasos se numeran desde 0 (el primero del flujo). Estructura típica: plantilla con botones → Esperar respuesta → este paso, con cada botón saltando al tramo de su rama; cierra cada rama con "Fin de rama" para que no siga con la otra.
+        Estructura: plantilla con botones → "Esperar respuesta" → este paso. Añade los pasos de cada rama (enviar WhatsApp, email, llamada…) y elígelos como destino. Cierra cada rama con "Fin de rama" para que no siga con la otra.
       </p>
     </div>
   );
