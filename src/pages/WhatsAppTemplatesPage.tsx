@@ -572,6 +572,9 @@ export default function WhatsAppTemplatesPage() {
           </div>
         </div>
 
+        {/* ── WhatsApp Flows (formularios nativos) ── */}
+        <WhatsAppFlowsSection />
+
         {/* Templates grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -677,8 +680,6 @@ export default function WhatsAppTemplatesPage() {
           </div>
         )}
 
-        {/* ── WhatsApp Flows (formularios nativos) ── */}
-        <WhatsAppFlowsSection />
       </div>
 
       {/* ── VIEW DETAIL DIALOG ── */}
