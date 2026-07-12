@@ -205,7 +205,7 @@ const STEP_GROUPS: { label: string; types: string[] }[] = [
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
-  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "send_whatsapp_flow", "wait_reply", "reply_switch", "reply_condition", "end_flow"] },
+  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "send_whatsapp_flow"] },
   { label: "Flujo",         types: ["enroll_automation"] },
 ];
 
@@ -516,7 +516,11 @@ function StepNode({ data }: NodeProps) {
 
   // WhatsApp con botones: mostrar plantilla + botones y a dónde ramifica cada uno
   const cfg = step?.config ?? {};
-  const waButtons: string[] = step?.type === "send_whatsapp" ? (cfg._buttons ?? []) : [];
+  const waButtons: string[] = step?.type === "send_whatsapp"
+    ? (cfg._buttons ?? [])
+    : step?.type === "send_whatsapp_interactive"
+      ? (cfg.buttons ?? []).filter((b: string) => b && b.trim())
+      : [];
   const branchesOn = !!cfg.branches?.enabled;
   const cases: any[] = cfg.branches?.cases ?? [];
   const destLabel = (idx: any) => {
@@ -2574,6 +2578,60 @@ function StepConfigEditor({ step, onChange, steps = [], stepIndex = -1 }: {
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
         Mensaje libre (no plantilla): solo se entrega dentro de la ventana de 24h desde el último mensaje del contacto. Ideal justo después de que el lead escribe.
       </div>
+
+      {/* Ramas por botón (igual que en la plantilla) */}
+      {(() => {
+        const qr = (c.buttons ?? []).filter((b: string) => b && b.trim());
+        if (!qr.length) return null;
+        const br = c.branches || {};
+        const setBr = (patch: any) => set("branches", { ...br, ...patch });
+        const later = steps.map((st, idx) => ({ st, idx })).filter(({ idx }) => idx > stepIndex);
+        const lbl = (st: AutomationStep, idx: number) => `${idx + 1}. ${STEP_META[st.type]?.label ?? st.type}${stepSummary(st) ? ` · ${stepSummary(st)}` : ""}`.slice(0, 55);
+        const Picker = ({ value, onPick, ph }: { value: any; onPick: (v: number | null) => void; ph: string }) => (
+          <Select value={value != null ? String(value) : ""} onValueChange={v => onPick(v === "__none__" ? null : parseInt(v))}>
+            <SelectTrigger className="h-7 text-xs"><SelectValue placeholder={ph} /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__" className="text-xs italic">continúa al siguiente paso</SelectItem>
+              {later.map(({ st, idx }) => <SelectItem key={st.id} value={String(idx)} className="text-xs">{lbl(st, idx)}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        );
+        return (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 dark:bg-emerald-950/20 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">Ramas por botón</Label>
+              <label className="flex items-center gap-1.5 text-[11px] cursor-pointer">
+                <input type="checkbox" checked={!!br.enabled} onChange={e => setBr({ enabled: e.target.checked })} /> Activar
+              </label>
+            </div>
+            {!br.enabled ? (
+              <p className="text-[11px] text-muted-foreground">Actívalo para reaccionar según el botón que toque el contacto. Añade los pasos de cada rama desde el nodo con "+ acción".</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] text-muted-foreground">Esperar respuesta hasta</span>
+                  <Input type="number" min={1} className="h-7 w-16 text-xs" value={br.timeout_value ?? 24} onChange={e => setBr({ timeout_value: parseInt(e.target.value) || 24 })} />
+                  <Select value={br.timeout_unit ?? "hours"} onValueChange={v => setBr({ timeout_unit: v })}>
+                    <SelectTrigger className="h-7 w-24 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="minutes">minutos</SelectItem><SelectItem value="hours">horas</SelectItem><SelectItem value="days">días</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                {qr.map((b: string, i: number) => {
+                  const cur = (br.cases ?? []).find((x: any) => x.match === b);
+                  return (
+                    <div key={i} className="flex items-center gap-2">
+                      <span className="shrink-0 w-32 truncate rounded bg-white dark:bg-emerald-900/30 border px-2 py-1 text-[11px] font-medium" title={b}>▸ {b}</span>
+                      <Picker value={cur?.next_index} ph="¿qué acción? →" onPick={v => { const others = (br.cases ?? []).filter((x: any) => x.match !== b); setBr({ cases: v == null ? others : [...others, { match: b, next_index: v }] }); }} />
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-2"><span className="shrink-0 w-32 text-[11px] text-muted-foreground">Otra respuesta</span><Picker value={br.default_next_index} ph="continúa" onPick={v => setBr({ default_next_index: v })} /></div>
+                <div className="flex items-center gap-2"><span className="shrink-0 w-32 text-[11px] text-muted-foreground">Sin respuesta</span><Picker value={br.no_reply_next_index} ph="continúa" onPick={v => setBr({ no_reply_next_index: v })} /></div>
+              </>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 

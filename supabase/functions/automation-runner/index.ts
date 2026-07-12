@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
         // Destino por defecto: paso siguiente (comportamiento del paso "Esperar respuesta").
         let targetIndex = enr.current_step_index + 1;
         // send_whatsapp con ramas por botón: emparejar la respuesta con un botón.
-        if (curStep?.type === "send_whatsapp" && curStep.config?.branches?.enabled) {
+        if ((curStep?.type === "send_whatsapp" || curStep?.type === "send_whatsapp_interactive") && curStep.config?.branches?.enabled) {
           const br = curStep.config.branches;
           const rt = String(reply_text ?? "").toLowerCase().trim();
           const hit = (br.cases ?? []).find((c: any) => {
@@ -640,7 +640,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
 
   // Reanudación por TIMEOUT de un send_whatsapp con ramas por botón: no hubo
   // respuesta dentro del plazo. Saltamos a la rama "sin respuesta" sin reenviar.
-  if (enr.status === "waiting_reply" && step?.type === "send_whatsapp" && step.config?.branches?.enabled) {
+  if (enr.status === "waiting_reply" && (step?.type === "send_whatsapp" || step?.type === "send_whatsapp_interactive") && step.config?.branches?.enabled) {
     const br = step.config.branches;
     const target = br.no_reply_next_index != null ? Number(br.no_reply_next_index)
       : br.default_next_index != null ? Number(br.default_next_index)
@@ -1358,7 +1358,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
 
   // Advance to next step; jumpToIndex wins over extraSkip (set by condition step)
   // send_whatsapp con ramas por botón: en vez de avanzar, esperar la respuesta.
-  if (step.type === "send_whatsapp" && step.config?.branches?.enabled) {
+  if ((step.type === "send_whatsapp" || step.type === "send_whatsapp_interactive") && step.config?.branches?.enabled) {
     const br = step.config.branches;
     const val = Number(br.timeout_value ?? 24);
     const unit = br.timeout_unit ?? "hours";
@@ -1381,7 +1381,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   if (jumpToIndex === null && nextIndex < steps.length) {
     const branchTargets = new Set<number>();
     for (const s of steps) {
-      if (s.type === "send_whatsapp" && s.config?.branches?.enabled) {
+      if ((s.type === "send_whatsapp" || s.type === "send_whatsapp_interactive") && s.config?.branches?.enabled) {
         const br = s.config.branches;
         for (const c of (br.cases ?? [])) if (c?.next_index != null) branchTargets.add(Number(c.next_index));
         if (br.default_next_index != null) branchTargets.add(Number(br.default_next_index));
