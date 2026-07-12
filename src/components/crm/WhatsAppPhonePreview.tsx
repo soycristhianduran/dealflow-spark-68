@@ -10,6 +10,7 @@ export function WhatsAppPhonePreview({
   footerText,
   buttons,
   variableExamples,
+  flowForm,
 }: {
   headerType?: string;
   headerText?: string;
