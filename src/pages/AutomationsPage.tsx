@@ -2292,10 +2292,20 @@ function StepConfigEditor({ step, onChange, steps = [], stepIndex = -1 }: {
     }
     if (!tplName || !organizationId) { toast.error("No encontré una plantilla con botones en los pasos anteriores"); return; }
     const { data } = await supabase.from("whatsapp_templates").select("buttons").eq("organization_id", organizationId).eq("name", tplName).maybeSingle();
-    const btns = (data?.buttons ?? []).map((b: any) => b.text).filter(Boolean);
-    if (!btns.length) { toast.error("Esa plantilla no tiene botones"); return; }
-    set("cases", btns.map((b: string) => ({ match: b, next_index: stepIndex + 1 })));
-    toast.success(`${btns.length} botón(es) detectado(s)`);
+    // Solo botones de respuesta rápida: son los únicos que devuelven un mensaje
+    // al tocarlos. URL / llamada / formulario no producen respuesta para ramificar.
+    const all = (data?.buttons ?? []) as any[];
+    const qr = all.filter((b: any) => {
+      const type = String(b?.type ?? "").toUpperCase();
+      return type === "QUICK_REPLY" || type === "" ; // "" = plantillas legacy sin tipo
+    }).map((b: any) => b.text).filter(Boolean);
+    if (!qr.length) {
+      const other = all.length ? " (tiene botones de URL/llamada/formulario, que no devuelven respuesta para ramificar)" : "";
+      toast.error(`Esa plantilla no tiene botones de respuesta rápida${other}`);
+      return;
+    }
+    set("cases", qr.map((b: string) => ({ match: b, next_index: stepIndex + 1 })));
+    toast.success(`${qr.length} botón(es) de respuesta rápida detectado(s)`);
   };
 
   if (step.type === "wait") return <WaitStepEditor step={step} onChange={onChange} />;
