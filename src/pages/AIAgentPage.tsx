@@ -71,7 +71,7 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
-  appointment_slot_capacity: { enabled: boolean; rules: { days: number[]; hours: string[]; capacity: number }[] };
+  appointment_slot_capacity: { enabled: boolean; mode?: "boost" | "only"; rules: { days: number[]; hours: string[]; capacity: number }[] };
   appointments_paid: boolean;
   payment_link: string;
   payment_info: string;
@@ -974,6 +974,17 @@ export default function AIAgentPage() {
                     </div>
                     {config.appointment_slot_capacity.enabled && (
                       <div className="space-y-3 pt-1">
+                        <div className="rounded-md bg-muted/40 p-2.5 space-y-2">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" className="mt-0.5"
+                              checked={config.appointment_slot_capacity.mode === "only"}
+                              onChange={e => set("appointment_slot_capacity", { ...config.appointment_slot_capacity, mode: e.target.checked ? "only" : "boost" })} />
+                            <span className="text-xs">
+                              <span className="font-semibold">Agendar SOLO en estas horas (franjas fijas)</span><br />
+                              <span className="text-muted-foreground">Actívalo si las citas van únicamente en horas exactas (ej. 9:00, 10:30, 12:00…). El agente ofrecerá solo esas y nunca las intermedias. Ideal cuando dejas descanso entre citas. Si lo dejas apagado, las horas de abajo solo amplían el cupo y el resto del horario sigue disponible cada {config.appointment_slot_interval_min || config.appointment_duration_min} min.</span>
+                            </span>
+                          </label>
+                        </div>
                         {config.appointment_slot_capacity.rules.map((rule, ri) => {
                           const setRule = (patch: Partial<typeof rule>) => {
                             const rules = config.appointment_slot_capacity.rules.map((r, i) => i === ri ? { ...r, ...patch } : r);

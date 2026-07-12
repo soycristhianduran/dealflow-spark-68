@@ -733,6 +733,9 @@ const overlaps = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && 
 // cfg shape: { enabled, capacity, days:[0-6], hours:[9,10,...] } (Bogota time).
 function slotCapacity(slotStartMs: number, cap: any): number {
   if (!cap?.enabled) return 1;
+  // Modo "only": las horas listadas son las ÚNICAS agendables (franjas fijas).
+  // Un espacio que no coincide con ninguna regla del día no es reservable (cap 0).
+  const onlyMode = cap.mode === "only";
   // Bogota = UTC-5 (no DST). Derive weekday + start hour in Bogota.
   const bog = new Date(slotStartMs - 5 * 3600000);
   const dow = bog.getUTCDay();          // 0=Sun..6=Sat, Bogota
@@ -749,7 +752,7 @@ function slotCapacity(slotStartMs: number, cap: any): number {
     if (typeof entry === "number") return mm === 0 && hh === entry;
     return String(entry) === hhmm;
   };
-  let best = 1;
+  let best = onlyMode ? 0 : 1;  // en modo franjas fijas, por defecto NO reservable
   for (const r of rules) {
     const days: number[] = Array.isArray(r?.days) ? r.days : [];
     const hours: any[] = Array.isArray(r?.hours) ? r.hours : [];
