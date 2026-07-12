@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { WhatsAppFlowsSection, FlowCreateForm } from "@/components/crm/WhatsAppFlowsSection";
+import { FlowCardsInline, FlowCreateForm } from "@/components/crm/WhatsAppFlowsSection";
 import {
   Plus, RefreshCw, Trash2, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -573,9 +573,6 @@ export default function WhatsAppTemplatesPage() {
           </div>
         </div>
 
-        {/* ── WhatsApp Flows (formularios nativos) ── */}
-        <WhatsAppFlowsSection />
-
         {/* Templates grid */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -598,6 +595,7 @@ export default function WhatsAppTemplatesPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <FlowCardsInline />
             {templates.map((tpl) => {
               const mediaChip = tpl.header_type && tpl.header_type !== "TEXT" && tpl.header_type !== "NONE"
                 ? (tpl.header_type === "IMAGE" ? { icon: "🖼", label: translate("whatsAppTemplatesPage.mediaImageCap") }

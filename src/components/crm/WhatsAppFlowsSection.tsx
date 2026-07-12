@@ -108,6 +108,68 @@ export function FlowCreateForm({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** Tarjetas de Flows para el grid del catálogo de plantillas (sin contenedor propio). */
+export function FlowCardsInline() {
+  const { organizationId } = useOrganizationContext();
+  const [flows, setFlows] = useState<Flow[]>([]);
+
+  const load = useCallback(async () => {
+    if (!organizationId) return;
+    const { data, error } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "list_flows", organization_id: organizationId },
+    });
+    if (!error && data?.flows) setFlows(data.flows);
+  }, [organizationId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const publish = async (id: string) => {
+    const { data } = await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "publish_flow", organization_id: organizationId, flow_id: id },
+    });
+    if (data?.success) { toast.success("Flow publicado"); load(); }
+    else toast.error(data?.error?.message || "No se pudo publicar");
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("¿Eliminar este Flow (solo borradores)?")) return;
+    await supabase.functions.invoke("whatsapp-api", {
+      body: { action: "delete_flow", organization_id: organizationId, flow_id: id },
+    });
+    load();
+  };
+
+  return (
+    <>
+      {flows.map(f => (
+        <div key={f.id} className="rounded-xl border bg-card p-4 space-y-2 border-emerald-200/60">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <FileText className="h-4 w-4 text-emerald-600 shrink-0" />
+              <p className="text-sm font-semibold truncate">{f.name}</p>
+            </div>
+            <Badge variant={f.status === "PUBLISHED" ? "default" : "outline"} className="text-[10px] shrink-0">
+              {f.status === "PUBLISHED" ? "Publicado" : f.status === "DRAFT" ? "Borrador" : f.status}
+            </Badge>
+          </div>
+          <Badge variant="outline" className="text-[10px]">FLOW · Formulario</Badge>
+          <p className="text-xs text-muted-foreground select-all">ID: {f.id}</p>
+          <div className="flex justify-end gap-1 pt-1 border-t">
+            <Button variant="ghost" size="sm" className="h-7 text-xs"
+              onClick={() => { navigator.clipboard.writeText(f.id); toast.success("ID copiado"); }}>Copiar ID</Button>
+            {f.status === "DRAFT" && (
+              <>
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => publish(f.id)}>Publicar</Button>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => remove(f.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              </>
+            )}
+          </div>
+        </div>
+      ))}
+    </>
+  );
+}
+
 export function WhatsAppFlowsSection() {
   const { organizationId } = useOrganizationContext();
   const [flows, setFlows] = useState<Flow[]>([]);
