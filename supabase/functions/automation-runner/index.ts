@@ -751,14 +751,14 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
         // headers are still included and the send doesn't fail with #132012.
         let { data: tplMeta } = await supabase
           .from("whatsapp_templates")
-          .select("body_text, header_type, header_media_handle")
+          .select("body_text, header_type, header_media_handle, buttons")
           .eq("organization_id", contact.organization_id)
           .eq("name", cfg.template_name)
           .maybeSingle();
         if (!tplMeta) {
           const { data: legacyTpl } = await supabase
             .from("whatsapp_templates")
-            .select("body_text, header_type, header_media_handle")
+            .select("body_text, header_type, header_media_handle, buttons")
             .eq("user_id", enr.user_id)
             .eq("name", cfg.template_name)
             .order("updated_at", { ascending: false })
@@ -792,6 +792,27 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
 
         if (variables.length > 0) {
           components.push({ type: "body", parameters: variables.map((v) => ({ type: "text", text: v || " " })) });
+        }
+
+        // Plantilla con botón de WhatsApp Flow: el formulario ya viaja dentro de
+        // la plantilla. Adjuntamos flow_token (para correlacionar la respuesta)
+        // y, si el Flow declara datos dinámicos, la personalización desde el lead.
+        const tplButtons: any[] = Array.isArray(tplMeta?.buttons) ? tplMeta.buttons : [];
+        const flowBtnIdx = tplButtons.findIndex((b: any) => (b?.type || "").toUpperCase() === "FLOW");
+        if (flowBtnIdx >= 0) {
+          const flowId = tplButtons[flowBtnIdx]?.flow_id;
+          const action: any = { flow_token: `${enr.id}:${contact.id}` };
+          if (flowId) {
+            const { data: flowMeta } = await supabase
+              .from("org_whatsapp_flows").select("data_keys").eq("flow_id", String(flowId)).maybeSingle();
+            const dataKeys: string[] = Array.isArray(flowMeta?.data_keys) ? flowMeta.data_keys : [];
+            if (dataKeys.length) {
+              const fd: Record<string, string> = {};
+              for (const k of dataKeys) fd[k] = String((contact as any)[k] ?? contact.custom_fields?.[k] ?? "");
+              action.flow_action_data = fd;
+            }
+          }
+          components.push({ type: "button", sub_type: "flow", index: String(flowBtnIdx), parameters: [{ type: "action", action }] });
         }
 
         const payload: any = {
