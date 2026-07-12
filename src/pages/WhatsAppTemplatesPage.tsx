@@ -15,7 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
-import { WhatsAppFlowsSection } from "@/components/crm/WhatsAppFlowsSection";
+import { WhatsAppFlowsSection, FlowCreateForm } from "@/components/crm/WhatsAppFlowsSection";
 import {
   Plus, RefreshCw, Trash2, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -324,6 +324,7 @@ export default function WhatsAppTemplatesPage() {
   const { templates, loading, creating, fetchTemplates, syncFromMeta, createTemplate, deleteTemplate, updateTemplate } = useWhatsAppTemplates();
 
   const [showCreate, setShowCreate] = useState(false);
+  const [createKind, setCreateKind] = useState<"template" | "flow">("template");
   const [editTemplate, setEditTemplate] = useState<WhatsAppTemplate | null>(null);
   const [viewTemplate, setViewTemplate] = useState<WhatsAppTemplate | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -953,12 +954,28 @@ export default function WhatsAppTemplatesPage() {
       </Dialog>
 
       {/* ── CREATE DIALOG ── */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
+      <Dialog open={showCreate} onOpenChange={(v) => { setShowCreate(v); if (!v) setCreateKind("template"); }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{t("whatsAppTemplatesPage.createDialogTitle")}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
+          {/* Tipo: plantilla de mensaje o Flow (formulario nativo) */}
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setCreateKind("template")}
+              className={`rounded-xl border p-3 text-left transition ${createKind === "template" ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20" : "hover:border-muted-foreground/30"}`}>
+              <p className="text-sm font-semibold">Mensaje</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Texto, imagen o video con botones. Requiere aprobación de Meta.</p>
+            </button>
+            <button type="button" onClick={() => setCreateKind("flow")}
+              className={`rounded-xl border p-3 text-left transition ${createKind === "flow" ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20" : "hover:border-muted-foreground/30"}`}>
+              <p className="text-sm font-semibold">Flow</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Formulario paso a paso que el cliente llena dentro de WhatsApp.</p>
+            </button>
+          </div>
+          {createKind === "flow" && (
+            <FlowCreateForm onDone={() => { setShowCreate(false); setCreateKind("template"); }} />
+          )}
+          <div className="space-y-4 py-2" style={createKind === "flow" ? { display: "none" } : undefined}>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label>{t("whatsAppTemplatesPage.nameLabel")} <span className="text-red-500">*</span></Label>
@@ -1173,12 +1190,14 @@ export default function WhatsAppTemplatesPage() {
               </div>
             )}
           </div>
+          {createKind === "template" && (
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreate(false)}>{t("whatsAppTemplatesPage.cancel")}</Button>
             <Button onClick={handleCreate} disabled={creating}>
               {creating ? <><Loader2 className="h-4 w-4 mr-1 animate-spin" />{t("whatsAppTemplatesPage.sending")}</> : t("whatsAppTemplatesPage.submitForReview")}
             </Button>
           </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
