@@ -986,6 +986,8 @@ export default function AIAgentPage() {
                           </label>
                         </div>
                         {config.appointment_slot_capacity.rules.map((rule, ri) => {
+                          const onlyMode = config.appointment_slot_capacity.mode === "only";
+                          const capOptions = onlyMode ? [1,2,3,4,5] : [2,3,4,5];
                           const setRule = (patch: Partial<typeof rule>) => {
                             const rules = config.appointment_slot_capacity.rules.map((r, i) => i === ri ? { ...r, ...patch } : r);
                             set("appointment_slot_capacity", { ...config.appointment_slot_capacity, rules });
@@ -1006,12 +1008,12 @@ export default function AIAgentPage() {
                                 <Label className="text-xs">{t("aIAgentPage.slotCapacityHowMany")}</Label>
                                 <Select value={String(rule.capacity)} onValueChange={v => setRule({ capacity: Number(v) })}>
                                   <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
-                                  <SelectContent>{[2,3,4,5].map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
+                                  <SelectContent>{capOptions.map(n => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectContent>
                                 </Select>
                                 <span className="text-xs text-muted-foreground">{t("aIAgentPage.slotCapacityPeople")}</span>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-xs">{t("aIAgentPage.slotCapacityDays")}</Label>
+                                <Label className="text-xs">{onlyMode ? t("aIAgentPage.slotCapacityDaysOnly") : t("aIAgentPage.slotCapacityDays")}</Label>
                                 <div className="flex flex-wrap gap-1.5">
                                   {[{n:1,l:"Lun"},{n:2,l:"Mar"},{n:3,l:"Mié"},{n:4,l:"Jue"},{n:5,l:"Vie"},{n:6,l:"Sáb"},{n:0,l:"Dom"}].map(({n,l}) => {
                                     const on = rule.days.includes(n);
@@ -1023,7 +1025,7 @@ export default function AIAgentPage() {
                                 </div>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-xs">{t("aIAgentPage.slotCapacityHours")}</Label>
+                                <Label className="text-xs">{onlyMode ? t("aIAgentPage.slotCapacityHoursOnly") : t("aIAgentPage.slotCapacityHours")}</Label>
                                 <div className="flex flex-wrap gap-1.5">
                                   {slotTimeOptions.map(hm => {
                                     const on = rule.hours.includes(hm);
@@ -1042,7 +1044,7 @@ export default function AIAgentPage() {
                           className="flex items-center gap-1.5 text-xs text-primary hover:underline">
                           <Plus className="h-3.5 w-3.5" /> {t("aIAgentPage.slotCapacityAddRule")}
                         </button>
-                        <p className="text-[11px] text-muted-foreground">{t("aIAgentPage.slotCapacityHint")}</p>
+                        <p className="text-[11px] text-muted-foreground">{config.appointment_slot_capacity.mode === "only" ? t("aIAgentPage.slotCapacityHintOnly") : t("aIAgentPage.slotCapacityHint")}</p>
                       </div>
                     )}
                   </div>

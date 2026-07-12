@@ -2806,6 +2806,9 @@
     "slotCapacityPeople": "personas a la vez",
     "slotCapacityDays": "Días con cupos ampliados",
     "slotCapacityHours": "Horas con cupos ampliados",
+    "slotCapacityDaysOnly": "Días de estas franjas",
+    "slotCapacityHoursOnly": "Horas exactas de cita",
+    "slotCapacityHintOnly": "En franjas fijas el agente ofrece SOLO las horas marcadas. Deja \"Atender hasta 1\" en las franjas normales y súbelo solo donde admitas más de una cita a la vez.",
     "slotCapacityHint": "Ej: Lun/Mar/Jue a las 9, 10, 11 y 12 → 2 personas por hora; el resto, 1.",
     "slotCapacityAddRule": "Agregar otra regla (ej: fin de semana con horas distintas)"
   },
