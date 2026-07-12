@@ -269,6 +269,33 @@ Deno.serve(async (req) => {
         if (trigger_type === "abandoned_cart" && cfg.min_value
             && Number(trigger_data?.cart?.total || 0) < Number(cfg.min_value)) continue;
 
+        // whatsapp_incoming con frecuencia "una vez por contacto": no re-disparar
+        // si el contacto YA pasó por este flujo (incluye completados). Ideal para
+        // bots. Sin config (flujos existentes) = comportamiento anterior.
+        if (trigger_type === "whatsapp_incoming" && cfg.frequency === "once") {
+          const { data: ever } = await supabase
+            .from("automation_enrollments")
+            .select("id")
+            .eq("automation_id", automation.id)
+            .eq("contact_id", contact_id)
+            .limit(1)
+            .maybeSingle();
+          if (ever) continue;
+        }
+        // whatsapp_incoming con "una vez al día": respetar un enfriamiento.
+        if (trigger_type === "whatsapp_incoming" && cfg.frequency === "daily") {
+          const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+          const { data: recent } = await supabase
+            .from("automation_enrollments")
+            .select("id")
+            .eq("automation_id", automation.id)
+            .eq("contact_id", contact_id)
+            .gte("enrolled_at", since)
+            .limit(1)
+            .maybeSingle();
+          if (recent) continue;
+        }
+
         // Skip if already active/waiting in this automation
         const { data: existing } = await supabase
           .from("automation_enrollments")

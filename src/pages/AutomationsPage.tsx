@@ -1250,6 +1250,23 @@ function TriggerConfigEditor({
         </div>
       )}
 
+      {triggerType === "whatsapp_incoming" && (
+        <div>
+          <Label>Con qué frecuencia disparar</Label>
+          <Select value={triggerConfig?.frequency ?? "every"} onValueChange={v => onChange("whatsapp_incoming", { ...triggerConfig, frequency: v })}>
+            <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="once">Solo la primera vez por contacto (recomendado para bots)</SelectItem>
+              <SelectItem value="daily">Máximo una vez al día por contacto</SelectItem>
+              <SelectItem value="every">Cada mensaje entrante</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground mt-1">
+            Para bots elige "Solo la primera vez" — así el flujo no se reinicia con cada mensaje del mismo contacto; la conversación fluye por las ramas. Usa "Cada mensaje" solo para auto-respuestas que deban repetirse siempre.
+          </p>
+        </div>
+      )}
+
       {triggerType === "scheduled" && (
         <ScheduledTriggerEditor triggerConfig={triggerConfig} onChange={cfg => onChange("scheduled", cfg)} />
       )}
