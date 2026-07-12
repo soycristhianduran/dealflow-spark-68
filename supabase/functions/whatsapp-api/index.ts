@@ -854,7 +854,7 @@ Deno.serve(async (req) => {
     }
 
     // ── WHATSAPP FLOWS (formularios nativos) ─────────────────────────────────
-    if (["list_flows", "create_flow", "publish_flow", "delete_flow"].includes(action)) {
+    if (["list_flows", "create_flow", "create_flow_v2", "publish_flow", "delete_flow"].includes(action)) {
       let fq = supabase
         .from("whatsapp_configs")
         .select("waba_id, access_token")
@@ -871,6 +871,124 @@ Deno.serve(async (req) => {
         const j = await r.json();
         if (j.error) throw new Error(j.error.message);
         return fjson({ flows: j.data ?? [] });
+      }
+
+      if (action === "create_flow_v2") {
+        // Constructor completo: elementos de contenido (encabezados, texto,
+        // leyenda, imagen) + campos anclados a claves del CRM para mapeo directo.
+        const { name, title, elements } = body as {
+          name: string; title?: string;
+          elements: { kind: string; text?: string; src?: string; key?: string; label?: string; ftype?: string; options?: string[]; required?: boolean }[];
+        };
+        if (!name || !Array.isArray(elements) || !elements.length) throw new Error("name y elements son obligatorios");
+        const children: any[] = [];
+        const payload: Record<string, string> = {};
+        const usedKeys = new Set<string>();
+        for (const el of elements.slice(0, 20)) {
+          if (el.kind === "heading_lg" && el.text) children.push({ type: "TextHeading", text: String(el.text).slice(0, 80) });
+          else if (el.kind === "heading_sm" && el.text) children.push({ type: "TextSubheading", text: String(el.text).slice(0, 80) });
+          else if (el.kind === "body" && el.text) children.push({ type: "TextBody", text: String(el.text).slice(0, 4096) });
+          else if (el.kind === "caption" && el.text) children.push({ type: "TextCaption", text: String(el.text).slice(0, 300) });
+          else if (el.kind === "image" && el.src) children.push({ type: "Image", src: String(el.src), height: 180, "scale-type": "cover" });
+          else if (el.kind === "field" && el.key && el.label) {
+            let nm = String(el.key).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40) || "campo";
+            let k = 2; const base = nm;
+            while (usedKeys.has(nm)) nm = `${base}_${k++}`;
+            usedKeys.add(nm);
+            const req = el.required !== false;
+            if (el.ftype === "select" && Array.isArray(el.options) && el.options.length) {
+              children.push({ type: "Dropdown", name: nm, label: String(el.label).slice(0, 30), required: req,
+                "data-source": el.options.slice(0, 20).map((o: string) => ({ id: String(o).slice(0, 30), title: String(o).slice(0, 30) })) });
+            } else if (el.ftype === "textarea") {
+              children.push({ type: "TextArea", name: nm, label: String(el.label).slice(0, 20), required: req });
+            } else if (el.ftype === "date") {
+              children.push({ type: "DatePicker", name: nm, label: String(el.label).slice(0, 40), required: req });
+            } else {
+              const it = el.ftype === "number" ? "number" : el.ftype === "email" ? "email" : el.ftype === "phone" ? "phone" : "text";
+              children.push({ type: "TextInput", name: nm, label: String(el.label).slice(0, 20), required: req, "input-type": it });
+            }
+            payload[nm] = "${form." + nm + "}";
+          }
+        }
+        if (!Object.keys(payload).length) throw new Error("El formulario necesita al menos un campo");
+        children.push({ type: "Footer", label: "Enviar", "on-click-action": { name: "complete", payload } });
+        const flowJson = {
+          version: "7.2",
+          screens: [{ id: "FORM", title: String(title || name).slice(0, 30), terminal: true,
+            layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children }] } }],
+        };
+
+        // Registrar campos personalizados nuevos en el catálogo (claves custom.*)
+        if (orgId) {
+          const fieldEls = elements.filter((e) => e.kind === "field" && e.key && !String(e.key).startsWith("std_"));
+          const { data: existingDefs } = await supabase.from("custom_field_definitions").select("key").eq("organization_id", orgId);
+          const existingKeys = new Set((existingDefs ?? []).map((d: any) => d.key));
+          const newDefs = fieldEls
+            .filter((e) => !existingKeys.has(String(e.key)))
+            .map((e, idx) => ({
+              organization_id: orgId,
+              key: String(e.key),
+              label: String(e.label || e.key).slice(0, 60),
+              field_type: e.ftype === "number" ? "number" : e.ftype === "date" ? "date" : "text",
+              position: 100 + idx,
+            }));
+          if (newDefs.length) await supabase.from("custom_field_definitions").insert(newDefs).then(() => {}, () => {});
+        }
+
+        const cr = await fetch(`${GRAPH_API}/${fcfg.waba_id}/flows`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${fcfg.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name, categories: ["LEAD_GENERATION"] }),
+        });
+        const cj = await cr.json();
+        if (cj.error) throw new Error(`No se pudo crear el Flow: ${cj.error.message}`);
+        const flowId = cj.id;
+        const fd = new FormData();
+        fd.append("file", new File([JSON.stringify(flowJson)], "flow.json", { type: "application/json" }), "flow.json");
+        fd.append("name", "flow.json");
+        fd.append("asset_type", "FLOW_JSON");
+        const up = await fetch(`${GRAPH_API}/${flowId}/assets`, {
+          method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` }, body: fd,
+        });
+        const uj = await up.json();
+        if (uj.error) return fjson({ flow_id: flowId, published: false, error: `Flow creado pero el JSON falló: ${uj.error.message}` });
+        const validationErrors = (uj.validation_errors ?? []).filter((e: any) => e.error_type !== "WARNING");
+        let published = false, publishError: string | null = null;
+        if (!validationErrors.length) {
+          const pb = await fetch(`${GRAPH_API}/${flowId}/publish`, { method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` } });
+          const pj = await pb.json();
+          published = !!pj.success;
+          if (pj.error) publishError = pj.error.message;
+        }
+        // Plantilla portadora (cuerpo + botón FLOW)
+        let templateResult: any = null;
+        if (published && body.template_body) {
+          const tplName = String(body.template_name || `${name}_tpl`).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 60);
+          const tplRes = await fetch(`${GRAPH_API}/${fcfg.waba_id}/message_templates`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${fcfg.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: tplName, language: "es", category: body.template_category || "MARKETING",
+              components: [
+                { type: "BODY", text: String(body.template_body).slice(0, 1024) },
+                { type: "BUTTONS", buttons: [{ type: "FLOW", text: String(body.template_cta || "Abrir formulario").slice(0, 25), flow_id: flowId, navigate_screen: "FORM", flow_action: "NAVIGATE" }] },
+              ],
+            }),
+          });
+          const tplJson = await tplRes.json();
+          if (tplJson.error) templateResult = { error: tplJson.error.message };
+          else {
+            templateResult = { id: tplJson.id, status: tplJson.status || "PENDING", name: tplName };
+            await supabase.from("whatsapp_templates").upsert({
+              user_id: user.id, organization_id: orgId ?? null, waba_id: fcfg.waba_id,
+              template_id: tplJson.id, name: tplName, category: body.template_category || "MARKETING",
+              language: "es", status: tplJson.status || "PENDING",
+              body_text: String(body.template_body).slice(0, 1024),
+              buttons: [{ type: "FLOW", text: String(body.template_cta || "Abrir formulario").slice(0, 25), flow_id: flowId }],
+            }, { onConflict: "template_id" }).then(() => {}, () => {});
+          }
+        }
+        return fjson({ flow_id: flowId, published, validation_errors: validationErrors, publish_error: publishError, template: templateResult });
       }
 
       if (action === "create_flow") {

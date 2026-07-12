@@ -519,13 +519,31 @@ Deno.serve(async (req) => {
               // ── Respuestas de WhatsApp Flow → campos personalizados ─────────
               if (contact?.id && flowResponse) {
                 try {
+                  // Claves std_<columna> → campos estándar del contacto (mapeo
+                  // directo elegido al diseñar el Flow); el resto → custom_fields.
+                  const STD_FLOW_COLS = new Set([
+                    "first_name", "last_name", "full_name", "primary_email", "primary_phone",
+                    "city", "country", "notes", "company_name", "budget",
+                  ]);
                   const { data: curC } = await supabase.from("contacts").select("custom_fields").eq("id", contact.id).maybeSingle();
                   const merged: Record<string, unknown> = { ...(curC?.custom_fields ?? {}) };
+                  const colPatch: Record<string, unknown> = {};
                   for (const [k, v] of Object.entries(flowResponse)) {
                     if (k === "flow_token") continue;
-                    merged[k] = typeof v === "string" ? v : JSON.stringify(v);
+                    const val = typeof v === "string" ? v : JSON.stringify(v);
+                    if (k.startsWith("std_") && STD_FLOW_COLS.has(k.slice(4))) {
+                      const col = k.slice(4);
+                      if (col === "budget") {
+                        const n = parseFloat(String(val).replace(/[^0-9.,]/g, "").replace(",", "."));
+                        if (isFinite(n) && n > 0) colPatch.budget = n;
+                      } else {
+                        colPatch[col] = val;
+                      }
+                    } else {
+                      merged[k] = val;
+                    }
                   }
-                  await supabase.from("contacts").update({ custom_fields: merged }).eq("id", contact.id);
+                  await supabase.from("contacts").update({ custom_fields: merged, ...colPatch }).eq("id", contact.id);
                   console.log(`Flow response saved to contact ${contact.id}:`, Object.keys(flowResponse).join(","));
                 } catch (e) { console.warn("Flow response save failed:", e); }
               }

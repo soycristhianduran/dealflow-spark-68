@@ -47,58 +47,120 @@ const FIELD_TYPES = [
   { value: "select", label: "Lista de opciones" },
 ];
 
-/** Formulario de creación de un WhatsApp Flow (una pantalla, hasta 10 campos).
- *  Se usa dentro del diálogo "Nueva plantilla" (tipo Flow) y en la sección de Flows. */
-export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void; onPreviewChange?: (p: { body: string; cta: string; title: string; fields: { label: string; type: string; options?: string[] }[] }) => void }) {
+/** Constructor de WhatsApp Flow: elementos de contenido (encabezados, texto,
+ *  leyenda, imagen) + campos anclados a los campos del CRM (estándar y
+ *  personalizados de la organización) para mapeo automático de respuestas. */
+export interface FlowElement {
+  kind: "heading_lg" | "heading_sm" | "body" | "caption" | "image" | "field";
+  text?: string;
+  src?: string;          // base64 para imagen
+  key?: string;          // clave CRM (std_<col> o clave de campo personalizado)
+  label?: string;
+  ftype?: string;        // text|textarea|number|email|phone|date|select
+  options?: string[];
+  required?: boolean;
+}
+
+const STD_FLOW_FIELDS: { key: string; label: string; ftype: string }[] = [
+  { key: "std_first_name", label: "Nombre", ftype: "text" },
+  { key: "std_last_name", label: "Apellido", ftype: "text" },
+  { key: "std_primary_email", label: "Email", ftype: "email" },
+  { key: "std_primary_phone", label: "Teléfono", ftype: "phone" },
+  { key: "std_city", label: "Ciudad", ftype: "text" },
+  { key: "std_country", label: "País", ftype: "text" },
+  { key: "std_company_name", label: "Empresa", ftype: "text" },
+  { key: "std_budget", label: "Presupuesto", ftype: "number" },
+  { key: "std_notes", label: "Notas", ftype: "textarea" },
+];
+
+const CONTENT_ELEMENTS: { kind: FlowElement["kind"]; label: string }[] = [
+  { kind: "heading_lg", label: "T Encabezado grande" },
+  { kind: "heading_sm", label: "T Encabezado pequeño" },
+  { kind: "body", label: "T Texto" },
+  { kind: "caption", label: "T Leyenda" },
+  { kind: "image", label: "🖼 Imagen" },
+];
+
+export function FlowCreateForm({ onDone, onPreviewChange }: {
+  onDone: () => void;
+  onPreviewChange?: (p: { body: string; cta: string; title: string; elements: FlowElement[] }) => void;
+}) {
   const { organizationId } = useOrganizationContext();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
-  const [fields, setFields] = useState<FieldDef[]>([{ label: "", type: "text", options: "", required: true }]);
   const [tplBody, setTplBody] = useState("");
   const [tplCta, setTplCta] = useState("Abrir formulario");
-  const [preset, setPreset] = useState<string>("custom");
+  const [elements, setElements] = useState<FlowElement[]>([]);
+  const [orgFields, setOrgFields] = useState<{ key: string; label: string; field_type: string }[]>([]);
+  const [fieldPick, setFieldPick] = useState("");
 
-  const applyPreset = (key: string) => {
-    setPreset(key);
-    const p = FLOW_PRESETS.find(x => x.key === key);
-    if (p && key !== "custom") {
-      setTitle(p.title);
-      setFields(p.fields.map(f => ({ ...f })));
-      if (!name) setName(p.key === "agendamiento" ? "agendamiento_cita" : p.key);
+  useEffect(() => {
+    if (!organizationId) return;
+    supabase.from("custom_field_definitions").select("key, label, field_type")
+      .eq("organization_id", organizationId).order("position")
+      .then(({ data }) => setOrgFields(data ?? []));
+  }, [organizationId]);
+
+  useEffect(() => {
+    onPreviewChange?.({ body: tplBody, cta: tplCta, title: title || "Tu Flow", elements });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tplBody, tplCta, title, elements]);
+
+  const addContent = (kind: FlowElement["kind"]) =>
+    setElements(prev => [...prev, { kind, text: "" }]);
+
+  const addField = (val: string) => {
+    setFieldPick("");
+    if (val === "__new__") {
+      setElements(prev => [...prev, { kind: "field", key: "", label: "", ftype: "text", required: true }]);
+      return;
+    }
+    const std = STD_FLOW_FIELDS.find(f => f.key === val);
+    if (std) { setElements(prev => [...prev, { kind: "field", key: std.key, label: std.label, ftype: std.ftype, required: true }]); return; }
+    const cf = orgFields.find(f => f.key === val);
+    if (cf) {
+      const ftype = cf.field_type === "number" ? "number" : cf.field_type === "date" ? "date" : "text";
+      setElements(prev => [...prev, { kind: "field", key: cf.key, label: cf.label, ftype, required: true }]);
     }
   };
 
-  useEffect(() => {
-    onPreviewChange?.({
-      body: tplBody, cta: tplCta, title: title || "Tu Flow",
-      fields: fields.filter(f => f.label.trim()).map(f => ({
-        label: f.label, type: f.type,
-        options: f.type === "select" ? f.options.split(",").map(o => o.trim()).filter(Boolean) : undefined,
-      })),
+  const setEl = (i: number, patch: Partial<FlowElement>) =>
+    setElements(prev => prev.map((e, idx) => idx === i ? { ...e, ...patch } : e));
+  const move = (i: number, dir: -1 | 1) =>
+    setElements(prev => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const arr = [...prev]; [arr[i], arr[j]] = [arr[j], arr[i]]; return arr;
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tplBody, tplCta, title, fields]);
+  const removeEl = (i: number) => setElements(prev => prev.filter((_, idx) => idx !== i));
 
-  const setField = (i: number, patch: Partial<FieldDef>) =>
-    setFields(prev => prev.map((f, idx) => idx === i ? { ...f, ...patch } : f));
+  const pickImage = (i: number, file: File | null) => {
+    if (!file) return;
+    if (file.size > 150_000) { toast.error("Imagen muy pesada — máximo ~150KB (los Flows viajan con la imagen embebida)"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(",")[1] || "";
+      setEl(i, { src: b64 });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const slugify = (x: string) => x.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
 
   const create = async () => {
-    const cleanFields = fields
-      .filter(f => f.label.trim())
-      .map(f => ({
-        label: f.label.trim(),
-        type: f.type,
-        required: f.required,
-        options: f.type === "select" ? f.options.split(",").map(o => o.trim()).filter(Boolean) : undefined,
-      }));
-    if (!name.trim() || !cleanFields.length) { toast.error("Nombre y al menos un campo son obligatorios"); return; }
-    setSaving(true);
+    const clean = elements
+      .map(e => e.kind === "field" && !e.key && e.label ? { ...e, key: slugify(e.label) } : e)
+      .filter(e => (e.kind === "field" ? !!(e.key && e.label) : e.kind === "image" ? !!e.src : !!e.text?.trim()));
+    const fieldCount = clean.filter(e => e.kind === "field").length;
+    if (!name.trim()) { toast.error("Ponle un nombre interno al Flow"); return; }
+    if (!fieldCount) { toast.error("Agrega al menos un campo del formulario"); return; }
     if (!tplBody.trim()) { toast.error("Escribe el cuerpo del mensaje que enviará el formulario"); return; }
+    setSaving(true);
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
       body: {
-        action: "create_flow", organization_id: organizationId,
-        name: name.trim(), title: title.trim() || name.trim(), fields: cleanFields,
+        action: "create_flow_v2", organization_id: organizationId,
+        name: name.trim(), title: title.trim() || name.trim(), elements: clean,
         template_body: tplBody.trim(), template_cta: tplCta.trim() || "Abrir formulario",
       },
     });
@@ -107,62 +169,101 @@ export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void
     if (data?.published) {
       if (data.template?.error) toast.warning(`Flow publicado (ID: ${data.flow_id}) pero la plantilla falló: ${data.template.error}`);
       else toast.success(`Flow publicado y plantilla "${data.template?.name}" enviada a revisión de Meta`);
+    } else {
+      toast.warning(`Flow creado (ID: ${data.flow_id}) pero quedó en borrador: ${data.publish_error || JSON.stringify(data.validation_errors || [])}`);
     }
-    else toast.warning(`Flow creado (ID: ${data.flow_id}) pero quedó en borrador: ${data.publish_error || JSON.stringify(data.validation_errors || [])}`);
-    setName(""); setTitle(""); setFields([{ label: "", type: "text", options: "", required: true }]);
+    setName(""); setTitle(""); setElements([]); setTplBody("");
     onDone();
   };
 
   return (
     <div className="space-y-4">
-      <div className="space-y-1.5">
-        <Label className="text-xs">Empieza desde un formulario prediseñado o crea uno personalizado</Label>
-        <div className="grid grid-cols-2 gap-1.5">
-          {FLOW_PRESETS.map(pr => (
-            <button key={pr.key} type="button" onClick={() => applyPreset(pr.key)}
-              className={`rounded-lg border p-2 text-left transition ${preset === pr.key ? "border-orange-400 bg-orange-50 dark:bg-orange-950/20" : "hover:border-muted-foreground/30"}`}>
-              <p className="text-xs font-semibold">{pr.label}</p>
-              <p className="text-[10px] text-muted-foreground leading-tight">{pr.desc}</p>
-            </button>
-          ))}
-        </div>
-      </div>
       <div className="grid grid-cols-2 gap-2">
         <div>
           <Label className="text-xs">Nombre interno</Label>
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="agendamiento_cita" />
         </div>
         <div>
-          <Label className="text-xs">Título visible (máx 30)</Label>
+          <Label className="text-xs">Título de la pantalla (máx 30)</Label>
           <Input maxLength={30} value={title} onChange={e => setTitle(e.target.value)} placeholder="Agenda tu cita" />
         </div>
       </div>
 
+      {/* Paleta de elementos */}
+      <div className="space-y-1.5">
+        <Label className="text-xs font-semibold">Añadir a la pantalla</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {CONTENT_ELEMENTS.map(ce => (
+            <Button key={ce.kind} type="button" variant="outline" size="sm" className="h-7 text-xs"
+              onClick={() => addContent(ce.kind)}>{ce.label}</Button>
+          ))}
+        </div>
+        <Select value={fieldPick} onValueChange={addField}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="＋ Campo del formulario (se mapea automático al CRM)…" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__new__" className="text-xs italic">Campo personalizado nuevo…</SelectItem>
+            {STD_FLOW_FIELDS.map(f => (
+              <SelectItem key={f.key} value={f.key} className="text-xs">{f.label} <span className="text-muted-foreground ml-1">· estándar</span></SelectItem>
+            ))}
+            {orgFields.map(f => (
+              <SelectItem key={f.key} value={f.key} className="text-xs">{f.label} <span className="text-muted-foreground ml-1">· personalizado</span></SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Lista de elementos */}
       <div className="space-y-2">
-        <Label className="text-xs">Campos del formulario (máx 10)</Label>
-        {fields.map((f, i) => (
-          <div key={i} className="rounded-lg border p-2.5 space-y-2">
-            <div className="flex gap-2">
-              <Input className="flex-1" placeholder="Etiqueta — ej: ¿Qué día prefieres?" value={f.label} onChange={e => setField(i, { label: e.target.value })} />
-              <Select value={f.type} onValueChange={v => setField(i, { type: v })}>
-                <SelectTrigger className="w-36 shrink-0"><SelectValue /></SelectTrigger>
-                <SelectContent>{FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}</SelectContent>
-              </Select>
-              <Button variant="ghost" size="sm" className="h-9 w-9 p-0 text-destructive shrink-0"
-                onClick={() => setFields(prev => prev.filter((_, idx) => idx !== i))} disabled={fields.length === 1}>
-                <Trash2 className="h-4 w-4" />
-              </Button>
+        {elements.length === 0 && (
+          <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
+            Añade textos, imagen y campos — se muestran en el teléfono a la derecha en el orden de esta lista.
+          </p>
+        )}
+        {elements.map((el, i) => (
+          <div key={i} className="rounded-lg border p-2 space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-semibold uppercase text-muted-foreground shrink-0 w-24">
+                {el.kind === "field" ? (el.key?.startsWith("std_") ? "Campo · CRM" : "Campo") :
+                 el.kind === "heading_lg" ? "Encab. grande" : el.kind === "heading_sm" ? "Encab. pequeño" :
+                 el.kind === "body" ? "Texto" : el.kind === "caption" ? "Leyenda" : "Imagen"}
+              </span>
+              {el.kind === "image" ? (
+                <div className="flex-1 flex items-center gap-2">
+                  <input type="file" accept="image/*" className="text-[11px] flex-1"
+                    onChange={e => pickImage(i, e.target.files?.[0] ?? null)} />
+                  {el.src && <span className="text-[10px] text-emerald-600">✓ cargada</span>}
+                </div>
+              ) : el.kind === "field" ? (
+                <Input className="h-7 text-xs flex-1" placeholder="Etiqueta del campo" value={el.label ?? ""}
+                  onChange={e => setEl(i, { label: e.target.value })} />
+              ) : (
+                <Input className="h-7 text-xs flex-1" placeholder="Texto…" value={el.text ?? ""}
+                  onChange={e => setEl(i, { text: e.target.value })} />
+              )}
+              <div className="flex shrink-0">
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => move(i, -1)}>↑</Button>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => move(i, 1)}>↓</Button>
+                <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => removeEl(i)}>×</Button>
+              </div>
             </div>
-            {f.type === "select" && (
-              <Input placeholder="Opciones separadas por coma — ej: Mañana, Tarde, Noche" value={f.options} onChange={e => setField(i, { options: e.target.value })} />
+            {el.kind === "field" && (
+              <div className="flex gap-1.5 pl-24">
+                <Select value={el.ftype ?? "text"} onValueChange={v => setEl(i, { ftype: v })}>
+                  <SelectTrigger className="h-7 w-36 text-xs shrink-0"><SelectValue /></SelectTrigger>
+                  <SelectContent>{FIELD_TYPES.map(t => <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>)}</SelectContent>
+                </Select>
+                {el.ftype === "select" && (
+                  <Input className="h-7 text-xs flex-1" placeholder="Opciones separadas por coma"
+                    value={(el.options ?? []).join(", ")}
+                    onChange={e => setEl(i, { options: e.target.value.split(",").map(o => o.trim()).filter(Boolean) })} />
+                )}
+                {el.key?.startsWith("std_") && (
+                  <span className="self-center text-[10px] text-emerald-600 whitespace-nowrap">→ {el.key.slice(4)}</span>
+                )}
+              </div>
             )}
           </div>
         ))}
-        {fields.length < 10 && (
-          <Button variant="outline" size="sm" onClick={() => setFields(prev => [...prev, { label: "", type: "text", options: "", required: true }])}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Añadir campo
-          </Button>
-        )}
       </div>
 
       <div className="rounded-xl border p-3 space-y-2 bg-muted/30">
@@ -174,17 +275,13 @@ export function FlowCreateForm({ onDone, onPreviewChange }: { onDone: () => void
           <Input maxLength={25} value={tplCta} onChange={e => setTplCta(e.target.value)} />
         </div>
         <p className="text-[11px] text-muted-foreground">
-          Se crea como plantilla con botón que abre el formulario. Meta la revisa (24-48h); una vez aprobada puedes iniciar conversaciones con ella desde flujos y campañas.
+          La plantilla con el botón que abre el formulario pasa por revisión de Meta (24-48h). Las respuestas del formulario se mapean automáticamente: los campos estándar al perfil del lead y los personalizados a sus campos.
         </p>
       </div>
 
       <Button className="w-full" onClick={create} disabled={saving}>
         {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Crear y publicar
       </Button>
-      <p className="text-[11px] text-muted-foreground">
-        Se crea y publica en el WhatsApp Manager de esta organización; el cliente lo llena sin salir de WhatsApp y las respuestas se guardan en el lead.
-        Envíalo desde un flujo con el paso "Enviar WhatsApp Flow". Para formularios de varias pantallas, usa el Flow Builder de Meta y pega el ID.
-      </p>
     </div>
   );
 }

@@ -21,7 +21,7 @@ export function WhatsAppPhonePreview({
   variableExamples?: string[];
   // Si se pasa, la pantalla muestra el FORMULARIO del Flow (hoja nativa de
   // WhatsApp) en lugar del chat.
-  flowForm?: { title: string; fields: { label: string; type: string; options?: string[] }[] } | null;
+  flowForm?: { title: string; elements: { kind: string; text?: string; src?: string; label?: string; ftype?: string; options?: string[] }[] } | null;
 }) {
   const now = new Date();
   const time = `${now.getHours()}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -77,30 +77,41 @@ export function WhatsAppPhonePreview({
                 <span className="text-[#8696a0] text-sm">⋮</span>
               </div>
               <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
-                {flowForm.fields.length === 0 && (
-                  <p className="text-[11px] italic text-[#8696a0]">Añade campos al formulario para verlos aquí…</p>
+                {flowForm.elements.length === 0 && (
+                  <p className="text-[11px] italic text-[#8696a0]">Añade elementos y campos para verlos aquí…</p>
                 )}
-                {flowForm.fields.map((f, i) => (
-                  <div key={i} className="space-y-1">
-                    <p className="text-[10px] text-[#8696a0]">{f.label || `Campo ${i + 1}`}</p>
-                    {f.type === "select" ? (
-                      <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#e9edef]">
-                        <span className="text-[#8696a0]">{(f.options && f.options[0]) || "Selecciona…"}</span>
-                        <span className="text-[#8696a0]">▾</span>
-                      </div>
-                    ) : f.type === "textarea" ? (
-                      <div className="h-14 rounded-md border border-white/15 bg-[#1f2c34]" />
-                    ) : f.type === "date" ? (
-                      <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
-                        <span>dd/mm/aaaa</span><span>📅</span>
-                      </div>
-                    ) : (
-                      <div className="rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
-                        {f.type === "email" ? "correo@ejemplo.com" : f.type === "phone" ? "+57 300 000 0000" : f.type === "number" ? "0" : "Escribe aquí…"}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                {flowForm.elements.map((el, i) => {
+                  if (el.kind === "heading_lg") return <p key={i} className="text-[15px] font-bold text-white leading-snug">{el.text || "Encabezado grande"}</p>;
+                  if (el.kind === "heading_sm") return <p key={i} className="text-[12px] font-semibold text-white leading-snug">{el.text || "Encabezado pequeño"}</p>;
+                  if (el.kind === "body") return <p key={i} className="text-[11px] text-[#e9edef] leading-snug whitespace-pre-wrap">{el.text || "Texto…"}</p>;
+                  if (el.kind === "caption") return <p key={i} className="text-[9px] text-[#8696a0]">{el.text || "Leyenda"}</p>;
+                  if (el.kind === "image") return el.src
+                    ? <img key={i} src={`data:image/jpeg;base64,${el.src}`} alt="" className="h-24 w-full rounded-md object-cover" />
+                    : <div key={i} className="flex h-24 w-full items-center justify-center rounded-md bg-[#1f2c34] text-xl">🖼️</div>;
+                  // campo
+                  const f = el;
+                  return (
+                    <div key={i} className="space-y-1">
+                      <p className="text-[10px] text-[#8696a0]">{f.label || `Campo ${i + 1}`}</p>
+                      {f.ftype === "select" ? (
+                        <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#e9edef]">
+                          <span className="text-[#8696a0]">{(f.options && f.options[0]) || "Selecciona…"}</span>
+                          <span className="text-[#8696a0]">▾</span>
+                        </div>
+                      ) : f.ftype === "textarea" ? (
+                        <div className="h-14 rounded-md border border-white/15 bg-[#1f2c34]" />
+                      ) : f.ftype === "date" ? (
+                        <div className="flex items-center justify-between rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
+                          <span>dd/mm/aaaa</span><span>📅</span>
+                        </div>
+                      ) : (
+                        <div className="rounded-md border border-white/15 bg-[#1f2c34] px-2.5 py-2 text-[11px] text-[#8696a0]">
+                          {f.ftype === "email" ? "correo@ejemplo.com" : f.ftype === "phone" ? "+57 300 000 0000" : f.ftype === "number" ? "0" : "Escribe aquí…"}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="px-3 pb-2 pt-1 space-y-1.5">
                 <div className="rounded-full bg-[#00a884] py-2 text-center text-[12px] font-semibold text-white">Enviar</div>
