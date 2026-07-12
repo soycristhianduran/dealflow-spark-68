@@ -73,6 +73,14 @@ const STD_FLOW_FIELDS: { key: string; label: string; ftype: string }[] = [
   { key: "std_notes", label: "Notas", ftype: "textarea" },
 ];
 
+// Variables para personalizar textos del Flow (se rellenan desde el lead)
+const FLOW_TEXT_VARS: { token: string; label: string }[] = [
+  { token: "{{first_name}}", label: "Nombre" },
+  { token: "{{last_name}}", label: "Apellido" },
+  { token: "{{full_name}}", label: "Nombre completo" },
+  { token: "{{city}}", label: "Ciudad" },
+];
+
 const CONTENT_ELEMENTS: { kind: FlowElement["kind"]; label: string }[] = [
   { kind: "heading_lg", label: "T Encabezado grande" },
   { kind: "heading_sm", label: "T Encabezado pequeño" },
@@ -244,8 +252,27 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
                 <Input className="h-7 text-xs flex-1" placeholder="Etiqueta del campo" value={el.label ?? ""}
                   onChange={e => setEl(i, { label: e.target.value })} />
               ) : (
+                <>
                 <Input className="h-7 text-xs flex-1" placeholder="Texto…" value={el.text ?? ""}
                   onChange={e => setEl(i, { text: e.target.value })} />
+                <Select value="" onValueChange={v => setEl(i, { text: `${el.text ?? ""}${v}` })}>
+                  <SelectTrigger className="h-7 w-14 shrink-0 text-[10px] px-1.5" title="Insertar variable del lead">
+                    <span className="font-mono">{"{{}}"}</span>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FLOW_TEXT_VARS.map(v => (
+                      <SelectItem key={v.token} value={v.token} className="text-xs">
+                        {v.label} <span className="text-muted-foreground ml-1 font-mono text-[10px]">{v.token}</span>
+                      </SelectItem>
+                    ))}
+                    {orgFields.map(f => (
+                      <SelectItem key={f.key} value={`{{${f.key}}}`} className="text-xs">
+                        {f.label} <span className="text-muted-foreground ml-1 font-mono text-[10px]">{`{{${f.key}}}`}</span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                </>
               )}
               <div className="flex shrink-0">
                 <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => move(i, -1)}>↑</Button>
@@ -278,6 +305,19 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
         <Textarea rows={3} value={tplBody} onFocus={() => onEditingSection?.("message")}
           onChange={e => setTplBody(e.target.value)}
           placeholder="Hola, para agendar tu valoración necesitamos unos datos. Toca el botón 👇" />
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] text-muted-foreground">Variables:</span>
+          <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[11px] font-mono"
+            onClick={() => {
+              const matches = tplBody.match(/\{\{\d+\}\}/g) ?? [];
+              const next = matches.length ? Math.max(...matches.map(m => parseInt(m.replace(/\D/g, ""), 10))) + 1 : 1;
+              setTplBody(b => `${b}{{${next}}}`);
+              onEditingSection?.("message");
+            }}>
+            + {"{{"}{(tplBody.match(/\{\{\d+\}\}/g) ?? []).length + 1}{"}}"}
+          </Button>
+          <span className="text-[10px] text-muted-foreground">se mapean al enviar (nombre, campos del lead…)</span>
+        </div>
         <div>
           <Label className="text-xs">Texto del botón (CTA, máx 25)</Label>
           <Input maxLength={25} value={tplCta} onFocus={() => onEditingSection?.("message")} onChange={e => setTplCta(e.target.value)} />
