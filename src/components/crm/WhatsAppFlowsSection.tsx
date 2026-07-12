@@ -369,11 +369,13 @@ export function FlowCardsInline({ hideIds }: { hideIds?: string[] }) {
           <div className="flex justify-end gap-1 pt-1 border-t">
             <Button variant="ghost" size="sm" className="h-7 text-xs"
               onClick={() => { navigator.clipboard.writeText(f.id); toast.success("ID copiado"); }}>Copiar ID</Button>
-            {f.status === "DRAFT" && (
+            {f.status === "DRAFT" ? (
               <>
                 <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => publish(f.id)}>Publicar</Button>
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => remove(f.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
               </>
+            ) : (
+              <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive" onClick={() => deprecate(f.id)}>Descontinuar</Button>
             )}
           </div>
         </div>
