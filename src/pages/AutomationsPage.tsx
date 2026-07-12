@@ -339,21 +339,66 @@ function buildFlow(
     draggable: true,
   });
 
+  // Ramas por botón: qué pasos son destino y cuáles son fuente de ramas.
+  const branchTargets = new Set<number>();
+  const branchSources = new Map<number, any>();
+  steps.forEach((s, i) => {
+    if (s.type === "send_whatsapp" && s.config?.branches?.enabled) {
+      const br = s.config.branches;
+      branchSources.set(i, br);
+      (br.cases ?? []).forEach((c: any) => { if (c?.next_index != null) branchTargets.add(Number(c.next_index)); });
+      if (br.default_next_index != null) branchTargets.add(Number(br.default_next_index));
+      if (br.no_reply_next_index != null) branchTargets.add(Number(br.no_reply_next_index));
+    }
+  });
+
   steps.forEach((step, i) => {
-    // Use saved position, or fall back to default grid layout
     const defaultPos = { x: CX - NODE_W / 2, y: (i + 1) * V_GAP };
     const pos = positions[step.id] ?? step.position ?? defaultPos;
     nodes.push({
       id: step.id,
       type: "stepNode",
       position: pos,
-      data: { step },
+      data: { step, branchSource: branchSources.get(i) ?? null },
       selectable: true,
       draggable: true,
     });
 
-    const src = i === 0 ? "trigger" : steps[i - 1].id;
-    edges.push(makeEdge(src, step.id, i));
+    // Edge lineal normal — salvo que este paso sea destino de una rama, o que el
+    // paso anterior sea una fuente de ramas (su flujo va por las ramas).
+    const prevIsBranchSource = i > 0 && branchSources.has(i - 1);
+    const isBranchTarget = branchTargets.has(i);
+    if (!prevIsBranchSource && !isBranchTarget) {
+      const src = i === 0 ? "trigger" : steps[i - 1].id;
+      edges.push(makeEdge(src, step.id, i));
+    }
+  });
+
+  // Dibujar las ramas: una línea etiquetada de cada botón (y otra/sin respuesta)
+  // hacia su paso destino.
+  branchSources.forEach((br: any, i: number) => {
+    const srcId = steps[i].id;
+    const btns: string[] = steps[i].config?._buttons ?? [];
+    const addBranch = (targetIdx: any, label: string, handle: string, color: string, dashed: boolean) => {
+      const ti = Number(targetIdx);
+      if (targetIdx == null || isNaN(ti) || ti < 0 || ti >= steps.length) return;
+      edges.push({
+        id: `br-${srcId}-${handle}`,
+        source: srcId,
+        sourceHandle: handle,
+        target: steps[ti].id,
+        type: "branchEdge",
+        data: { label },
+        style: { stroke: color, strokeWidth: 2, ...(dashed ? { strokeDasharray: "5 3" } : {}) },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
+      });
+    };
+    (br.cases ?? []).forEach((c: any) => {
+      const bi = btns.indexOf(c.match);
+      addBranch(c.next_index, c.match, `br-btn-${bi >= 0 ? bi : c.match}`, "#059669", false);
+    });
+    if (br.default_next_index != null) addBranch(br.default_next_index, "Otra respuesta", "br-default", "#94a3b8", true);
+    if (br.no_reply_next_index != null) addBranch(br.no_reply_next_index, "Sin respuesta", "br-noreply", "#94a3b8", true);
   });
 
   // End node — always sits below the lowest node so it doesn't overlap
@@ -495,10 +540,15 @@ function StepNode({ data }: NodeProps) {
           {waButtons.map((b, i) => {
             const dest = branchesOn ? destLabel((cases.find((x: any) => x.match === b) || {}).next_index) : null;
             return (
-              <div key={i} className="flex items-center gap-1.5">
+              <div key={i} className="relative flex items-center gap-1.5">
                 <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
                 {branchesOn && (
-                  <span className="shrink-0 text-[10px] text-slate-400">→ {dest || "definir"}</span>
+                  <>
+                    <span className="shrink-0 text-[10px] text-slate-400">→ {dest || "definir"}</span>
+                    {/* Punto de salida de la rama de este botón */}
+                    <Handle type="source" id={`br-btn-${i}`} position={Position.Right}
+                      className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" style={{ right: -6 }} />
+                  </>
                 )}
               </div>
             );
@@ -514,7 +564,16 @@ function StepNode({ data }: NodeProps) {
         </div>
       )}
 
-      <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
+      {/* Salidas: si hay ramas, una por botón (arriba) + otra/sin respuesta abajo;
+          si no, el conector lineal normal. */}
+      {branchesOn ? (
+        <>
+          <Handle type="source" id="br-default" position={Position.Bottom} style={{ left: "35%" }} className="!bg-slate-400 !w-2.5 !h-2.5 !border-2 !border-white" />
+          <Handle type="source" id="br-noreply" position={Position.Bottom} style={{ left: "65%" }} className="!bg-slate-400 !w-2.5 !h-2.5 !border-2 !border-white" />
+        </>
+      ) : (
+        <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
+      )}
     </div>
   );
 }
@@ -565,8 +624,26 @@ function AddableEdge({ sourceX, sourceY, targetX, targetY, data }: EdgeProps) {
   );
 }
 
+// Edge de rama (desde un botón hacia su acción). Etiquetado y coloreado.
+function BranchEdge({ sourceX, sourceY, targetX, targetY, data, style }: EdgeProps) {
+  const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY });
+  const label = (data as any)?.label as string | undefined;
+  return (
+    <>
+      <BaseEdge path={edgePath} style={style} />
+      {label && (
+        <EdgeLabelRenderer>
+          <div className="absolute nodrag nopan" style={{ transform: `translate(-50%,-50%) translate(${labelX}px,${labelY}px)`, zIndex: 6, pointerEvents: "none" }}>
+            <span className="rounded-full border bg-white px-2 py-0.5 text-[10px] font-medium text-slate-600 shadow-sm max-w-[130px] truncate inline-block">{label}</span>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
 const nodeTypes = { triggerNode: TriggerNode, stepNode: StepNode, endNode: EndNode };
-const edgeTypes = { addableEdge: AddableEdge };
+const edgeTypes = { addableEdge: AddableEdge, branchEdge: BranchEdge };
 
 // ── Step type picker dialog ───────────────────────────────────────────────────
 function StepPicker({ open, onClose, onSelect }: {
