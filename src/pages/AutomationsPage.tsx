@@ -1281,7 +1281,7 @@ function WhatsAppStepEditor({ step, onChange }: {
   const { organizationId } = useOrganizationContext();
   const c = step.config;
 
-  const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string }[]>([]);
+  const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string; buttons?: any[] }[]>([]);
   const [loadingTpl, setLoadingTpl] = useState(false);
   // Campos personalizados de la org → variables {{custom.<clave>}}
   const [customFieldVars, setCustomFieldVars] = useState<{ value: string; label: string }[]>([]);
@@ -1291,7 +1291,7 @@ function WhatsAppStepEditor({ step, onChange }: {
     setLoadingTpl(true);
     supabase
       .from("whatsapp_templates")
-      .select("id, name, language, status, body_text")
+      .select("id, name, language, status, body_text, buttons")
       .eq("organization_id", organizationId)
       .order("name", { ascending: true })
       .then(({ data }) => { setTemplates(data || []); setLoadingTpl(false); });
@@ -1373,7 +1373,21 @@ function WhatsAppStepEditor({ step, onChange }: {
         <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 space-y-1.5">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{t("automationsPage.preview")}</p>
           <HighlightedBody body={selectedTpl.body_text} variables={variables} />
+          {Array.isArray(selectedTpl.buttons) && selectedTpl.buttons.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-1.5 border-t border-slate-200">
+              {selectedTpl.buttons.map((b: any, i: number) => (
+                <span key={i} className="inline-flex items-center rounded-full border border-emerald-300 bg-white px-2.5 py-1 text-xs text-emerald-700">
+                  {b.text || b.title || b.url || "botón"}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+      {Array.isArray(selectedTpl?.buttons) && selectedTpl.buttons.length > 0 && (
+        <p className="text-[11px] text-muted-foreground">
+          💡 Esta plantilla tiene botones: agrega después un paso <strong>"Esperar respuesta"</strong> y <strong>"Según la respuesta"</strong> para reaccionar al botón que toque el contacto.
+        </p>
       )}
 
       {/* ── Mapper de variables ── */}

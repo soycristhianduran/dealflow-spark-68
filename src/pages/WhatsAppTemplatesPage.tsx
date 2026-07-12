@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
 import { useOrganizationContext } from "@/context/OrganizationContext";
+import { WhatsAppFlowsSection } from "@/components/crm/WhatsAppFlowsSection";
 import {
   Plus, RefreshCw, Trash2, CheckCircle2,
   Clock, XCircle, AlertCircle, Loader2, ChevronRight, Pencil, Upload, X
@@ -675,6 +676,9 @@ export default function WhatsAppTemplatesPage() {
             })}
           </div>
         )}
+
+        {/* ── WhatsApp Flows (formularios nativos) ── */}
+        <WhatsAppFlowsSection />
       </div>
 
       {/* ── VIEW DETAIL DIALOG ── */}

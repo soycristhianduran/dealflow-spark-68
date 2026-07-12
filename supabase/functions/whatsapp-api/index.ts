@@ -853,6 +853,100 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── WHATSAPP FLOWS (formularios nativos) ─────────────────────────────────
+    if (["list_flows", "create_flow", "publish_flow", "delete_flow"].includes(action)) {
+      let fq = supabase
+        .from("whatsapp_configs")
+        .select("waba_id, access_token")
+        .eq("is_active", true);
+      if (orgId) fq = fq.eq("organization_id", orgId);
+      else fq = fq.eq("user_id", user.id);
+      const { data: fcfgs } = await fq.order("is_primary", { ascending: false }).limit(1);
+      const fcfg = fcfgs?.[0];
+      if (!fcfg?.access_token || !fcfg?.waba_id) throw new Error("WhatsApp no está configurado para esta organización");
+      const fjson = (b: unknown) => new Response(JSON.stringify(b), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+      if (action === "list_flows") {
+        const r = await fetch(`${GRAPH_API}/${fcfg.waba_id}/flows?fields=id,name,status,categories&limit=50&access_token=${fcfg.access_token}`);
+        const j = await r.json();
+        if (j.error) throw new Error(j.error.message);
+        return fjson({ flows: j.data ?? [] });
+      }
+
+      if (action === "create_flow") {
+        // Genera un Flow de una pantalla (formulario) a partir de campos simples,
+        // lo crea en el WABA, sube el JSON y lo publica.
+        const { name, title, fields } = body as { name: string; title?: string; fields: { label: string; type?: string; options?: string[]; required?: boolean }[] };
+        if (!name || !Array.isArray(fields) || !fields.length) throw new Error("name y fields son obligatorios");
+        const slug = (x: string) => (x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40) || "campo";
+        const children: any[] = [];
+        const payload: Record<string, string> = {};
+        const used = new Set<string>();
+        for (const f of fields.slice(0, 10)) {
+          let nm = slug(f.label); let k = 2;
+          while (used.has(nm)) nm = `${slug(f.label)}_${k++}`;
+          used.add(nm);
+          const req = f.required !== false;
+          if (f.type === "select" && Array.isArray(f.options) && f.options.length) {
+            children.push({ type: "Dropdown", name: nm, label: String(f.label).slice(0, 30), required: req,
+              "data-source": f.options.slice(0, 20).map((o: string, oi: number) => ({ id: `opt_${oi}_${slug(o).slice(0, 20)}`, title: String(o).slice(0, 30) })) });
+          } else if (f.type === "textarea") {
+            children.push({ type: "TextArea", name: nm, label: String(f.label).slice(0, 20), required: req });
+          } else if (f.type === "date") {
+            children.push({ type: "DatePicker", name: nm, label: String(f.label).slice(0, 40), required: req });
+          } else {
+            const it = f.type === "number" ? "number" : f.type === "email" ? "email" : f.type === "phone" ? "phone" : "text";
+            children.push({ type: "TextInput", name: nm, label: String(f.label).slice(0, 20), required: req, "input-type": it });
+          }
+          payload[nm] = "${form." + nm + "}";
+        }
+        children.push({ type: "Footer", label: "Enviar", "on-click-action": { name: "complete", payload } });
+        const flowJson = {
+          version: "7.2",
+          screens: [{ id: "FORM", title: String(title || name).slice(0, 30), terminal: true,
+            layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children }] } }],
+        };
+
+        const cr = await fetch(`${GRAPH_API}/${fcfg.waba_id}/flows`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${fcfg.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name, categories: ["LEAD_GENERATION"] }),
+        });
+        const cj = await cr.json();
+        if (cj.error) throw new Error(`No se pudo crear el Flow: ${cj.error.message}`);
+        const flowId = cj.id;
+
+        const fd = new FormData();
+        fd.append("file", new File([JSON.stringify(flowJson)], "flow.json", { type: "application/json" }), "flow.json");
+        fd.append("name", "flow.json");
+        fd.append("asset_type", "FLOW_JSON");
+        const up = await fetch(`${GRAPH_API}/${flowId}/assets`, {
+          method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` }, body: fd,
+        });
+        const uj = await up.json();
+        if (uj.error) return fjson({ flow_id: flowId, published: false, error: `Flow creado pero el JSON falló: ${uj.error.message}` });
+        const validationErrors = (uj.validation_errors ?? []).filter((e: any) => e.error_type !== "WARNING");
+        let published = false, publishError: string | null = null;
+        if (!validationErrors.length) {
+          const pb = await fetch(`${GRAPH_API}/${flowId}/publish`, { method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` } });
+          const pj = await pb.json();
+          published = !!pj.success;
+          if (pj.error) publishError = pj.error.message;
+        }
+        return fjson({ flow_id: flowId, published, validation_errors: validationErrors, publish_error: publishError });
+      }
+
+      if (action === "publish_flow") {
+        const pb = await fetch(`${GRAPH_API}/${body.flow_id}/publish`, { method: "POST", headers: { Authorization: `Bearer ${fcfg.access_token}` } });
+        return fjson(await pb.json());
+      }
+
+      if (action === "delete_flow") {
+        const dl = await fetch(`${GRAPH_API}/${body.flow_id}?access_token=${fcfg.access_token}`, { method: "DELETE" });
+        return fjson(await dl.json());
+      }
+    }
+
     // ── TEMPLATES ────────────────────────────────────────────────────────────
 
     if (action === "list_templates") {
