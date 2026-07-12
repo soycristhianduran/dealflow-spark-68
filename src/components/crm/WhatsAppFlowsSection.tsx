@@ -73,14 +73,6 @@ const STD_FLOW_FIELDS: { key: string; label: string; ftype: string }[] = [
   { key: "std_notes", label: "Notas", ftype: "textarea" },
 ];
 
-// Variables para personalizar textos del Flow (se rellenan desde el lead)
-const FLOW_TEXT_VARS: { token: string; label: string }[] = [
-  { token: "{{first_name}}", label: "Nombre" },
-  { token: "{{last_name}}", label: "Apellido" },
-  { token: "{{full_name}}", label: "Nombre completo" },
-  { token: "{{city}}", label: "Ciudad" },
-];
-
 const CONTENT_ELEMENTS: { kind: FlowElement["kind"]; label: string }[] = [
   { kind: "heading_lg", label: "T Encabezado grande" },
   { kind: "heading_sm", label: "T Encabezado pequeño" },
@@ -231,7 +223,7 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
       <div className="space-y-2">
         {elements.length === 0 && (
           <p className="rounded-lg border border-dashed p-3 text-center text-xs text-muted-foreground">
-            Añade textos, imágenes (máx 3, ~300KB c/u) y campos. En los textos puedes usar {"{{first_name}}"} o {"{{tu_campo}}"} para personalizar con datos del lead.
+            Añade textos, imágenes (máx 3, ~300KB c/u) y campos del formulario. Se muestran en el teléfono en el orden de esta lista.
           </p>
         )}
         {elements.map((el, i) => (
@@ -252,27 +244,8 @@ export function FlowCreateForm({ onDone, onPreviewChange, onEditingSection }: {
                 <Input className="h-7 text-xs flex-1" placeholder="Etiqueta del campo" value={el.label ?? ""}
                   onChange={e => setEl(i, { label: e.target.value })} />
               ) : (
-                <>
                 <Input className="h-7 text-xs flex-1" placeholder="Texto…" value={el.text ?? ""}
                   onChange={e => setEl(i, { text: e.target.value })} />
-                <Select value="" onValueChange={v => setEl(i, { text: `${el.text ?? ""}${v}` })}>
-                  <SelectTrigger className="h-7 w-14 shrink-0 text-[10px] px-1.5" title="Insertar variable del lead">
-                    <span className="font-mono">{"{{}}"}</span>
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FLOW_TEXT_VARS.map(v => (
-                      <SelectItem key={v.token} value={v.token} className="text-xs">
-                        {v.label} <span className="text-muted-foreground ml-1 font-mono text-[10px]">{v.token}</span>
-                      </SelectItem>
-                    ))}
-                    {orgFields.map(f => (
-                      <SelectItem key={f.key} value={`{{${f.key}}}`} className="text-xs">
-                        {f.label} <span className="text-muted-foreground ml-1 font-mono text-[10px]">{`{{${f.key}}}`}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                </>
               )}
               <div className="flex shrink-0">
                 <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => move(i, -1)}>↑</Button>

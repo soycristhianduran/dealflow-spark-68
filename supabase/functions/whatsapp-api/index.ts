@@ -884,23 +884,17 @@ Deno.serve(async (req) => {
         const children: any[] = [];
         const payload: Record<string, string> = {};
         const usedKeys = new Set<string>();
-        // Personalización dentro del Flow: tokens {{clave}} en los textos se
-        // convierten a ${data.<clave>} y se declaran en el schema de la pantalla.
-        // Las claves válidas: first_name, last_name, full_name, city o cualquier
-        // campo personalizado del contacto. El paso "Enviar WhatsApp Flow" las
-        // rellena desde el lead al enviar.
+        // Textos del Flow estáticos (la personalización con datos dinámicos de
+        // Meta resultaba poco fiable — se retiró). Cualquier {{...}} accidental
+        // se elimina para no mostrar marcadores crudos.
         const dataKeys = new Set<string>();
-        const tokenize = (t: string) => String(t).replace(/\{\{\s*([\w.]+)\s*\}\}/g, (_m, k) => {
-          const key = String(k).replace(/^contact\./, "").replace(/^custom\./, "").replace(/[^a-zA-Z0-9_]/g, "_").slice(0, 30);
-          dataKeys.add(key);
-          return "${data." + key + "}";
-        });
+        const clean = (t: string) => String(t).replace(/\{\{\s*[\w.]+\s*\}\}/g, "").trim();
         let imageCount = 0;
         for (const el of elements.slice(0, 20)) {
-          if (el.kind === "heading_lg" && el.text) children.push({ type: "TextHeading", text: tokenize(String(el.text).slice(0, 80)) });
-          else if (el.kind === "heading_sm" && el.text) children.push({ type: "TextSubheading", text: tokenize(String(el.text).slice(0, 80)) });
-          else if (el.kind === "body" && el.text) children.push({ type: "TextBody", text: tokenize(String(el.text).slice(0, 4096)) });
-          else if (el.kind === "caption" && el.text) children.push({ type: "TextCaption", text: tokenize(String(el.text).slice(0, 300)) });
+          if (el.kind === "heading_lg" && el.text) children.push({ type: "TextHeading", text: clean(String(el.text).slice(0, 80)) });
+          else if (el.kind === "heading_sm" && el.text) children.push({ type: "TextSubheading", text: clean(String(el.text).slice(0, 80)) });
+          else if (el.kind === "body" && el.text) children.push({ type: "TextBody", text: clean(String(el.text).slice(0, 4096)) });
+          else if (el.kind === "caption" && el.text) children.push({ type: "TextCaption", text: clean(String(el.text).slice(0, 300)) });
           else if (el.kind === "image" && el.src) {
             if (++imageCount > 3) continue; // Meta: máximo 3 imágenes por pantalla
             children.push({ type: "Image", src: String(el.src), height: 180, "scale-type": "cover" });
