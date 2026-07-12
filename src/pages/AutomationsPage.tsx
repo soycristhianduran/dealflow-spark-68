@@ -353,9 +353,26 @@ function buildFlow(
     }
   });
 
+  // Auto-acomodo: cada destino de rama se coloca DEBAJO de su mensaje, esparcido
+  // horizontalmente (flujo vertical, como el dibujo). El usuario puede reacomodar.
+  const autoPos: Record<string, { x: number; y: number }> = {};
+  branchSources.forEach((br: any, i: number) => {
+    const wpos = positions[steps[i].id] ?? steps[i].position ?? { x: CX - NODE_W / 2, y: (i + 1) * V_GAP };
+    const targets: number[] = [];
+    (br.cases ?? []).forEach((c: any) => { if (c?.next_index != null) targets.push(Number(c.next_index)); });
+    if (br.default_next_index != null) targets.push(Number(br.default_next_index));
+    if (br.no_reply_next_index != null) targets.push(Number(br.no_reply_next_index));
+    const uniq = [...new Set(targets)].filter(t => t >= 0 && t < steps.length);
+    const N = uniq.length;
+    uniq.forEach((t, k) => {
+      const spread = (k - (N - 1) / 2) * (NODE_W + 70);
+      autoPos[steps[t].id] = { x: wpos.x + spread, y: wpos.y + V_GAP + 30 };
+    });
+  });
+
   steps.forEach((step, i) => {
     const defaultPos = { x: CX - NODE_W / 2, y: (i + 1) * V_GAP };
-    const pos = positions[step.id] ?? step.position ?? defaultPos;
+    const pos = positions[step.id] ?? step.position ?? autoPos[step.id] ?? defaultPos;
     nodes.push({
       id: step.id,
       type: "stepNode",
@@ -545,16 +562,11 @@ function StepNode({ data }: NodeProps) {
                 <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
                 {branchesOn && (
                   dest ? (
-                    <>
-                      <button
-                        onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
-                        className="shrink-0 text-[10px] text-slate-500 hover:text-emerald-600 hover:underline nodrag"
-                        title="Cambiar la acción de este botón"
-                      >→ {dest} ✎</button>
-                      {/* Anclaje de la línea de rama (solo cuando ya hay destino) */}
-                      <Handle type="source" id={`br-btn-${i}`} position={Position.Right}
-                        className="!bg-emerald-500 !w-2 !h-2 !border !border-white" style={{ right: -5 }} />
-                    </>
+                    <button
+                      onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
+                      className="shrink-0 text-[10px] text-slate-500 hover:text-emerald-600 hover:underline nodrag"
+                      title="Cambiar la acción de este botón"
+                    >↓ {dest} ✎</button>
                   ) : (
                     <button
                       onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
@@ -579,12 +591,22 @@ function StepNode({ data }: NodeProps) {
         </div>
       )}
 
-      {/* Salidas: si hay ramas, una por botón (arriba) + otra/sin respuesta abajo;
-          si no, el conector lineal normal. */}
+      {/* Salidas: si hay ramas, un conector por botón en la base, esparcido, +
+          otra/sin respuesta; el flujo baja hacia cada rama. */}
       {branchesOn ? (
         <>
-          <Handle type="source" id="br-default" position={Position.Bottom} style={{ left: "35%" }} className="!bg-slate-400 !w-2.5 !h-2.5 !border-2 !border-white" />
-          <Handle type="source" id="br-noreply" position={Position.Bottom} style={{ left: "65%" }} className="!bg-slate-400 !w-2.5 !h-2.5 !border-2 !border-white" />
+          {waButtons.map((_, i) => {
+            const n = waButtons.length + 2;
+            return <Handle key={i} type="source" id={`br-btn-${i}`} position={Position.Bottom}
+              style={{ left: `${((i + 1) / (n + 1)) * 100}%` }}
+              className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" />;
+          })}
+          <Handle type="source" id="br-default" position={Position.Bottom}
+            style={{ left: `${((waButtons.length + 1) / (waButtons.length + 3)) * 100}%` }}
+            className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
+          <Handle type="source" id="br-noreply" position={Position.Bottom}
+            style={{ left: `${((waButtons.length + 2) / (waButtons.length + 3)) * 100}%` }}
+            className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
         </>
       ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
