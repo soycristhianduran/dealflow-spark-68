@@ -66,7 +66,7 @@ export function WhatsAppPhonePreview({
 
           {/* Fondo del chat (patrón doodle simulado) */}
           <div
-            className="min-h-[300px] max-h-[380px] overflow-y-auto px-2.5 py-3 space-y-1"
+            className="min-h-[430px] max-h-[460px] overflow-y-auto px-2.5 py-3 space-y-1"
             style={{
               backgroundColor: "#0b141a",
               backgroundImage:
