@@ -553,33 +553,36 @@ function StepNode({ data }: NodeProps) {
       </div>
 
       {waButtons.length > 0 && (
-        <div className="border-t px-3 py-2 space-y-1.5">
+        <div className="border-t px-3 py-2 space-y-2">
           {cfg._body && <p className="text-[11px] text-slate-500 line-clamp-2 leading-snug">{cfg._body}</p>}
-          {waButtons.map((b, i) => {
-            const dest = branchesOn ? destLabel((cases.find((x: any) => x.match === b) || {}).next_index) : null;
-            return (
-              <div key={i} className="relative flex items-center gap-1.5">
-                <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
-                {branchesOn && (
-                  dest ? (
-                    <button
-                      onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
-                      className="shrink-0 text-[10px] text-slate-500 hover:text-emerald-600 hover:underline nodrag"
-                      title="Cambiar la acción de este botón"
-                    >↓ {dest} ✎</button>
-                  ) : (
-                    <button
-                      onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
-                      className="shrink-0 flex items-center gap-0.5 rounded-md bg-emerald-500 px-2 py-1 text-[10px] font-semibold text-white hover:bg-emerald-600 nodrag"
-                      title="Agregar la acción que se ejecuta si tocan este botón"
-                    >
-                      <Plus className="h-2.5 w-2.5" /> Agregar acción
-                    </button>
-                  )
-                )}
-              </div>
-            );
-          })}
+          {/* Botones lado a lado */}
+          <div className="flex gap-1.5">
+            {waButtons.map((b, i) => {
+              const dest = branchesOn ? destLabel((cases.find((x: any) => x.match === b) || {}).next_index) : null;
+              return (
+                <div key={i} className="flex-1 min-w-0 flex flex-col gap-1">
+                  <span className="truncate text-center rounded-md border border-emerald-300 bg-emerald-50 px-1.5 py-1 text-[10px] font-medium text-emerald-700" title={b}>{b}</span>
+                  {branchesOn && (
+                    dest ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
+                        className="truncate text-center text-[9px] text-slate-500 hover:text-emerald-600 hover:underline nodrag"
+                        title="Cambiar la acción de este botón"
+                      >↓ {dest} ✎</button>
+                    ) : (
+                      <button
+                        onClick={e => { e.stopPropagation(); onAddBranchStep(step.id, b); }}
+                        className="flex items-center justify-center gap-0.5 rounded-md bg-emerald-500 px-1 py-1 text-[9px] font-semibold text-white hover:bg-emerald-600 nodrag"
+                        title="Agregar la acción que se ejecuta si tocan este botón"
+                      >
+                        <Plus className="h-2.5 w-2.5" /> acción
+                      </button>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
           {!branchesOn && (
             <button
               onClick={e => { e.stopPropagation(); onSelectNode(step.id); }}
@@ -591,22 +594,21 @@ function StepNode({ data }: NodeProps) {
         </div>
       )}
 
-      {/* Salidas: si hay ramas, un conector por botón en la base, esparcido, +
-          otra/sin respuesta; el flujo baja hacia cada rama. */}
+      {/* Salidas: un conector por botón alineado debajo de cada uno. Otra/sin
+          respuesta solo se muestran cuando tienen destino (evita puntos vacíos). */}
       {branchesOn ? (
         <>
-          {waButtons.map((_, i) => {
-            const n = waButtons.length + 2;
-            return <Handle key={i} type="source" id={`br-btn-${i}`} position={Position.Bottom}
-              style={{ left: `${((i + 1) / (n + 1)) * 100}%` }}
-              className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" />;
-          })}
-          <Handle type="source" id="br-default" position={Position.Bottom}
-            style={{ left: `${((waButtons.length + 1) / (waButtons.length + 3)) * 100}%` }}
-            className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
-          <Handle type="source" id="br-noreply" position={Position.Bottom}
-            style={{ left: `${((waButtons.length + 2) / (waButtons.length + 3)) * 100}%` }}
-            className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
+          {waButtons.map((_, i) => (
+            <Handle key={i} type="source" id={`br-btn-${i}`} position={Position.Bottom}
+              style={{ left: `${((i + 0.5) / waButtons.length) * 100}%` }}
+              className="!bg-emerald-500 !w-2.5 !h-2.5 !border-2 !border-white" />
+          ))}
+          {(cfg.branches?.default_next_index != null) && (
+            <Handle type="source" id="br-default" position={Position.Bottom} style={{ left: "38%" }} className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
+          )}
+          {(cfg.branches?.no_reply_next_index != null) && (
+            <Handle type="source" id="br-noreply" position={Position.Bottom} style={{ left: "62%" }} className="!bg-slate-400 !w-2 !h-2 !border !border-white" />
+          )}
         </>
       ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
