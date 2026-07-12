@@ -506,7 +506,7 @@ function TriggerNode(_: NodeProps) {
 
 // ── Custom: Step node ─────────────────────────────────────────────────────────
 function StepNode({ data }: NodeProps) {
-  const { onSelectNode, onDeleteStep, selectedId, steps, onAddBranchStep } = useContext(FlowCtx);
+  const { onSelectNode, onDeleteStep, selectedId, steps, onAddBranchStep, onInsertStep } = useContext(FlowCtx);
   const step = (data as StepNodeData).step;
   // Defensive: fall back to "wait" metadata if type is unknown
   const meta = STEP_META[step?.type] ?? STEP_META["wait"];
@@ -612,6 +612,19 @@ function StepNode({ data }: NodeProps) {
         </>
       ) : (
         <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
+      )}
+
+      {/* "+ paso" para continuar la rama desde este nodo (útil en ramas que
+          terminan sin siguiente paso). No aparece en el mensaje con ramas
+          activas (ese usa el "+ acción" por botón). */}
+      {!branchesOn && (
+        <button
+          onClick={e => { e.stopPropagation(); const idx = steps.findIndex(s => s.id === step.id); onInsertStep(idx + 1); }}
+          className="nodrag absolute left-1/2 -bottom-3 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex h-6 w-6 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-slate-400 shadow hover:border-indigo-500 hover:text-indigo-600 z-10"
+          title="Agregar un paso después de este"
+        >
+          <Plus className="h-3 w-3" />
+        </button>
       )}
     </div>
   );
