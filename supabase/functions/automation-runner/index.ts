@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
           .select("id")
           .eq("automation_id", automation.id)
           .eq("contact_id", contact_id)
-          .in("status", ["active", "waiting"])
+          .in("status", ["active", "waiting", "waiting_reply"])
           .maybeSingle();
         if (existing) continue;
 
@@ -302,6 +302,34 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, enrolled }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── Respuesta entrante de WhatsApp: reanudar flujos en waiting_reply ─────
+    if (body.action === "incoming_reply") {
+      const { contact_id, reply_text } = body;
+      if (!contact_id) return new Response(JSON.stringify({ resumed: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      const { data: waitingEnrs } = await supabase
+        .from("automation_enrollments")
+        .select("*, automations(*), contacts(*)")
+        .eq("contact_id", contact_id)
+        .eq("status", "waiting_reply");
+      let resumed = 0;
+      for (const enr of waitingEnrs ?? []) {
+        const td = { ...(enr.trigger_data ?? {}), reply: { text: String(reply_text ?? "") } };
+        // Guarded update: si otro runner ya lo movió, no lo tocamos dos veces.
+        const { data: claimed } = await supabase
+          .from("automation_enrollments")
+          .update({ status: "active", next_run_at: new Date().toISOString(), current_step_index: enr.current_step_index + 1, trigger_data: td })
+          .eq("id", enr.id)
+          .eq("status", "waiting_reply")
+          .select("id");
+        if (claimed && claimed.length) {
+          const fresh = { ...enr, status: "active", current_step_index: enr.current_step_index + 1, trigger_data: td };
+          try { await processEnrollment(fresh, supabase); } catch (e) { console.error("incoming_reply process error:", e); }
+          resumed++;
+        }
+      }
+      return new Response(JSON.stringify({ resumed }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Optional: manual enroll from UI (requires user JWT)
@@ -352,7 +380,7 @@ Deno.serve(async (req) => {
     const { data: enrollments, error: enrErr } = await supabase
       .from("automation_enrollments")
       .select("*, automations(*), contacts(*)")
-      .in("status", ["active", "waiting"])
+      .in("status", ["active", "waiting", "waiting_reply"])
       .lte("next_run_at", now)
       .order("next_run_at", { ascending: true }) // oldest-due first (fairness)
       .limit(BATCH_LIMIT);
@@ -382,7 +410,7 @@ Deno.serve(async (req) => {
         .update({ next_run_at: new Date(Date.now() + LEASE_MS).toISOString() })
         .eq("id", enr.id)
         .eq("next_run_at", enr.next_run_at)
-        .in("status", ["active", "waiting"])
+        .in("status", ["active", "waiting", "waiting_reply"])
         .select("id");
       if (!claimed || claimed.length === 0) return; // another runner owns it
 
@@ -454,7 +482,7 @@ Deno.serve(async (req) => {
           .select("id")
           .eq("automation_id", auto.id)
           .eq("contact_id", c.id)
-          .in("status", ["active", "waiting"])
+          .in("status", ["active", "waiting", "waiting_reply"])
           .maybeSingle();
         if (existing) continue;
 
@@ -529,7 +557,7 @@ Deno.serve(async (req) => {
         const { data: existing } = await supabase
           .from("automation_enrollments").select("id")
           .eq("automation_id", auto.id).eq("contact_id", ct.id)
-          .in("status", ["active", "waiting"]).maybeSingle();
+          .in("status", ["active", "waiting", "waiting_reply"]).maybeSingle();
         if (existing) continue;
 
         const { data: inserted } = await supabase
@@ -943,6 +971,89 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       }
     }
 
+    else if (step.type === "wait_reply") {
+      // Este paso solo se EJECUTA cuando vence el plazo sin respuesta: la
+      // respuesta real reanuda vía incoming_reply saltándose este paso.
+      logs = addLog("Sin respuesta del contacto dentro del plazo");
+      if (step.config?.timeout_next_index != null) {
+        jumpToIndex = Number(step.config.timeout_next_index);
+      }
+    }
+
+    else if (step.type === "reply_condition") {
+      const cfg = step.config || {};
+      const replyText = String(enr.trigger_data?.reply?.text ?? "").toLowerCase().trim();
+      const target = String(cfg.value ?? "").toLowerCase().trim();
+      const op = cfg.operator || "contains";
+      let passed = false;
+      if (op === "contains") passed = target !== "" && replyText.includes(target);
+      else if (op === "equals") passed = replyText === target;
+      else if (op === "not_empty") passed = replyText !== "";
+      if (passed) {
+        if (cfg.true_next_index != null) jumpToIndex = Number(cfg.true_next_index);
+        logs = addLog(`Respuesta "${replyText.slice(0, 60)}" ${op} "${target}" → VERDADERA`);
+      } else {
+        if (cfg.false_next_index != null) jumpToIndex = Number(cfg.false_next_index);
+        else extraSkip = cfg.false_skip_count ?? 1;
+        logs = addLog(`Respuesta "${replyText.slice(0, 60)}" ${op} "${target}" → FALSA`);
+      }
+    }
+
+    else if (step.type === "send_whatsapp_interactive") {
+      const cfg = step.config || {};
+      const { data: waConfig } = await supabase
+        .from("whatsapp_configs")
+        .select("phone_number_id, access_token")
+        .eq("organization_id", contact.organization_id)
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending")
+        .order("is_primary", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const cleanPhone = (contact.primary_phone || "").replace(/[^0-9]/g, "");
+      if (!waConfig) logs = addLog("WhatsApp no configurado — paso omitido");
+      else if (!cleanPhone) logs = addLog("Contacto sin teléfono válido — paso omitido");
+      else {
+        const { data: hasQuota } = await supabase.rpc("consume_automated_message_quota", {
+          p_org_id: contact.organization_id, p_amount: 1,
+        });
+        if (!hasQuota) logs = addLog("Límite de mensajes automatizados alcanzado — paso omitido");
+        else {
+          const bodyText = renderVars(String(cfg.body_text || ""), ctx);
+          const btns: string[] = (cfg.buttons || []).map((b: string) => String(b || "").trim()).filter(Boolean).slice(0, 3);
+          const payload: any = btns.length
+            ? { messaging_product: "whatsapp", to: cleanPhone, type: "interactive",
+                interactive: { type: "button", body: { text: bodyText },
+                  action: { buttons: btns.map((t: string, i: number) => ({ type: "reply", reply: { id: `btn_${i}`, title: t.slice(0, 20) } })) } } }
+            : { messaging_product: "whatsapp", to: cleanPhone, type: "text", text: { body: bodyText } };
+          const waRes = await fetch(`https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${waConfig.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const waJson = await waRes.json().catch(() => null);
+          if (!waRes.ok) {
+            // Fuera de la ventana de 24h Meta rechaza mensajes libres — queda logueado.
+            logs = addLog(`Mensaje interactivo rechazado: ${waJson?.error?.message ?? waRes.status}`);
+          } else {
+            await supabase.from("whatsapp_messages").insert({
+              user_id: enr.user_id,
+              organization_id: contact.organization_id,
+              contact_id: contact.id,
+              wa_message_id: waJson?.messages?.[0]?.id,
+              phone_number: cleanPhone,
+              from_phone_number_id: waConfig.phone_number_id,
+              direction: "outgoing",
+              message_type: "text",
+              message_text: btns.length ? `${bodyText}\n[${btns.join(" | ")}]` : bodyText,
+              status: "sent",
+            });
+            logs = addLog(`Mensaje interactivo enviado (${btns.length} botones)`);
+          }
+        }
+      }
+    }
+
     else if (step.type === "condition") {
       const cfg = step.config || {};
       const passed = evaluateCondition(cfg, contact);
@@ -1025,7 +1136,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
           .select("id")
           .eq("automation_id", targetId)
           .eq("contact_id", contact.id)
-          .in("status", ["active", "waiting"])
+          .in("status", ["active", "waiting", "waiting_reply"])
           .maybeSingle();
         if (existingEnr) {
           logs = addLog("El contacto ya está en la automatización destino — omitido");
@@ -1091,7 +1202,15 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   let nextRunAt = new Date();
   let nextStatus = "active";
 
-  if (nextStep.type === "wait") {
+  if (nextStep.type === "wait_reply") {
+    // Pausar hasta que el contacto responda (incoming_reply) o venza el plazo.
+    const cfg = nextStep.config || {};
+    const val = Number(cfg.timeout_value ?? 24);
+    const unit = cfg.timeout_unit ?? "hours";
+    const ms = unit === "minutes" ? val * 60_000 : unit === "days" ? val * 86_400_000 : val * 3_600_000;
+    nextStatus = "waiting_reply";
+    nextRunAt = new Date(Date.now() + Math.max(ms, 60_000));
+  } else if (nextStep.type === "wait") {
     const wcfg = nextStep.config || {};
     nextStatus = "waiting";
 

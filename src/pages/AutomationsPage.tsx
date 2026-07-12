@@ -139,7 +139,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation" | "send_whatsapp_interactive" | "wait_reply" | "reply_condition";
   config: Record<string, any>;
   // Optional free-canvas position (ignored by automation-runner)
   position?: { x: number; y: number };
@@ -191,6 +191,9 @@ const STEP_META: Record<string, {
   notify_owner:        { label: "Notificar vendedor",   description: "Envía un email de alerta al responsable",       icon: IconNotify,    color: "#b45309", bg: "#fffbeb", border: "#fde68a", ring: "#fef3c7" },
   make_call:           { label: "Llamar al contacto",   description: "El agente IA llama al contacto automáticamente", icon: PhoneCall,     color: "#0f766e", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
   enroll_automation:   { label: "Ir a otra automatización", description: "Envía el contacto a otra automatización",    icon: Share2,        color: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", ring: "#f3e8ff" },
+  send_whatsapp_interactive: { label: "Mensaje con botones", description: "Mensaje libre de WhatsApp con hasta 3 botones (bot)", icon: IconWhatsApp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", ring: "#d1fae5" },
+  wait_reply:          { label: "Esperar respuesta",   description: "Pausa hasta que el contacto responda (o venza el plazo)", icon: Timer,   color: "#0d9488", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
+  reply_condition:     { label: "Según la respuesta",  description: "Bifurca el flujo según lo que respondió el contacto",     icon: IconCondition, color: "#c2410c", bg: "#fff7ed", border: "#fed7aa", ring: "#ffedd5" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
@@ -199,6 +202,7 @@ const STEP_GROUPS: { label: string; types: string[] }[] = [
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
+  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "wait_reply", "reply_condition"] },
   { label: "Flujo",         types: ["enroll_automation"] },
 ];
 
@@ -235,6 +239,9 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "remove_tag":          return { tag: "" };
     case "update_contact":      return { field: "", value: "" };
     case "condition":           return { field: "tags", operator: "contains", value: "" };
+    case "send_whatsapp_interactive": return { body_text: "", buttons: ["", "", ""] };
+    case "wait_reply":          return { timeout_value: 24, timeout_unit: "hours" };
+    case "reply_condition":     return { operator: "contains", value: "", false_skip_count: 1 };
     case "assign_owner":        return { mode: "specific", owner_id: "", owner_name: "", owner_ids: [], owner_names: [] };
     case "move_pipeline_stage": return { pipeline_id: "", stage_id: "", stage_name: "" };
     case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
@@ -260,6 +267,12 @@ function stepSummary(step: AutomationStep): string {
     case "remove_tag":          return c.tag ? `"${c.tag}"` : "(sin tag)";
     case "update_contact":      return c.field ? `${c.field} = ${c.value}` : "(sin campo)";
     case "condition":           return `${c.field} ${c.operator} ${c.value || "?"}`;
+    case "send_whatsapp_interactive": {
+      const nb = (c.buttons || []).filter((x: string) => x && x.trim()).length;
+      return c.body_text ? `"${String(c.body_text).slice(0, 30)}…" (${nb} botones)` : "(sin mensaje)";
+    }
+    case "wait_reply":          return `hasta ${c.timeout_value ?? 24} ${c.timeout_unit ?? "hours"}`;
+    case "reply_condition":     return `respuesta ${c.operator ?? "contains"} "${c.value || "?"}"`;
     case "assign_owner":
       if (c.mode === "round_robin") return c.owner_names?.length ? `Round Robin (${c.owner_names.length})` : "Round Robin";
       return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
@@ -2235,6 +2248,95 @@ function StepConfigEditor({ step, onChange }: {
   const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
   if (step.type === "wait") return <WaitStepEditor step={step} onChange={onChange} />;
+
+  if (step.type === "send_whatsapp_interactive") return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">Mensaje</Label>
+        <Textarea rows={4} value={c.body_text ?? ""} onChange={e => set("body_text", e.target.value)}
+          placeholder="Hola {{contact.first_name}}, ¿quieres agendar tu valoración?" />
+        <p className="text-[11px] text-muted-foreground mt-1">Admite variables como {"{{contact.first_name}}"} o {"{{custom.clave}}"}.</p>
+      </div>
+      <div>
+        <Label className="text-xs">Botones (hasta 3, máx. 20 caracteres c/u)</Label>
+        {[0, 1, 2].map(i => (
+          <Input key={i} className="mt-1.5" maxLength={20} value={(c.buttons ?? [])[i] ?? ""}
+            placeholder={i === 0 ? "Ej: Sí, quiero agendar" : "(opcional)"}
+            onChange={e => {
+              const btns = [...(c.buttons ?? ["", "", ""])];
+              btns[i] = e.target.value;
+              set("buttons", btns);
+            }} />
+        ))}
+      </div>
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+        Mensaje libre (no plantilla): solo se entrega dentro de la ventana de 24h desde el último mensaje del contacto. Ideal justo después de que el lead escribe.
+      </div>
+    </div>
+  );
+
+  if (step.type === "wait_reply") return (
+    <div className="space-y-3">
+      <Label className="text-xs">Esperar la respuesta del contacto hasta</Label>
+      <div className="grid grid-cols-2 gap-2">
+        <Input type="number" min={1} value={c.timeout_value ?? 24}
+          onChange={e => set("timeout_value", parseInt(e.target.value) || 24)} />
+        <Select value={c.timeout_unit ?? "hours"} onValueChange={v => set("timeout_unit", v)}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="minutes">minutos</SelectItem>
+            <SelectItem value="hours">horas</SelectItem>
+            <SelectItem value="days">días</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <p className="text-xs text-muted-foreground flex items-start gap-1">
+        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        Si el contacto responde, el flujo continúa de inmediato con su respuesta disponible en los pasos siguientes. Si no responde en el plazo, continúa igual (respuesta vacía). Mientras espera, el Agente de IA no interviene en la conversación.
+      </p>
+    </div>
+  );
+
+  if (step.type === "reply_condition") return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">{t("automationsPage.operator")}</Label>
+          <Select value={c.operator ?? "contains"} onValueChange={v => set("operator", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="contains">{t("automationsPage.opContains")}</SelectItem>
+              <SelectItem value="equals">{t("automationsPage.opEquals")}</SelectItem>
+              <SelectItem value="not_empty">{t("automationsPage.opNotEmpty")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label className="text-xs">{t("automationsPage.value")}</Label>
+          <Input value={c.value ?? ""} onChange={e => set("value", e.target.value)}
+            placeholder='Ej: "sí" o el texto del botón' />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">{t("automationsPage.skipIfTrue")}</Label>
+          <Input type="number" min={0} className="mt-1"
+            value={c.true_next_index !== undefined ? c.true_next_index : 0}
+            onChange={e => set("true_next_index", parseInt(e.target.value) || 0)} />
+        </div>
+        <div>
+          <Label className="text-xs">{t("automationsPage.skipIfFalse")}</Label>
+          <Input type="number" min={1} className="mt-1"
+            value={c.false_skip_count ?? 1}
+            onChange={e => set("false_skip_count", parseInt(e.target.value) || 1)} />
+        </div>
+      </div>
+      <p className="text-xs text-muted-foreground flex items-start gap-1">
+        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        Evalúa lo que el contacto respondió en el paso "Esperar respuesta" anterior (texto o botón tocado). Compara sin distinguir mayúsculas.
+      </p>
+    </div>
+  );
 
   if (step.type === "send_email") return <EmailStepEditor step={step} onChange={onChange} />;
 

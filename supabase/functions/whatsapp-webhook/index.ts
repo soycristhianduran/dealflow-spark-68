@@ -508,6 +508,27 @@ Deno.serve(async (req) => {
                 }).catch(() => {});
               }
 
+              // ── Bot de flujo esperando respuesta: reanudarlo con este mensaje.
+              // Síncrono a propósito: si un bot consume la respuesta, el agente
+              // de IA no debe responder también (botHandledReply).
+              let botHandledReply = false;
+              if (contact?.id) {
+                try {
+                  const resumeRes = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({ action: "incoming_reply", contact_id: contact.id, reply_text: messageText }),
+                  });
+                  const resumeJson = await resumeRes.json().catch(() => null);
+                  if (resumeJson?.resumed > 0) botHandledReply = true;
+                } catch (e) {
+                  console.warn("incoming_reply resume failed (non-fatal):", e);
+                }
+              }
+
               // Fire whatsapp_incoming automation trigger (fire-and-forget)
               if (contact?.id) {
                 fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
@@ -594,6 +615,22 @@ Deno.serve(async (req) => {
                 console.log("[AI-AGENT] Starting agent block. org_id:", config.organization_id, "contact_id:", contact?.id);
                 await supabase.from("ai_agent_debug").insert({ organization_id: config.organization_id, phone: senderPhone, step: "block_reached", detail: `msgType=${messageType}` }).then(() => {}, () => {});
                 try {
+                  // Mientras un bot de flujo tenga la conversación (consumió esta
+                  // respuesta o sigue esperando una), el agente de IA no responde.
+                  let botOwnsConversation = botHandledReply;
+                  if (!botOwnsConversation && contact?.id) {
+                    const { data: stillWaiting } = await supabase
+                      .from("automation_enrollments")
+                      .select("id")
+                      .eq("contact_id", contact.id)
+                      .eq("status", "waiting_reply")
+                      .limit(1)
+                      .maybeSingle();
+                    botOwnsConversation = !!stillWaiting;
+                  }
+                  if (botOwnsConversation) {
+                    await supabase.from("ai_agent_debug").insert({ organization_id: config.organization_id, phone: senderPhone, step: "skipped_bot_active", detail: "flujo con esperar-respuesta activo" }).then(() => {}, () => {});
+                  } else
                   if (config.organization_id) {
                     console.log("[AI-AGENT] Organization check passed, fetching history...");
                     // Fetch last 16 messages for context (17 rows, skip index 0
