@@ -365,10 +365,11 @@ function buildFlow(
   nodes.push({
     id: "end",
     type: "endNode",
-    position: { x: CX - NODE_W / 2, y: endY },
+    // Posición guardada si el usuario lo movió; si no, debajo del último nodo.
+    position: positions["end"] ?? { x: CX - NODE_W / 2, y: endY },
     data: {},
     selectable: false,
-    draggable: false,
+    draggable: true,
   });
 
   const lastSrc = steps.length > 0 ? steps[steps.length - 1].id : "trigger";
@@ -1328,6 +1329,7 @@ function WhatsAppStepEditor({ step, onChange, steps = [], stepIndex = -1 }: {
   const { t } = useTranslation();
   const { organizationId } = useOrganizationContext();
   const c = step.config;
+  const set = (key: string, val: any) => onChange({ ...step, config: { ...c, [key]: val } });
 
   const [templates, setTemplates] = useState<{ id: string; name: string; language: string; status: string; body_text: string; buttons?: any[] }[]>([]);
   const [loadingTpl, setLoadingTpl] = useState(false);
