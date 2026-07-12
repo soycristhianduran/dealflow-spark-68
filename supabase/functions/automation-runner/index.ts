@@ -1374,6 +1374,28 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
 
   const nextIndex = jumpToIndex !== null ? jumpToIndex : stepIndex + 1 + extraSkip;
 
+  // Cierre automático de ramas: un paso destino de una rama por botón SOLO debe
+  // alcanzarse por su salto de rama, nunca por avance lineal. Si el flujo llega
+  // linealmente (sin salto) al inicio de otra rama, se termina aquí — evita que
+  // la rama del "SÍ" ejecute también las acciones del "NO".
+  if (jumpToIndex === null && nextIndex < steps.length) {
+    const branchTargets = new Set<number>();
+    for (const s of steps) {
+      if (s.type === "send_whatsapp" && s.config?.branches?.enabled) {
+        const br = s.config.branches;
+        for (const c of (br.cases ?? [])) if (c?.next_index != null) branchTargets.add(Number(c.next_index));
+        if (br.default_next_index != null) branchTargets.add(Number(br.default_next_index));
+        if (br.no_reply_next_index != null) branchTargets.add(Number(br.no_reply_next_index));
+      }
+    }
+    if (branchTargets.has(nextIndex)) {
+      await supabase.from("automation_enrollments").update({
+        status: "completed", completed_at: new Date().toISOString(), logs,
+      }).eq("id", enr.id);
+      return;
+    }
+  }
+
   if (nextIndex >= steps.length) {
     await supabase.from("automation_enrollments").update({
       current_step_index: nextIndex,
