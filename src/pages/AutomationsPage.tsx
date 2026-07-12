@@ -139,7 +139,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation" | "send_whatsapp_interactive" | "wait_reply" | "reply_condition" | "send_whatsapp_flow";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation" | "send_whatsapp_interactive" | "wait_reply" | "reply_condition" | "send_whatsapp_flow" | "reply_switch" | "end_flow";
   config: Record<string, any>;
   // Optional free-canvas position (ignored by automation-runner)
   position?: { x: number; y: number };
@@ -195,6 +195,8 @@ const STEP_META: Record<string, {
   wait_reply:          { label: "Esperar respuesta",   description: "Pausa hasta que el contacto responda (o venza el plazo)", icon: Timer,   color: "#0d9488", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
   reply_condition:     { label: "Según la respuesta",  description: "Bifurca el flujo según lo que respondió el contacto",     icon: IconCondition, color: "#c2410c", bg: "#fff7ed", border: "#fed7aa", ring: "#ffedd5" },
   send_whatsapp_flow:  { label: "Enviar WhatsApp Flow", description: "Formulario nativo de WhatsApp (creado en Meta Flow Builder)", icon: IconWhatsApp, color: "#047857", bg: "#ecfdf5", border: "#a7f3d0", ring: "#d1fae5" },
+  reply_switch:        { label: "Ramas por respuesta", description: "Un camino distinto por cada botón o respuesta del contacto", icon: IconCondition, color: "#9a3412", bg: "#fff7ed", border: "#fed7aa", ring: "#ffedd5" },
+  end_flow:            { label: "Fin de rama",          description: "Termina el flujo en este punto (cierre de una rama)",        icon: Timer,         color: "#475569", bg: "#f8fafc", border: "#e2e8f0", ring: "#f1f5f9" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
@@ -203,7 +205,7 @@ const STEP_GROUPS: { label: string; types: string[] }[] = [
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
-  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "send_whatsapp_flow", "wait_reply", "reply_condition"] },
+  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "send_whatsapp_flow", "wait_reply", "reply_switch", "reply_condition", "end_flow"] },
   { label: "Flujo",         types: ["enroll_automation"] },
 ];
 
@@ -244,6 +246,8 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "wait_reply":          return { timeout_value: 24, timeout_unit: "hours" };
     case "reply_condition":     return { operator: "contains", value: "", false_skip_count: 1 };
     case "send_whatsapp_flow":  return { flow_id: "", cta_text: "Abrir formulario", body_text: "", screen: "" };
+    case "reply_switch":        return { cases: [{ match: "", next_index: 0 }, { match: "", next_index: 0 }] };
+    case "end_flow":            return {};
     case "assign_owner":        return { mode: "specific", owner_id: "", owner_name: "", owner_ids: [], owner_names: [] };
     case "move_pipeline_stage": return { pipeline_id: "", stage_id: "", stage_name: "" };
     case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
@@ -276,6 +280,11 @@ function stepSummary(step: AutomationStep): string {
     case "wait_reply":          return `hasta ${c.timeout_value ?? 24} ${c.timeout_unit ?? "hours"}`;
     case "reply_condition":     return `respuesta ${c.operator ?? "contains"} "${c.value || "?"}"`;
     case "send_whatsapp_flow":  return c.flow_id ? `Flow ${c.flow_id}` : "(sin flow)";
+    case "reply_switch": {
+      const cs = (c.cases || []).filter((x: any) => x.match);
+      return cs.length ? cs.map((x: any) => `"${x.match}"→${x.next_index}`).join("  ") : "(sin ramas)";
+    }
+    case "end_flow":            return "Termina el flujo aquí";
     case "assign_owner":
       if (c.mode === "round_robin") return c.owner_names?.length ? `Round Robin (${c.owner_names.length})` : "Round Robin";
       return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
@@ -2290,6 +2299,42 @@ function StepConfigEditor({ step, onChange }: {
         Mensaje libre (no plantilla): solo se entrega dentro de la ventana de 24h desde el último mensaje del contacto. Ideal justo después de que el lead escribe.
       </div>
     </div>
+  );
+
+  if (step.type === "reply_switch") return (
+    <div className="space-y-3">
+      <Label className="text-xs font-semibold">Ramas — una por botón o respuesta esperada</Label>
+      {(c.cases ?? []).map((cs: any, i: number) => (
+        <div key={i} className="flex items-center gap-2">
+          <Input className="flex-1" placeholder='Texto del botón — ej: "AGENDAR CITA"' value={cs.match ?? ""}
+            onChange={e => {
+              const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], match: e.target.value }; set("cases", cases);
+            }} />
+          <span className="text-xs text-muted-foreground shrink-0">→ paso</span>
+          <Input type="number" min={0} className="w-20 shrink-0" value={cs.next_index ?? 0}
+            onChange={e => {
+              const cases = [...(c.cases ?? [])]; cases[i] = { ...cases[i], next_index: parseInt(e.target.value) || 0 }; set("cases", cases);
+            }} />
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-destructive shrink-0"
+            onClick={() => set("cases", (c.cases ?? []).filter((_: any, idx: number) => idx !== i))}>×</Button>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={() => set("cases", [...(c.cases ?? []), { match: "", next_index: 0 }])}>+ Añadir rama</Button>
+      <div>
+        <Label className="text-xs">Si nada coincide, ir al paso (opcional)</Label>
+        <Input type="number" min={0} className="mt-1 w-28" value={c.default_next_index ?? ""}
+          placeholder="continúa"
+          onChange={e => set("default_next_index", e.target.value === "" ? null : parseInt(e.target.value) || 0)} />
+      </div>
+      <p className="text-xs text-muted-foreground flex items-start gap-1">
+        <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+        Los pasos se numeran desde 0 (el primero del flujo). Estructura típica: plantilla con botones → Esperar respuesta → este paso, con cada botón saltando al tramo de su rama; cierra cada rama con "Fin de rama" para que no siga con la otra.
+      </p>
+    </div>
+  );
+
+  if (step.type === "end_flow") return (
+    <p className="text-sm text-muted-foreground">Este paso termina el flujo. Úsalo al final de cada rama para que una rama no continúe con los pasos de la otra.</p>
   );
 
   if (step.type === "send_whatsapp_flow") return (

@@ -980,6 +980,38 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       }
     }
 
+    else if (step.type === "reply_switch") {
+      // Ramas por respuesta: un caso por botón/texto; cada caso salta a un
+      // índice del flujo. Si nada coincide, va al caso "por defecto" (o sigue).
+      const cfg = step.config || {};
+      const replyText = String(enr.trigger_data?.reply?.text ?? "").toLowerCase().trim();
+      const cases: { match: string; next_index: number }[] = Array.isArray(cfg.cases) ? cfg.cases : [];
+      let matched = false;
+      for (const c of cases) {
+        const m = String(c.match ?? "").toLowerCase().trim();
+        if (m && (replyText === m || replyText.includes(m))) {
+          jumpToIndex = Number(c.next_index);
+          logs = addLog(`Respuesta "${replyText.slice(0, 60)}" coincide con "${c.match}" → paso ${jumpToIndex}`);
+          matched = true;
+          break;
+        }
+      }
+      if (!matched) {
+        if (cfg.default_next_index != null) {
+          jumpToIndex = Number(cfg.default_next_index);
+          logs = addLog(`Respuesta "${replyText.slice(0, 60)}" sin coincidencia → paso por defecto ${jumpToIndex}`);
+        } else {
+          logs = addLog(`Respuesta "${replyText.slice(0, 60)}" sin coincidencia → continúa`);
+        }
+      }
+    }
+
+    else if (step.type === "end_flow") {
+      // Termina el flujo aquí (útil como cierre de una rama).
+      logs = addLog("Fin del flujo (paso de cierre de rama)");
+      jumpToIndex = 9999; // fuera de rango → completa el enrolamiento
+    }
+
     else if (step.type === "reply_condition") {
       const cfg = step.config || {};
       const replyText = String(enr.trigger_data?.reply?.text ?? "").toLowerCase().trim();
