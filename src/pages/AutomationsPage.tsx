@@ -307,10 +307,11 @@ interface FlowActions {
   triggerType: string;
   triggerConfig: Record<string, any>;
   triggers: { type: string; config: Record<string, any> }[];
+  steps: AutomationStep[];
 }
 const FlowCtx = createContext<FlowActions>({
   onInsertStep: () => {}, onSelectNode: () => {}, onDeleteStep: () => {},
-  selectedId: null, triggerType: "manual", triggerConfig: {}, triggers: [],
+  selectedId: null, triggerType: "manual", triggerConfig: {}, triggers: [], steps: [],
 });
 
 // ── Layout ────────────────────────────────────────────────────────────────────
@@ -441,13 +442,24 @@ function TriggerNode(_: NodeProps) {
 
 // ── Custom: Step node ─────────────────────────────────────────────────────────
 function StepNode({ data }: NodeProps) {
-  const { onSelectNode, onDeleteStep, selectedId } = useContext(FlowCtx);
+  const { onSelectNode, onDeleteStep, selectedId, steps } = useContext(FlowCtx);
   const step = (data as StepNodeData).step;
   // Defensive: fall back to "wait" metadata if type is unknown
   const meta = STEP_META[step?.type] ?? STEP_META["wait"];
   const Icon = meta.icon;
   const isSelected = selectedId === step?.id;
   const summary = stepSummary(step);
+
+  // WhatsApp con botones: mostrar plantilla + botones y a dónde ramifica cada uno
+  const cfg = step?.config ?? {};
+  const waButtons: string[] = step?.type === "send_whatsapp" ? (cfg._buttons ?? []) : [];
+  const branchesOn = !!cfg.branches?.enabled;
+  const cases: any[] = cfg.branches?.cases ?? [];
+  const destLabel = (idx: any) => {
+    const i = Number(idx);
+    if (isNaN(i) || !steps?.[i]) return null;
+    return `${i + 1}. ${STEP_META[steps[i].type]?.label ?? steps[i].type}`;
+  };
 
   return (
     <div
@@ -475,6 +487,31 @@ function StepNode({ data }: NodeProps) {
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
+
+      {waButtons.length > 0 && (
+        <div className="border-t px-3 py-2 space-y-1.5">
+          {cfg._body && <p className="text-[11px] text-slate-500 line-clamp-2 leading-snug">{cfg._body}</p>}
+          {waButtons.map((b, i) => {
+            const dest = branchesOn ? destLabel((cases.find((x: any) => x.match === b) || {}).next_index) : null;
+            return (
+              <div key={i} className="flex items-center gap-1.5">
+                <span className="flex-1 truncate rounded-md border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-700">{b}</span>
+                {branchesOn && (
+                  <span className="shrink-0 text-[10px] text-slate-400">→ {dest || "definir"}</span>
+                )}
+              </div>
+            );
+          })}
+          {!branchesOn && (
+            <button
+              onClick={e => { e.stopPropagation(); onSelectNode(step.id); }}
+              className="w-full text-[10px] text-emerald-600 hover:underline nodrag pt-0.5"
+            >
+              ⚡ Activar ramas por botón
+            </button>
+          )}
+        </div>
+      )}
 
       <Handle type="source" position={Position.Bottom} className="!bg-slate-400 !w-3 !h-3 !border-2 !border-white" />
     </div>
@@ -1325,8 +1362,11 @@ function WhatsAppStepEditor({ step, onChange, steps = [], stepIndex = -1 }: {
 
   const handleSelectTemplate = (value: string) => {
     const [name, language] = value.split("||");
-    // Resetear variables al cambiar de plantilla
-    onChange({ ...step, config: { ...c, template_name: name, language, variables: [] } });
+    const tpl = templates.find(t => t.name === name && t.language === (language || t.language));
+    const qr = (tpl?.buttons ?? []).filter((b: any) => { const ty = String(b?.type ?? "").toUpperCase(); return (ty === "QUICK_REPLY" || ty === "") && b.text; }).map((b: any) => b.text);
+    // Resetear variables al cambiar de plantilla; guardar botones y cuerpo para
+    // que el nodo del lienzo muestre la plantilla sin volver a consultar.
+    onChange({ ...step, config: { ...c, template_name: name, language, variables: [], _buttons: qr, _body: tpl?.body_text ?? "" } });
   };
 
   const setVar = (idx: number, val: string) => {
@@ -2861,8 +2901,8 @@ function AutomationBuilder({
   }, []);
 
   const ctxValue = useMemo(
-    () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers }),
-    [onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers]
+    () => ({ onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps }),
+    [onInsertStep, onSelectNode, onDeleteStep, selectedId, triggerType, triggerConfig, triggers, steps]
   );
 
   // Handle step picker selection
