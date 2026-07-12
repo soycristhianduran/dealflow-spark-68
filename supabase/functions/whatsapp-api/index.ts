@@ -933,7 +933,53 @@ Deno.serve(async (req) => {
           published = !!pj.success;
           if (pj.error) publishError = pj.error.message;
         }
-        return fjson({ flow_id: flowId, published, validation_errors: validationErrors, publish_error: publishError });
+
+        // Plantilla que envía el Flow (patrón Kommo): cuerpo + botón CTA de tipo
+        // FLOW. Al aprobarse, permite INICIAR conversaciones con el formulario
+        // (no solo dentro de la ventana de 24h).
+        let templateResult: any = null;
+        if (published && body.template_body) {
+          const tplName = String(body.template_name || `${name}_tpl`).toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 60);
+          const tplRes = await fetch(`${GRAPH_API}/${fcfg.waba_id}/message_templates`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${fcfg.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: tplName,
+              language: "es",
+              category: body.template_category || "MARKETING",
+              components: [
+                { type: "BODY", text: String(body.template_body).slice(0, 1024) },
+                { type: "BUTTONS", buttons: [{
+                  type: "FLOW",
+                  text: String(body.template_cta || "Abrir formulario").slice(0, 25),
+                  flow_id: flowId,
+                  navigate_screen: "FORM",
+                  flow_action: "NAVIGATE",
+                }] },
+              ],
+            }),
+          });
+          const tplJson = await tplRes.json();
+          if (tplJson.error) {
+            templateResult = { error: tplJson.error.message };
+          } else {
+            templateResult = { id: tplJson.id, status: tplJson.status || "PENDING", name: tplName };
+            // Registrar en el catálogo local para que aparezca de inmediato
+            await supabase.from("whatsapp_templates").upsert({
+              user_id: user.id,
+              organization_id: orgId ?? null,
+              waba_id: fcfg.waba_id,
+              template_id: tplJson.id,
+              name: tplName,
+              category: body.template_category || "MARKETING",
+              language: "es",
+              status: tplJson.status || "PENDING",
+              body_text: String(body.template_body).slice(0, 1024),
+              buttons: [{ type: "FLOW", text: String(body.template_cta || "Abrir formulario").slice(0, 25), flow_id: flowId }],
+            }, { onConflict: "template_id" }).then(() => {}, () => {});
+          }
+        }
+        return fjson({ flow_id: flowId, published, validation_errors: validationErrors, publish_error: publishError, template: templateResult });
       }
 
       if (action === "publish_flow") {

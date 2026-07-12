@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -31,6 +32,8 @@ export function FlowCreateForm({ onDone }: { onDone: () => void }) {
   const [name, setName] = useState("");
   const [title, setTitle] = useState("");
   const [fields, setFields] = useState<FieldDef[]>([{ label: "", type: "text", options: "", required: true }]);
+  const [tplBody, setTplBody] = useState("");
+  const [tplCta, setTplCta] = useState("Abrir formulario");
 
   const setField = (i: number, patch: Partial<FieldDef>) =>
     setFields(prev => prev.map((f, idx) => idx === i ? { ...f, ...patch } : f));
@@ -46,12 +49,20 @@ export function FlowCreateForm({ onDone }: { onDone: () => void }) {
       }));
     if (!name.trim() || !cleanFields.length) { toast.error("Nombre y al menos un campo son obligatorios"); return; }
     setSaving(true);
+    if (!tplBody.trim()) { toast.error("Escribe el cuerpo del mensaje que enviará el formulario"); return; }
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "create_flow", organization_id: organizationId, name: name.trim(), title: title.trim() || name.trim(), fields: cleanFields },
+      body: {
+        action: "create_flow", organization_id: organizationId,
+        name: name.trim(), title: title.trim() || name.trim(), fields: cleanFields,
+        template_body: tplBody.trim(), template_cta: tplCta.trim() || "Abrir formulario",
+      },
     });
     setSaving(false);
     if (error || data?.error) { toast.error(data?.error || "No se pudo crear el Flow"); return; }
-    if (data?.published) toast.success(`Flow publicado — ID: ${data.flow_id}`);
+    if (data?.published) {
+      if (data.template?.error) toast.warning(`Flow publicado (ID: ${data.flow_id}) pero la plantilla falló: ${data.template.error}`);
+      else toast.success(`Flow publicado y plantilla "${data.template?.name}" enviada a revisión de Meta`);
+    }
     else toast.warning(`Flow creado (ID: ${data.flow_id}) pero quedó en borrador: ${data.publish_error || JSON.stringify(data.validation_errors || [])}`);
     setName(""); setTitle(""); setFields([{ label: "", type: "text", options: "", required: true }]);
     onDone();
@@ -95,6 +106,19 @@ export function FlowCreateForm({ onDone }: { onDone: () => void }) {
             <Plus className="h-3.5 w-3.5 mr-1" /> Añadir campo
           </Button>
         )}
+      </div>
+
+      <div className="rounded-xl border p-3 space-y-2 bg-muted/30">
+        <Label className="text-xs font-semibold">Mensaje de la plantilla que envía el formulario</Label>
+        <Textarea rows={3} value={tplBody} onChange={e => setTplBody(e.target.value)}
+          placeholder="Hola, para agendar tu valoración necesitamos unos datos. Toca el botón 👇" />
+        <div>
+          <Label className="text-xs">Texto del botón (CTA, máx 25)</Label>
+          <Input maxLength={25} value={tplCta} onChange={e => setTplCta(e.target.value)} />
+        </div>
+        <p className="text-[11px] text-muted-foreground">
+          Se crea como plantilla con botón que abre el formulario. Meta la revisa (24-48h); una vez aprobada puedes iniciar conversaciones con ella desde flujos y campañas.
+        </p>
       </div>
 
       <Button className="w-full" onClick={create} disabled={saving}>
