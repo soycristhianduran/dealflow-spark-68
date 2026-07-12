@@ -139,7 +139,7 @@ class BuilderErrorBoundary extends React.Component<
 // ── Types ─────────────────────────────────────────────────────────────────────
 export interface AutomationStep {
   id: string;
-  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation" | "send_whatsapp_interactive" | "wait_reply" | "reply_condition";
+  type: "wait" | "send_email" | "send_whatsapp" | "add_tag" | "remove_tag" | "update_contact" | "condition" | "assign_owner" | "move_pipeline_stage" | "create_task" | "send_webhook" | "notify_owner" | "make_call" | "enroll_automation" | "send_whatsapp_interactive" | "wait_reply" | "reply_condition" | "send_whatsapp_flow";
   config: Record<string, any>;
   // Optional free-canvas position (ignored by automation-runner)
   position?: { x: number; y: number };
@@ -194,6 +194,7 @@ const STEP_META: Record<string, {
   send_whatsapp_interactive: { label: "Mensaje con botones", description: "Mensaje libre de WhatsApp con hasta 3 botones (bot)", icon: IconWhatsApp, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", ring: "#d1fae5" },
   wait_reply:          { label: "Esperar respuesta",   description: "Pausa hasta que el contacto responda (o venza el plazo)", icon: Timer,   color: "#0d9488", bg: "#f0fdfa", border: "#99f6e4", ring: "#ccfbf1" },
   reply_condition:     { label: "Según la respuesta",  description: "Bifurca el flujo según lo que respondió el contacto",     icon: IconCondition, color: "#c2410c", bg: "#fff7ed", border: "#fed7aa", ring: "#ffedd5" },
+  send_whatsapp_flow:  { label: "Enviar WhatsApp Flow", description: "Formulario nativo de WhatsApp (creado en Meta Flow Builder)", icon: IconWhatsApp, color: "#047857", bg: "#ecfdf5", border: "#a7f3d0", ring: "#d1fae5" },
 };
 
 // ── Step groups for organized picker ──────────────────────────────────────────
@@ -202,7 +203,7 @@ const STEP_GROUPS: { label: string; types: string[] }[] = [
   { label: "Contacto",      types: ["add_tag", "remove_tag", "update_contact", "assign_owner"] },
   { label: "Pipeline",      types: ["move_pipeline_stage", "create_task"] },
   { label: "Control",       types: ["wait", "condition", "send_webhook"] },
-  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "wait_reply", "reply_condition"] },
+  { label: "Bot de WhatsApp", types: ["send_whatsapp_interactive", "send_whatsapp_flow", "wait_reply", "reply_condition"] },
   { label: "Flujo",         types: ["enroll_automation"] },
 ];
 
@@ -242,6 +243,7 @@ function defaultConfig(type: AutomationStep["type"]): Record<string, any> {
     case "send_whatsapp_interactive": return { body_text: "", buttons: ["", "", ""] };
     case "wait_reply":          return { timeout_value: 24, timeout_unit: "hours" };
     case "reply_condition":     return { operator: "contains", value: "", false_skip_count: 1 };
+    case "send_whatsapp_flow":  return { flow_id: "", cta_text: "Abrir formulario", body_text: "", screen: "" };
     case "assign_owner":        return { mode: "specific", owner_id: "", owner_name: "", owner_ids: [], owner_names: [] };
     case "move_pipeline_stage": return { pipeline_id: "", stage_id: "", stage_name: "" };
     case "create_task":         return { title: "", due_in_days: 1, assign_to_owner: true };
@@ -273,6 +275,7 @@ function stepSummary(step: AutomationStep): string {
     }
     case "wait_reply":          return `hasta ${c.timeout_value ?? 24} ${c.timeout_unit ?? "hours"}`;
     case "reply_condition":     return `respuesta ${c.operator ?? "contains"} "${c.value || "?"}"`;
+    case "send_whatsapp_flow":  return c.flow_id ? `Flow ${c.flow_id}` : "(sin flow)";
     case "assign_owner":
       if (c.mode === "round_robin") return c.owner_names?.length ? `Round Robin (${c.owner_names.length})` : "Round Robin";
       return c.owner_name ? `→ ${c.owner_name}` : "(sin asignar)";
@@ -2271,6 +2274,34 @@ function StepConfigEditor({ step, onChange }: {
       </div>
       <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
         Mensaje libre (no plantilla): solo se entrega dentro de la ventana de 24h desde el último mensaje del contacto. Ideal justo después de que el lead escribe.
+      </div>
+    </div>
+  );
+
+  if (step.type === "send_whatsapp_flow") return (
+    <div className="space-y-3">
+      <div>
+        <Label className="text-xs">ID del Flow (de Meta Flow Builder)</Label>
+        <Input value={c.flow_id ?? ""} onChange={e => set("flow_id", e.target.value)} placeholder="Ej: 1234567890123456" />
+        <p className="text-[11px] text-muted-foreground mt-1">Crea y publica el formulario en WhatsApp Manager → Flows; aquí solo pegas su ID.</p>
+      </div>
+      <div>
+        <Label className="text-xs">Mensaje que acompaña al formulario</Label>
+        <Textarea rows={3} value={c.body_text ?? ""} onChange={e => set("body_text", e.target.value)}
+          placeholder="Completa estos datos para agendar tu cita 👇" />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <Label className="text-xs">Texto del botón</Label>
+          <Input maxLength={30} value={c.cta_text ?? ""} onChange={e => set("cta_text", e.target.value)} placeholder="Abrir formulario" />
+        </div>
+        <div>
+          <Label className="text-xs">Pantalla inicial (opcional)</Label>
+          <Input value={c.screen ?? ""} onChange={e => set("screen", e.target.value)} placeholder="Ej: WELCOME" />
+        </div>
+      </div>
+      <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
+        Cuando el contacto complete el formulario, sus respuestas se guardan automáticamente como campos personalizados del lead, y el paso "Esperar respuesta" continúa el flujo con ellas.
       </div>
     </div>
   );

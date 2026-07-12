@@ -267,8 +267,16 @@ Deno.serve(async (req) => {
                 || msg.button?.text           // template button click — text shown on the button
                 || msg.interactive?.button_reply?.title
                 || msg.interactive?.list_reply?.title
+                || (msg.interactive?.nfm_reply ? "📋 Formulario completado" : "")
                 || (msg.reaction?.emoji ? `Reaccionó con ${msg.reaction.emoji}` : "")
                 || "";
+
+              // WhatsApp Flow completado: las respuestas del formulario nativo
+              // vienen como JSON en nfm_reply.response_json.
+              let flowResponse: Record<string, unknown> | null = null;
+              if (msg.interactive?.nfm_reply?.response_json) {
+                try { flowResponse = JSON.parse(msg.interactive.nfm_reply.response_json); } catch (_) { /* ignore */ }
+              }
 
               // ── Download and store media ───────────────────────────────────
               // Default: store a "meta:{id}" reference so the frontend can retry on demand
@@ -508,6 +516,20 @@ Deno.serve(async (req) => {
                 }).catch(() => {});
               }
 
+              // ── Respuestas de WhatsApp Flow → campos personalizados ─────────
+              if (contact?.id && flowResponse) {
+                try {
+                  const { data: curC } = await supabase.from("contacts").select("custom_fields").eq("id", contact.id).maybeSingle();
+                  const merged: Record<string, unknown> = { ...(curC?.custom_fields ?? {}) };
+                  for (const [k, v] of Object.entries(flowResponse)) {
+                    if (k === "flow_token") continue;
+                    merged[k] = typeof v === "string" ? v : JSON.stringify(v);
+                  }
+                  await supabase.from("contacts").update({ custom_fields: merged }).eq("id", contact.id);
+                  console.log(`Flow response saved to contact ${contact.id}:`, Object.keys(flowResponse).join(","));
+                } catch (e) { console.warn("Flow response save failed:", e); }
+              }
+
               // ── Bot de flujo esperando respuesta: reanudarlo con este mensaje.
               // Síncrono a propósito: si un bot consume la respuesta, el agente
               // de IA no debe responder también (botHandledReply).
@@ -520,7 +542,11 @@ Deno.serve(async (req) => {
                       "Content-Type": "application/json",
                       "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
                     },
-                    body: JSON.stringify({ action: "incoming_reply", contact_id: contact.id, reply_text: messageText }),
+                    body: JSON.stringify({
+                      action: "incoming_reply",
+                      contact_id: contact.id,
+                      reply_text: flowResponse ? JSON.stringify(flowResponse) : messageText,
+                    }),
                   });
                   const resumeJson = await resumeRes.json().catch(() => null);
                   if (resumeJson?.resumed > 0) botHandledReply = true;

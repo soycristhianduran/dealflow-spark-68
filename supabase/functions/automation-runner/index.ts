@@ -1054,6 +1054,70 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
       }
     }
 
+    else if (step.type === "send_whatsapp_flow") {
+      // Envía un WhatsApp Flow (formulario nativo) ya publicado en el WABA.
+      const cfg = step.config || {};
+      const { data: waConfig } = await supabase
+        .from("whatsapp_configs")
+        .select("phone_number_id, access_token")
+        .eq("organization_id", contact.organization_id)
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending")
+        .order("is_primary", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const cleanPhone = (contact.primary_phone || "").replace(/[^0-9]/g, "");
+      if (!waConfig) logs = addLog("WhatsApp no configurado — paso omitido");
+      else if (!cleanPhone) logs = addLog("Contacto sin teléfono válido — paso omitido");
+      else if (!cfg.flow_id) logs = addLog("Paso sin flow_id — omitido");
+      else {
+        const { data: hasQuota } = await supabase.rpc("consume_automated_message_quota", {
+          p_org_id: contact.organization_id, p_amount: 1,
+        });
+        if (!hasQuota) logs = addLog("Límite de mensajes automatizados alcanzado — paso omitido");
+        else {
+          const bodyText = renderVars(String(cfg.body_text || "Completa este formulario 👇"), ctx);
+          const params: any = {
+            flow_message_version: "3",
+            flow_id: String(cfg.flow_id),
+            flow_cta: String(cfg.cta_text || "Abrir formulario").slice(0, 30),
+            flow_token: `${enr.id}:${contact.id}`,
+            mode: cfg.draft_mode ? "draft" : "published",
+          };
+          if (cfg.screen) {
+            params.flow_action = "navigate";
+            params.flow_action_payload = { screen: String(cfg.screen) };
+          }
+          const waRes = await fetch(`https://graph.facebook.com/v21.0/${waConfig.phone_number_id}/messages`, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${waConfig.access_token}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              messaging_product: "whatsapp", to: cleanPhone, type: "interactive",
+              interactive: { type: "flow", body: { text: bodyText }, action: { name: "flow", parameters: params } },
+            }),
+          });
+          const waJson = await waRes.json().catch(() => null);
+          if (!waRes.ok) {
+            logs = addLog(`WhatsApp Flow rechazado: ${waJson?.error?.message ?? waRes.status}`);
+          } else {
+            await supabase.from("whatsapp_messages").insert({
+              user_id: enr.user_id,
+              organization_id: contact.organization_id,
+              contact_id: contact.id,
+              wa_message_id: waJson?.messages?.[0]?.id,
+              phone_number: cleanPhone,
+              from_phone_number_id: waConfig.phone_number_id,
+              direction: "outgoing",
+              message_type: "text",
+              message_text: `${bodyText}\n[📋 ${params.flow_cta}]`,
+              status: "sent",
+            });
+            logs = addLog(`WhatsApp Flow ${cfg.flow_id} enviado`);
+          }
+        }
+      }
+    }
+
     else if (step.type === "condition") {
       const cfg = step.config || {};
       const passed = evaluateCondition(cfg, contact);
