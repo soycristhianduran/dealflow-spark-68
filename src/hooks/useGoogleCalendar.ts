@@ -134,9 +134,10 @@ export function useGoogleCalendar() {
   // ── Internal invoker ─────────────────────────────────────────────────────────
   const invokeCalendarFn = useCallback(
     async (body: Record<string, unknown>) => {
-      // When acting on ANOTHER member's calendar (body.user_id), the current
-      // user's own connection is irrelevant — the target's tokens are used.
-      if (!isConnected && !body.user_id) return null;
+      // When acting on ANOTHER member's calendar (body.user_id) or on the org's
+      // shared calendar (body.organization_id, modo global), the current user's
+      // own connection is irrelevant — the target/shared tokens are used.
+      if (!isConnected && !body.user_id && !body.organization_id) return null;
       const { data, error } = await supabase.functions.invoke(
         "create-calendar-event",
         { body }
@@ -167,6 +168,7 @@ export function useGoogleCalendar() {
       location?: string;
       attendee_email?: string;
       create_meet?: boolean;
+      organization_id?: string;
     }) => invokeCalendarFn({ action: "create", ...params }),
     [invokeCalendarFn]
   );
@@ -185,14 +187,16 @@ export function useGoogleCalendar() {
         // Calendar OWNER when it isn't the current user (e.g. a teammate
         // editing a meeting that lives in the advisor's Google Calendar).
         user_id?: string;
+        // En modo global: deja que el backend resuelva el calendario compartido.
+        organization_id?: string;
       }
     ) => invokeCalendarFn({ action: "update", google_event_id: googleEventId, ...params }),
     [invokeCalendarFn]
   );
 
   const deleteEvent = useCallback(
-    async (googleEventId: string, ownerUserId?: string) =>
-      invokeCalendarFn({ action: "delete", google_event_id: googleEventId, ...(ownerUserId ? { user_id: ownerUserId } : {}) }),
+    async (googleEventId: string, ownerUserId?: string, organizationId?: string) =>
+      invokeCalendarFn({ action: "delete", google_event_id: googleEventId, ...(ownerUserId ? { user_id: ownerUserId } : {}), ...(organizationId ? { organization_id: organizationId } : {}) }),
     [invokeCalendarFn]
   );
 

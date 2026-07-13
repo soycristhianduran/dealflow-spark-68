@@ -62,7 +62,8 @@ export function CreateMeetingDialog({
 }: CreateMeetingDialogProps) {
   const { t } = useTranslation();
   const { session } = useAuth();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, calendarScope } = useOrganizationContext();
+  const isGlobalCalendar = calendarScope === "organization";
   const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -184,9 +185,14 @@ export function CreateMeetingDialog({
         attendee_email: selectedContact?.primary_email || undefined,
         // Virtual meeting with no manual link → generate a Google Meet link.
         create_meet: isVirtual && !location.trim(),
+        // En modo calendario GLOBAL el evento se crea en el calendario COMPARTIDO
+        // de la org (aunque quien agenda no tenga su propio Google conectado).
+        ...(isGlobalCalendar && organizationId ? { organization_id: organizationId } : {}),
       };
 
-      if (!isEditing && gcal.isConnected && syncToGcal && meetingId) {
+      // En modo global agendamos a Google aunque el usuario actual no tenga su
+      // propia conexión (se usa la compartida de la org).
+      if (!isEditing && syncToGcal && meetingId && (gcal.isConnected || isGlobalCalendar)) {
         // Create new Google Calendar event and persist its ID on the meeting row
         const gcalResult = await gcal.createEvent(gcalParams);
         if (gcalResult?.google_event_id) {
@@ -200,9 +206,11 @@ export function CreateMeetingDialog({
         // Meet). Target the ADVISOR's calendar when the editor isn't the owner
         // — otherwise the real event never changed and the client's invite
         // email/calendar went stale.
-        const ownerId = editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id
-          ? editingMeeting.advisor_id
-          : undefined;
+        // En modo global el evento vive en el calendario compartido → no fijamos
+        // user_id y dejamos que el backend resuelva el calendario de la org
+        // (gcalParams ya lleva organization_id).
+        const ownerId = isGlobalCalendar ? undefined
+          : (editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id ? editingMeeting.advisor_id : undefined);
         await gcal.updateEvent(editingMeeting.google_event_id, { ...gcalParams, create_meet: false, user_id: ownerId });
       }
     }
@@ -261,10 +269,9 @@ export function CreateMeetingDialog({
     // Remove from Google Calendar first (best-effort), then from the CRM.
     // Target the advisor's calendar when the deleter isn't the event owner.
     if (editingMeeting.google_event_id) {
-      const ownerId = editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id
-        ? editingMeeting.advisor_id
-        : undefined;
-      await gcal.deleteEvent(editingMeeting.google_event_id, ownerId);
+      const ownerId = isGlobalCalendar ? undefined
+        : (editingMeeting.advisor_id && editingMeeting.advisor_id !== session?.user?.id ? editingMeeting.advisor_id : undefined);
+      await gcal.deleteEvent(editingMeeting.google_event_id, ownerId, isGlobalCalendar ? organizationId : undefined);
     }
     const { error } = await supabase.from("meetings").delete().eq("id", editingMeeting.id);
     setDeleting(false);

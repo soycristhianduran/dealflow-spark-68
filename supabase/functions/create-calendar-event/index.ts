@@ -40,6 +40,22 @@ function json(data: unknown, status = 200) {
   });
 }
 
+// Calendario compartido de una org = primer miembro con Google conectado
+// (owner/admin primero). Se usa en modo "calendario global" para que TODOS los
+// eventos (agente y manuales) vivan en el mismo calendario.
+async function resolveSharedCalendarOwner(supabase: any, orgId: string): Promise<string | null> {
+  const { data: members } = await supabase
+    .from("organization_members").select("user_id, role").eq("organization_id", orgId);
+  if (!members?.length) return null;
+  const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : r === "gestor" ? 2 : 3);
+  const ordered = [...members].sort((a: any, b: any) => rank(a.role) - rank(b.role));
+  for (const m of ordered) {
+    const { data } = await supabase.from("google_calendar_tokens").select("user_id").eq("user_id", m.user_id).maybeSingle();
+    if (data) return m.user_id;
+  }
+  return null;
+}
+
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) return null;
   const res = await fetch(TOKEN_URL, {
@@ -142,6 +158,20 @@ Deno.serve(async (req) => {
         const shared = (theirs ?? []).some((m: any) => myOrgs.has(m.organization_id));
         if (!shared) return json({ error: "forbidden: no shared organization with target user" }, 403);
         userId = bodyRaw.user_id;
+      } else if (!bodyRaw.user_id && bodyRaw.organization_id) {
+        // Modo calendario GLOBAL: los eventos manuales van al calendario
+        // COMPARTIDO de la org (no al de quien agenda), siempre que quien agenda
+        // pertenezca a esa org. En modo individual no se toca nada.
+        const { data: myMem } = await supabase
+          .from("organization_members").select("organization_id").eq("user_id", user.id).eq("organization_id", bodyRaw.organization_id).maybeSingle();
+        if (myMem) {
+          const { data: org } = await supabase
+            .from("organizations").select("calendar_scope").eq("id", bodyRaw.organization_id).maybeSingle();
+          if (org?.calendar_scope === "organization") {
+            const shared = await resolveSharedCalendarOwner(supabase, bodyRaw.organization_id);
+            if (shared) userId = shared;
+          }
+        }
       }
     }
     const user = { id: userId };
