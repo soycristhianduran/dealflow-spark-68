@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       if (ids.length === 1) orgId = ids[0] as string;
       else if (ids.length > 1) {
         // Ambiguous: refuse to guess for config-sensitive actions.
-        const CONFIG_SENSITIVE = ["send_template", "send_media", "upload_media", "upload_template_media", "create_template", "delete_template", "update_template", "check_webhook_app", "register_phone", "request_verification_code", "verify_code"];
+        const CONFIG_SENSITIVE = ["send_template", "send_media", "upload_media", "upload_template_media", "create_template", "delete_template", "update_template", "check_webhook_app", "register_phone", "request_verification_code", "verify_code", "refresh_media_handles"];
         if (CONFIG_SENSITIVE.includes(action)) {
           throw new Error("organization_id es obligatorio para esta acción (usuario multi-organización).");
         }
@@ -1214,6 +1214,58 @@ Deno.serve(async (req) => {
 
     // ── TEMPLATES ────────────────────────────────────────────────────────────
 
+    // Re-sube los medios de encabezado de las plantillas bajo el NÚMERO ACTIVO,
+    // para que los envíos no fallen con 131053 cuando el handle quedó atado a otro
+    // número/sesión (ej. tras cambiar de número). Actualiza header_media_handle.
+    if (action === "refresh_media_handles") {
+      let rmQ = supabase.from("whatsapp_configs").select("waba_id, access_token, phone_number_id").eq("is_active", true);
+      rmQ = orgId ? rmQ.eq("organization_id", orgId) : rmQ.eq("user_id", user.id);
+      const { data: config } = await rmQ.maybeSingle();
+      if (!config?.phone_number_id || !config?.access_token || !config?.waba_id) throw new Error("WhatsApp no está configurado");
+
+      let tQ = supabase.from("whatsapp_templates").select("name, header_type, header_media_handle").eq("waba_id", config.waba_id);
+      tQ = orgId ? tQ.eq("organization_id", orgId) : tQ.eq("user_id", user.id);
+      const { data: tpls } = await tQ;
+      const media = (tpls || []).filter((t: any) => ["IMAGE", "VIDEO", "DOCUMENT"].includes((t.header_type || "").toUpperCase()) && t.header_media_handle);
+
+      const results: any[] = [];
+      for (const tp of media) {
+        try {
+          const h: string = tp.header_media_handle;
+          let url: string | null = h.startsWith("http") ? h : null;
+          if (!url && /^\d+$/.test(h)) {
+            const mr = await fetch(`${GRAPH_API}/${h}?access_token=${config.access_token}`);
+            const mj = await mr.json();
+            url = mj.url || null;
+          }
+          if (!url) { results.push({ name: tp.name, skipped: "sin url descargable" }); continue; }
+          const dl = await fetch(url, { headers: { Authorization: `Bearer ${config.access_token}` } });
+          if (!dl.ok) { results.push({ name: tp.name, error: `descarga ${dl.status}` }); continue; }
+          const blob = await dl.blob();
+          const ct = dl.headers.get("content-type") || "video/mp4";
+          const fd = new FormData();
+          fd.append("messaging_product", "whatsapp");
+          fd.append("file", new File([blob], "media", { type: ct }), "media");
+          fd.append("type", ct);
+          const up = await fetch(`${GRAPH_API}/${config.phone_number_id}/media`, {
+            method: "POST", headers: { Authorization: `Bearer ${config.access_token}` }, body: fd,
+          });
+          const uj = await up.json();
+          if (uj.id) {
+            let updQ = supabase.from("whatsapp_templates").update({ header_media_handle: uj.id }).eq("waba_id", config.waba_id).eq("name", tp.name);
+            updQ = orgId ? updQ.eq("organization_id", orgId) : updQ.eq("user_id", user.id);
+            await updQ;
+            results.push({ name: tp.name, new_id: uj.id });
+          } else {
+            results.push({ name: tp.name, error: JSON.stringify(uj).slice(0, 150) });
+          }
+        } catch (e) {
+          results.push({ name: tp.name, error: String(e).slice(0, 150) });
+        }
+      }
+      return new Response(JSON.stringify({ refreshed: results.filter(r => r.new_id).length, results }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
     if (action === "list_templates") {
       let ltQ = supabase
         .from("whatsapp_configs")
@@ -1250,6 +1302,14 @@ Deno.serve(async (req) => {
       }
       console.log(`Meta returned ${templates.length} templates for WABA ${config.waba_id}`);
 
+      // Handles de medios ya guardados (válidos para el número actual). Si Meta
+      // devuelve un handle NO-http (id permanente que puede quedar atado a otro
+      // número), preservamos el que ya teníamos en vez de pisarlo.
+      let ehQ = supabase.from("whatsapp_templates").select("name, header_media_handle").eq("waba_id", config.waba_id);
+      ehQ = orgId ? ehQ.eq("organization_id", orgId) : ehQ.eq("user_id", user.id);
+      const { data: existingRows } = await ehQ;
+      const existingHandle = new Map((existingRows || []).map((r: any) => [r.name, r.header_media_handle]));
+
       // Sync to local DB
       for (const t of templates) {
         const header = t.components?.find((c: any) => c.type === "HEADER");
@@ -1265,6 +1325,12 @@ Deno.serve(async (req) => {
         // to obtain a permanent media ID that we store instead.
         let headerMediaHandle: string | null =
           header?.example?.header_handle?.[0] ?? null;
+
+        // Si Meta manda un handle NO-http y ya tenemos uno guardado (subido bajo
+        // el número actual), conservamos el nuestro para no romper el envío.
+        if (headerMediaHandle && !headerMediaHandle.startsWith("http") && existingHandle.get(t.name)) {
+          headerMediaHandle = existingHandle.get(t.name) as string;
+        }
 
         if (
           headerMediaHandle &&
