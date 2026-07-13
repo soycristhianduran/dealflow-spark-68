@@ -20,6 +20,7 @@ import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, Bar
 import { AdPreviewDialog } from "@/components/crm/AdPreviewDialog";
 import { ActivityTimeline } from "@/components/crm/ActivityTimeline";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
+import { CreateTaskDialog } from "@/components/crm/CreateTaskDialog";
 import { AILeadAnalysisCard } from "@/components/crm/AILeadAnalysisCard";
 import { ContactWhatsAppThread } from "@/components/crm/ContactWhatsAppThread";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -79,7 +80,8 @@ export default function ContactDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { path } = useWorkspace();
-  const { canDeleteContacts, canEditContacts, canSeeBudget } = usePermissions();
+  const { canDeleteContacts, canEditContacts, canSeeBudget, myUserId } = usePermissions();
+  const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const [contact, setContact] = useState<any>(null);
   const [fieldDefs, setFieldDefs] = useState<{ id: string; key: string; label: string; field_type: string; options: string[] | null }[]>([]);
@@ -1251,6 +1253,11 @@ export default function ContactDetailPage() {
               )}
 
               <TabsContent value="tasks" className="mt-4 space-y-2">
+                <div className="flex justify-end">
+                  <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTaskDialogOpen(true)}>
+                    <Plus className="h-4 w-4" /> Nueva tarea
+                  </Button>
+                </div>
                 {tasks.length > 0 ? tasks.map(task => (
                   <div key={task.id} className="flex items-center gap-3 rounded-lg border bg-card p-3">
                     <div className={`h-2 w-2 rounded-full shrink-0 ${
@@ -1305,6 +1312,15 @@ export default function ContactDetailPage() {
           </div>
         </div>
       </main>
+
+      <CreateTaskDialog
+        open={taskDialogOpen}
+        onOpenChange={setTaskDialogOpen}
+        organizationId={organizationId}
+        contactId={id ?? null}
+        ownerId={myUserId}
+        onCreated={fetchRelated}
+      />
 
       <CreateMeetingDialog
         open={meetingDialogOpen}
