@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { toast } from "sonner";
@@ -37,9 +37,14 @@ export function useWhatsAppInbox() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  // Guard "última recarga gana": durante ráfagas se disparan varias recargas en
+  // paralelo; una vieja puede terminar después de una nueva y pisar la lista con
+  // datos desordenados. Solo la más reciente aplica su resultado.
+  const fetchSeqRef = useRef(0);
 
   // Derive conversation list from raw messages grouped by phone_number
   const fetchConversations = useCallback(async () => {
+    const seq = ++fetchSeqRef.current;
     // Multi-org: never query without an org scope, or RLS would return rows from
     // EVERY org the user belongs to (a gestor/owner is in many) and mix inboxes.
     if (!organizationId) { setConversations([]); setLoadingConversations(false); return; }
@@ -139,11 +144,13 @@ export function useWhatsAppInbox() {
           new Date(b.last_message_time).getTime() -
           new Date(a.last_message_time).getTime()
       );
+      // Descartar si otra recarga más reciente ya empezó (evita pisar con datos viejos).
+      if (seq !== fetchSeqRef.current) return;
       setConversations(list);
     } catch (e: any) {
       toast.error("Error al cargar conversaciones: " + e.message);
     } finally {
-      setLoadingConversations(false);
+      if (seq === fetchSeqRef.current) setLoadingConversations(false);
     }
   }, [organizationId]);
 
