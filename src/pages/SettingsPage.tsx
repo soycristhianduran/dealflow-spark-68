@@ -24,6 +24,9 @@ import type { PipelineStage } from "@/types/crm";
 import { useTheme } from "@/components/ThemeProvider";
 import { EmailDomainsSettings } from "@/components/settings/EmailDomainsSettings";
 import { EmbedFormGenerator } from "@/components/settings/EmbedFormGenerator";
+import { MemberPermissionsDialog } from "@/components/settings/MemberPermissionsDialog";
+import type { MemberPermissions } from "@/lib/permissions";
+import { ShieldCheck } from "lucide-react";
 import { validateSlug, toSlug, buildWorkspaceUrl } from "@/lib/subdomain";
 
 const stageColorOptions = [
@@ -45,6 +48,7 @@ interface OrgMember {
   role: string;
   email: string;
   full_name: string | null;
+  permissions?: MemberPermissions | null;
 }
 
 interface OrgInvitation {
@@ -104,6 +108,7 @@ export default function SettingsPage() {
   const [inviting, setInviting] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [updatingRoleFor, setUpdatingRoleFor] = useState<string | null>(null);
+  const [permsDialogFor, setPermsDialogFor] = useState<OrgMember | null>(null);
   const [removingMember, setRemovingMember] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
   const [cancelingInvite, setCancelingInvite] = useState<string | null>(null);
@@ -712,6 +717,15 @@ export default function SettingsPage() {
                       )}
                       {canEdit && (
                         <button
+                          title="Permisos"
+                          onClick={() => setPermsDialogFor(member)}
+                          className="text-muted-foreground hover:text-primary transition-colors"
+                        >
+                          <ShieldCheck className="h-4 w-4" />
+                        </button>
+                      )}
+                      {canEdit && (
+                        <button
                           title={t("settingsPage.removeFromTeam")}
                           disabled={removingMember === member.user_id}
                           onClick={() => handleRemoveMember(member.user_id)}
@@ -727,6 +741,15 @@ export default function SettingsPage() {
                 })}
               </CardContent>
             </Card>
+
+            {/* Editor de permisos por miembro */}
+            <MemberPermissionsDialog
+              open={!!permsDialogFor}
+              onOpenChange={(v) => { if (!v) setPermsDialogFor(null); }}
+              organizationId={organizationId}
+              member={permsDialogFor ? { user_id: permsDialogFor.user_id, name: permsDialogFor.full_name || permsDialogFor.email, role: permsDialogFor.role, permissions: permsDialogFor.permissions } : null}
+              onSaved={(userId, permissions) => setMembers(prev => prev.map(m => m.user_id === userId ? { ...m, permissions } : m))}
+            />
 
             {/* Pending invitations */}
             {invitations.length > 0 && (

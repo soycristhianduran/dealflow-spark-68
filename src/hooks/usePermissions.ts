@@ -1,5 +1,6 @@
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { effectiveLevel, type PermAction, type PermEntity, type PermLevel } from "@/lib/permissions";
 
 /**
  * Centralised permission checks based on the current user's org role.
@@ -11,10 +12,17 @@ import { useAuth } from "@/contexts/AuthContext";
  *   readonly – view only
  */
 export function usePermissions() {
-  const { role } = useOrganizationContext();
+  const { role, permissions, defaultLeadVisibility } = useOrganizationContext();
   const { user } = useAuth();
 
   const myUserId = user?.id ?? null;
+
+  /** Nivel efectivo (none/own/all) de una acción sobre una entidad para este usuario. */
+  const level = (entity: PermEntity, action: PermAction): PermLevel =>
+    effectiveLevel(entity, action, { role, override: permissions ?? null, orgDefaultLeadView: defaultLeadVisibility ?? null });
+
+  /** Visibilidad de leads: "all" ve todos, "own" solo los suyos, "none" ninguno. */
+  const leadView: PermLevel = level("leads", "view");
   // 'gestor' is a non-billable manager (platform/agency staff) with full
   // owner-like access inside the org. Treat it exactly like owner/admin.
   const isGestor = role === "gestor";
@@ -28,14 +36,16 @@ export function usePermissions() {
   /** Can open the Settings page and manage org config */
   const canAccessSettings = isOwnerOrAdmin;
 
+  // Estas tres respetan overrides por miembro; sin override, caen al default del
+  // rol (mismo comportamiento de siempre).
   /** Can delete contact records */
-  const canDeleteContacts = isOwnerOrAdmin;
+  const canDeleteContacts = level("leads", "delete") !== "none";
 
   /** Can create and edit contacts */
-  const canEditContacts = isOwnerOrAdmin || isVendor;
+  const canEditContacts = level("leads", "edit") !== "none";
 
   /** Can export the contacts database */
-  const canExportData = isOwnerOrAdmin;
+  const canExportData = level("leads", "export") === "all";
 
   /**
    * Can MANAGE power/config features: Automations, Integrations, Meta Ads,
@@ -58,6 +68,7 @@ export function usePermissions() {
    */
   const canSeeBudget = (contactOwnerId: string | null | undefined): boolean => {
     if (isOwnerOrAdmin) return true;
+    if (leadView === "all") return true;
     if (isVendor) return !!myUserId && contactOwnerId === myUserId;
     return false; // readonly
   };
@@ -77,5 +88,9 @@ export function usePermissions() {
     canEditContacts,
     canExportData,
     canSeeBudget,
+    /** Nivel efectivo por entidad/acción (respeta overrides + rol). */
+    level,
+    /** Visibilidad de leads: all | own | none. */
+    leadView,
   };
 }

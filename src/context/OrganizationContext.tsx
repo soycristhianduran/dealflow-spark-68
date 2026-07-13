@@ -2,11 +2,16 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { useOrganization, type Organization } from "@/hooks/useOrganization";
 import { getRootAppUrl, getWorkspaceSlug } from "@/lib/subdomain";
 import { supabase } from "@/integrations/supabase/client";
+import type { MemberPermissions, PermLevel } from "@/lib/permissions";
 
 interface OrganizationContextType {
   organizationId: string | null;
   organization: Organization | null;
   role: string | null;
+  /** Overrides de permisos del usuario actual en esta org (null = defaults del rol). */
+  permissions: MemberPermissions | null;
+  /** Visibilidad de leads por defecto de la org ("all" = todos ven todos). */
+  defaultLeadVisibility: PermLevel | null;
   /** Org's default currency for lead budgets (e.g. "COP"). Falls back to "USD". */
   defaultCurrency: string;
   /** Org's configured IANA timezone (e.g. "America/Bogota"). Falls back to the browser tz. */
@@ -21,6 +26,8 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organizationId: null,
   organization: null,
   role: null,
+  permissions: null,
+  defaultLeadVisibility: null,
   defaultCurrency: "USD",
   timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
   loading: true,
@@ -37,6 +44,8 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const orgState = useOrganization();
   const [defaultCurrency, setDefaultCurrency] = useState("USD");
   const [timezone, setTimezone] = useState(typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC");
+  const [permissions, setPermissions] = useState<MemberPermissions | null>(null);
+  const [defaultLeadVisibility, setDefaultLeadVisibility] = useState<PermLevel | null>(null);
 
   useEffect(() => {
     if (!orgState.organizationId) { setDefaultCurrency("USD"); return; }
@@ -46,6 +55,19 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
         if (!active) return;
         if (data?.default_currency) setDefaultCurrency(data.default_currency);
         if (data?.timezone) setTimezone(data.timezone);
+      });
+    return () => { active = false; };
+  }, [orgState.organizationId]);
+
+  // Rol + permisos granulares del usuario actual en la org activa.
+  useEffect(() => {
+    if (!orgState.organizationId) { setPermissions(null); setDefaultLeadVisibility(null); return; }
+    let active = true;
+    supabase.functions.invoke("org-invitations", { body: { action: "my_context", organization_id: orgState.organizationId } })
+      .then(({ data }) => {
+        if (!active || !data) return;
+        setPermissions((data.permissions as MemberPermissions) ?? null);
+        setDefaultLeadVisibility((data.default_lead_visibility as PermLevel) ?? null);
       });
     return () => { active = false; };
   }, [orgState.organizationId]);
@@ -80,7 +102,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <OrganizationContext.Provider value={{ ...orgState, defaultCurrency, timezone }}>
+    <OrganizationContext.Provider value={{ ...orgState, permissions, defaultLeadVisibility, defaultCurrency, timezone }}>
       {children}
     </OrganizationContext.Provider>
   );

@@ -195,7 +195,7 @@ export default function ContactsPage() {
   const { path } = useWorkspace();
   const { organizationId, loading: orgLoading } = useOrganizationContext();
   const { tags: orgCatalogTags, colorOf } = useOrgTags();
-  const { isOwnerOrAdmin, isVendor, isSetter, myUserId, canEditContacts, canExportData } = usePermissions();
+  const { isOwnerOrAdmin, isVendor, isSetter, myUserId, canEditContacts, canExportData, leadView } = usePermissions();
 
   // Bulk action dialog state
   const [reassignOpen, setReassignOpen] = useState(false);
@@ -312,16 +312,23 @@ export default function ContactsPage() {
     if (scoreFilter === "hot")  query = query.gte("score", 61);
     if (scoreFilter === "warm") query = query.gte("score", 31).lte("score", 60);
     if (scoreFilter === "cold") query = query.lte("score", 30);
-    if (isSetter && myUserId) {
-      // Setters keep visibility of leads they booked, even after a vendor is assigned.
-      query = query.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
-    } else if (isVendor && myUserId) {
-      query = query.eq("owner_id", myUserId);
-    } else if (isOwnerOrAdmin && ownerFilter !== "all") {
+    // Visibilidad de leads según permisos efectivos (respeta overrides + default
+    // de la org). "all" ve todos; "own" solo los suyos; "none" ninguno.
+    if (leadView === "none") {
+      query = query.eq("owner_id", "00000000-0000-0000-0000-000000000000"); // fuerza vacío
+    } else if (leadView === "own" && myUserId) {
+      if (isSetter) {
+        // Setters keep visibility of leads they booked, even after a vendor is assigned.
+        query = query.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
+      } else {
+        query = query.eq("owner_id", myUserId);
+      }
+    } else if (leadView === "all" && isOwnerOrAdmin && ownerFilter !== "all") {
+      // Los admin pueden además filtrar manualmente por responsable.
       query = query.eq("owner_id", ownerFilter);
     }
     return query;
-  }, [organizationId, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, isVendor, isSetter, isOwnerOrAdmin, myUserId]);
+  }, [organizationId, statusFilter, scoreFilter, search, ownerFilter, pipelineFilter, stageFilter, sourceFilter, utmSourceFilter, utmMediumFilter, utmCampaignFilter, tagFilter, customFieldKey, customFieldValue, dateFrom, dateTo, leadView, isSetter, isOwnerOrAdmin, myUserId]);
 
   const fetchContacts = useCallback(async () => {
     // Race guard: on a hard refresh the org context resolves AFTER the first

@@ -374,7 +374,7 @@ Deno.serve(async (req) => {
 
     const { data: members } = await supabase
       .from("organization_members")
-      .select("id, role, created_at, user_id")
+      .select("id, role, created_at, user_id, permissions")
       .eq("organization_id", orgId);
 
     const { data: invitations } = await supabase
@@ -397,6 +397,52 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ members: memberDetails, invitations: invitations || [] }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" }
     });
+  }
+
+  // ── My own role + permissions in an org (self-serve, any member) ──────────
+  // Cualquier miembro puede leer SU propio rol y permisos + el default de leads
+  // de la organización. Se usa para aplicar la visibilidad correcta en el front.
+  if (action === "my_context") {
+    const orgId: string | null = body.organization_id ?? null;
+    if (!orgId) return new Response(JSON.stringify({ error: "organization_id requerido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: mem } = await supabase
+      .from("organization_members")
+      .select("role, permissions")
+      .eq("organization_id", orgId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!mem) return new Response(JSON.stringify({ error: "No perteneces a esa organización" }), { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { data: org } = await supabase
+      .from("organizations").select("default_lead_visibility").eq("id", orgId).maybeSingle();
+    return new Response(JSON.stringify({
+      role: mem.role,
+      permissions: mem.permissions ?? null,
+      default_lead_visibility: org?.default_lead_visibility ?? null,
+    }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  }
+
+  // ── Update a member's granular permissions (admin/owner/gestor only) ───────
+  if (action === "update_permissions") {
+    const { member_user_id, permissions } = body;
+    if (!member_user_id) {
+      return new Response(JSON.stringify({ error: "member_user_id requerido" }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const myMembership = await resolveManagedOrg(supabase, user.id, body.organization_id);
+    if (!myMembership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const orgId = myMembership.organization_id;
+    // No se tocan permisos del owner (siempre acceso total).
+    const { data: target } = await supabase
+      .from("organization_members").select("role")
+      .eq("organization_id", orgId).eq("user_id", member_user_id).maybeSingle();
+    if (!target) return new Response(JSON.stringify({ error: "Ese miembro no existe en la organización" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (target.role === "owner") return new Response(JSON.stringify({ error: "El dueño siempre tiene acceso total" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ permissions: permissions ?? null })
+      .eq("organization_id", orgId)
+      .eq("user_id", member_user_id);
+    if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   }
 
   // ── Update member role ────────────────────────────────────────────────────

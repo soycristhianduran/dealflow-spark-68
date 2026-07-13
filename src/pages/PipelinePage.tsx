@@ -113,7 +113,9 @@ export default function PipelinePage() {
   const { path } = useWorkspace();
   const { session } = useAuth();
   const { organizationId, defaultCurrency } = useOrganizationContext();
-  const { isVendor, isSetter, myUserId, canEditContacts, isOwnerOrAdmin } = usePermissions();
+  const { isVendor, isSetter, myUserId, canEditContacts, isOwnerOrAdmin, leadView } = usePermissions();
+  // Alcance "solo los míos" para el tablero (respeta overrides + default de org).
+  const ownScope = leadView === "own";
   const [pipelines, setPipelines] = useState<Pipeline[]>([]);
   const [selectedPipelineId, setSelectedPipelineId] = useState<string | null>(
     () => new URLSearchParams(window.location.search).get("pipeline"),
@@ -242,13 +244,17 @@ export default function PipelinePage() {
           .select("id, full_name, primary_phone, stage_id, pipeline_id, budget, budget_currency, expected_close_date, lead_status, owner_id, source, tags, created_at")
           .eq("pipeline_id", pid)
           .order("created_at", { ascending: false });
-        if (isSetter && myUserId) q = q.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
-        else if (isVendor && myUserId) q = q.eq("owner_id", myUserId);
+        if (ownScope && myUserId) {
+          if (isSetter) q = q.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
+          else q = q.eq("owner_id", myUserId);
+        } else if (leadView === "none") q = q.eq("owner_id", "00000000-0000-0000-0000-000000000000");
         return q;
       };
       let countQ = supabase.from("contacts").select("id", { count: "exact", head: true }).eq("pipeline_id", pid);
-      if (isSetter && myUserId) countQ = countQ.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
-      else if (isVendor && myUserId) countQ = countQ.eq("owner_id", myUserId);
+      if (ownScope && myUserId) {
+        if (isSetter) countQ = countQ.or(`owner_id.eq.${myUserId},setter_id.eq.${myUserId}`);
+        else countQ = countQ.eq("owner_id", myUserId);
+      } else if (leadView === "none") countQ = countQ.eq("owner_id", "00000000-0000-0000-0000-000000000000");
       const { count } = await countQ;
       const total = count ?? 0;
       if (!total) return [];
@@ -266,8 +272,8 @@ export default function PipelinePage() {
       supabase.rpc("pipeline_board_snapshot", {
         p_pipeline: pid,
         p_limit: CARDS_PER_COLUMN,
-        p_owner: isVendor && myUserId ? myUserId : null,
-        p_setter: isSetter && myUserId ? myUserId : null,
+        p_owner: ownScope && !isSetter && myUserId ? myUserId : null,
+        p_setter: ownScope && isSetter && myUserId ? myUserId : null,
       }),
     ]);
     setStages(stagesData || []);
@@ -285,7 +291,7 @@ export default function PipelinePage() {
       setContacts(all);
       setFullLoaded(true);
     }).catch(() => { /* snapshot keeps the board usable */ });
-  }, [isVendor, isSetter, myUserId]);
+  }, [isVendor, isSetter, myUserId, ownScope, leadView]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
