@@ -109,6 +109,135 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── PROBE NOTES (solo lectura: ver qué historial trae un lead) ────────────
+    if (action === "probe_notes") {
+      const leadId = String(body.lead_id || "");
+      if (!leadId) return json({ error: "lead_id requerido" }, 400);
+      const lead = await kommo(`/leads/${leadId}?with=contacts`);
+      const contactId = lead?._embedded?.contacts?.[0]?.id;
+      const leadNotes = await kommo(`/leads/${leadId}/notes?limit=250`).catch((e) => ({ error: String(e) }));
+      const contactNotes = contactId
+        ? await kommo(`/contacts/${contactId}/notes?limit=250`).catch((e) => ({ error: String(e) }))
+        : null;
+      const summarize = (notes: any) => {
+        const arr = notes?._embedded?.notes ?? [];
+        const byType: Record<string, number> = {};
+        for (const n of arr) byType[n.note_type] = (byType[n.note_type] ?? 0) + 1;
+        return {
+          total: arr.length,
+          note_types: byType,
+          samples: arr.slice(0, 12).map((n: any) => ({
+            note_type: n.note_type,
+            created_at: n.created_at ? new Date(n.created_at * 1000).toISOString() : null,
+            params: n.params, // aquí suele venir el texto del mensaje
+          })),
+        };
+      };
+      // ¿Los mensajes viven en eventos o en el sistema de chats (amoJO)?
+      const events = await kommo(`/events?filter[entity]=lead&filter[entity_id][]=${leadId}&limit=100`).catch((e) => ({ error: String(e) }));
+      const account = await kommo(`/account?with=amojo_id,amojo_rights`).catch((e) => ({ error: String(e) }));
+      const eventTypes: Record<string, number> = {};
+      for (const ev of events?._embedded?.events ?? []) eventTypes[ev.type] = (eventTypes[ev.type] ?? 0) + 1;
+      return json({
+        lead: { id: lead?.id, name: lead?.name, contact_id: contactId },
+        lead_notes: leadNotes?.error ? leadNotes : summarize(leadNotes),
+        contact_notes: contactNotes?.error ? contactNotes : (contactNotes ? summarize(contactNotes) : null),
+        event_types: events?.error ? events : eventTypes,
+        raw_events: (events?._embedded?.events ?? []).slice(0, 8).map((ev: any) => ({ type: ev.type, created_at: ev.created_at, value_before: ev.value_before, value_after: ev.value_after })),
+        account_amojo: { amojo_id: account?.amojo_id ?? null, has_amojo: !!account?.amojo_id, error: account?.error },
+      });
+    }
+
+    // ── MIGRATE TIMELINE (eventos de Kommo → activities del contacto) ─────────
+    if (action === "migrate_timeline") {
+      const orgId: string = body.organization_id;
+      if (!orgId) return json({ error: "organization_id es obligatorio" }, 400);
+      const dryRun: boolean = body.dry_run !== false; // por defecto DRY RUN
+      const fromDays: number = Number(body.from_days ?? 60);
+      const startPage: number = Number(body.page ?? 1);
+      const maxPages: number = Number(body.max_pages ?? 30);
+      const nowSec = Math.floor(Date.now() / 1000);
+      const fromSec = nowSec - fromDays * 86400;
+
+      // 1. Mapa status_id → nombre de etapa (todas las pipelines de Kommo).
+      const pipes = await kommo("/leads/pipelines");
+      const statusName = new Map<number, string>();
+      for (const p of pipes?._embedded?.pipelines ?? [])
+        for (const s of p._embedded?.statuses ?? []) statusName.set(s.id, s.name);
+
+      // 2. Mapa kommo_lead_id → contact_id (leads mapeados de la org).
+      const kidToContact = new Map<string, string>();
+      { let page = 0; const PAGE = 1000;
+        for (;;) {
+          const { data } = await supabase.from("contacts")
+            .select("id, custom_fields").eq("organization_id", orgId)
+            .not("custom_fields->kommo_lead_id", "is", null)
+            .range(page * PAGE, page * PAGE + PAGE - 1);
+          if (!data?.length) break;
+          for (const c of data) { const kid = (c.custom_fields as any)?.kommo_lead_id; if (kid) kidToContact.set(String(kid), c.id); }
+          if (data.length < PAGE) break; page++;
+        }
+      }
+
+      // 3. Barrido de eventos por rango de fecha (lead_added + lead_status_changed).
+      const TYPES = ["lead_added", "lead_status_changed"];
+      const typeFilter = TYPES.map(t => `filter[type][]=${t}`).join("&");
+      let inserted = 0, skippedNoContact = 0, dupes = 0, scanned = 0;
+      let page = startPage; let reachedEnd = false;
+      const sample: any[] = [];
+
+      for (let it = 0; it < maxPages; it++, page++) {
+        const path = `/events?filter[entity]=lead&filter[created_at][from]=${fromSec}&filter[created_at][to]=${nowSec}&${typeFilter}&limit=100&page=${page}`;
+        const data = await kommo(path);
+        const evs: any[] = data?._embedded?.events ?? [];
+        if (!evs.length) { reachedEnd = true; break; }
+        scanned += evs.length;
+
+        // Construir filas candidatas.
+        const rows: any[] = [];
+        for (const ev of evs) {
+          const contactId = kidToContact.get(String(ev.entity_id));
+          if (!contactId) { skippedNoContact++; continue; }
+          const createdIso = new Date((ev.created_at || 0) * 1000).toISOString();
+          let event_type = "note"; let summary = "";
+          if (ev.type === "lead_added") { event_type = "created"; summary = "🟢 Lead creado en Kommo"; }
+          else if (ev.type === "lead_status_changed") {
+            const before = statusName.get(ev.value_before?.[0]?.lead_status?.id) || "—";
+            const after = statusName.get(ev.value_after?.[0]?.lead_status?.id) || "—";
+            event_type = "stage_changed"; summary = `📊 Etapa (Kommo): ${before} → ${after}`;
+          }
+          rows.push({
+            related_entity_type: "contact", related_entity_id: contactId,
+            event_type, event_source: "kommo", summary, created_at: createdIso,
+            payload: { kommo_key: `${ev.entity_id}:${ev.type}:${ev.created_at}` },
+          });
+        }
+
+        // Dedup contra lo ya migrado (por kommo_key).
+        if (rows.length) {
+          const cids = [...new Set(rows.map(r => r.related_entity_id))];
+          const { data: existing } = await supabase.from("activities")
+            .select("payload").eq("event_source", "kommo").in("related_entity_id", cids);
+          const seen = new Set((existing || []).map((e: any) => e.payload?.kommo_key).filter(Boolean));
+          const fresh = rows.filter(r => { if (seen.has(r.payload.kommo_key)) { dupes++; return false; } return true; });
+          if (sample.length < 8) sample.push(...fresh.slice(0, 8 - sample.length).map(r => ({ summary: r.summary, at: r.created_at })));
+          if (!dryRun && fresh.length) {
+            for (let i = 0; i < fresh.length; i += 200) {
+              const { error } = await supabase.from("activities").insert(fresh.slice(i, i + 200));
+              if (!error) inserted += fresh.slice(i, i + 200).length;
+            }
+          } else if (dryRun) inserted += fresh.length;
+        }
+        if (evs.length < 100) { reachedEnd = true; break; }
+      }
+
+      return json({
+        dry_run: dryRun, from_days: fromDays, mapped_contacts: kidToContact.size,
+        scanned_events: scanned, would_insert_or_inserted: inserted, dupes, skipped_no_contact: skippedNoContact,
+        next_page: reachedEnd ? null : page, sample,
+      });
+    }
+
     // ── MIGRATE ──────────────────────────────────────────────────────────────
     if (action === "migrate") {
       const orgId: string = body.organization_id;

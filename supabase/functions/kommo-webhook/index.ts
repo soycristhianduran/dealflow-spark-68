@@ -115,12 +115,23 @@ async function processLead(supabase: any, orgId: string, kommoLeadId: string) {
   if (stageId) { patch.stage_id = stageId; patch.pipeline_id = pipeline.id; }
   if (lead.price && Number(lead.price) > 0) patch.budget = Number(lead.price);
 
+  // Nombre de etapa (para el timeline).
+  const stageIdToName = new Map((stages ?? []).map((s: any) => [s.id, s.name]));
+
   if (contactId) {
     // Preservar/registrar la referencia a Kommo sin pisar otros custom fields
-    const { data: cur } = await supabase.from("contacts").select("custom_fields").eq("id", contactId).maybeSingle();
+    const { data: cur } = await supabase.from("contacts").select("custom_fields, stage_id").eq("id", contactId).maybeSingle();
     patch.custom_fields = { ...(cur?.custom_fields ?? {}), kommo_lead_id: String(lead.id) };
     const { error } = await supabase.from("contacts").update(patch).eq("id", contactId).eq("organization_id", orgId);
     if (error) return { error: error.message };
+    // Timeline en tiempo real: registrar el cambio de etapa si de verdad cambió.
+    if (stageId && stageId !== cur?.stage_id) {
+      await supabase.from("activities").insert({
+        related_entity_type: "contact", related_entity_id: contactId,
+        event_type: "stage_changed", event_source: "kommo",
+        summary: `📊 Etapa (Kommo): ${stageIdToName.get(stageId) || "—"}`,
+      });
+    }
     return { updated: contactId, stage: stageId, lead_status: leadStatus };
   }
 
@@ -143,6 +154,12 @@ async function processLead(supabase: any, orgId: string, kommoLeadId: string) {
     ...patch,
   }).select("id").single();
   if (cErr) return { error: cErr.message };
+  // Timeline en tiempo real: registrar la creación del lead.
+  await supabase.from("activities").insert({
+    related_entity_type: "contact", related_entity_id: created.id,
+    event_type: "created", event_source: "kommo",
+    summary: "🟢 Lead creado en Kommo",
+  });
   return { created: created.id, stage: stageId, lead_status: leadStatus };
 }
 
