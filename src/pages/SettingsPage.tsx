@@ -678,6 +678,10 @@ export default function SettingsPage() {
                   const isOwner = member.role === "owner";
                   const isMe = member.user_id === myUserId;
                   const canEdit = isOwnerOrAdmin && !isOwner && !isMe;
+                  // Los permisos por-miembro solo aplican a no-admins: owner/admin/gestor
+                  // son acceso total por definición (ver effectiveLevel), así que no se
+                  // les configuran overrides que luego los limitarían.
+                  const canEditPerms = canEdit && member.role !== "admin" && member.role !== "gestor";
                   const roleLabel = isOwner ? t("settingsPage.roleOwner") : member.role === "admin" ? t("settingsPage.roleAdmin") : member.role === "vendor" ? t("settingsPage.roleVendor") : member.role === "setter" ? t("settingsPage.roleSetter") : member.role === "readonly" ? t("settingsPage.roleReadonly") : t("settingsPage.roleMember");
                   return (
                     <div key={member.id} className="flex items-center gap-3 rounded-lg border p-3">
@@ -717,7 +721,7 @@ export default function SettingsPage() {
                           {roleLabel}
                         </Badge>
                       )}
-                      {canEdit && (
+                      {canEditPerms && (
                         <button
                           title="Permisos"
                           onClick={() => setPermsDialogFor(member)}

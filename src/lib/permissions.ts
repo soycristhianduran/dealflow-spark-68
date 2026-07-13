@@ -72,10 +72,17 @@ export function effectiveLevel(
   opts: { role: string | null; override?: MemberPermissions | null; orgDefaultLeadView?: PermLevel | null },
 ): PermLevel {
   const { role, override, orgDefaultLeadView } = opts;
+  const admin = role === "owner" || role === "admin" || role === "gestor";
+
+  // Owner/admin/gestor son SIEMPRE acceso total: los overrides por-miembro se
+  // diseñaron para vendedores/setters/readonly. Ignorarlos aquí evita que un
+  // admin pueda quedar (por error o config) limitado a "solo los suyos" y que
+  // dos admins de la misma organización vean números distintos.
+  if (admin) return roleDefault(role, action);
+
   const ov = override?.[entity]?.[action];
   if (ov === "none" || ov === "own" || ov === "all") return ov;
 
-  const admin = role === "owner" || role === "admin" || role === "gestor";
   // El default de leads de la org aplica a cualquier miembro no-admin sin override
   // propio (vendor, setter o "member" genérico); readonly ya ve todo por defecto.
   if (!admin && role !== "readonly" && entity === "leads" && action === "view" &&
