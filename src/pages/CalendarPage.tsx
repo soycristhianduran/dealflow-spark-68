@@ -50,7 +50,7 @@ function getMeetingDisplayTitle(m: MeetingRow, t: TFunction) {
 
 export default function CalendarPage() {
   const { isVendor, myUserId } = usePermissions();
-  const { organizationId } = useOrganizationContext();
+  const { organizationId, calendarScope } = useOrganizationContext();
   const { t } = useTranslation();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<ViewMode>("month");
@@ -70,7 +70,9 @@ export default function CalendarPage() {
       .select("id, title, start_at, end_at, status, meeting_type, location_or_link, notes, contact_id, google_event_id, advisor_id, contacts(full_name)")
       .eq("organization_id", organizationId)
       .order("start_at", { ascending: true });
-    if (isVendor && myUserId) query = query.eq("advisor_id", myUserId);
+    // En modo organización todos ven todas las citas del equipo; en individual,
+    // cada vendedor/setter ve solo las suyas (los admin siempre ven todo).
+    if (calendarScope !== "organization" && isVendor && myUserId) query = query.eq("advisor_id", myUserId);
     const { data } = await query;
     if (data) {
       setMeetings(data.map((m: any) => ({
@@ -80,7 +82,7 @@ export default function CalendarPage() {
       })));
     }
     setLoading(false);
-  }, [isVendor, myUserId, organizationId]);
+  }, [isVendor, myUserId, organizationId, calendarScope]);
 
   useEffect(() => { fetchMeetings(); }, [fetchMeetings]);
 

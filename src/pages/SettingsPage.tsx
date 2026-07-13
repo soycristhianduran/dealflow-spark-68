@@ -140,6 +140,7 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [timezone, setTimezone] = useState("America/Mexico_City");
+  const [calScope, setCalScope] = useState<"organization" | "individual">("individual");
 
   // Workspace slug state
   const [orgSlug, setOrgSlug] = useState("");
@@ -192,6 +193,7 @@ export default function SettingsPage() {
         if (data?.org?.default_currency) {
           setCurrency(data.org.default_currency);
         }
+        setCalScope(data?.org?.calendar_scope === "organization" ? "organization" : "individual");
       } catch (_) {
         // fallback to context if edge function fails
         if (organization?.slug) {
@@ -402,7 +404,7 @@ export default function SettingsPage() {
   const handleSaveGeneral = async () => {
     try {
       const { data, error } = await supabase.functions.invoke("org-invitations", {
-        body: { action: "save_general", organization_id: organizationId, name: orgName.trim() || undefined, timezone, default_currency: currency },
+        body: { action: "save_general", organization_id: organizationId, name: orgName.trim() || undefined, timezone, default_currency: currency, calendar_scope: calScope },
       });
       if (error || data?.error) throw new Error(data?.error || error?.message);
       toast.success(t("settingsPage.settingsSaved"));
@@ -1104,6 +1106,27 @@ export default function SettingsPage() {
                     >
                       <Monitor className="h-4 w-4" /> {t("settingsPage.themeSystem")}
                     </Button>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Calendario del equipo</Label>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {([
+                      { v: "organization", title: "Global (organización)", desc: "Todo el equipo comparte y ve el mismo calendario. Todos ven todas las citas de la organización." },
+                      { v: "individual", title: "Individual (por usuario)", desc: "Cada usuario ve solo sus propias citas y conecta su propio Google Calendar. Los administradores siempre ven todo." },
+                    ] as const).map(opt => {
+                      const active = calScope === opt.v;
+                      return (
+                        <button key={opt.v} type="button" onClick={() => setCalScope(opt.v)}
+                          className={`text-left rounded-lg border p-3 transition-colors ${active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-muted-foreground/40"}`}>
+                          <div className="flex items-center gap-2">
+                            <span className={`h-3.5 w-3.5 rounded-full border-2 ${active ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                            <span className="text-sm font-medium">{opt.title}</span>
+                          </div>
+                          <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{opt.desc}</p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <Button onClick={handleSaveGeneral}>{t("settingsPage.saveChanges")}</Button>

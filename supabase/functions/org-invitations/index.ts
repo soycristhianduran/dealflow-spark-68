@@ -521,7 +521,7 @@ Deno.serve(async (req) => {
 
     const { data: org } = await supabase
       .from("organizations")
-      .select("id, name, slug, timezone, public_form_token, default_currency")
+      .select("id, name, slug, timezone, public_form_token, default_currency, calendar_scope")
       .eq("id", membership.organization_id)
       .maybeSingle();
 
@@ -606,7 +606,7 @@ Deno.serve(async (req) => {
   // ── Save workspace slug ────────────────────────────────────────────────────
   // ── Save general org settings (name, timezone) ────────────────────────────
   if (action === "save_general") {
-    const { name, timezone, default_currency } = body;
+    const { name, timezone, default_currency, calendar_scope } = body;
     const membership = await resolveManagedOrg(supabase, user.id, body.organization_id);
     if (!membership) return new Response(JSON.stringify({ error: "Sin permisos" }), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
@@ -614,6 +614,7 @@ Deno.serve(async (req) => {
     if (typeof name === "string" && name.trim()) patch.name = name.trim();
     if (typeof timezone === "string" && timezone.trim()) patch.timezone = timezone.trim();
     if (typeof default_currency === "string" && default_currency.trim()) patch.default_currency = default_currency.trim();
+    if (calendar_scope === "organization" || calendar_scope === "individual") patch.calendar_scope = calendar_scope;
     if (Object.keys(patch).length === 0) {
       return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
