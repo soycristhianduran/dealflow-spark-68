@@ -1326,13 +1326,15 @@ Deno.serve(async (req) => {
         let headerMediaHandle: string | null =
           header?.example?.header_handle?.[0] ?? null;
 
-        // Si Meta manda un handle NO-http y ya tenemos uno guardado (subido bajo
-        // el número actual), conservamos el nuestro para no romper el envío.
-        if (headerMediaHandle && !headerMediaHandle.startsWith("http") && existingHandle.get(t.name)) {
-          headerMediaHandle = existingHandle.get(t.name) as string;
-        }
-
-        if (
+        // Si YA tenemos un media guardado para esta plantilla, lo conservamos
+        // SIEMPRE. El sample aprobado que Meta devuelve puede ser un contenedor
+        // que WhatsApp rechaza al ENVIAR (p.ej. QuickTime → error 131053), así que
+        // re-subirlo rompería el envío. Solo derivamos el medio de Meta cuando la
+        // plantilla es nueva y aún no tiene handle propio.
+        const priorHandle = existingHandle.get(t.name);
+        if (priorHandle) {
+          headerMediaHandle = priorHandle as string;
+        } else if (
           headerMediaHandle &&
           headerMediaHandle.startsWith("http") &&
           config.phone_number_id
