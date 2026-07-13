@@ -532,6 +532,7 @@
     "trigger": "Trigger",
     "triggersAny": "Disparadores (cualquiera)",
     "startTrigger": "Trigger de inicio",
+    "orLabel": "O",
     "configArrow": "← config",
     "noForm": "Sin formulario",
     "tagSub": "Tag: \"{{tag}}\"",

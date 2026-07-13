@@ -492,7 +492,14 @@ function TriggerNode(_: NodeProps) {
             : tr.type === "contact_created" ? (cfg.source && cfg.source !== "any" ? t("automationsPage.sourceSub", { source: cfg.source }) : "")
             : null;
           return (
-            <div key={i} className={i > 0 ? "pt-1.5 border-t border-slate-100" : ""}>
+            <div key={i}>
+              {i > 0 && (
+                <div className="flex items-center gap-2 py-1">
+                  <span className="h-px flex-1 bg-slate-100" />
+                  <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-500">{t("automationsPage.orLabel")}</span>
+                  <span className="h-px flex-1 bg-slate-100" />
+                </div>
+              )}
               <p className="text-xs font-semibold text-slate-700">{TRIGGER_LABELS[tr.type] || tr.type}</p>
               {sub && <p className="text-xs text-slate-400 mt-0.5 truncate">{sub}</p>}
             </div>
@@ -1349,7 +1356,15 @@ function MultiTriggerEditor({
         </div>
       )}
       {list.map((trg, idx) => (
-        <div key={idx} className="rounded-xl border p-3 space-y-3">
+        <div key={idx}>
+          {idx > 0 && (
+            <div className="flex items-center gap-2 py-1.5">
+              <span className="h-px flex-1 bg-border" />
+              <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-500">{t("automationsPage.orLabel")}</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+          )}
+          <div className="rounded-xl border p-3 space-y-3">
           {list.length > 1 && (
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1365,6 +1380,7 @@ function MultiTriggerEditor({
             triggerConfig={trg.config}
             onChange={(type, config) => update(idx, type, config)}
           />
+          </div>
         </div>
       ))}
       <Button variant="outline" size="sm" className="w-full gap-2" onClick={add}>

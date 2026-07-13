@@ -532,6 +532,7 @@
     "trigger": "Trigger",
     "triggersAny": "Triggers (any)",
     "startTrigger": "Start trigger",
+    "orLabel": "OR",
     "configArrow": "← config",
     "noForm": "No form",
     "tagSub": "Tag: \"{{tag}}\"",
