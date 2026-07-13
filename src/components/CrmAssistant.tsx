@@ -7,7 +7,7 @@
  * Leads list with that filter applied (via URL params ContactsPage reads).
  */
 import { useState, useRef, useEffect } from "react";
-import { X, Send, Loader2, ArrowRight, LifeBuoy, Bell } from "lucide-react";
+import { X, Send, Loader2, ArrowRight, LifeBuoy, Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,7 +17,7 @@ import { useWorkspace } from "@/hooks/useWorkspace";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { pushSupported, isPushEnabled, enablePush } from "@/lib/push";
+import { pushSupported, isPushEnabled, enablePush, disablePush } from "@/lib/push";
 
 interface ChatMsg { role: "user" | "assistant"; content: string; action?: any }
 
@@ -147,19 +147,23 @@ export function CrmAssistant() {
                 <p className="text-[11px] text-muted-foreground">Pregúntame sobre tus leads</p>
               </div>
             </button>
-            {pushSupported() && !pushOn && (
+            {pushSupported() && pushOn !== null && (
               <>
                 <div className="h-px bg-border" />
                 <button
-                  onClick={() => { setMenuOpen(false); activatePush(); }}
+                  onClick={async () => {
+                    setMenuOpen(false);
+                    if (pushOn) { await disablePush(); setPushOn(false); toast.success("Notificaciones desactivadas 🔕"); }
+                    else { activatePush(); }
+                  }}
                   className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-muted"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-500/10">
-                    <Bell className="h-5 w-5 text-emerald-500" />
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${pushOn ? "bg-muted" : "bg-emerald-500/10"}`}>
+                    {pushOn ? <BellOff className="h-5 w-5 text-muted-foreground" /> : <Bell className="h-5 w-5 text-emerald-500" />}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold leading-tight">Activar notificaciones</p>
-                    <p className="text-[11px] text-muted-foreground">Avísame cuando lleguen mensajes</p>
+                    <p className="text-sm font-semibold leading-tight">{pushOn ? "Desactivar notificaciones" : "Activar notificaciones"}</p>
+                    <p className="text-[11px] text-muted-foreground">{pushOn ? "Dejar de recibir avisos de mensajes" : "Avísame cuando lleguen mensajes"}</p>
                   </div>
                 </button>
               </>

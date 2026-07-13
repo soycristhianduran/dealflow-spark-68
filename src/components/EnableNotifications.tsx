@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { Bell } from "lucide-react";
+import { Bell, BellOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { pushSupported, isPushEnabled, enablePush } from "@/lib/push";
+import { pushSupported, isPushEnabled, enablePush, disablePush } from "@/lib/push";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 
-/** Small "Activar notificaciones" button; hides itself once enabled/unsupported. */
+/** Toggle de notificaciones: activa o desactiva las notificaciones push. */
 export function EnableNotifications() {
   const { organizationId } = useOrganizationContext();
   const [enabled, setEnabled] = useState<boolean | null>(null);
@@ -13,10 +13,17 @@ export function EnableNotifications() {
 
   useEffect(() => { isPushEnabled().then(setEnabled); }, []);
 
-  if (!pushSupported() || enabled) return null;
+  if (!pushSupported() || enabled === null) return null;
 
-  const enable = async () => {
+  const toggle = async () => {
     setWorking(true);
+    if (enabled) {
+      await disablePush();
+      setEnabled(false);
+      setWorking(false);
+      toast.success("Notificaciones desactivadas 🔕");
+      return;
+    }
     const r = await enablePush(organizationId);
     setWorking(false);
     if (r.ok) { setEnabled(true); toast.success("Notificaciones activadas 🔔"); }
@@ -25,9 +32,9 @@ export function EnableNotifications() {
   };
 
   return (
-    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={enable} disabled={working}
-      title="Activar notificaciones de mensajes nuevos">
-      <Bell className="h-3.5 w-3.5" />
+    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={toggle} disabled={working}
+      title={enabled ? "Desactivar notificaciones" : "Activar notificaciones de mensajes nuevos"}>
+      {enabled ? <BellOff className="h-3.5 w-3.5 text-muted-foreground" /> : <Bell className="h-3.5 w-3.5" />}
     </Button>
   );
 }

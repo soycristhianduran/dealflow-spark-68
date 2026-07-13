@@ -49,3 +49,16 @@ export async function isPushEnabled(): Promise<boolean> {
   const sub = await reg?.pushManager.getSubscription();
   return !!sub && Notification.permission === "granted";
 }
+
+/** Desactiva las notificaciones: cancela la suscripción y borra su registro. */
+export async function disablePush(): Promise<boolean> {
+  if (!pushSupported()) return false;
+  const reg = await navigator.serviceWorker.getRegistration();
+  const sub = await reg?.pushManager.getSubscription();
+  if (sub) {
+    // Borrar el registro en la BD (por endpoint) antes de cancelar la suscripción.
+    try { await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); } catch { /* best-effort */ }
+    try { await sub.unsubscribe(); } catch { /* best-effort */ }
+  }
+  return true;
+}
