@@ -59,6 +59,10 @@ export function useWhatsAppInbox() {
       if (error) throw error;
 
       const phoneMap = new Map<string, WaConversation>();
+      // Número al que el CLIENTE escribió (último entrante). Se usa para responder
+      // dentro de la ventana de 24h — NUNCA el del último saliente, que puede ser
+      // un número viejo/equivocado (causaba error 131047 al responder libre).
+      const lastIncomingFrom = new Map<string, string>();
 
       for (const msg of (msgs || [])) {
         const phone = msg.phone_number;
@@ -76,11 +80,20 @@ export function useWhatsAppInbox() {
             from_phone_number_id: msg.from_phone_number_id || null,
           });
         }
+        // Recordar el número del último mensaje ENTRANTE (iteración desc → el 1º gana).
+        if (msg.direction === "incoming" && msg.from_phone_number_id && !lastIncomingFrom.has(phone)) {
+          lastIncomingFrom.set(phone, msg.from_phone_number_id);
+        }
         // Unread = incoming message where read_at is NULL (persisted in DB)
         if (msg.direction === "incoming" && !msg.read_at) {
           const c = phoneMap.get(phone)!;
           c.unread_count += 1;
         }
+      }
+      // Preferir el número al que el cliente escribió para responder.
+      for (const [phone, conv] of phoneMap) {
+        const inFrom = lastIncomingFrom.get(phone);
+        if (inFrom) conv.from_phone_number_id = inFrom;
       }
 
       // Make sure EVERY conversation with unread incoming messages is present and

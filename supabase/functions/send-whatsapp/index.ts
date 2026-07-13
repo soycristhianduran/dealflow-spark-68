@@ -30,25 +30,46 @@ Deno.serve(async (req) => {
     const cleanPhone = phone.replace(/[^0-9]/g, "");
     if (!cleanPhone) throw new Error("Número de teléfono inválido");
 
-    // Get the org's WhatsApp config — always scoped to the caller's organization
-    // so that a user admin of multiple orgs never sends from the wrong number.
-    let configQuery = supabase
-      .from("whatsapp_configs")
-      .select("*")
-      .eq("is_active", true);
-
-    if (orgId) configQuery = configQuery.eq("organization_id", orgId);
-
-    if (requestedPhoneId) {
-      configQuery = configQuery.eq("phone_number_id", requestedPhoneId);
-    } else {
-      // Primary first, then any active (order: true > false)
-      configQuery = configQuery.order("is_primary", { ascending: false });
+    // Derivar la org del contacto si no viene, para NUNCA caer a un número de
+    // otra organización en los fallbacks.
+    let effectiveOrg = orgId ?? null;
+    if (!effectiveOrg && contact_id) {
+      const { data: c } = await supabase.from("contacts").select("organization_id").eq("id", contact_id).maybeSingle();
+      effectiveOrg = c?.organization_id ?? null;
     }
 
-    const { data: config, error: configError } = await configQuery.limit(1).maybeSingle();
+    const activeCfg = () => {
+      let q = supabase.from("whatsapp_configs").select("*").eq("is_active", true);
+      if (effectiveOrg) q = q.eq("organization_id", effectiveOrg);
+      return q;
+    };
 
-    if (configError || !config) {
+    let config: any = null;
+    // 1) El número pedido, SOLO si es un número activo válido.
+    if (requestedPhoneId) {
+      const { data } = await activeCfg().eq("phone_number_id", requestedPhoneId).limit(1).maybeSingle();
+      config = data ?? null;
+    }
+    // 2) Red de seguridad: el número al que el CLIENTE escribió por última vez
+    //    (evita responder desde un número viejo/equivocado → error 131047).
+    if (!config) {
+      const { data: lastIn } = await supabase.from("whatsapp_messages")
+        .select("from_phone_number_id")
+        .eq("phone_number", cleanPhone).eq("direction", "incoming")
+        .not("from_phone_number_id", "is", null)
+        .order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (lastIn?.from_phone_number_id) {
+        const { data } = await activeCfg().eq("phone_number_id", lastIn.from_phone_number_id).limit(1).maybeSingle();
+        config = data ?? null;
+      }
+    }
+    // 3) Último recurso: el número principal/activo de la org.
+    if (!config) {
+      const { data } = await activeCfg().order("is_primary", { ascending: false }).limit(1).maybeSingle();
+      config = data ?? null;
+    }
+
+    if (!config) {
       throw new Error("WhatsApp no está configurado. El administrador debe conectar el número primero.");
     }
 
