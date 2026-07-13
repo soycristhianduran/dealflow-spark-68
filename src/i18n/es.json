@@ -797,6 +797,7 @@
     "allPipelines": "Todos los pipelines",
     "stage": "Etapa",
     "allStages": "Todas las etapas",
+    "stagesSelected": "{{count}} etapas",
     "columns": "Columnas",
     "visibleColumns": "Columnas visibles",
     "moreFilters": "Más filtros",

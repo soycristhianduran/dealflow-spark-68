@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, PhoneCall, GitMerge, Columns2, BarChart2, Download, Upload, List } from "lucide-react";
+import { Plus, Search, Trash2, Tag, UserCheck, CheckSquare, Pencil, Tags, X, Sparkles, User, KanbanSquare, MessageSquare, Mail, Loader2, LayoutTemplate, FileText, Eye, SlidersHorizontal, ChevronLeft, ChevronRight, ChevronDown, PhoneCall, GitMerge, Columns2, BarChart2, Download, Upload, List } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -113,7 +113,7 @@ export default function ContactsPage() {
   const [scoreFilter, setScoreFilter] = useState("all");   // hot / warm / cold / all
   const [ownerFilter, setOwnerFilter] = useState("all");
   const [pipelineFilter, setPipelineFilter] = useState("all");
-  const [stageFilter, setStageFilter] = useState("all");
+  const [stageFilter, setStageFilter] = useState<string[]>([]); // vacío = todas las etapas
   const [sourceFilter, setSourceFilter] = useState("all");
   const [utmSourceFilter, setUtmSourceFilter] = useState("all");
   const [utmMediumFilter, setUtmMediumFilter] = useState("all");
@@ -298,7 +298,7 @@ export default function ContactsPage() {
     else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
     if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
     if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
-    if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
+    if (stageFilter.length) query = query.in("stage_id", stageFilter);
     if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
     if (utmSourceFilter !== "all") query = query.eq("utm_source", utmSourceFilter);
     if (utmMediumFilter !== "all") query = query.eq("utm_medium", utmMediumFilter);
@@ -463,7 +463,7 @@ export default function ContactsPage() {
   useEffect(() => {
     if (pipelineFilter === "all") {
       setStagesForFilter([]);
-      setStageFilter("all");
+      setStageFilter([]);
       return;
     }
     supabase.from("pipeline_stages")
@@ -472,7 +472,7 @@ export default function ContactsPage() {
       .order("order", { ascending: true })
       .then(({ data }) => {
         setStagesForFilter(data || []);
-        setStageFilter("all");
+        setStageFilter([]);
       });
   }, [pipelineFilter]);
 
@@ -1064,7 +1064,7 @@ export default function ContactsPage() {
       else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
       if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
       if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
-      if (stageFilter !== "all") query = query.eq("stage_id", stageFilter);
+      if (stageFilter.length) query = query.in("stage_id", stageFilter);
       if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
       if (utmSourceFilter !== "all") query = query.eq("utm_source", utmSourceFilter);
       if (utmMediumFilter !== "all") query = query.eq("utm_medium", utmMediumFilter);
@@ -1267,22 +1267,46 @@ export default function ContactsPage() {
               </Select>
             )}
             {pipelineFilter !== "all" && stagesForFilter.length > 0 && (
-              <Select value={stageFilter} onValueChange={setStageFilter}>
-                <SelectTrigger className="h-8 w-40 text-xs gap-1.5">
-                  <SelectValue placeholder={t("contactsPage.stage")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("contactsPage.allStages")}</SelectItem>
-                  {stagesForFilter.map(s => (
-                    <SelectItem key={s.id} value={s.id}>
-                      <span className="flex items-center gap-1.5">
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-8 w-44 justify-between text-xs gap-1.5 font-normal">
+                    <span className="truncate">
+                      {stageFilter.length === 0
+                        ? t("contactsPage.allStages")
+                        : stageFilter.length === 1
+                          ? (stagesForFilter.find(s => s.id === stageFilter[0])?.name ?? t("contactsPage.stage"))
+                          : t("contactsPage.stagesSelected", { count: stageFilter.length })}
+                    </span>
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60 shrink-0" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-1.5" align="start">
+                  <button
+                    type="button"
+                    onClick={() => setStageFilter([])}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted"
+                  >
+                    <Checkbox checked={stageFilter.length === 0} className="pointer-events-none" />
+                    <span className="font-medium">{t("contactsPage.allStages")}</span>
+                  </button>
+                  <div className="my-1 h-px bg-border" />
+                  {stagesForFilter.map(s => {
+                    const checked = stageFilter.includes(s.id);
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setStageFilter(prev => checked ? prev.filter(x => x !== s.id) : [...prev, s.id])}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs hover:bg-muted"
+                      >
+                        <Checkbox checked={checked} className="pointer-events-none" />
                         <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: s.color || "#94a3b8" }} />
-                        {s.name}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                        <span className="truncate">{s.name}</span>
+                      </button>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
             )}
             {/* Columnas picker */}
             <Popover open={colPickerOpen} onOpenChange={setColPickerOpen}>
