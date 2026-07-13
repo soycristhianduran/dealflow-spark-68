@@ -50,113 +50,25 @@ export function useWhatsAppInbox() {
     if (!organizationId) { setConversations([]); setLoadingConversations(false); return; }
     setLoadingConversations(true);
     try {
-      const { data: msgs, error } = await supabase
-        .from("whatsapp_messages")
-        .select("id, phone_number, contact_id, direction, message_text, message_type, status, created_at, read_at, from_phone_number_id")
-        .eq("organization_id", organizationId)
-        .order("created_at", { ascending: false })
-        .limit(500);
+      // Una sola consulta (RPC) trae la ÚLTIMA conversación de CADA número — todas,
+      // no solo las que caían en una ventana de 500 mensajes (antes se perdían
+      // miles de conversaciones). Incluye nombre de contacto, no leídos y el número
+      // al que el cliente escribió (from del último entrante, para responder bien).
+      const { data: rows, error } = await supabase.rpc("wa_conversations", {
+        p_org: organizationId,
+        p_limit: 1000,
+      });
       if (error) throw error;
-
-      const phoneMap = new Map<string, WaConversation>();
-      // Número al que el CLIENTE escribió (último entrante). Se usa para responder
-      // dentro de la ventana de 24h — NUNCA el del último saliente, que puede ser
-      // un número viejo/equivocado (causaba error 131047 al responder libre).
-      const lastIncomingFrom = new Map<string, string>();
-
-      for (const msg of (msgs || [])) {
-        const phone = msg.phone_number;
-        if (!phoneMap.has(phone)) {
-          phoneMap.set(phone, {
-            phone_number: phone,
-            contact_id: msg.contact_id || null,
-            contact_name: null,
-            last_message:
-              msg.message_text ||
-              (msg.message_type !== "text" ? `[${msg.message_type}]` : ""),
-            last_message_time: msg.created_at,
-            last_direction: msg.direction as "incoming" | "outgoing",
-            unread_count: 0,
-            from_phone_number_id: msg.from_phone_number_id || null,
-          });
-        }
-        // Recordar el número del último mensaje ENTRANTE (iteración desc → el 1º gana).
-        if (msg.direction === "incoming" && msg.from_phone_number_id && !lastIncomingFrom.has(phone)) {
-          lastIncomingFrom.set(phone, msg.from_phone_number_id);
-        }
-        // Unread = incoming message where read_at is NULL (persisted in DB)
-        if (msg.direction === "incoming" && !msg.read_at) {
-          const c = phoneMap.get(phone)!;
-          c.unread_count += 1;
-        }
-      }
-      // Preferir el número al que el cliente escribió para responder.
-      for (const [phone, conv] of phoneMap) {
-        const inFrom = lastIncomingFrom.get(phone);
-        if (inFrom) conv.from_phone_number_id = inFrom;
-      }
-
-      // Make sure EVERY conversation with unread incoming messages is present and
-      // has an accurate unread_count — even if its messages are older than the
-      // recent window above. Otherwise the inbox (and badge) silently miss unread
-      // replies that scrolled past the 500-message window.
-      const { data: unreadMsgs } = await supabase
-        .from("whatsapp_messages")
-        .select("phone_number, contact_id, message_text, message_type, created_at")
-        .eq("organization_id", organizationId)
-        .eq("direction", "incoming")
-        .is("read_at", null)
-        .order("created_at", { ascending: false })
-        .limit(1000);
-      const unreadByPhone = new Map<string, number>();
-      for (const m of (unreadMsgs || [])) {
-        const phone = m.phone_number;
-        if (!phone) continue;
-        unreadByPhone.set(phone, (unreadByPhone.get(phone) || 0) + 1);
-        if (!phoneMap.has(phone)) {
-          phoneMap.set(phone, {
-            phone_number: phone,
-            contact_id: m.contact_id || null,
-            contact_name: null,
-            last_message: m.message_text || (m.message_type !== "text" ? `[${m.message_type}]` : ""),
-            last_message_time: m.created_at,
-            last_direction: "incoming",
-            unread_count: 0,
-            from_phone_number_id: null,
-          });
-        }
-      }
-      // Authoritative unread count per conversation (full DB, not just the window).
-      for (const conv of phoneMap.values()) {
-        conv.unread_count = unreadByPhone.get(conv.phone_number) || 0;
-      }
-
-      // Resolve contact names
-      const contactIds = [
-        ...new Set(
-          [...phoneMap.values()].map((c) => c.contact_id).filter(Boolean)
-        ),
-      ] as string[];
-      if (contactIds.length > 0) {
-        const { data: contacts } = await supabase
-          .from("contacts")
-          .select("id, first_name, last_name")
-          .in("id", contactIds);
-        for (const conv of phoneMap.values()) {
-          if (conv.contact_id) {
-            const c = contacts?.find((x) => x.id === conv.contact_id);
-            if (c)
-              conv.contact_name =
-                `${c.first_name || ""} ${c.last_name || ""}`.trim();
-          }
-        }
-      }
-
-      const list = [...phoneMap.values()].sort(
-        (a, b) =>
-          new Date(b.last_message_time).getTime() -
-          new Date(a.last_message_time).getTime()
-      );
+      const list: WaConversation[] = (rows || []).map((r: any) => ({
+        phone_number: r.phone_number,
+        contact_id: r.contact_id || null,
+        contact_name: r.contact_name || null,
+        last_message: r.last_message || "",
+        last_message_time: r.last_message_time,
+        last_direction: (r.last_direction === "incoming" ? "incoming" : "outgoing") as "incoming" | "outgoing",
+        unread_count: Number(r.unread_count) || 0,
+        from_phone_number_id: r.from_phone_number_id || null,
+      }));
       // Descartar si otra recarga más reciente ya empezó (evita pisar con datos viejos).
       if (seq !== fetchSeqRef.current) return;
       setConversations(list);
