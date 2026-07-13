@@ -2961,19 +2961,34 @@ function EnrollDialog({ automationId, open, onClose }: { automationId: string; o
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [enrolling, setEnrolling] = useState(false);
 
+  // Búsqueda en SERVIDOR (nombre/apellido/email/empresa/teléfono) sobre TODA la
+  // base — antes cargaba solo 500 contactos y filtraba en cliente sin teléfono,
+  // así que la mayoría no aparecía al enrolar.
   useEffect(() => {
     if (!open || !organizationId) return;
     setLoading(true);
-    supabase.from("contacts").select("id, first_name, last_name, primary_email, company_name")
-      .eq("organization_id", organizationId)
-      .order("first_name").limit(500)
-      .then(({ data }) => { setContacts(data || []); setLoading(false); });
-  }, [open, organizationId]);
+    const t = setTimeout(() => {
+      let q = supabase.from("contacts")
+        .select("id, first_name, last_name, primary_email, primary_phone, company_name")
+        .eq("organization_id", organizationId)
+        .order("first_name").limit(100);
+      const s = search.trim();
+      if (s) {
+        const clean = s.replace(/[(),]/g, " ").trim();
+        const digits = s.replace(/\D/g, "");
+        const cl = [
+          `full_name.ilike.%${clean}%`, `first_name.ilike.%${clean}%`, `last_name.ilike.%${clean}%`,
+          `primary_email.ilike.%${clean}%`, `company_name.ilike.%${clean}%`,
+        ];
+        if (digits.length >= 4) cl.push(`primary_phone.ilike.%${digits}%`);
+        q = q.or(cl.join(","));
+      }
+      q.then(({ data }) => { setContacts(data || []); setLoading(false); });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [open, organizationId, search]);
 
-  const filtered = contacts.filter(c => {
-    const q = search.toLowerCase();
-    return `${c.first_name || ""} ${c.last_name || ""} ${c.primary_email || ""}`.toLowerCase().includes(q);
-  });
+  const filtered = contacts;
 
   const toggle = (id: string) => setSelected(p => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s; });
 

@@ -98,6 +98,24 @@ interface ContactRow {
   custom_fields?: Record<string, any> | null;
 }
 
+// Filtro de búsqueda de leads: nombre, apellido, email, empresa y TELÉFONO.
+// Antes solo buscaba full_name+email → el teléfono nunca aparecía. El teléfono
+// se busca por dígitos (ignora +, espacios y guiones del término).
+function leadSearchOr(search: string): string | null {
+  const s = search.trim().replace(/[(),]/g, " ").trim();
+  if (!s) return null;
+  const digits = search.replace(/\D/g, "");
+  const clauses = [
+    `full_name.ilike.%${s}%`,
+    `first_name.ilike.%${s}%`,
+    `last_name.ilike.%${s}%`,
+    `primary_email.ilike.%${s}%`,
+    `company_name.ilike.%${s}%`,
+  ];
+  if (digits.length >= 4) clauses.push(`primary_phone.ilike.%${digits}%`);
+  return clauses.join(",");
+}
+
 interface ProfileOption {
   user_id: string;
   full_name: string;
@@ -296,7 +314,7 @@ export default function ContactsPage() {
     if (organizationId) query = query.eq("organization_id", organizationId);
     if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
     else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
-    if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+    if (search) { const so = leadSearchOr(search); if (so) query = query.or(so); }
     if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
     if (stageFilter.length) query = query.in("stage_id", stageFilter);
     if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
@@ -1062,7 +1080,7 @@ export default function ContactsPage() {
       if (organizationId) query = query.eq("organization_id", organizationId);
       if (statusFilter === "unassigned") query = query.is("pipeline_id", null);
       else if (statusFilter !== "all") query = query.eq("lead_status", statusFilter);
-      if (search) query = query.or(`full_name.ilike.%${search}%,primary_email.ilike.%${search}%`);
+      if (search) { const so = leadSearchOr(search); if (so) query = query.or(so); }
       if (pipelineFilter !== "all") query = query.eq("pipeline_id", pipelineFilter);
       if (stageFilter.length) query = query.in("stage_id", stageFilter);
       if (sourceFilter !== "all") query = query.eq("source", sourceFilter);
