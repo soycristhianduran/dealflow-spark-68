@@ -71,6 +71,8 @@ interface AgentConfig {
   working_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
+  /** "organization" = un calendario compartido; "individual" = calendario por asesor. */
+  calendar_mode: "organization" | "individual";
   appointment_slot_capacity: { enabled: boolean; mode?: "boost" | "only"; rules: { days: number[]; hours: string[]; capacity: number }[] };
   appointments_paid: boolean;
   payment_link: string;
@@ -130,6 +132,7 @@ const DEFAULT_CONFIG: AgentConfig = {
   working_hours: DEFAULT_HOURS,
   meeting_address: "",
   appointment_modality: "both",
+  calendar_mode: "individual",
   appointments_paid: false,
   payment_link: "",
   payment_info: "",
@@ -247,6 +250,7 @@ export default function AIAgentPage() {
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
           meeting_address: data.meeting_address ?? "",
           appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
+          calendar_mode: (data.calendar_mode as AgentConfig["calendar_mode"]) === "organization" ? "organization" : "individual",
           appointments_paid: data.appointments_paid ?? false,
           payment_link: data.payment_link ?? "",
           payment_info: data.payment_info ?? "",
@@ -395,6 +399,7 @@ export default function AIAgentPage() {
         working_hours: config.working_hours,
         meeting_address: config.meeting_address.trim() || null,
         appointment_modality: config.appointment_modality,
+        calendar_mode: config.calendar_mode,
         appointments_paid: config.appointments_paid,
         payment_link: config.payment_link.trim() || null,
         payment_info: config.payment_info.trim() || null,
@@ -789,6 +794,29 @@ export default function AIAgentPage() {
 
               {config.appointments_enabled && (
                 <>
+                  {/* Modo de calendario: compartido (organización) vs por asesor (individual) */}
+                  <div className="rounded-lg border p-3 space-y-2">
+                    <p className="text-sm font-medium">Modo de calendario</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {([
+                        { v: "organization", title: "Calendario de la organización", desc: "Un solo calendario compartido para todo el equipo. Los cupos por horario son del equipo completo. Ideal si todos atienden los mismos horarios." },
+                        { v: "individual", title: "Calendario individual", desc: "Cada asesor usa su propio Google Calendar. El agente agenda con el responsable del lead y respeta su disponibilidad." },
+                      ] as const).map(opt => {
+                        const active = config.calendar_mode === opt.v;
+                        return (
+                          <button key={opt.v} type="button" onClick={() => set("calendar_mode", opt.v)}
+                            className={`text-left rounded-lg border p-3 transition-colors ${active ? "border-primary bg-primary/5 ring-1 ring-primary" : "hover:border-muted-foreground/40"}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`h-3.5 w-3.5 rounded-full border-2 ${active ? "border-primary bg-primary" : "border-muted-foreground/40"}`} />
+                              <span className="text-sm font-medium">{opt.title}</span>
+                            </div>
+                            <p className="mt-1 text-[11px] text-muted-foreground leading-snug">{opt.desc}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="rounded-lg border p-3 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>

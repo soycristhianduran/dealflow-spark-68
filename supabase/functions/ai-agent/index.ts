@@ -302,8 +302,11 @@ Deno.serve(async (req) => {
     const mediaList = mediaRows || [];
     const mediaById = new Map(mediaList.map((m: any) => [m.id, m]));
 
+    // Modo de calendario: "organization" = un calendario compartido + cupo por
+    // toda la org; "individual" (default) = calendario del asesor responsable.
+    const calMode: "organization" | "individual" = cfg.calendar_mode === "organization" ? "organization" : "individual";
     const advisorUserId = cfg.appointments_enabled
-      ? await resolveAdvisor(supabase, organization_id, contact_id)
+      ? await resolveAdvisor(supabase, organization_id, contact_id, calMode)
       : null;
     const canBook = !!(cfg.appointments_enabled && advisorUserId);
 
@@ -525,10 +528,11 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
         let resultText = "";
         try {
           if (b.name === "check_availability") {
-            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity, cfg.appointment_slot_interval_min || null);
+            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity, cfg.appointment_slot_interval_min || null, { orgId: organization_id, orgWide: calMode === "organization" });
           } else if (b.name === "book_appointment") {
             resultText = await bookAppointment(supabase, {
               organization_id, advisorUserId: advisorUserId!, contact_id,
+              orgWide: calMode === "organization",
               slotCap: cfg.appointment_slot_capacity,
               durationMin: cfg.appointment_duration_min || 30,
               workingHours: cfg.working_hours,
@@ -676,31 +680,40 @@ async function markEscalated(
 
 // Pick whose Google Calendar to book into: the contact's assigned advisor if
 // they connected Google Calendar, otherwise any org member (owner first) who has.
-async function resolveAdvisor(supabase: any, orgId: string, contactId: string | null): Promise<string | null> {
+async function resolveAdvisor(supabase: any, orgId: string, contactId: string | null, mode: "organization" | "individual" = "individual"): Promise<string | null> {
   const hasToken = async (uid: string | null): Promise<boolean> => {
     if (!uid) return false;
     const { data } = await supabase.from("google_calendar_tokens").select("user_id").eq("user_id", uid).maybeSingle();
     return !!data;
   };
 
-  // 1. The contact's assigned owner
+  // El calendario compartido de la org = primer miembro con calendario conectado
+  // (owner/admin primero). Se usa siempre en modo organización, y como fallback
+  // en modo individual cuando el dueño del lead no tiene calendario.
+  const sharedCalendar = async (): Promise<string | null> => {
+    const { data: members } = await supabase
+      .from("organization_members").select("user_id, role").eq("organization_id", orgId);
+    if (!members?.length) return null;
+    const ordered = [...members].sort((a: any, b: any) => {
+      const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : 2);
+      return rank(a.role) - rank(b.role);
+    });
+    for (const m of ordered) {
+      if (await hasToken(m.user_id)) return m.user_id;
+    }
+    return null;
+  };
+
+  // Modo organización: todos comparten UN calendario, sin importar el dueño.
+  if (mode === "organization") return await sharedCalendar();
+
+  // Modo individual: agenda con el asesor RESPONSABLE del lead (owner_id); si no
+  // tiene calendario conectado, cae al calendario compartido (round-robin básico).
   if (contactId) {
     const { data: c } = await supabase.from("contacts").select("owner_id").eq("id", contactId).maybeSingle();
     if (c?.owner_id && await hasToken(c.owner_id)) return c.owner_id;
   }
-
-  // 2. Fallback: any org member with a connected calendar (owner/admin first)
-  const { data: members } = await supabase
-    .from("organization_members").select("user_id, role").eq("organization_id", orgId);
-  if (!members?.length) return null;
-  const ordered = [...members].sort((a: any, b: any) => {
-    const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : 2);
-    return rank(a.role) - rank(b.role);
-  });
-  for (const m of ordered) {
-    if (await hasToken(m.user_id)) return m.user_id;
-  }
-  return null;
+  return await sharedCalendar();
 }
 
 const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -764,18 +777,26 @@ function slotCapacity(slotStartMs: number, cap: any): number {
 }
 
 // Count the org's own CONFIRMED meetings that overlap a slot for this advisor.
-async function crmBookedCount(supabase: any, advisorUserId: string, slotStartMs: number, slotEndMs: number): Promise<number> {
-  const { data } = await supabase.from("meetings")
+// Cuenta citas ya agendadas que solapan la franja. En modo "organización" el
+// cupo es compartido por toda la org (cuenta todas las citas de la org); en
+// modo "individual" cuenta solo las del asesor.
+async function crmBookedCount(
+  supabase: any,
+  opts: { advisorUserId: string; orgId?: string | null; orgWide?: boolean },
+  slotStartMs: number, slotEndMs: number,
+): Promise<number> {
+  let q = supabase.from("meetings")
     .select("id")
-    .eq("advisor_id", advisorUserId)
     .in("status", ["scheduled", "confirmed"])
     .gte("start_at", new Date(slotStartMs - 60000).toISOString())
     .lt("start_at", new Date(slotEndMs).toISOString());
+  q = opts.orgWide && opts.orgId ? q.eq("organization_id", opts.orgId) : q.eq("advisor_id", opts.advisorUserId);
+  const { data } = await q;
   return (data || []).length;
 }
 
 // Compute the real free slots for a day: working hours minus Google-busy minus past.
-async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any, intervalMin?: number | null): Promise<string> {
+async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any, intervalMin?: number | null, capOpts?: { orgId?: string | null; orgWide?: boolean }): Promise<string> {
   const m = (dateIso || "").match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "Fecha inválida. Usa formato YYYY-MM-DD.";
   const [_, y, mo, d] = m.map(Number) as unknown as number[];
@@ -804,7 +825,7 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
     const googleBusy = busyMs.some(([bs, be]) => overlaps(t, t + durMs, bs, be));
     // occupied = our own concurrent CRM meetings; if none but Google shows busy,
     // it's an external event taking 1 unit. Free when occupied < capacity.
-    const crm = await crmBookedCount(supabase, advisorUserId, t, t + durMs);
+    const crm = await crmBookedCount(supabase, { advisorUserId, orgId: capOpts?.orgId, orgWide: capOpts?.orgWide }, t, t + durMs);
     const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
     if (occupied >= cap) continue;
     // Label in Bogota HH:mm
@@ -820,11 +841,11 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
 async function bookAppointment(
   supabase: any,
   args: {
-    organization_id: string; advisorUserId: string; contact_id: string | null;
+    organization_id: string; advisorUserId: string; contact_id: string | null; orgWide?: boolean;
     durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any; slotCap?: any;
   },
 ): Promise<string> {
-  const { organization_id, advisorUserId, contact_id, durationMin, workingHours, defaultAddress, modality, requiresPayment, input, slotCap } = args;
+  const { organization_id, advisorUserId, contact_id, orgWide, durationMin, workingHours, defaultAddress, modality, requiresPayment, input, slotCap } = args;
 
   // Paid appointments: never book until the client confirmed payment.
   if (requiresPayment && !input?.payment_confirmed) {
@@ -859,7 +880,7 @@ async function bookAppointment(
   const cap = slotCapacity(startUtc.getTime(), slotCap);
   const busy = await fetchBusy(advisorUserId, startUtc.toISOString(), endUtc.toISOString());
   const googleBusy = busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()));
-  const crm = await crmBookedCount(supabase, advisorUserId, startUtc.getTime(), endUtc.getTime());
+  const crm = await crmBookedCount(supabase, { advisorUserId, orgId: organization_id, orgWide }, startUtc.getTime(), endUtc.getTime());
   const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
   if (occupied >= cap) {
     return "Esa hora ya está llena (sin cupos disponibles). Usa check_availability para ofrecer otra hora libre.";
