@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   try {
-    const { organization_id, user_id, days = 7, dry_run = false } = await req.json();
+    const { organization_id, user_id, days = 7, dry_run = false, from_iso, to_iso } = await req.json();
     if (!organization_id || !user_id) return json({ error: "organization_id y user_id son obligatorios" }, 400);
 
     const { data: tok } = await supabase
@@ -52,8 +52,15 @@ Deno.serve(async (req) => {
     if (!accessToken) return json({ error: "No se pudo refrescar el token de Google" }, 500);
 
     const calId = tok.calendar_id || "primary";
-    const timeMin = new Date(); timeMin.setHours(0, 0, 0, 0);
-    const timeMax = new Date(timeMin.getTime() + days * 86_400_000);
+    // Rango explícito (from_iso/to_iso) o, por defecto, de hoy hacia adelante.
+    let timeMin: Date, timeMax: Date;
+    if (from_iso && to_iso) {
+      timeMin = new Date(from_iso);
+      timeMax = new Date(to_iso);
+    } else {
+      timeMin = new Date(); timeMin.setHours(0, 0, 0, 0);
+      timeMax = new Date(timeMin.getTime() + days * 86_400_000);
+    }
 
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?` +
       new URLSearchParams({
