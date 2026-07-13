@@ -386,6 +386,9 @@ Deno.serve(async (req) => {
           .select("*")
           .single();
         if (error) return json({ error: error.message }, 500);
+        // Lead existente que vuelve a registrarse por la API → reactivar (subir al
+        // inicio del pipeline). No toca leads ya ganados.
+        await admin.rpc("reactivate_contact_pipeline", { p_contact_id: matchId as string, p_source: "public_api", p_detail: "Volvió a registrarse por la API." }).then(() => {}, () => {});
         return json({ data, created: false }, 200);
       }
     }

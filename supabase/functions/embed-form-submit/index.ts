@@ -105,6 +105,9 @@ Deno.serve(async (req) => {
       }
       for (const utm of UTM_FIELDS) if (contactData[utm]) patch[utm] = contactData[utm]; // latest attribution
       if (Object.keys(patch).length) await supabase.from("contacts").update(patch).eq("id", contactId);
+      // Lead existente que vuelve a registrarse → reactivar (subir al inicio del
+      // pipeline). No toca leads ya ganados.
+      await supabase.rpc("reactivate_contact_pipeline", { p_contact_id: contactId, p_source: "embed_form", p_detail: "Volvió a registrarse por un formulario." }).then(() => {}, () => {});
     } else {
       const { data: created, error: createErr } = await supabase
         .from("contacts").insert(contactData).select("id").single();

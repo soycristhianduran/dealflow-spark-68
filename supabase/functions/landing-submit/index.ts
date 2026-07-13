@@ -169,6 +169,9 @@ Deno.serve(async (req) => {
         if (Object.keys(patch).length) {
           await supabase.from("contacts").update(patch).eq("id", contactId);
         }
+        // Lead existente que vuelve a registrarse → reactivar (subir al inicio del
+        // pipeline) para que no se pierda. No toca leads ya ganados.
+        await supabase.rpc("reactivate_contact_pipeline", { p_contact_id: contactId, p_source: "landing_form", p_detail: "Volvió a registrarse por una landing." }).then(() => {}, () => {});
       }
     }
 

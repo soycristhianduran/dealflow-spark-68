@@ -435,37 +435,14 @@ async function processLeadgenLead(
       if (patchErr) console.warn("Could not patch existing contact:", patchErr.message);
     }
 
-    // ── Re-assign to pipeline/stage (treat as fresh lead) ─────────────────
-    const { data: pipeline } = formConfig?.pipeline_id
-      ? await supabase.from("pipelines").select("id").eq("id", formConfig.pipeline_id).maybeSingle()
-      : await supabase.from("pipelines").select("id").eq("organization_id", organizationId).order("created_at", { ascending: true }).limit(1).maybeSingle();
-
-    if (pipeline) {
-      const { data: stage } = await supabase
-        .from("pipeline_stages")
-        .select("id")
-        .eq("pipeline_id", pipeline.id)
-        .order("order", { ascending: true })
-        .limit(1)
-        .maybeSingle();
-
-      if (stage) {
-        const { error: reassignErr } = await supabase.from("contacts")
-          .update({ pipeline_id: pipeline.id, stage_id: stage.id, lead_status: "active" })
-          .eq("id", existingContactId);
-        if (reassignErr) console.warn("Could not re-assign pipeline:", reassignErr.message);
-      }
-    }
-
-    // ── Log activity with context: returning lead, new form submission ─────
-    const { error: actErr } = await supabase.from("activities").insert({
-      related_entity_type: "contact",
-      related_entity_id: existingContactId,
-      event_type: "note",
-      event_source: "facebook_lead_form",
-      summary: `🔁 Lead existente volvió a interactuar — nuevo formulario de Meta\nFormulario: ${formId} · Lead ID: ${leadgenId}\nContacto reactivado como nueva oportunidad.`,
-    });
-    if (actErr) console.warn("Could not log re-activation activity:", actErr.message);
+    // ── Reactivación centralizada (misma regla SaaS que los demás canales):
+    // sube al inicio del pipeline y registra actividad. No toca leads ya ganados.
+    await supabase.rpc("reactivate_contact_pipeline", {
+      p_contact_id: existingContactId,
+      p_source: "facebook_lead_form",
+      p_detail: `Nuevo formulario de Meta · Formulario: ${formId} · Lead ID: ${leadgenId}`,
+      p_pipeline_id: formConfig?.pipeline_id ?? null,
+    }).then(() => {}, () => {});
 
     // ── Fire automations via the runner (org-scoped trigger_event) ──────────
     await fireMetaLeadAutomations(supabase, existingContactId, formId, pageId);
