@@ -256,7 +256,9 @@ export default function ConversationsPage() {
     channelKey: `conv-page-wa-${user?.id || "anon"}`,
     onChange: () => wa.fetchConversations(),
     enabled: !!user,
-    debounceMs: 1500,
+    // 600ms: reacciona rápido al mensaje nuevo pero aún agrupa ráfagas (con el
+    // índice compuesto la recarga es barata). Antes 1500ms se sentía lento.
+    debounceMs: 600,
   });
   useRealtimeRefresh({
     table: "instagram_conversations",
