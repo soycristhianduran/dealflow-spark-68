@@ -1235,15 +1235,22 @@ Deno.serve(async (req) => {
         .neq("waba_id", config.waba_id);
 
       console.log("Fetching templates for WABA:", config.waba_id);
-      const res = await fetch(
-        `${GRAPH_API}/${config.waba_id}/message_templates?fields=id,name,status,category,language,components,rejected_reason,quality_score&limit=100&access_token=${config.access_token}`
-      );
-      const data = await res.json();
-      console.log("Meta list_templates response:", JSON.stringify(data).substring(0, 500));
-      if (data.error) throw new Error(`Meta error ${data.error.code}: ${data.error.message}`);
+      // Traer TODAS las plantillas (paginado) para poder reconciliar borrados.
+      const templates: any[] = [];
+      let nextUrl: string | null =
+        `${GRAPH_API}/${config.waba_id}/message_templates?fields=id,name,status,category,language,components,rejected_reason,quality_score&limit=100&access_token=${config.access_token}`;
+      let pageGuard = 0;
+      while (nextUrl && pageGuard < 20) {
+        pageGuard++;
+        const res: Response = await fetch(nextUrl);
+        const data = await res.json();
+        if (data.error) throw new Error(`Meta error ${data.error.code}: ${data.error.message}`);
+        for (const t of (data.data || [])) templates.push(t);
+        nextUrl = data.paging?.next ?? null;
+      }
+      console.log(`Meta returned ${templates.length} templates for WABA ${config.waba_id}`);
 
       // Sync to local DB
-      const templates = data.data || [];
       for (const t of templates) {
         const header = t.components?.find((c: any) => c.type === "HEADER");
         const bodyComp = t.components?.find((c: any) => c.type === "BODY");
@@ -1332,6 +1339,19 @@ Deno.serve(async (req) => {
           updated_at: new Date().toISOString(),
         }, { onConflict: "user_id,name,language" });
       }
+
+      // Reconciliar borrados: quitar de la BD las plantillas de ESTA WABA que ya
+      // no existen en Meta (borradas en Meta o desde aquí). Sin esto, las
+      // eliminadas seguían apareciendo al sincronizar.
+      const liveNames = templates.map((t: any) => t.name).filter(Boolean);
+      let delQ = supabase
+        .from("whatsapp_templates")
+        .delete()
+        .eq("waba_id", config.waba_id);
+      delQ = orgId ? delQ.eq("organization_id", orgId) : delQ.eq("user_id", user.id);
+      if (liveNames.length) delQ = delQ.not("name", "in", `(${liveNames.map((n: string) => `"${n.replace(/"/g, '')}"`).join(",")})`);
+      const { error: delErr } = await delQ;
+      if (delErr) console.warn("Reconcile delete templates error:", delErr.message);
 
       return new Response(JSON.stringify({ templates }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
