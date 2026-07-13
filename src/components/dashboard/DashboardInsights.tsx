@@ -248,7 +248,7 @@ function Sparkline({ data, dates }: { data: number[]; dates?: string[] }) {
 
 export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, periodLabel = "30 días" }: { stageData?: StageDatum[]; isOwner: boolean; vendorId: string | null; periodStart?: string; periodEnd?: string; periodLabel?: string }) {
   const { t } = useTranslation();
-  const { organizationId, defaultCurrency } = useOrganizationContext();
+  const { organizationId, defaultCurrency, vendorConversionBase } = useOrganizationContext();
   const { path } = useWorkspace();
   const fmtMoney = (n: number) => formatMoney(n, defaultCurrency, { compact: true });
   const [data, setData] = useState<Insights | null>(null);
@@ -537,7 +537,13 @@ export function DashboardInsights({ isOwner, vendorId, periodStart, periodEnd, p
                     <span className="text-center"><b className="block text-foreground text-xs">{v.citas}</b>{t("dashboardInsights.appointments")}</span>
                     <span className="text-center"><b className="block text-emerald-600 dark:text-emerald-400 text-xs">{v.cierres}</b>{t("dashboardInsights.won")}</span>
                     <span className="text-center"><b className="block text-red-500 text-xs">{v.perdidos ?? 0}</b>{t("dashboardInsights.lost")}</span>
-                    <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{v.citas > 0 ? `${Math.round((v.cierres / v.citas) * 100)}%` : "—"}</b>{t("dashboardInsights.convAbbr")}</span>
+                    {/* Conversión: base configurable por org — ganados/citas (appointments)
+                        o ganados/leads. */}
+                    {(() => {
+                      const base = vendorConversionBase === "appointments" ? v.citas : v.leads;
+                      const pct = base > 0 ? `${Math.round((v.cierres / base) * 100)}%` : "—";
+                      return <span className="text-center"><b className="block text-blue-600 dark:text-blue-400 text-xs">{pct}</b>{t("dashboardInsights.convAbbr")}</span>;
+                    })()}
                     <span className="text-center"><b className="block text-foreground text-xs">{v.revenue > 0 ? fmtMoney(v.revenue) : "—"}</b>{t("dashboardInsights.sales")}</span>
                   </div>
                 </div>

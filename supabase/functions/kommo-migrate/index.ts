@@ -148,6 +148,134 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── RECONCILE STATUS (alinear UNA etapa: Kommo → Klosify) ─────────────────
+    if (action === "reconcile_status") {
+      const orgId: string = body.organization_id;
+      const statusNameQuery = String(body.status_name || "").toLowerCase();
+      const apply: boolean = body.apply === true; // por defecto solo reporta
+      if (!orgId || !statusNameQuery) return json({ error: "organization_id y status_name requeridos" }, 400);
+
+      // Etapa destino en Klosify.
+      const { data: pipeline } = await supabase.from("pipelines").select("id")
+        .eq("organization_id", orgId).order("created_at").limit(1).maybeSingle();
+      if (!pipeline) return json({ error: "org sin pipeline" }, 400);
+      const { data: stages } = await supabase.from("pipeline_stages").select("id, name").eq("pipeline_id", pipeline.id);
+      const target = (stages ?? []).find((s: any) => String(s.name).toLowerCase().includes(statusNameQuery));
+      if (!target) return json({ error: `No hay etapa en Klosify que coincida con "${statusNameQuery}"` }, 400);
+
+      // Estados de Kommo que coinciden con el nombre.
+      const pipes = await kommo("/leads/pipelines");
+      const kStatuses: { pipeline_id: number; status_id: number }[] = [];
+      for (const p of pipes?._embedded?.pipelines ?? [])
+        for (const s of p._embedded?.statuses ?? [])
+          if (String(s.name).toLowerCase().includes(statusNameQuery)) kStatuses.push({ pipeline_id: p.id, status_id: s.id });
+
+      // Mapa kommo_lead_id → {contactId, stage_id} en Klosify.
+      const kidTo = new Map<string, { id: string; stage_id: string | null }>();
+      { let pg = 0; const PAGE = 1000;
+        for (;;) {
+          const { data } = await supabase.from("contacts").select("id, stage_id, custom_fields")
+            .eq("organization_id", orgId).not("custom_fields->kommo_lead_id", "is", null)
+            .range(pg * PAGE, pg * PAGE + PAGE - 1);
+          if (!data?.length) break;
+          for (const c of data) { const kid = (c.custom_fields as any)?.kommo_lead_id; if (kid) kidTo.set(String(kid), { id: c.id, stage_id: c.stage_id }); }
+          if (data.length < PAGE) break; pg++;
+        }
+      }
+
+      const ownerRow = await supabase.from("organization_members").select("user_id").eq("organization_id", orgId).eq("role", "owner").limit(1).maybeSingle();
+      const defOwner = ownerRow.data?.user_id ?? null;
+
+      let ok = 0, movidos = 0, creados = 0, sinContacto = 0, total = 0;
+      const toCreate: any[] = [];
+      const sampleMissing: any[] = [];
+      const sampleMoved: any[] = [];
+
+      for (const ks of kStatuses) {
+        for (let page = 1; page < 200; page++) {
+          const data = await kommo(`/leads?filter[statuses][0][pipeline_id]=${ks.pipeline_id}&filter[statuses][0][status_id]=${ks.status_id}&with=contacts&limit=250&page=${page}`);
+          const leads: any[] = data?._embedded?.leads ?? [];
+          if (!leads.length) break;
+          for (const lead of leads) {
+            total++;
+            const kid = String(lead.id);
+            const match = kidTo.get(kid);
+            if (match) {
+              if (match.stage_id === target.id) { ok++; }
+              else {
+                movidos++;
+                if (sampleMoved.length < 8) sampleMoved.push({ kid, name: lead.name });
+                if (apply) await supabase.from("contacts").update({ stage_id: target.id, pipeline_id: pipeline.id }).eq("id", match.id).eq("organization_id", orgId);
+              }
+            } else {
+              // No está en Klosify → traer datos de contacto para crearlo en la etapa.
+              let phone: string | null = null, email: string | null = null, name: string | null = null;
+              const cRef = lead._embedded?.contacts?.[0];
+              if (cRef?.id) {
+                const kc = await kommo(`/contacts/${cRef.id}`);
+                name = kc?.name ?? null;
+                for (const f of kc?.custom_fields_values ?? []) {
+                  const code = (f.field_code || "").toUpperCase(); const val = f.values?.[0]?.value;
+                  if (code === "PHONE" && val && !phone) phone = String(val);
+                  if (code === "EMAIL" && val && !email) email = String(val);
+                }
+              }
+              if (!phone && !email) { sinContacto++; continue; }
+              creados++;
+              if (sampleMissing.length < 8) sampleMissing.push({ kid, name: name || lead.name, phone });
+              if (apply) {
+                const parts = (name || lead.name || "Lead Kommo").trim().split(/\s+/);
+                toCreate.push({
+                  organization_id: orgId, owner_id: defOwner,
+                  first_name: parts[0] || null, last_name: parts.slice(1).join(" ") || null,
+                  full_name: name || lead.name || "Lead Kommo",
+                  primary_phone: phone, primary_email: email, source: "kommo", status: "new",
+                  stage_id: target.id, pipeline_id: pipeline.id,
+                  custom_fields: { kommo_lead_id: kid },
+                });
+              }
+            }
+          }
+          if (leads.length < 250) break;
+        }
+      }
+      if (apply && toCreate.length) {
+        for (let i = 0; i < toCreate.length; i += 200) {
+          await supabase.from("contacts").insert(toCreate.slice(i, i + 200));
+        }
+      }
+      return json({
+        apply, klosify_stage: target.name, kommo_total_en_etapa: total,
+        ya_ok: ok, movidos_de_etapa: movidos, creados_faltantes: creados, sin_telefono_email: sinContacto,
+        sample_moved: sampleMoved, sample_missing: sampleMissing,
+      });
+    }
+
+    // ── COUNT STATUS (leads en un estado, opcional por rango de fecha) ────────
+    if (action === "count_status") {
+      const statusNameQuery = String(body.status_name || "").toLowerCase();
+      const fromDays: number | null = body.from_days != null ? Number(body.from_days) : null;
+      const fromSec = fromDays != null ? Math.floor(Date.now() / 1000) - fromDays * 86400 : null;
+      const pipes = await kommo("/leads/pipelines");
+      const matches: { pipeline_id: number; status_id: number; name: string }[] = [];
+      for (const p of pipes?._embedded?.pipelines ?? [])
+        for (const s of p._embedded?.statuses ?? [])
+          if (String(s.name).toLowerCase().includes(statusNameQuery)) matches.push({ pipeline_id: p.id, status_id: s.id, name: s.name });
+      const results: any[] = [];
+      for (const m of matches) {
+        let total = 0, page = 1;
+        for (; page < 200; page++) {
+          const dateF = fromSec != null ? `&filter[created_at][from]=${fromSec}` : "";
+          const data = await kommo(`/leads?filter[statuses][0][pipeline_id]=${m.pipeline_id}&filter[statuses][0][status_id]=${m.status_id}${dateF}&limit=250&page=${page}`);
+          const arr = data?._embedded?.leads ?? [];
+          total += arr.length;
+          if (arr.length < 250) break;
+        }
+        results.push({ pipeline: m.name, status_id: m.status_id, count: total, from_days: fromDays });
+      }
+      return json({ status_query: statusNameQuery, results });
+    }
+
     // ── MIGRATE TIMELINE (eventos de Kommo → activities del contacto) ─────────
     if (action === "migrate_timeline") {
       const orgId: string = body.organization_id;

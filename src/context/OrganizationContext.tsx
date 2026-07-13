@@ -14,6 +14,8 @@ interface OrganizationContextType {
   defaultLeadVisibility: PermLevel | null;
   /** Alcance del calendario: "organization" = todos ven todo; "individual" = cada quien el suyo. */
   calendarScope: "organization" | "individual";
+  /** Base del % de conversión por vendedor: "appointments" = ganados/citas; "leads" = ganados/leads. */
+  vendorConversionBase: "appointments" | "leads";
   /** Org's default currency for lead budgets (e.g. "COP"). Falls back to "USD". */
   defaultCurrency: string;
   /** Org's configured IANA timezone (e.g. "America/Bogota"). Falls back to the browser tz. */
@@ -31,6 +33,7 @@ const OrganizationContext = createContext<OrganizationContextType>({
   permissions: null,
   defaultLeadVisibility: null,
   calendarScope: "individual",
+  vendorConversionBase: "leads",
   defaultCurrency: "USD",
   timezone: typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC",
   loading: true,
@@ -50,16 +53,18 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   const [permissions, setPermissions] = useState<MemberPermissions | null>(null);
   const [defaultLeadVisibility, setDefaultLeadVisibility] = useState<PermLevel | null>(null);
   const [calendarScope, setCalendarScope] = useState<"organization" | "individual">("individual");
+  const [vendorConversionBase, setVendorConversionBase] = useState<"appointments" | "leads">("leads");
 
   useEffect(() => {
-    if (!orgState.organizationId) { setDefaultCurrency("USD"); setCalendarScope("individual"); return; }
+    if (!orgState.organizationId) { setDefaultCurrency("USD"); setCalendarScope("individual"); setVendorConversionBase("leads"); return; }
     let active = true;
-    supabase.from("organizations").select("default_currency, timezone, calendar_scope").eq("id", orgState.organizationId).maybeSingle()
+    supabase.from("organizations").select("default_currency, timezone, calendar_scope, vendor_conversion_base").eq("id", orgState.organizationId).maybeSingle()
       .then(({ data }) => {
         if (!active) return;
         if (data?.default_currency) setDefaultCurrency(data.default_currency);
         if (data?.timezone) setTimezone(data.timezone);
         setCalendarScope((data as any)?.calendar_scope === "organization" ? "organization" : "individual");
+        setVendorConversionBase((data as any)?.vendor_conversion_base === "appointments" ? "appointments" : "leads");
       });
     return () => { active = false; };
   }, [orgState.organizationId]);
@@ -107,7 +112,7 @@ export function OrganizationProvider({ children }: { children: React.ReactNode }
   }
 
   return (
-    <OrganizationContext.Provider value={{ ...orgState, permissions, defaultLeadVisibility, calendarScope, defaultCurrency, timezone }}>
+    <OrganizationContext.Provider value={{ ...orgState, permissions, defaultLeadVisibility, calendarScope, vendorConversionBase, defaultCurrency, timezone }}>
       {children}
     </OrganizationContext.Provider>
   );
