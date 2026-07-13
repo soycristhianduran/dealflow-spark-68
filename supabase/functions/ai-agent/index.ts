@@ -691,8 +691,12 @@ async function resolveAdvisor(supabase: any, orgId: string, contactId: string | 
   // (owner/admin primero). Se usa siempre en modo organización, y como fallback
   // en modo individual cuando el dueño del lead no tiene calendario.
   const sharedCalendar = async (): Promise<string | null> => {
-    const { data: members } = await supabase
+    const { data: allMembers } = await supabase
       .from("organization_members").select("user_id, role").eq("organization_id", orgId);
+    // AISLAMIENTO ENTRE ORGS: el rol 'gestor' es staff de la agencia/plataforma
+    // (multi-org). Su calendario personal NUNCA debe usarse como calendario de una
+    // org que administra — evita cruzar disponibilidad/citas entre organizaciones.
+    const members = (allMembers ?? []).filter((m: any) => m.role !== "gestor");
     if (!members?.length) return null;
     const ordered = [...members].sort((a: any, b: any) => {
       const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : 2);
@@ -711,7 +715,12 @@ async function resolveAdvisor(supabase: any, orgId: string, contactId: string | 
   // tiene calendario conectado, cae al calendario compartido (round-robin básico).
   if (contactId) {
     const { data: c } = await supabase.from("contacts").select("owner_id").eq("id", contactId).maybeSingle();
-    if (c?.owner_id && await hasToken(c.owner_id)) return c.owner_id;
+    if (c?.owner_id && await hasToken(c.owner_id)) {
+      // Aislamiento: nunca usar el calendario del dueño si es gestor de esta org.
+      const { data: om } = await supabase.from("organization_members")
+        .select("role").eq("organization_id", orgId).eq("user_id", c.owner_id).maybeSingle();
+      if (om?.role !== "gestor") return c.owner_id;
+    }
   }
   return await sharedCalendar();
 }

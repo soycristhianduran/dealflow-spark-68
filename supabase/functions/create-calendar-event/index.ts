@@ -44,10 +44,13 @@ function json(data: unknown, status = 200) {
 // (owner/admin primero). Se usa en modo "calendario global" para que TODOS los
 // eventos (agente y manuales) vivan en el mismo calendario.
 async function resolveSharedCalendarOwner(supabase: any, orgId: string): Promise<string | null> {
-  const { data: members } = await supabase
+  const { data: allMembers } = await supabase
     .from("organization_members").select("user_id, role").eq("organization_id", orgId);
+  // AISLAMIENTO ENTRE ORGS: excluir 'gestor' (staff multi-org). Su calendario
+  // personal nunca es el calendario de una org que administra.
+  const members = (allMembers ?? []).filter((m: any) => m.role !== "gestor");
   if (!members?.length) return null;
-  const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : r === "gestor" ? 2 : 3);
+  const rank = (r: string) => (r === "owner" ? 0 : r === "admin" ? 1 : 3);
   const ordered = [...members].sort((a: any, b: any) => rank(a.role) - rank(b.role));
   for (const m of ordered) {
     const { data } = await supabase.from("google_calendar_tokens").select("user_id").eq("user_id", m.user_id).maybeSingle();
