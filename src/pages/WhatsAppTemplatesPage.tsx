@@ -174,6 +174,13 @@ function MediaUploader({
           toast.error(t("whatsAppTemplatesPage.videoHevcBlocked"), { duration: 12000 });
           return;
         }
+        // Bloquear contenedor QuickTime (major brand "qt  ", típico de .mov de
+        // iPhone/Mac). WhatsApp lo procesa como octet-stream y falla al ENVIAR
+        // con 131053, aunque el códec sea H.264. Debe exportarse como MP4.
+        if (head.slice(0, 64).includes("ftypqt") || file.name.toLowerCase().endsWith(".mov")) {
+          toast.error(t("whatsAppTemplatesPage.videoQuicktimeBlocked"), { duration: 12000 });
+          return;
+        }
       } catch { /* detection failed → allow upload, don't block legit files */ }
     }
     onUpload(file);

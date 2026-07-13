@@ -2408,6 +2408,7 @@
     "dropFileHere": "Haz clic o arrastra tu {{label}} aquí",
     "maxSize": "máx. {{maxMb}}MB",
     "videoHevcBlocked": "Este video está en HEVC (H.265) y WhatsApp NO lo acepta — el envío fallaría. Conviértelo a H.264: en iPhone, Ajustes → Cámara → Formatos → \"Más compatible\", o expórtalo en H.264, y vuelve a subirlo.",
+    "videoQuicktimeBlocked": "Este video está en formato QuickTime (.mov, típico de iPhone/Mac) y WhatsApp lo rechaza al enviar. Expórtalo como MP4 (H.264): desde tu editor elige \"Exportar → MP4\", o convierte el .mov a .mp4, y vuelve a subirlo.",
     "videoCodecTitle": "El video debe estar en H.264 (no HEVC).",
     "videoCodecHint": "WhatsApp rechaza videos HEVC/H.265 (formato \"Alta Eficiencia\" del iPhone). En tu iPhone: Ajustes → Cámara → Formatos → \"Más compatible\", o exporta el video en H.264. Máximo 16MB.",
     "removeFile": "Eliminar archivo",
