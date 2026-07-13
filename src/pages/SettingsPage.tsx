@@ -97,7 +97,7 @@ const editableRoles = [
 export default function SettingsPage() {
   const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
-  const { organizationId, organization } = useOrganizationContext();
+  const { organizationId, organization, defaultLeadVisibility } = useOrganizationContext();
 
   // Team state
   const [members, setMembers] = useState<OrgMember[]>([]);
@@ -747,6 +747,7 @@ export default function SettingsPage() {
               open={!!permsDialogFor}
               onOpenChange={(v) => { if (!v) setPermsDialogFor(null); }}
               organizationId={organizationId}
+              orgDefaultLeadView={defaultLeadVisibility}
               member={permsDialogFor ? { user_id: permsDialogFor.user_id, name: permsDialogFor.full_name || permsDialogFor.email, role: permsDialogFor.role, permissions: permsDialogFor.permissions } : null}
               onSaved={(userId, permissions) => setMembers(prev => prev.map(m => m.user_id === userId ? { ...m, permissions } : m))}
             />

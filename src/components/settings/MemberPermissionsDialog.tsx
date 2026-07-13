@@ -13,7 +13,7 @@ import { Loader2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  PERM_ENTITIES, PERM_ACTIONS, roleDefault,
+  PERM_ENTITIES, PERM_ACTIONS, effectiveLevel,
   type MemberPermissions, type PermEntity, type PermAction, type PermLevel,
 } from "@/lib/permissions";
 
@@ -21,6 +21,8 @@ interface Props {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   organizationId: string | null;
+  /** Default de leads de la org, para reflejar el "Ver" efectivo real. */
+  orgDefaultLeadView?: PermLevel | null;
   member: { user_id: string; name: string; role: string; permissions?: MemberPermissions | null } | null;
   onSaved: (userId: string, permissions: MemberPermissions) => void;
 }
@@ -28,7 +30,7 @@ interface Props {
 // Niveles disponibles según la acción (crear/exportar son binarios).
 const LEVELS_FULL: { value: PermLevel; label: string }[] = [
   { value: "none", label: "Denegado" },
-  { value: "own", label: "Solo si es responsable" },
+  { value: "own", label: "Si es responsable" },
   { value: "all", label: "Todo el equipo" },
 ];
 const LEVELS_BINARY: { value: PermLevel; label: string }[] = [
@@ -36,21 +38,27 @@ const LEVELS_BINARY: { value: PermLevel; label: string }[] = [
   { value: "all", label: "Permitido" },
 ];
 
-export function MemberPermissionsDialog({ open, onOpenChange, organizationId, member, onSaved }: Props) {
+export function MemberPermissionsDialog({ open, onOpenChange, organizationId, orgDefaultLeadView, member, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
 
-  // Estado inicial: override existente o, si no hay, los defaults del rol.
+  // Estado inicial: el nivel EFECTIVO real (override propio, o default de la org
+  // para leads.view, o default del rol). Así lo que ves es lo que el miembro
+  // realmente tiene, y guardar sin cambios no le quita accesos.
   const initial = useMemo<MemberPermissions>(() => {
     const base: MemberPermissions = {};
     for (const { key: entity } of PERM_ENTITIES) {
       const ent: Record<string, PermLevel> = {};
       for (const { key: action } of PERM_ACTIONS) {
-        ent[action] = member?.permissions?.[entity]?.[action] ?? roleDefault(member?.role ?? null, action);
+        ent[action] = effectiveLevel(entity, action, {
+          role: member?.role ?? null,
+          override: member?.permissions ?? null,
+          orgDefaultLeadView: orgDefaultLeadView ?? null,
+        });
       }
       base[entity] = ent;
     }
     return base;
-  }, [member]);
+  }, [member, orgDefaultLeadView]);
 
   const [perms, setPerms] = useState<MemberPermissions>(initial);
   // Re-sincroniza al abrir con otro miembro.
@@ -92,7 +100,7 @@ export function MemberPermissionsDialog({ open, onOpenChange, organizationId, me
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-primary" />
@@ -130,7 +138,7 @@ export function MemberPermissionsDialog({ open, onOpenChange, organizationId, me
                       return (
                         <td key={a.key} className="py-1.5 px-1">
                           <Select value={shown} onValueChange={v => setCell(ent.key, a.key, v as PermLevel)}>
-                            <SelectTrigger className="h-8 w-full min-w-[120px] text-xs"><SelectValue /></SelectTrigger>
+                            <SelectTrigger className="h-8 w-full min-w-[150px] text-xs"><SelectValue /></SelectTrigger>
                             <SelectContent>
                               {opts.map(o => <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>)}
                             </SelectContent>
