@@ -17,8 +17,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Search, Send, Loader2, RefreshCw, MailOpen, MessageCircle,
-  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye, UserPlus, Trash2,
+  Paperclip, Mic, X, FileText, AlertTriangle, AlertCircle, Bot, BotOff, ExternalLink, Eye, UserPlus, Trash2, CheckSquare,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -182,6 +183,51 @@ export default function ConversationsPage() {
     }
   };
   const [selected, setSelected] = useState<UnifiedConversation | null>(null);
+
+  // ── Selección múltiple para marcar leídas en masa ────────────────────────
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [markingSelected, setMarkingSelected] = useState(false);
+  const convKey = (c: UnifiedConversation) => `${c.channel}:${c.id}`;
+  const toggleSelect = useCallback((c: UnifiedConversation) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev); const k = convKey(c);
+      next.has(k) ? next.delete(k) : next.add(k);
+      return next;
+    });
+  }, []);
+  const exitSelection = () => { setSelectionMode(false); setSelectedIds(new Set()); };
+
+  const markSelectedRead = async () => {
+    if (markingSelected || selectedIds.size === 0) return;
+    setMarkingSelected(true);
+    try {
+      const waPhones: string[] = [], igIds: string[] = [], msIds: string[] = [];
+      for (const k of selectedIds) {
+        const [ch, ...rest] = k.split(":"); const id = rest.join(":");
+        if (ch === "whatsapp") waPhones.push(id);
+        else if (ch === "instagram") igIds.push(id);
+        else if (ch === "messenger") msIds.push(id);
+      }
+      const ops: Promise<any>[] = [];
+      if (waPhones.length) {
+        let q = supabase.from("whatsapp_messages").update({ read_at: new Date().toISOString() })
+          .eq("direction", "incoming").is("read_at", null).in("phone_number", waPhones);
+        q = organizationId ? q.eq("organization_id", organizationId) : q.eq("user_id", user!.id);
+        ops.push(q);
+      }
+      if (igIds.length) ops.push(supabase.from("instagram_conversations").update({ unread_count: 0 }).in("id", igIds));
+      if (msIds.length) ops.push(supabase.from("messenger_conversations").update({ unread_count: 0 }).in("id", msIds));
+      await Promise.all(ops);
+      toast.success(`${selectedIds.size} conversación(es) marcada(s) como leída(s) ✓`);
+      exitSelection();
+      wa.fetchConversations(); loadIgConversations(); loadMsConversations();
+    } catch (e: any) {
+      toast.error("No se pudo marcar como leídas: " + (e?.message || ""));
+    } finally {
+      setMarkingSelected(false);
+    }
+  };
 
   // AI Agent pause state per conversation key
   const [agentPaused, setAgentPaused] = useState<boolean>(false);
@@ -1006,12 +1052,36 @@ export default function ConversationsPage() {
                     </span>
                   </Button>
                 )}
+                {canEditConversations && (
+                  <Button variant={selectionMode ? "secondary" : "ghost"} size="sm" className="h-7 gap-1 px-2 text-xs"
+                    onClick={() => selectionMode ? exitSelection() : setSelectionMode(true)}
+                    title="Seleccionar varias conversaciones">
+                    <CheckSquare className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{selectionMode ? "Cancelar" : "Seleccionar"}</span>
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
                   onClick={() => { wa.fetchConversations(); loadIgConversations(); }}>
                   <RefreshCw className="h-3.5 w-3.5" />
                 </Button>
               </div>
             </div>
+            {selectionMode && (
+              <div className="flex items-center justify-between gap-2 rounded-lg bg-primary/5 border border-primary/20 px-2.5 py-1.5">
+                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <Checkbox
+                    checked={filtered.length > 0 && selectedIds.size >= filtered.length}
+                    onCheckedChange={(v) => setSelectedIds(v ? new Set(filtered.map(convKey)) : new Set())}
+                  />
+                  <span className="font-medium">{selectedIds.size > 0 ? `${selectedIds.size} seleccionada(s)` : "Seleccionar todas"}</span>
+                </label>
+                <Button size="sm" className="h-7 gap-1 px-2.5 text-xs"
+                  onClick={markSelectedRead} disabled={markingSelected || selectedIds.size === 0}>
+                  {markingSelected ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MailOpen className="h-3.5 w-3.5" />}
+                  Marcar como leídas
+                </Button>
+              </div>
+            )}
             <div className="flex gap-1 bg-muted rounded-lg p-0.5">
               <FilterTab active={channelFilter === "all"} onClick={() => setChannelFilter("all")}>
                 {t("conversationsPage.filterAll")} ({counts.total})
@@ -1056,8 +1126,11 @@ export default function ConversationsPage() {
                 key={`${conv.channel}-${conv.id}`}
                 conv={conv}
                 selected={selected?.channel === conv.channel && selected?.id === conv.id}
-                onClick={() => handleSelect(conv)}
+                onClick={() => selectionMode ? toggleSelect(conv) : handleSelect(conv)}
                 onMarkUnread={() => handleMarkUnread(conv)}
+                selectionMode={selectionMode}
+                checked={selectedIds.has(convKey(conv))}
+                onToggleCheck={() => toggleSelect(conv)}
               />
             ))}
           </ScrollArea>
@@ -1336,12 +1409,15 @@ function ChannelBadge({ channel }: { channel: Channel }) {
 }
 
 function ConvItem({
-  conv, selected, onClick, onMarkUnread,
+  conv, selected, onClick, onMarkUnread, selectionMode, checked, onToggleCheck,
 }: {
   conv: UnifiedConversation;
   selected: boolean;
   onClick: () => void;
   onMarkUnread: () => void;
+  selectionMode?: boolean;
+  checked?: boolean;
+  onToggleCheck?: () => void;
 }) {
   const { t } = useTranslation();
   const initials = conv.display_name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
@@ -1352,15 +1428,22 @@ function ConvItem({
     <div
       className={cn(
         "group relative w-full px-3 py-3 text-left transition-colors hover:bg-accent border-b border-border/50 cursor-pointer",
-        // Explicit 3-column grid: avatar (fixed) | content (flex) | action (fixed).
-        // Grid columns force the action button into its own reserved space so
-        // it can never be clipped or pushed off-screen by long preview text.
-        "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3",
+        // En modo selección se antepone la casilla; sin él, la grilla normal.
+        selectionMode ? "grid grid-cols-[24px_40px_minmax(0,1fr)_auto] items-center gap-3"
+                      : "grid grid-cols-[40px_minmax(0,1fr)_auto] items-center gap-3",
         selected && "bg-primary/5 border-l-2 border-l-primary",
+        selectionMode && checked && "bg-primary/10",
       )}
       onClick={onClick}
       onContextMenu={(e) => { e.preventDefault(); if (!isUnread) onMarkUnread(); }}
     >
+      {/* Col 0: checkbox (modo selección) */}
+      {selectionMode && (
+        <div onClick={(e) => { e.stopPropagation(); onToggleCheck?.(); }} className="flex items-center justify-center">
+          <Checkbox checked={!!checked} className="pointer-events-none" />
+        </div>
+      )}
+
       {/* Col 1: avatar */}
       <div className="relative h-10 w-10">
         {conv.avatar_url ? (
