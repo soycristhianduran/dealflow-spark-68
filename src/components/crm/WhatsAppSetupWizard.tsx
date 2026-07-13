@@ -73,6 +73,12 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   const [registerDialogOpen, setRegisterDialogOpen] = useState(false);
   const [registerPin, setRegisterPin] = useState("");
   const [registering, setRegistering] = useState(false);
+  // Re-verificación OTP (cuando Meta pide re-verificar el número, código 133006).
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [otpCode, setOtpCode] = useState("");
+  const [sendingCode, setSendingCode] = useState(false);
+  const [codeSent, setCodeSent] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   const handleResubscribeWebhook = async () => {
     setResubscribing(true);
@@ -97,10 +103,47 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
       toast.success(t("whatsAppSetupWizard.numberActivated"));
       setRegisterDialogOpen(false);
       setRegisterPin("");
+      setNeedsVerification(false); setCodeSent(false); setOtpCode("");
     } catch (e: any) {
-      toast.error(t("whatsAppSetupWizard.activateError") + e.message);
+      // Código 133006 = el número necesita re-verificación por OTP (vino de otra
+      // plataforma). Mostramos el paso de verificación en vez de un error seco.
+      if (/133006/.test(e.message || "")) {
+        setNeedsVerification(true);
+        toast.info("Este número necesita re-verificarse. Te enviamos un código.");
+      } else {
+        toast.error(t("whatsAppSetupWizard.activateError") + e.message);
+      }
     } finally {
       setRegistering(false);
+    }
+  };
+
+  const handleSendCode = async (method: "SMS" | "VOICE") => {
+    setSendingCode(true);
+    try {
+      await wa.requestVerificationCode?.(method);
+      setCodeSent(true);
+      toast.success(method === "SMS" ? "Código enviado por SMS al número." : "Te llamaremos con el código.");
+    } catch (e: any) {
+      toast.error("No se pudo enviar el código: " + e.message);
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!/^\d{6}$/.test(otpCode)) { toast.error("Ingresa el código de 6 dígitos."); return; }
+    setVerifying(true);
+    try {
+      await wa.verifyCode?.(otpCode);
+      toast.success("Número verificado. Activando…");
+      setNeedsVerification(false); setCodeSent(false); setOtpCode("");
+      // Reintenta el registro con el PIN automáticamente.
+      await handleRegisterPhone();
+    } catch (e: any) {
+      toast.error("Código incorrecto o expirado: " + e.message);
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -517,13 +560,50 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               />
               <p className="text-xs text-muted-foreground">{t("whatsAppSetupWizard.pinHelp")}</p>
             </div>
-            <Button
-              className="w-full"
-              onClick={handleRegisterPhone}
-              disabled={registering || registerPin.length !== 6}
-            >
-              {registering ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("whatsAppSetupWizard.activating")}</> : t("whatsAppSetupWizard.activateNumber")}
-            </Button>
+            {!needsVerification ? (
+              <Button
+                className="w-full"
+                onClick={handleRegisterPhone}
+                disabled={registering || registerPin.length !== 6}
+              >
+                {registering ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> {t("whatsAppSetupWizard.activating")}</> : t("whatsAppSetupWizard.activateNumber")}
+              </Button>
+            ) : (
+              /* Paso de re-verificación OTP (Meta código 133006) */
+              <div className="space-y-3 rounded-md border border-blue-200 bg-blue-50 dark:border-blue-900/50 dark:bg-blue-950/30 p-3">
+                <p className="text-xs text-blue-900 dark:text-blue-200 leading-relaxed">
+                  <span className="font-semibold">Este número necesita re-verificarse</span> porque venía de otra plataforma. Recibe un código en el número y confírmalo para activarlo.
+                </p>
+                {!codeSent ? (
+                  <div className="flex gap-2">
+                    <Button variant="outline" className="flex-1" disabled={sendingCode} onClick={() => handleSendCode("SMS")}>
+                      {sendingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Enviar por SMS"}
+                    </Button>
+                    <Button variant="outline" className="flex-1" disabled={sendingCode} onClick={() => handleSendCode("VOICE")}>
+                      {sendingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Llamada"}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      type="text" inputMode="numeric" maxLength={6}
+                      placeholder="Código de 6 dígitos"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      className="font-mono tracking-widest text-center text-lg"
+                    />
+                    <div className="flex gap-2">
+                      <Button variant="ghost" size="sm" disabled={sendingCode} onClick={() => { setCodeSent(false); setOtpCode(""); }}>
+                        Reenviar
+                      </Button>
+                      <Button className="flex-1" disabled={verifying || registering || otpCode.length !== 6} onClick={handleVerifyCode}>
+                        {(verifying || registering) ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Verificando…</> : "Verificar y activar"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
       if (ids.length === 1) orgId = ids[0] as string;
       else if (ids.length > 1) {
         // Ambiguous: refuse to guess for config-sensitive actions.
-        const CONFIG_SENSITIVE = ["send_template", "send_media", "upload_media", "upload_template_media", "create_template", "delete_template", "update_template", "check_webhook_app", "register_phone"];
+        const CONFIG_SENSITIVE = ["send_template", "send_media", "upload_media", "upload_template_media", "create_template", "delete_template", "update_template", "check_webhook_app", "register_phone", "request_verification_code", "verify_code"];
         if (CONFIG_SENSITIVE.includes(action)) {
           throw new Error("organization_id es obligatorio para esta acción (usuario multi-organización).");
         }
@@ -304,6 +304,40 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ success: true, healed, checked: unverified?.length ?? 0 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Re-verificación OTP del número (necesaria cuando el número viene de otra
+    // plataforma/BSP — Meta responde 133006 hasta que se verifica de nuevo).
+    if (action === "request_verification_code" || action === "verify_code") {
+      let vQ = supabase.from("whatsapp_configs").select("phone_number_id, access_token").eq("is_active", true);
+      vQ = orgId ? vQ.eq("organization_id", orgId) : vQ.eq("user_id", user.id);
+      const { data: vcfg } = await vQ.maybeSingle();
+      if (!vcfg?.phone_number_id || !vcfg?.access_token || vcfg.phone_number_id === "pending") {
+        throw new Error("Selecciona y guarda el número primero.");
+      }
+      if (action === "request_verification_code") {
+        const method = body.code_method === "VOICE" ? "VOICE" : "SMS";
+        const language = body.language || "es";
+        const res = await fetch(`${GRAPH_API}/${vcfg.phone_number_id}/request_code`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${vcfg.access_token}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ code_method: method, language }),
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(`Meta: ${data.error.message || "error"} (código ${data.error.code})`);
+        return new Response(JSON.stringify({ success: true, method }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      }
+      // verify_code
+      const code = String(body.code || "").replace(/\D/g, "");
+      if (code.length < 6) throw new Error("Ingresa el código de 6 dígitos que recibiste.");
+      const res = await fetch(`${GRAPH_API}/${vcfg.phone_number_id}/verify_code`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${vcfg.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(`Meta: ${data.error.message || "error"} (código ${data.error.code})`);
+      return new Response(JSON.stringify({ success: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     if (action === "register_phone") {
