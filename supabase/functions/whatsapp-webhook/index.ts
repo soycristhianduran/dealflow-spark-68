@@ -567,7 +567,10 @@ Deno.serve(async (req) => {
                     }),
                   });
                   const resumeJson = await resumeRes.json().catch(() => null);
-                  if (resumeJson?.resumed > 0) botHandledReply = true;
+                  // El agente solo se silencia si el flujo REALMENTE le respondió
+                  // al cliente. Si el botón solo disparó acciones internas (mover
+                  // etapa, tag), el agente debe responder ya en esta 1ª interacción.
+                  if (resumeJson?.resumed > 0 && resumeJson?.sent_message === true) botHandledReply = true;
                 } catch (e) {
                   console.warn("incoming_reply resume failed (non-fatal):", e);
                 }

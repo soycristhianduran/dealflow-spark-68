@@ -341,6 +341,7 @@ Deno.serve(async (req) => {
         .eq("contact_id", contact_id)
         .eq("status", "waiting_reply");
       let resumed = 0;
+      const msgTracker = { sent: false };
       for (const enr of waitingEnrs ?? []) {
         const td = { ...(enr.trigger_data ?? {}), reply: { text: String(reply_text ?? "") } };
         const stepsArr: any[] = enr.automations?.steps ?? [];
@@ -370,12 +371,12 @@ Deno.serve(async (req) => {
             await supabase.from("automation_enrollments").update({ status: "completed", completed_at: new Date().toISOString() }).eq("id", enr.id);
           } else {
             const fresh = { ...enr, status: "active", current_step_index: targetIndex, trigger_data: td };
-            try { await processEnrollment(fresh, supabase); } catch (e) { console.error("incoming_reply process error:", e); }
+            try { await processEnrollment(fresh, supabase, 0, msgTracker); } catch (e) { console.error("incoming_reply process error:", e); }
           }
           resumed++;
         }
       }
-      return new Response(JSON.stringify({ resumed }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ resumed, sent_message: msgTracker.sent }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     // Optional: manual enroll from UI (requires user JWT)
@@ -636,7 +637,11 @@ Deno.serve(async (req) => {
   }
 });
 
-async function processEnrollment(enr: any, supabase: any, depth = 0) {
+// msgTracker (opcional): cuando se pasa, marca sent=true si durante la ejecución
+// se envía algún mensaje al cliente (WhatsApp/email). Lo usa incoming_reply para
+// que el agente de IA solo se silencie si el flujo REALMENTE le respondió al
+// cliente (no cuando solo hace acciones internas como mover de etapa).
+async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?: { sent: boolean }) {
   // Safety bound: prevents an infinite loop if a condition step jumps backwards.
   if (depth > 50) {
     await supabase.from("automation_enrollments").update({
@@ -678,7 +683,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
     const nextEnr = { ...enr, status: "active", current_step_index: target };
     await supabase.from("automation_enrollments").update({ status: "active", current_step_index: target, next_run_at: new Date().toISOString() }).eq("id", enr.id);
-    try { await processEnrollment(nextEnr, supabase, depth + 1); } catch (_) {}
+    try { await processEnrollment(nextEnr, supabase, depth + 1, msgTracker); } catch (_) {}
     return;
   }
 
@@ -721,6 +726,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
 
     else if (step.type === "send_email") {
+      if (msgTracker) msgTracker.sent = true; // el flujo le responde al cliente
       const cfg = step.config || {};
       const subject = renderVars(cfg.subject || "", ctx);
       const html = renderVars(cfg.html_content || "", ctx);
@@ -779,6 +785,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
 
     else if (step.type === "send_whatsapp") {
+      if (msgTracker) msgTracker.sent = true; // el flujo le responde al cliente
       const cfg = step.config || {};
       // Look up primary WhatsApp config for this org (multi-number aware)
       const { data: waConfig } = await supabase
@@ -1117,6 +1124,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
 
     else if (step.type === "send_whatsapp_interactive") {
+      if (msgTracker) msgTracker.sent = true; // el flujo le responde al cliente
       const cfg = step.config || {};
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
@@ -1172,6 +1180,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
     }
 
     else if (step.type === "send_whatsapp_flow") {
+      if (msgTracker) msgTracker.sent = true; // el flujo le responde al cliente
       // Envía un WhatsApp Flow (formulario nativo) ya publicado en el WABA.
       const cfg = step.config || {};
       const { data: waConfig } = await supabase
@@ -1517,6 +1526,6 @@ async function processEnrollment(enr: any, supabase: any, depth = 0) {
   // instead of one-per-cron-tick (up to 5 min apart). Wait steps still pause.
   if (nextStatus === "active" && nextIndex < steps.length) {
     const nextEnr = { ...enr, current_step_index: nextIndex, logs };
-    await processEnrollment(nextEnr, supabase, depth + 1);
+    await processEnrollment(nextEnr, supabase, depth + 1, msgTracker);
   }
 }
