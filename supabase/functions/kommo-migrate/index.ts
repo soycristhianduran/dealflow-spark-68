@@ -148,6 +148,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── PROBE TRACKING (ver utm/campaña de un lead) ───────────────────────────
+    if (action === "probe_tracking") {
+      const ids: string[] = body.lead_ids || (body.lead_id ? [body.lead_id] : []);
+      const out: any[] = [];
+      for (const id of ids) {
+        const lead = await kommo(`/leads/${id}`);
+        const fields: Record<string, any> = {};
+        for (const f of lead?.custom_fields_values ?? []) {
+          const name = f.field_name || f.field_code || String(f.field_id);
+          fields[name] = (f.values ?? []).map((v: any) => v.value).join(" | ");
+        }
+        out.push({ lead_id: id, name: lead?.name, tracking: fields });
+      }
+      return json({ leads: out });
+    }
+
     // ── RECONCILE STATUS (alinear UNA etapa: Kommo → Klosify) ─────────────────
     if (action === "reconcile_status") {
       const orgId: string = body.organization_id;
