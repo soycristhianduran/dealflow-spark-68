@@ -258,6 +258,25 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 3.6 Etapa del pipeline: si la org lo configura, cuando el lead ya está en
+    // cierta etapa "en adelante" (por orden; p.ej. Calientes y posteriores) el
+    // agente NO responde — lo maneja un humano/closer. Configurable por-org vía
+    // agent_disabled_from_stage_id (null = sin efecto). Exclusivo hoy de BAJOXQBAJO.
+    if (cfg.agent_disabled_from_stage_id && contact_id) {
+      const { data: cStage } = await supabase
+        .from("contacts").select("stage_id").eq("id", contact_id).maybeSingle();
+      if (cStage?.stage_id) {
+        const { data: stRows } = await supabase
+          .from("pipeline_stages").select("id, order")
+          .in("id", [cStage.stage_id, cfg.agent_disabled_from_stage_id]);
+        const threshold = (stRows || []).find((s: any) => s.id === cfg.agent_disabled_from_stage_id)?.order;
+        const current = (stRows || []).find((s: any) => s.id === cStage.stage_id)?.order;
+        if (threshold != null && current != null && current >= threshold) {
+          return json({ response: null, reason: "lead_stage_agent_off" });
+        }
+      }
+    }
+
     // 4. Check escalation keywords in user message BEFORE calling AI
     const msgLower = (message.content || "").toLowerCase();
     const shouldEscalate = ESCALATION_TRIGGERS.some(t => msgLower.includes(t));
