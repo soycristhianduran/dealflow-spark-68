@@ -37,6 +37,17 @@ export function useWhatsAppInbox() {
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [sending, setSending] = useState(false);
+  // Paginación + búsqueda en servidor. La org puede tener MILES de conversaciones
+  // (una por destinatario de envío masivo); cargarlas todas es imposible de
+  // renderizar y buscar en cliente solo veía las cargadas. Ahora:
+  //  - searchRef: término de búsqueda actual (server-side, sobre TODA la base).
+  //  - limitRef: cuántas filas queremos ver (crece con "cargar más").
+  // Toda recarga (realtime, marcar leído, etc.) reusa estos refs, así el filtro y
+  // la paginación no se pierden al llegar un mensaje nuevo.
+  const PAGE = 500;
+  const searchRef = useRef<string | null>(null);
+  const limitRef = useRef(PAGE);
+  const [hasMore, setHasMore] = useState(false);
   // Guard "última recarga gana": durante ráfagas se disparan varias recargas en
   // paralelo; una vieja puede terminar después de una nueva y pisar la lista con
   // datos desordenados. Solo la más reciente aplica su resultado.
@@ -56,13 +67,16 @@ export function useWhatsAppInbox() {
     if (!organizationId) { setLoadingConversations(false); return; }
     setLoadingConversations(true);
     try {
-      // Una sola consulta (RPC) trae la ÚLTIMA conversación de CADA número — todas,
-      // no solo las que caían en una ventana de 500 mensajes (antes se perdían
-      // miles de conversaciones). Incluye nombre de contacto, no leídos y el número
-      // al que el cliente escribió (from del último entrante, para responder bien).
+      // Una sola consulta (RPC) trae la ÚLTIMA conversación de CADA número, con
+      // búsqueda y paginación en servidor. Siempre desde offset 0 hasta limitRef,
+      // así una recarga refresca TODO lo que hay a la vista de una vez (sin merges
+      // ni duplicados) y respeta el término de búsqueda vigente.
+      const limit = limitRef.current;
       const { data: rows, error } = await supabase.rpc("wa_conversations", {
         p_org: organizationId,
-        p_limit: 1000,
+        p_limit: limit,
+        p_offset: 0,
+        p_search: searchRef.current,
       });
       if (error) throw error;
       const list: WaConversation[] = (rows || []).map((r: any) => ({
@@ -77,6 +91,8 @@ export function useWhatsAppInbox() {
       }));
       // Descartar si otra recarga más reciente ya empezó (evita pisar con datos viejos).
       if (seq !== fetchSeqRef.current) return;
+      // Si volvió exactamente el límite pedido, es probable que haya más → "cargar más".
+      setHasMore(list.length >= limit);
       setConversations(list);
     } catch (e: any) {
       toast.error("Error al cargar conversaciones: " + e.message);
@@ -84,6 +100,22 @@ export function useWhatsAppInbox() {
       if (seq === fetchSeqRef.current) setLoadingConversations(false);
     }
   }, [organizationId]);
+
+  // Buscar en servidor sobre TODA la base (nombre/teléfono/email). term vacío
+  // vuelve a la vista reciente. Reinicia la paginación.
+  const searchConversations = useCallback((term: string) => {
+    const t = term.trim();
+    searchRef.current = t ? t : null;
+    limitRef.current = PAGE;
+    fetchConversations();
+  }, [fetchConversations]);
+
+  // Cargar la siguiente página (crece el límite y recarga desde 0, barato con el
+  // índice compuesto y sin duplicar filas).
+  const loadMoreConversations = useCallback(() => {
+    limitRef.current += PAGE;
+    fetchConversations();
+  }, [fetchConversations]);
 
   const fetchMessages = useCallback(async (phone: string) => {
     if (!organizationId) return;
@@ -497,7 +529,10 @@ export function useWhatsAppInbox() {
     loadingConversations,
     loadingMessages,
     sending,
+    hasMore,
     fetchConversations,
+    searchConversations,
+    loadMoreConversations,
     selectConversation,
     setSelectedPhone,
     markAsUnread,

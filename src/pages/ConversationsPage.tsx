@@ -296,6 +296,17 @@ export default function ConversationsPage() {
   //    (otherwise the first fetch runs with no session → 0 rows → empty inbox). ─
   useEffect(() => { if (user) wa.fetchConversations(); /* eslint-disable-next-line */ }, [user, organizationId]);
 
+  // ── WhatsApp: búsqueda en SERVIDOR (debounce). WhatsApp puede tener miles de
+  //    conversaciones; el filtro en cliente solo veía las cargadas. Al escribir,
+  //    consultamos la base completa por nombre/teléfono/email. IG/MS son pocas y
+  //    siguen filtrándose en cliente (más abajo, en `filtered`). ───────────────
+  useEffect(() => {
+    if (!user) return;
+    const h = setTimeout(() => wa.searchConversations(search), 350);
+    return () => clearTimeout(h);
+    /* eslint-disable-next-line */
+  }, [search, user, organizationId]);
+
   // ── Realtime ─────────────────────────────────────────────────────────────
   useRealtimeRefresh({
     table: "whatsapp_messages",
@@ -371,6 +382,9 @@ export default function ConversationsPage() {
     if (channelFilter !== "all" && c.channel !== channelFilter) return false;
     if (readFilter === "unread" && !(c.unread_count > 0)) return false;
     if (search) {
+      // WhatsApp ya viene filtrado por el servidor (incluye matches por email que
+      // no están en el nombre/teléfono visibles), no lo re-filtres en cliente.
+      if (c.channel === "whatsapp") return true;
       const q = search.toLowerCase();
       return c.display_name.toLowerCase().includes(q)
         || c.subtitle.toLowerCase().includes(q)
@@ -1133,6 +1147,20 @@ export default function ConversationsPage() {
                 onToggleCheck={() => toggleSelect(conv)}
               />
             ))}
+            {/* Paginación WhatsApp: carga la siguiente página desde el servidor.
+                Se oculta al filtrar por Instagram/Messenger (esos vienen completos). */}
+            {wa.hasMore && channelFilter !== "instagram" && channelFilter !== "messenger" && filtered.length > 0 && (
+              <div className="p-3">
+                <button
+                  onClick={() => wa.loadMoreConversations()}
+                  disabled={wa.loadingConversations}
+                  className="w-full rounded-lg border py-2 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {wa.loadingConversations && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {t("conversationsPage.loadMore", "Cargar más")}
+                </button>
+              </div>
+            )}
           </ScrollArea>
         </aside>
 

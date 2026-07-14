@@ -1837,6 +1837,7 @@
     "searchPlaceholder": "Search...",
     "noResults": "No results",
     "noConversations": "No conversations",
+    "loadMore": "Load more",
     "back": "Back",
     "openContact": "Open contact",
     "agentOffTitle": "The AI agent is off. Enable it in its settings.",
