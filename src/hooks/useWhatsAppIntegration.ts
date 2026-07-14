@@ -332,9 +332,9 @@ export function useWhatsAppIntegration() {
     return data;
   };
 
-  const registerPhone = useCallback(async (pin: string) => {
+  const registerPhone = useCallback(async (pin: string, phoneNumberId?: string) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "register_phone", pin, organization_id: organizationId ?? null },
+      body: { action: "register_phone", pin, phone_number_id: phoneNumberId ?? null, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     return data;

@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: false })
         .limit(1);
       if (orgId) activeQ = activeQ.eq("organization_id", orgId);
-      const { data: active } = await activeQ.maybeSingle();
+      const { data: active } = await activeQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!active?.access_token) throw new Error("No token found. Please reconnect.");
       return active.access_token;
     };
@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) utmQ = utmQ.eq("organization_id", orgId);
-      const { data: config } = await utmQ.maybeSingle();
+      const { data: config } = await utmQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → binary
@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) umQ = umQ.eq("organization_id", orgId);
-      const { data: config } = await umQ.maybeSingle();
+      const { data: config } = await umQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → binary
@@ -229,7 +229,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) cwaQ = cwaQ.eq("organization_id", orgId);
-      const { data: config } = await cwaQ.maybeSingle();
+      const { data: config } = await cwaQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config?.access_token) throw new Error("WhatsApp no está configurado");
 
       const appRes = await fetch(`${GRAPH_API}/app?fields=id,name`, {
@@ -311,7 +311,7 @@ Deno.serve(async (req) => {
     if (action === "request_verification_code" || action === "verify_code") {
       let vQ = supabase.from("whatsapp_configs").select("phone_number_id, access_token").eq("is_active", true);
       vQ = orgId ? vQ.eq("organization_id", orgId) : vQ.eq("user_id", user.id);
-      const { data: vcfg } = await vQ.maybeSingle();
+      const { data: vcfg } = await vQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!vcfg?.phone_number_id || !vcfg?.access_token || vcfg.phone_number_id === "pending") {
         throw new Error("Selecciona y guarda el número primero.");
       }
@@ -346,17 +346,29 @@ Deno.serve(async (req) => {
         throw new Error("El PIN debe ser de exactamente 6 dígitos numéricos");
       }
 
-      // Query by org_id first (multi-user orgs); fall back to user_id for solo workspaces
+      // Activa un número ESPECÍFICO. Con varios números activos no se puede usar
+      // .maybeSingle() genérico (falla con 2+ filas). Si el UI indica el número
+      // (phone_number_id), se usa ese; si no, el que aún no está registrado
+      // (webhook_verified=false) — que es justo el pendiente de activación.
       let rpQ = supabase
         .from("whatsapp_configs")
         .select("phone_number_id, access_token")
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .neq("phone_number_id", "pending");
       if (orgId) {
         rpQ = rpQ.eq("organization_id", orgId);
       } else {
         rpQ = rpQ.eq("user_id", user.id);
       }
-      const { data: config } = await rpQ.maybeSingle();
+      if (body.phone_number_id) {
+        rpQ = rpQ.eq("phone_number_id", String(body.phone_number_id));
+      } else {
+        rpQ = rpQ.eq("webhook_verified", false);
+      }
+      const { data: config } = await rpQ
+        .order("webhook_verified", { ascending: true })
+        .limit(1)
+        .maybeSingle();
       if (!config?.phone_number_id || !config?.access_token) {
         throw new Error("WhatsApp no está configurado. Conecta primero.");
       }
@@ -387,11 +399,13 @@ Deno.serve(async (req) => {
         throw new Error(`Meta: ${msg} (código ${code})`);
       }
 
-      // Mark number as registered so the UI can detect unregistered numbers
+      // Marca como registrado SOLO el número que se activó (config.phone_number_id),
+      // no todos los de la org — con varios números marcaría de más.
       let regUpdateQ = supabase
         .from("whatsapp_configs")
         .update({ webhook_verified: true })
-        .eq("is_active", true);
+        .eq("is_active", true)
+        .eq("phone_number_id", config.phone_number_id);
       if (orgId) {
         regUpdateQ = regUpdateQ.eq("organization_id", orgId);
       } else {
@@ -442,7 +456,7 @@ Deno.serve(async (req) => {
       } else {
         wabaQ = wabaQ.eq("user_id", user.id);
       }
-      const { data: config } = await wabaQ.maybeSingle();
+      const { data: config } = await wabaQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Always use the customer's own access token to subscribe their WABA.
@@ -553,18 +567,21 @@ Deno.serve(async (req) => {
       // este número ya lo era, volverlo primario si la org no tiene otro primario
       // activo, y secundario si ya existe un primario en otro número. Evita degradar
       // el número al reconectarlo y garantiza siempre un remitente por defecto.
+      // Alcance por ORGANIZACIÓN (no user_id): el "primario" es a nivel de org, y
+      // los números pueden pertenecer a distintos usuarios del equipo. Filtrar por
+      // user_id no veía el primario de otro usuario → doble primario.
       let selfPQ = supabase
         .from("whatsapp_configs").select("is_primary")
-        .eq("user_id", user.id).eq("phone_number_id", phone_number_id);
-      if (orgId) selfPQ = selfPQ.eq("organization_id", orgId);
-      const { data: selfPRow } = await selfPQ.maybeSingle();
+        .eq("phone_number_id", phone_number_id);
+      selfPQ = orgId ? selfPQ.eq("organization_id", orgId) : selfPQ.eq("user_id", user.id);
+      const { data: selfPRow } = await selfPQ.limit(1).maybeSingle();
       const isCurrentlyPrimary = !!selfPRow?.is_primary;
 
       let otherPQ = supabase
         .from("whatsapp_configs").select("id", { count: "exact", head: true })
-        .eq("user_id", user.id).eq("is_active", true).eq("is_primary", true)
+        .eq("is_active", true).eq("is_primary", true)
         .neq("phone_number_id", phone_number_id);
-      if (orgId) otherPQ = otherPQ.eq("organization_id", orgId);
+      otherPQ = orgId ? otherPQ.eq("organization_id", orgId) : otherPQ.eq("user_id", user.id);
       const { count: otherPrimary } = await otherPQ;
 
       const isFirstNumber = isCurrentlyPrimary || (otherPrimary ?? 0) === 0;
@@ -698,16 +715,16 @@ Deno.serve(async (req) => {
       //  - en cualquier otro caso (ya hay un primario en otro número) → secundario.
       let selfQ = supabase
         .from("whatsapp_configs").select("is_primary")
-        .eq("user_id", user.id).eq("phone_number_id", phone_number_id);
-      if (orgId) selfQ = selfQ.eq("organization_id", orgId);
-      const { data: selfRow } = await selfQ.maybeSingle();
+        .eq("phone_number_id", phone_number_id);
+      selfQ = orgId ? selfQ.eq("organization_id", orgId) : selfQ.eq("user_id", user.id);
+      const { data: selfRow } = await selfQ.limit(1).maybeSingle();
       const isCurrentlyPrimary = !!selfRow?.is_primary;
 
       let opQ = supabase
         .from("whatsapp_configs").select("id", { count: "exact", head: true })
-        .eq("user_id", user.id).eq("is_active", true).eq("is_primary", true)
+        .eq("is_active", true).eq("is_primary", true)
         .neq("phone_number_id", phone_number_id);
-      if (orgId) opQ = opQ.eq("organization_id", orgId);
+      opQ = orgId ? opQ.eq("organization_id", orgId) : opQ.eq("user_id", user.id);
       const { count: otherPrimary } = await opQ;
 
       const isPrimary = isCurrentlyPrimary || (otherPrimary ?? 0) === 0;
@@ -1236,7 +1253,7 @@ Deno.serve(async (req) => {
     if (action === "refresh_media_handles") {
       let rmQ = supabase.from("whatsapp_configs").select("waba_id, access_token, phone_number_id").eq("is_active", true);
       rmQ = orgId ? rmQ.eq("organization_id", orgId) : rmQ.eq("user_id", user.id);
-      const { data: config } = await rmQ.maybeSingle();
+      const { data: config } = await rmQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config?.phone_number_id || !config?.access_token || !config?.waba_id) throw new Error("WhatsApp no está configurado");
 
       let tQ = supabase.from("whatsapp_templates").select("name, header_type, header_media_handle").eq("waba_id", config.waba_id);
@@ -1289,7 +1306,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) ltQ = ltQ.eq("organization_id", orgId);
-      const { data: config } = await ltQ.maybeSingle();
+      const { data: config } = await ltQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Clean up templates from any previous WABA before syncing.
@@ -1454,7 +1471,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) ctQ = ctQ.eq("organization_id", orgId);
-      const { data: config } = await ctQ.maybeSingle();
+      const { data: config } = await ctQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Validate media headers have an uploaded file
@@ -1601,7 +1618,7 @@ Deno.serve(async (req) => {
           .eq("user_id", user.id)
           .eq("is_active", true);
         if (orgId) dtQ = dtQ.eq("organization_id", orgId);
-        const { data: config } = await dtQ.maybeSingle();
+        const { data: config } = await dtQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
 
         if (config) {
           const res = await fetch(
@@ -1637,7 +1654,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) utQ = utQ.eq("organization_id", orgId);
-      const { data: config } = await utQ.maybeSingle();
+      const { data: config } = await utQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Validate media headers have an uploaded file
@@ -1736,7 +1753,7 @@ Deno.serve(async (req) => {
       } else {
         stQ = stQ.eq("user_id", user.id);
       }
-      const { data: config } = await stQ.maybeSingle();
+      const { data: config } = await stQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Look up template in local DB to know header type and body text.
@@ -1950,7 +1967,7 @@ Deno.serve(async (req) => {
         .eq("user_id", user.id)
         .eq("is_active", true);
       if (orgId) smQ = smQ.eq("organization_id", orgId);
-      const { data: config } = await smQ.maybeSingle();
+      const { data: config } = await smQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
       // Decode base64 → Uint8Array

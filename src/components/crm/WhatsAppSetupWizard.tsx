@@ -99,7 +99,9 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
     }
     setRegistering(true);
     try {
-      await wa.registerPhone?.(registerPin);
+      // Activa el número pendiente concreto (el que aún no está registrado).
+      const pending = wa.configs.find((c) => !c.webhook_verified);
+      await wa.registerPhone?.(registerPin, pending?.phone_number_id);
       toast.success(t("whatsAppSetupWizard.numberActivated"));
       setRegisterDialogOpen(false);
       setRegisterPin("");
