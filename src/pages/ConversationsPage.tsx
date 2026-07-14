@@ -1473,6 +1473,13 @@ export default function ConversationsPage() {
         onClose={() => setShowTemplatePicker(false)}
         onSend={handleSendTemplate}
         sending={sending}
+        contactName={(() => {
+          // Primer nombre del contacto para autocompletar {{1}}. Si el nombre
+          // mostrado es un teléfono (sin contacto), no autocompletamos.
+          const dn = (selected?.display_name || "").trim();
+          if (!dn || /^\+?[\d\s()-]+$/.test(dn)) return "";
+          return dn.split(/\s+/)[0];
+        })()}
       />
       {/* ── Delete conversation confirmation ── */}
       <AlertDialog open={!!deleteConvTarget} onOpenChange={open => { if (!open && !deletingConv) setDeleteConvTarget(null); }}>

@@ -253,12 +253,14 @@ export function MediaUploadZone({
 
 // ───────────────────────────── TemplatePicker ────────────────────────────────
 export function TemplatePicker({
-  open, onClose, onSend, sending,
+  open, onClose, onSend, sending, contactName,
 }: {
   open: boolean;
   onClose: () => void;
   onSend: (name: string, lang: string, vars: string[], mediaId: string) => void;
   sending: boolean;
+  /** Nombre del contacto para autocompletar la 1ª variable ({{1}}), editable. */
+  contactName?: string;
 }) {
   const { t } = useTranslation();
   const { templates, fetchTemplates } = useWhatsAppTemplates();
@@ -275,7 +277,12 @@ export function TemplatePicker({
     ? [...new Set((tpl.body_text.match(/\{\{(\d+)\}\}/g) || []).map((m) => parseInt(m.replace(/[{}]/g, ""))))].sort((a, b) => a - b)
     : [];
 
-  useEffect(() => { setVars(varNums.map(() => "")); setMediaId(""); }, [selected]); // eslint-disable-line
+  // Al elegir plantilla (o abrir con otro contacto), pre-rellena {{1}} con el
+  // nombre del contacto — sigue siendo editable. El resto queda vacío.
+  useEffect(() => {
+    setVars(varNums.map((_, i) => (i === 0 && contactName ? contactName : "")));
+    setMediaId("");
+  }, [selected, contactName, open]); // eslint-disable-line
 
   const preview = tpl
     ? varNums.reduce((text, n, i) => text.replace(new RegExp(`\\{\\{${n}\\}\\}`, "g"), vars[i] || `{{${n}}}`), tpl.body_text)
