@@ -13,6 +13,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useOrganizationContext } from "@/context/OrganizationContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -257,6 +258,16 @@ export default function ConversationsPage() {
   const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  // Auto-crecer el cuadro de escribir: la altura sigue al contenido (con saltos
+  // de línea) hasta un máximo, y luego hace scroll interno. Antes era un input de
+  // una sola línea y los textos largos se perdían en una línea infinita.
+  useEffect(() => {
+    const el = composerRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 160) + "px";
+  }, [draft, selected]);
   const mediaInputRef = useRef<HTMLInputElement>(null);
 
   // ── Load IG conversations ─────────────────────────────────────────────────
@@ -1344,8 +1355,10 @@ export default function ConversationsPage() {
                       {uploadingMedia ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
                     </Button>
 
-                    <Input
-                      className="flex-1 min-w-0"
+                    <Textarea
+                      ref={composerRef}
+                      rows={1}
+                      className="flex-1 min-w-0 resize-none max-h-40 min-h-[40px] py-2 leading-snug"
                       placeholder={t("conversationsPage.messagePlaceholder", { channel: isWA ? "WhatsApp" : isMS ? "Messenger" : "Instagram" })}
                       value={draft}
                       onChange={(e) => setDraft(e.target.value)}
