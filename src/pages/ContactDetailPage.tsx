@@ -834,7 +834,7 @@ export default function ContactDetailPage() {
                                   </Select>
                                 ) : (
                                   <Input
-                                    type={def.field_type === "number" ? "number" : def.field_type === "date" ? "date" : "text"}
+                                    type={def.field_type === "number" ? "number" : def.field_type === "date" ? "date" : def.field_type === "datetime" ? "datetime-local" : "text"}
                                     value={value}
                                     onChange={e => setVal(e.target.value)}
                                     className="h-7 text-xs flex-1"
@@ -903,6 +903,7 @@ export default function ContactDetailPage() {
                           let displayValue: React.ReactNode = value || <span className="text-muted-foreground/50">—</span>;
                           if (def.field_type === "boolean") displayValue = <Switch checked={value === "true"} disabled className="scale-75 origin-right" />;
                           else if (def.field_type === "date" && value) displayValue = new Date(value + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" });
+                          else if (def.field_type === "datetime" && value) displayValue = new Date(value).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
                           return (
                             <div key={def.key} className="flex items-start justify-between gap-2 text-sm">
                               <span className="text-muted-foreground shrink-0">{def.label}:</span>
@@ -1583,7 +1584,7 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
                     </Select>
                   ) : (
                     <Input
-                      type={type === "number" ? "number" : type === "date" ? "date" : "text"}
+                      type={type === "number" ? "number" : type === "date" ? "date" : type === "datetime" ? "datetime-local" : "text"}
                       value={val}
                       onChange={e => setValue(key, e.target.value)}
                       className="h-7 text-xs flex-1"
@@ -1596,6 +1597,10 @@ function CustomFieldsCard({ customFields, contactId, fieldDefs, onUpdated }: {
                   <p className="text-sm font-medium text-foreground text-right">
                     {type === "boolean"
                       ? (val === "true" ? t("contactDetailPage.yes") : val === "false" ? t("contactDetailPage.no") : "—")
+                      : type === "datetime" && val
+                      ? new Date(val).toLocaleString("es", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                      : type === "date" && val
+                      ? new Date(val + "T12:00:00").toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
                       : val || <span className="text-muted-foreground/50">—</span>}
                   </p>
                 </div>

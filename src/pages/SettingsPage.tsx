@@ -1431,11 +1431,12 @@ type FieldDef = {
 };
 
 const FIELD_TYPES = [
-  { value: "text",    label: "Texto" },
-  { value: "number",  label: "Número" },
-  { value: "date",    label: "Fecha" },
-  { value: "select",  label: "Lista de opciones" },
-  { value: "boolean", label: "Sí / No" },
+  { value: "text",     label: "Texto" },
+  { value: "number",   label: "Número" },
+  { value: "date",     label: "Fecha" },
+  { value: "datetime", label: "Fecha y hora" },
+  { value: "select",   label: "Lista de opciones" },
+  { value: "boolean",  label: "Sí / No" },
 ];
 
 // Built-in CRM columns — confirmed against live DB on 2026-05-29
