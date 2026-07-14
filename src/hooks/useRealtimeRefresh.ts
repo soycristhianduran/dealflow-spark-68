@@ -43,12 +43,20 @@ export function useRealtimeRefresh({
   debounceMs = 0,
 }: RealtimeRefreshOptions) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Siempre llamar a la versión MÁS RECIENTE de onChange. El efecto de
+  // suscripción solo depende de [channelKey, enabled], así que sin este ref
+  // capturaría el onChange del primer render — típicamente cuando el usuario ya
+  // resolvió pero la organización AÚN es null, dejando la suscripción amarrada a
+  // un fetch con org nula que vacía la lista (conversaciones que "aparecen y
+  // luego desaparecen"). El ref se actualiza en cada render.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
   useEffect(() => {
     if (!enabled) return;
     const fire = (payload: any) => {
-      if (!debounceMs) { onChange(payload); return; }
+      if (!debounceMs) { onChangeRef.current(payload); return; }
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => onChange(payload), debounceMs);
+      timerRef.current = setTimeout(() => onChangeRef.current(payload), debounceMs);
     };
     const channel = supabase
       .channel(channelKey)

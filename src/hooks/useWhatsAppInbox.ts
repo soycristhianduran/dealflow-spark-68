@@ -47,7 +47,13 @@ export function useWhatsAppInbox() {
     const seq = ++fetchSeqRef.current;
     // Multi-org: never query without an org scope, or RLS would return rows from
     // EVERY org the user belongs to (a gestor/owner is in many) and mix inboxes.
-    if (!organizationId) { setConversations([]); setLoadingConversations(false); return; }
+    // NO vaciar la lista ya cargada: durante un refresh de sesión o el cambio de
+    // organización el id puede quedar null por un instante; si una recarga
+    // realtime cae en ese momento y hace setConversations([]), el inbox
+    // "desaparece". Solo salimos sin tocar el estado (el efecto de montaje
+    // recarga cuando la org resuelve). El cambio real de org sí reemplaza la
+    // lista, porque entonces organizationId es un id válido distinto.
+    if (!organizationId) { setLoadingConversations(false); return; }
     setLoadingConversations(true);
     try {
       // Una sola consulta (RPC) trae la ÚLTIMA conversación de CADA número — todas,
