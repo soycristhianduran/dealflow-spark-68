@@ -123,6 +123,17 @@ Deno.serve(async (req) => {
       deQ = organizationId ? deQ.eq("organization_id", organizationId) : deQ.eq("user_id", user.id);
       await deQ;
 
+      // is_primary: si la org no tiene OTRO número primario activo, este pasa a
+      // ser el primario (garantiza siempre un remitente por defecto — la columna
+      // default es false, así que sin esto un primer número conectado por Facebook
+      // quedaría sin primario).
+      let opQ = supabase.from("whatsapp_configs")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true).eq("is_primary", true).neq("phone_number_id", phoneId);
+      opQ = organizationId ? opQ.eq("organization_id", organizationId) : opQ.eq("user_id", user.id);
+      const { count: otherPrimary } = await opQ;
+      const isPrimary = (otherPrimary ?? 0) === 0;
+
       await supabase.from("whatsapp_configs").insert({
         user_id: user.id,
         organization_id: organizationId,
@@ -132,6 +143,7 @@ Deno.serve(async (req) => {
         display_phone: displayPhone,
         business_name: businessName,
         is_active: true,
+        is_primary: isPrimary,
         webhook_verified: webhookSubscribed,
       });
     } else {

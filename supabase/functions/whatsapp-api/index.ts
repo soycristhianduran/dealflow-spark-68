@@ -549,18 +549,25 @@ Deno.serve(async (req) => {
 
       const targetRow = pendingRow ?? stuckRow;
 
-      // Check whether this org already has any active number (for is_primary logic)
-      // Scope to the current org so a user with numbers in other orgs still gets
-      // is_primary=true for their first number in THIS org.
-      let activeCountQ = supabase
-        .from("whatsapp_configs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_active", true);
-      if (orgId) activeCountQ = activeCountQ.eq("organization_id", orgId);
-      const { count: activeCount } = await activeCountQ;
+      // is_primary robusto (igual que en save_manual_config): mantener primario si
+      // este número ya lo era, volverlo primario si la org no tiene otro primario
+      // activo, y secundario si ya existe un primario en otro número. Evita degradar
+      // el número al reconectarlo y garantiza siempre un remitente por defecto.
+      let selfPQ = supabase
+        .from("whatsapp_configs").select("is_primary")
+        .eq("user_id", user.id).eq("phone_number_id", phone_number_id);
+      if (orgId) selfPQ = selfPQ.eq("organization_id", orgId);
+      const { data: selfPRow } = await selfPQ.maybeSingle();
+      const isCurrentlyPrimary = !!selfPRow?.is_primary;
 
-      const isFirstNumber = (activeCount ?? 0) === 0;
+      let otherPQ = supabase
+        .from("whatsapp_configs").select("id", { count: "exact", head: true })
+        .eq("user_id", user.id).eq("is_active", true).eq("is_primary", true)
+        .neq("phone_number_id", phone_number_id);
+      if (orgId) otherPQ = otherPQ.eq("organization_id", orgId);
+      const { count: otherPrimary } = await otherPQ;
+
+      const isFirstNumber = isCurrentlyPrimary || (otherPrimary ?? 0) === 0;
 
       if (targetRow) {
         // Upsert by (user_id, phone_number_id) so that reconnecting the same
@@ -684,17 +691,26 @@ Deno.serve(async (req) => {
         }
       } catch (_) { /* non-fatal */ }
 
-      // Check if this is the first active number for this org (for is_primary)
-      let acQ = supabase
-        .from("whatsapp_configs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .neq("phone_number_id", "pending");
-      if (orgId) acQ = acQ.eq("organization_id", orgId);
-      const { count: activeCount } = await acQ;
+      // Decidir is_primary de forma robusta (garantiza siempre un remitente por
+      // defecto y evita degradar el número al re-guardarlo):
+      //  - si ESTE mismo número ya era primario → se mantiene (refresh de token);
+      //  - si la org NO tiene OTRO número primario activo → este pasa a primario;
+      //  - en cualquier otro caso (ya hay un primario en otro número) → secundario.
+      let selfQ = supabase
+        .from("whatsapp_configs").select("is_primary")
+        .eq("user_id", user.id).eq("phone_number_id", phone_number_id);
+      if (orgId) selfQ = selfQ.eq("organization_id", orgId);
+      const { data: selfRow } = await selfQ.maybeSingle();
+      const isCurrentlyPrimary = !!selfRow?.is_primary;
 
-      const isFirstNumber = (activeCount ?? 0) === 0;
+      let opQ = supabase
+        .from("whatsapp_configs").select("id", { count: "exact", head: true })
+        .eq("user_id", user.id).eq("is_active", true).eq("is_primary", true)
+        .neq("phone_number_id", phone_number_id);
+      if (orgId) opQ = opQ.eq("organization_id", orgId);
+      const { count: otherPrimary } = await opQ;
+
+      const isPrimary = isCurrentlyPrimary || (otherPrimary ?? 0) === 0;
 
       // Upsert by (user_id, phone_number_id) — updating existing config for same
       // number is fine (token refresh), but adding a new number inserts a new row.
@@ -708,7 +724,7 @@ Deno.serve(async (req) => {
           display_phone: resolvedPhone,
           business_name: resolvedName,
           is_active: true,
-          is_primary: isFirstNumber,
+          is_primary: isPrimary,
           webhook_verified: false,
         },
         { onConflict: "user_id,phone_number_id" }
