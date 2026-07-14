@@ -471,6 +471,19 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
               {t("whatsAppSetupWizard.coexistenceTitle")}
             </Button>
 
+            {/* Add another number MANUALLY — same manual flow as the first number
+                (WABA ID + Phone Number ID + optional token). Reutiliza el formulario
+                y el guardado existentes; no toca las conexiones ya activas. */}
+            <Button
+              variant="outline"
+              className="w-full gap-2"
+              onClick={() => { setManualPhoneId(""); setManualWabaId(""); setManualToken(""); setUseManual(true); setStep(4); }}
+              disabled={wa.connecting}
+            >
+              <Shield className="h-4 w-4" />
+              Conectar otro número manualmente
+            </Button>
+
             {/* Advanced actions — collapsed by default */}
             <details className="group">
               <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground select-none flex items-center gap-1.5">
@@ -1010,6 +1023,21 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
                   <>{t("whatsAppSetupWizard.connectWhatsApp")} <ArrowRight className="h-4 w-4" /></>
                 )}
               </Button>
+
+              {/* Al agregar un SEGUNDO número: aviso de token para otra WABA y volver
+                  a la vista de conexión. Solo visible cuando ya hay un número
+                  conectado, así el flujo de primer número queda intacto. */}
+              {wa.isConnected && (
+                <>
+                  <p className="text-[11px] text-muted-foreground">
+                    Si este número pertenece a otra cuenta de WhatsApp (otra WABA), abre
+                    "Token de acceso" arriba y pega el token de esa cuenta.
+                  </p>
+                  <Button variant="ghost" className="w-full" onClick={() => { setUseManual(false); setStep(6); }}>
+                    Volver
+                  </Button>
+                </>
+              )}
             </div>
           )}
 
