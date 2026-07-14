@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuCheckboxItem, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useOrganizationContext } from "@/context/OrganizationContext";
@@ -758,6 +758,24 @@ export default function PipelinePage() {
     if (selectedPipelineId) fetchStagesAndContacts(selectedPipelineId);
   };
 
+  // Reasignar un lead a otro miembro del equipo directo desde el pipeline.
+  const reassignContact = async (contactId: string, ownerId: string) => {
+    if (!organizationId) return;
+    const prevOwner = contacts.find(c => c.id === contactId)?.owner_id ?? null;
+    // Optimista: refleja el cambio de inmediato.
+    setContacts(prev => prev.map(c => c.id === contactId ? { ...c, owner_id: ownerId } : c));
+    const { error } = await supabase.from("contacts")
+      .update({ owner_id: ownerId })
+      .eq("id", contactId).eq("organization_id", organizationId);
+    if (error) {
+      setContacts(prev => prev.map(c => c.id === contactId ? { ...c, owner_id: prevOwner } : c));
+      toast.error("No se pudo reasignar: " + error.message);
+      return;
+    }
+    const name = members.find(m => m.user_id === ownerId)?.full_name || "el usuario";
+    toast.success(`Lead reasignado a ${name}`);
+  };
+
   const closeContact = async (contactId: string, status: "won" | "lost") => {
     // Same rule as drag & drop: won always confirms/updates the budget,
     // lost always captures a reason — route through the shared dialogs.
@@ -1080,6 +1098,27 @@ export default function PipelinePage() {
                               <DropdownMenuItem onClick={() => closeContact(contact.id, "lost")}>
                                 <XCircle className="h-3.5 w-3.5 mr-2 text-destructive" /> {t("pipelinePage.markLost")}
                               </DropdownMenuItem>
+                              {members.length > 0 && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>
+                                      <UserPlus className="h-3.5 w-3.5 mr-2" /> Reasignar a
+                                    </DropdownMenuSubTrigger>
+                                    <DropdownMenuSubContent className="max-h-72 overflow-y-auto">
+                                      {members.map(m => (
+                                        <DropdownMenuItem
+                                          key={m.user_id}
+                                          disabled={m.user_id === contact.owner_id}
+                                          onClick={() => reassignContact(contact.id, m.user_id)}
+                                        >
+                                          {m.full_name}{m.user_id === contact.owner_id ? " (actual)" : ""}
+                                        </DropdownMenuItem>
+                                      ))}
+                                    </DropdownMenuSubContent>
+                                  </DropdownMenuSub>
+                                </>
+                              )}
                             </DropdownMenuContent>
                           </DropdownMenu>
                           )}
