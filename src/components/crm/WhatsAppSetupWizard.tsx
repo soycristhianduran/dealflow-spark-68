@@ -123,7 +123,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
   const handleSendCode = async (method: "SMS" | "VOICE") => {
     setSendingCode(true);
     try {
-      await wa.requestVerificationCode?.(method);
+      const pending = wa.configs.find((c) => !c.webhook_verified);
+      await wa.requestVerificationCode?.(method, pending?.phone_number_id);
       setCodeSent(true);
       toast.success(method === "SMS" ? "Código enviado por SMS al número." : "Te llamaremos con el código.");
     } catch (e: any) {
@@ -137,7 +138,8 @@ export function WhatsAppSetupWizard({ open, onOpenChange, startStep }: WhatsAppS
     if (!/^\d{6}$/.test(otpCode)) { toast.error("Ingresa el código de 6 dígitos."); return; }
     setVerifying(true);
     try {
-      await wa.verifyCode?.(otpCode);
+      const pending = wa.configs.find((c) => !c.webhook_verified);
+      await wa.verifyCode?.(otpCode, pending?.phone_number_id);
       toast.success("Número verificado. Activando…");
       setNeedsVerification(false); setCodeSent(false); setOtpCode("");
       // Reintenta el registro con el PIN automáticamente.

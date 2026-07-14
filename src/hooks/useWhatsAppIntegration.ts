@@ -341,17 +341,17 @@ export function useWhatsAppIntegration() {
   }, [organizationId]);
 
   // Re-verificación OTP del número (cuando Meta responde 133006).
-  const requestVerificationCode = useCallback(async (codeMethod: "SMS" | "VOICE") => {
+  const requestVerificationCode = useCallback(async (codeMethod: "SMS" | "VOICE", phoneNumberId?: string) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "request_verification_code", code_method: codeMethod, language: "es", organization_id: organizationId ?? null },
+      body: { action: "request_verification_code", code_method: codeMethod, language: "es", phone_number_id: phoneNumberId ?? null, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     return data;
   }, [organizationId]);
 
-  const verifyCode = useCallback(async (code: string) => {
+  const verifyCode = useCallback(async (code: string, phoneNumberId?: string) => {
     const { data, error } = await supabase.functions.invoke("whatsapp-api", {
-      body: { action: "verify_code", code, organization_id: organizationId ?? null },
+      body: { action: "verify_code", code, phone_number_id: phoneNumberId ?? null, organization_id: organizationId ?? null },
     });
     if (error || data?.error) throw new Error(data?.error || error?.message);
     return data;

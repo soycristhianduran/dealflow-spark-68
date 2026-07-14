@@ -309,9 +309,19 @@ Deno.serve(async (req) => {
     // Re-verificación OTP del número (necesaria cuando el número viene de otra
     // plataforma/BSP — Meta responde 133006 hasta que se verifica de nuevo).
     if (action === "request_verification_code" || action === "verify_code") {
-      let vQ = supabase.from("whatsapp_configs").select("phone_number_id, access_token").eq("is_active", true);
+      // Verificar el número ESPECÍFICO que lo necesita (el que viene de otra
+      // plataforma) — NO el primario, que suele ser el que ya está registrado.
+      // Si el UI manda phone_number_id se usa ese; si no, el pendiente
+      // (webhook_verified=false).
+      let vQ = supabase.from("whatsapp_configs").select("phone_number_id, access_token")
+        .eq("is_active", true).neq("phone_number_id", "pending");
       vQ = orgId ? vQ.eq("organization_id", orgId) : vQ.eq("user_id", user.id);
-      const { data: vcfg } = await vQ.order("is_primary", { ascending: false }).limit(1).maybeSingle();
+      if (body.phone_number_id) {
+        vQ = vQ.eq("phone_number_id", String(body.phone_number_id));
+      } else {
+        vQ = vQ.eq("webhook_verified", false);
+      }
+      const { data: vcfg } = await vQ.order("webhook_verified", { ascending: true }).limit(1).maybeSingle();
       if (!vcfg?.phone_number_id || !vcfg?.access_token || vcfg.phone_number_id === "pending") {
         throw new Error("Selecciona y guarda el número primero.");
       }
