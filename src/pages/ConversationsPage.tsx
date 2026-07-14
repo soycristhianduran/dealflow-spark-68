@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWhatsAppInbox } from "@/hooks/useWhatsAppInbox";
+import { useUnreadCounts } from "@/hooks/useUnreadCounts";
 import { useInstagramIntegration } from "@/hooks/useInstagramIntegration";
 import { useRealtimeRefresh } from "@/hooks/useRealtimeRefresh";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -137,6 +138,10 @@ export default function ConversationsPage() {
   const { organizationId, defaultCurrency } = useOrganizationContext();
   const { canEditContacts: canEditConversations } = usePermissions();
   const wa = useWhatsAppInbox();
+  // Conteo EXACTO de no leídas desde la base (mismo origen que el badge del menú),
+  // para que la pestaña "No leídos" no mienta contando solo las cargadas.
+  const { waUnread, igUnread, msUnread } = useUnreadCounts();
+  const accurateUnread = waUnread + igUnread + msUnread;
   const ig = useInstagramIntegration();
 
   const [channelFilter, setChannelFilter] = useState<FilterMode>("all");
@@ -317,6 +322,15 @@ export default function ConversationsPage() {
     return () => clearTimeout(h);
     /* eslint-disable-next-line */
   }, [search, user, organizationId]);
+
+  // ── Filtro "No leídos": trae del SERVIDOR todas las conversaciones no leídas
+  //    (incluidas las antiguas fuera de las más recientes). Al volver a "Todos"
+  //    recarga la vista normal. ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) return;
+    wa.setUnreadOnly(readFilter === "unread");
+    /* eslint-disable-next-line */
+  }, [readFilter, user, organizationId]);
 
   // ── Realtime ─────────────────────────────────────────────────────────────
   useRealtimeRefresh({
@@ -1067,7 +1081,7 @@ export default function ConversationsPage() {
               <h1 className="font-bold text-base truncate min-w-0">{t("conversationsPage.title")}</h1>
               <div className="flex items-center gap-1 shrink-0">
                 <EnableNotifications />
-                {canEditConversations && counts.unread > 0 && (
+                {canEditConversations && accurateUnread > 0 && (
                   <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs"
                     onClick={markAllRead} disabled={markingAll}
                     title={channelFilter === "whatsapp" ? t("conversationsPage.markWhatsAppReadTitle") : channelFilter === "instagram" ? t("conversationsPage.markInstagramReadTitle") : t("conversationsPage.markAllReadTitle")}>
@@ -1123,8 +1137,8 @@ export default function ConversationsPage() {
               <FilterTab active={readFilter === "unread"} onClick={() => setReadFilter(readFilter === "unread" ? "all" : "unread")}>
                 <span className="inline-flex items-center gap-1">
                   {t("conversationsPage.filterUnread")}
-                  {counts.unread > 0 && (
-                    <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{counts.unread}</span>
+                  {accurateUnread > 0 && (
+                    <span className="rounded-full bg-primary px-1.5 text-[10px] font-semibold text-primary-foreground">{accurateUnread}</span>
                   )}
                 </span>
               </FilterTab>

@@ -47,6 +47,10 @@ export function useWhatsAppInbox() {
   const PAGE = 500;
   const searchRef = useRef<string | null>(null);
   const limitRef = useRef(PAGE);
+  // Modo "solo no leídas": trae del servidor TODAS las conversaciones con
+  // mensajes entrantes sin leer, aunque estén fuera de las más recientes. Sin
+  // esto el filtro "No leídos" solo veía las cargadas y el conteo mentía.
+  const unreadOnlyRef = useRef(false);
   const [hasMore, setHasMore] = useState(false);
   // Guard "última recarga gana": durante ráfagas se disparan varias recargas en
   // paralelo; una vieja puede terminar después de una nueva y pisar la lista con
@@ -77,6 +81,7 @@ export function useWhatsAppInbox() {
         p_limit: limit,
         p_offset: 0,
         p_search: searchRef.current,
+        p_unread_only: unreadOnlyRef.current,
       });
       if (error) throw error;
       const list: WaConversation[] = (rows || []).map((r: any) => ({
@@ -114,6 +119,14 @@ export function useWhatsAppInbox() {
   // índice compuesto y sin duplicar filas).
   const loadMoreConversations = useCallback(() => {
     limitRef.current += PAGE;
+    fetchConversations();
+  }, [fetchConversations]);
+
+  // Alternar el modo "solo no leídas". Al activarlo sube el límite para traerlas
+  // todas (suelen ser pocas). Al desactivarlo vuelve a la vista reciente normal.
+  const setUnreadOnly = useCallback((on: boolean) => {
+    unreadOnlyRef.current = on;
+    limitRef.current = on ? 1000 : PAGE;
     fetchConversations();
   }, [fetchConversations]);
 
@@ -533,6 +546,7 @@ export function useWhatsAppInbox() {
     fetchConversations,
     searchConversations,
     loadMoreConversations,
+    setUnreadOnly,
     selectConversation,
     setSelectedPhone,
     markAsUnread,
