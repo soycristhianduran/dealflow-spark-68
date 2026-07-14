@@ -69,6 +69,10 @@ interface AgentConfig {
   appointment_duration_min: number;
   appointment_slot_interval_min: number | null;
   working_hours: WorkingHours;
+  /** Horario de FUNCIONAMIENTO del agente (independiente del de agendamiento).
+   *  Fuera de estas franjas el agente no responde (silencio total). */
+  operating_hours_enabled: boolean;
+  operating_hours: WorkingHours;
   meeting_address: string;
   appointment_modality: "both" | "virtual" | "presencial";
   /** "organization" = un calendario compartido; "individual" = calendario por asesor. */
@@ -89,6 +93,18 @@ const DEFAULT_HOURS: WorkingHours = {
   fri: { enabled: true, start: "09:00", end: "18:00" },
   sat: { enabled: false, start: "09:00", end: "13:00" },
   sun: { enabled: false, start: "09:00", end: "13:00" },
+};
+
+// Por defecto el agente funciona todos los días (8:00–20:00) — solo aplica si se
+// activa el switch de horario de funcionamiento.
+const DEFAULT_OPERATING_HOURS: WorkingHours = {
+  mon: { enabled: true, start: "08:00", end: "20:00" },
+  tue: { enabled: true, start: "08:00", end: "20:00" },
+  wed: { enabled: true, start: "08:00", end: "20:00" },
+  thu: { enabled: true, start: "08:00", end: "20:00" },
+  fri: { enabled: true, start: "08:00", end: "20:00" },
+  sat: { enabled: true, start: "09:00", end: "14:00" },
+  sun: { enabled: false, start: "09:00", end: "14:00" },
 };
 
 const DAY_LABELS: { key: keyof WorkingHours; label: string }[] = [
@@ -130,6 +146,8 @@ const DEFAULT_CONFIG: AgentConfig = {
   appointment_slot_interval_min: null,
   appointment_slot_capacity: { enabled: false, rules: [{ days: [1,2,3,4,5], hours: ["09:00","10:00","11:00","12:00"], capacity: 2 }] },
   working_hours: DEFAULT_HOURS,
+  operating_hours_enabled: false,
+  operating_hours: DEFAULT_OPERATING_HOURS,
   meeting_address: "",
   appointment_modality: "both",
   calendar_mode: "individual",
@@ -248,6 +266,8 @@ export default function AIAgentPage() {
             return { enabled: !!c.enabled, mode: c.mode === "only" ? "only" : "boost", rules: [{ days: c.days ?? [1,2,3,4,5], hours: toHHMM(c.hours), capacity: c.capacity ?? 2 }] };
           })(),
           working_hours: (data.working_hours as WorkingHours) ?? DEFAULT_HOURS,
+          operating_hours_enabled: data.operating_hours_enabled ?? false,
+          operating_hours: (data.operating_hours as WorkingHours) ?? DEFAULT_OPERATING_HOURS,
           meeting_address: data.meeting_address ?? "",
           appointment_modality: (data.appointment_modality as AgentConfig["appointment_modality"]) ?? "both",
           calendar_mode: (data.calendar_mode as AgentConfig["calendar_mode"]) === "organization" ? "organization" : "individual",
@@ -373,6 +393,19 @@ export default function AIAgentPage() {
       }
     }
 
+    // Misma validación para el horario de FUNCIONAMIENTO del agente.
+    if (config.operating_hours_enabled) {
+      const badDay = DAY_LABELS.find(({ key }) => {
+        const d = config.operating_hours[key];
+        return d?.enabled && d.start && d.end && d.end <= d.start;
+      });
+      if (badDay) {
+        const d = config.operating_hours[badDay.key];
+        toast.error(`Horario de funcionamiento inválido en ${badDay.label}: la hora de fin (${d.end}) debe ser posterior a la de inicio (${d.start}).`);
+        return;
+      }
+    }
+
     setSaving(true);
     try {
       const payload = {
@@ -397,6 +430,8 @@ export default function AIAgentPage() {
         appointment_slot_interval_min: config.appointment_slot_interval_min,
         appointment_slot_capacity: config.appointment_slot_capacity,
         working_hours: config.working_hours,
+        operating_hours_enabled: config.operating_hours_enabled,
+        operating_hours: config.operating_hours,
         meeting_address: config.meeting_address.trim() || null,
         appointment_modality: config.appointment_modality,
         calendar_mode: config.calendar_mode,
@@ -641,6 +676,67 @@ export default function AIAgentPage() {
                   className="mt-0.5 shrink-0"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Horario de funcionamiento del agente (independiente del agendamiento) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <CalendarClock className="h-4 w-4" /> Horario de funcionamiento
+              </CardTitle>
+              <CardDescription>
+                Define en qué horas responde el agente. Fuera de estas franjas no responde nada
+                (silencio total) y el mensaje queda para atención humana. Es independiente del horario
+                de agendamiento de citas.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start justify-between rounded-lg border p-3 gap-3">
+                <div>
+                  <p className="text-sm font-medium">Restringir el agente a un horario</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Apagado: el agente responde a toda hora. Encendido: solo responde en las franjas de abajo.
+                  </p>
+                </div>
+                <Switch
+                  checked={config.operating_hours_enabled}
+                  onCheckedChange={v => set("operating_hours_enabled", v)}
+                  className="mt-0.5 shrink-0"
+                  disabled={!canEditAgent}
+                />
+              </div>
+              {config.operating_hours_enabled && (
+                <div className="space-y-2">
+                  {DAY_LABELS.map(({ key, label }) => {
+                    const d = config.operating_hours[key];
+                    return (
+                      <div key={key} className="flex items-center gap-3 rounded-lg border p-2">
+                        <Switch
+                          checked={d.enabled}
+                          disabled={!canEditAgent}
+                          onCheckedChange={v => set("operating_hours", { ...config.operating_hours, [key]: { ...d, enabled: v } })}
+                        />
+                        <span className="text-sm w-20">{label}</span>
+                        {d.enabled ? (
+                          <div className="flex items-center gap-2">
+                            <Input type="time" value={d.start} className="h-8 w-28" disabled={!canEditAgent}
+                              onChange={e => set("operating_hours", { ...config.operating_hours, [key]: { ...d, start: e.target.value } })} />
+                            <span className="text-muted-foreground text-sm">a</span>
+                            <Input type="time" value={d.end} className="h-8 w-28" disabled={!canEditAgent}
+                              onChange={e => set("operating_hours", { ...config.operating_hours, [key]: { ...d, end: e.target.value } })} />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Cerrado</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <p className="text-[11px] text-muted-foreground">
+                    Las horas se interpretan en la zona horaria de tu organización.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

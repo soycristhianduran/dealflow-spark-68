@@ -226,6 +226,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    // 3.5 Operating hours: horario de FUNCIONAMIENTO del agente (independiente
+    // del horario de agendamiento). Fuera de estas franjas el agente NO responde
+    // (silencio total) — el mensaje queda para atención humana. Se evalúa en la
+    // zona horaria de la organización.
+    if (cfg.operating_hours_enabled && cfg.operating_hours) {
+      const { data: orgRow } = await supabase
+        .from("organizations")
+        .select("timezone")
+        .eq("id", organization_id)
+        .maybeSingle();
+      const tz = orgRow?.timezone || "America/Bogota";
+      // Día de la semana + hora actual (HH:MM) en la zona de la organización.
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+      }).formatToParts(new Date());
+      const wd = parts.find((p) => p.type === "weekday")?.value || "";
+      let hh = parts.find((p) => p.type === "hour")?.value || "00";
+      const mm = parts.find((p) => p.type === "minute")?.value || "00";
+      if (hh === "24") hh = "00"; // algunos entornos emiten 24 a medianoche
+      const nowMin = parseInt(hh, 10) * 60 + parseInt(mm, 10);
+      const dowKey = ({ Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat" } as Record<string, string>)[wd];
+      const day = dowKey ? (cfg.operating_hours as any)[dowKey] : null;
+      const toMin = (s: string) => {
+        const [a, b] = String(s || "").split(":");
+        return (parseInt(a, 10) || 0) * 60 + (parseInt(b, 10) || 0);
+      };
+      const open = !!day?.enabled && nowMin >= toMin(day.start) && nowMin < toMin(day.end);
+      if (!open) {
+        return json({ response: null, reason: "outside_operating_hours" });
+      }
+    }
+
     // 4. Check escalation keywords in user message BEFORE calling AI
     const msgLower = (message.content || "").toLowerCase();
     const shouldEscalate = ESCALATION_TRIGGERS.some(t => msgLower.includes(t));
