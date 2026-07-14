@@ -1713,7 +1713,7 @@ Deno.serve(async (req) => {
 
       let stQ = supabase
         .from("whatsapp_configs")
-        .select("phone_number_id, access_token")
+        .select("phone_number_id, access_token, waba_id")
         .eq("is_active", true);
       if (orgId) {
         stQ = stQ.eq("organization_id", orgId);
@@ -1723,13 +1723,40 @@ Deno.serve(async (req) => {
       const { data: config } = await stQ.maybeSingle();
       if (!config) throw new Error("WhatsApp no está configurado");
 
-      // Look up template in local DB to know header type and body text
-      const { data: tpl } = await supabase
+      // Look up template in local DB to know header type and body text.
+      // Scope by ORGANIZACIÓN (las plantillas son por-org); antes filtraba por
+      // user_id y en multi-org fallaba cuando el que envía no es quien sincronizó
+      // → se guardaba "[Plantilla: nombre]" en el historial. Fallback al user
+      // (filas legacy sin organization_id) y, si aún falta, a Meta al vuelo.
+      let tplQ = supabase
         .from("whatsapp_templates")
         .select("header_type, header_text, body_text")
-        .eq("user_id", user.id)
-        .eq("name", template_name)
-        .maybeSingle();
+        .eq("name", template_name);
+      tplQ = orgId ? tplQ.eq("organization_id", orgId) : tplQ.eq("user_id", user.id);
+      let { data: tpl } = await tplQ.maybeSingle();
+      if (!tpl) {
+        const { data: legacyTpl } = await supabase
+          .from("whatsapp_templates")
+          .select("header_type, header_text, body_text")
+          .eq("user_id", user.id)
+          .eq("name", template_name)
+          .maybeSingle();
+        tpl = legacyTpl ?? null;
+      }
+      if (!tpl && config.waba_id) {
+        try {
+          const mres = await fetch(
+            `${GRAPH_API}/${config.waba_id}/message_templates?name=${encodeURIComponent(template_name)}&access_token=${config.access_token}`,
+          );
+          const mjson = await mres.json();
+          const mt = (mjson.data || [])[0];
+          if (mt) {
+            const bodyComp = (mt.components || []).find((c: any) => c.type === "BODY");
+            const headerComp = (mt.components || []).find((c: any) => c.type === "HEADER");
+            tpl = { header_type: headerComp?.format || null, header_text: headerComp?.text || null, body_text: bodyComp?.text || "" };
+          }
+        } catch (_) { /* no-fatal: cae al placeholder */ }
+      }
 
       // Build components matching what the template was approved with
       const components: any[] = [];

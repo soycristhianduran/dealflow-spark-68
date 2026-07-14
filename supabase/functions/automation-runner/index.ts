@@ -790,7 +790,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?
       // Look up primary WhatsApp config for this org (multi-number aware)
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
-        .select("phone_number_id, access_token")
+        .select("phone_number_id, access_token, waba_id")
         .eq("organization_id", contact.organization_id)
         .eq("is_active", true)
         .neq("phone_number_id", "pending")
@@ -836,6 +836,30 @@ async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?
             .limit(1)
             .maybeSingle();
           tplMeta = legacyTpl ?? null;
+        }
+        // Auto-sanación: si la plantilla no está en la tabla local (creada en Meta
+        // pero aún sin sincronizar), tráela de Meta al vuelo. Sin esto el mensaje
+        // se guardaba como "[Plantilla: nombre]" en el historial del CRM aunque
+        // se enviara bien. Solo ocurre cuando falta localmente, así que no pesa.
+        if (!tplMeta && waConfig.waba_id) {
+          try {
+            const mres = await fetch(
+              `${GRAPH_API}/${waConfig.waba_id}/message_templates?name=${encodeURIComponent(cfg.template_name)}&access_token=${waConfig.access_token}`,
+            );
+            const mjson = await mres.json();
+            const mt = (mjson.data || [])[0];
+            if (mt) {
+              const bodyComp = (mt.components || []).find((c: any) => c.type === "BODY");
+              const headerComp = (mt.components || []).find((c: any) => c.type === "HEADER");
+              const buttonsComp = (mt.components || []).find((c: any) => c.type === "BUTTONS");
+              tplMeta = {
+                body_text: bodyComp?.text || "",
+                header_type: headerComp?.format || null,
+                header_media_handle: null,
+                buttons: buttonsComp?.buttons || null,
+              };
+            }
+          } catch (_) { /* no-fatal: cae al placeholder como antes */ }
         }
 
         const components: any[] = [];
@@ -1128,7 +1152,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?
       const cfg = step.config || {};
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
-        .select("phone_number_id, access_token")
+        .select("phone_number_id, access_token, waba_id")
         .eq("organization_id", contact.organization_id)
         .eq("is_active", true)
         .neq("phone_number_id", "pending")
@@ -1185,7 +1209,7 @@ async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?
       const cfg = step.config || {};
       const { data: waConfig } = await supabase
         .from("whatsapp_configs")
-        .select("phone_number_id, access_token")
+        .select("phone_number_id, access_token, waba_id")
         .eq("organization_id", contact.organization_id)
         .eq("is_active", true)
         .neq("phone_number_id", "pending")
