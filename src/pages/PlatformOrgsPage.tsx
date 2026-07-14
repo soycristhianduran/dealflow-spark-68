@@ -71,7 +71,8 @@ export default function PlatformOrgsPage() {
     }
     toast({ title: "Gestor asignado", description: `${email} ahora administra ${org.org_name} sin ocupar un asiento facturable.` });
     setGestorOrg(null); setGestorEmail("");
-    setOrgs(prev => prev.map(x => x.organization_id === org.organization_id ? { ...x, member_count: x.member_count + 1 } : x));
+    // Un gestor NO es facturable, así que member_count (solo usuarios facturables)
+    // no cambia al asignarlo.
   };
 
   const enterOrg = async (org: PlatformOrg) => {
