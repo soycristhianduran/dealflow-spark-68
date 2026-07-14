@@ -393,15 +393,17 @@ export default function AIAgentPage() {
       }
     }
 
-    // Misma validación para el horario de FUNCIONAMIENTO del agente.
+    // Validación del horario de FUNCIONAMIENTO. A diferencia del agendamiento,
+    // aquí SÍ se permite cruzar la medianoche (ej. 22:00→07:00), así que solo se
+    // rechaza cuando inicio y fin son iguales (franja de duración cero).
     if (config.operating_hours_enabled) {
       const badDay = DAY_LABELS.find(({ key }) => {
         const d = config.operating_hours[key];
-        return d?.enabled && d.start && d.end && d.end <= d.start;
+        return d?.enabled && d.start && d.end && d.end === d.start;
       });
       if (badDay) {
         const d = config.operating_hours[badDay.key];
-        toast.error(`Horario de funcionamiento inválido en ${badDay.label}: la hora de fin (${d.end}) debe ser posterior a la de inicio (${d.start}).`);
+        toast.error(`Horario de funcionamiento inválido en ${badDay.label}: la hora de inicio y fin no pueden ser iguales (${d.start}).`);
         return;
       }
     }
@@ -734,6 +736,7 @@ export default function AIAgentPage() {
                   })}
                   <p className="text-[11px] text-muted-foreground">
                     Las horas se interpretan en la zona horaria de tu organización.
+                    Puedes cruzar la medianoche (ej. 10:00 p.m. a 7:00 a.m. del día siguiente).
                   </p>
                 </div>
               )}

@@ -246,13 +246,31 @@ Deno.serve(async (req) => {
       const mm = parts.find((p) => p.type === "minute")?.value || "00";
       if (hh === "24") hh = "00"; // algunos entornos emiten 24 a medianoche
       const nowMin = parseInt(hh, 10) * 60 + parseInt(mm, 10);
-      const dowKey = ({ Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat" } as Record<string, string>)[wd];
-      const day = dowKey ? (cfg.operating_hours as any)[dowKey] : null;
+      const ORDER = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+      const idx = ORDER.indexOf(({ Sun: "sun", Mon: "mon", Tue: "tue", Wed: "wed", Thu: "thu", Fri: "fri", Sat: "sat" } as Record<string, string>)[wd] || "");
+      const oh = cfg.operating_hours as any;
       const toMin = (s: string) => {
         const [a, b] = String(s || "").split(":");
         return (parseInt(a, 10) || 0) * 60 + (parseInt(b, 10) || 0);
       };
-      const open = !!day?.enabled && nowMin >= toMin(day.start) && nowMin < toMin(day.end);
+      // Soporta franjas que cruzan la medianoche (ej. 22:00→07:00): la parte de
+      // la madrugada pertenece a la franja nocturna del DÍA ANTERIOR.
+      let open = false;
+      if (idx >= 0) {
+        const today = oh[ORDER[idx]];
+        if (today?.enabled) {
+          const s = toMin(today.start), e = toMin(today.end);
+          if (s < e) open = nowMin >= s && nowMin < e;         // franja normal
+          else if (s > e) open = nowMin >= s;                  // nocturna: parte antes de medianoche
+        }
+        if (!open) {
+          const prev = oh[ORDER[(idx + 6) % 7]];               // día anterior
+          if (prev?.enabled) {
+            const ps = toMin(prev.start), pe = toMin(prev.end);
+            if (ps > pe && nowMin < pe) open = true;           // nocturna: madrugada del día anterior
+          }
+        }
+      }
       if (!open) {
         return json({ response: null, reason: "outside_operating_hours" });
       }
