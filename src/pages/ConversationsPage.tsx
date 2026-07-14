@@ -132,6 +132,17 @@ interface MsMessageRow {
   sent_at: string;
 }
 
+// Etiqueta de separador de día en el hilo (estilo WhatsApp): Hoy / Ayer / fecha.
+// Sin esto el hilo solo mostraba la hora y un mensaje de hace días parecía de hoy.
+function formatDaySeparator(d: Date): string {
+  const today = new Date();
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOf(today) - startOf(d)) / 86400000);
+  if (diffDays === 0) return "Hoy";
+  if (diffDays === 1) return "Ayer";
+  return d.toLocaleDateString("es", { day: "numeric", month: "long", year: today.getFullYear() === d.getFullYear() ? undefined : "numeric" });
+}
+
 export default function ConversationsPage() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -1070,6 +1081,16 @@ export default function ConversationsPage() {
 
   const isWA = selected?.channel === "whatsapp";
   const isMS = selected?.channel === "messenger";
+  // Ventana de 24h de WhatsApp: solo se pueden enviar mensajes libres dentro de
+  // las 24h desde la ÚLTIMA respuesta del cliente. Si está cerrada, avisamos ANTES
+  // de escribir (en vez de fallar al enviar) y hay que usar una plantilla.
+  const waLastIncomingAt = (() => {
+    for (let i = activeMessages.length - 1; i >= 0; i--) {
+      if (activeMessages[i].direction === "incoming") return activeMessages[i].sent_at;
+    }
+    return null;
+  })();
+  const waWindowClosed = isWA && (!waLastIncomingAt || (Date.now() - new Date(waLastIncomingAt).getTime()) > 24 * 3600 * 1000);
 
   return (
     <AppLayout>
@@ -1294,14 +1315,33 @@ export default function ConversationsPage() {
                   <div className="text-center py-12 text-sm text-muted-foreground">{t("conversationsPage.noMessagesYet")}</div>
                 ) : (
                   <div className="space-y-3 max-w-3xl mx-auto">
-                    {activeMessages.map((msg) => (
-                      <MessageBubble
-                        key={msg.id}
-                        msg={msg}
-                        channel={selected.channel}
-                        onFetchMedia={isWA ? wa.fetchMedia : undefined}
-                      />
-                    ))}
+                    {(() => {
+                      const nodes: React.ReactNode[] = [];
+                      let lastDay = "";
+                      for (const msg of activeMessages) {
+                        const d = new Date(msg.sent_at);
+                        const dayKey = d.toDateString();
+                        if (dayKey !== lastDay) {
+                          lastDay = dayKey;
+                          nodes.push(
+                            <div key={`sep-${dayKey}`} className="flex justify-center py-1">
+                              <span className="rounded-full bg-muted px-3 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                {formatDaySeparator(d)}
+                              </span>
+                            </div>,
+                          );
+                        }
+                        nodes.push(
+                          <MessageBubble
+                            key={msg.id}
+                            msg={msg}
+                            channel={selected.channel}
+                            onFetchMedia={isWA ? wa.fetchMedia : undefined}
+                          />,
+                        );
+                      }
+                      return nodes;
+                    })()}
                     <div ref={messagesEndRef} />
                   </div>
                 )}
@@ -1329,6 +1369,21 @@ export default function ConversationsPage() {
                     </Button>
                   </div>
                 ) : (
+                  <div className="space-y-2">
+                    {/* Aviso de ventana de 24h cerrada (WhatsApp): solo plantillas */}
+                    {waWindowClosed && (
+                      <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300">
+                        <span>
+                          {waLastIncomingAt
+                            ? `La ventana de 24 h está cerrada (el cliente escribió ${formatDaySeparator(new Date(waLastIncomingAt)).toLowerCase()}). Usa una plantilla para reactivar la conversación.`
+                            : "El cliente aún no ha respondido. Solo puedes iniciar con una plantilla aprobada."}
+                        </span>
+                        <Button size="sm" variant="outline" className="h-7 shrink-0 gap-1 border-amber-300 text-amber-800 hover:bg-amber-100 dark:text-amber-300"
+                          onClick={() => setShowTemplatePicker(true)}>
+                          <FileText className="h-3.5 w-3.5" /> Plantilla
+                        </Button>
+                      </div>
+                    )}
                   <div className="flex gap-2 items-end">
                     {/* File input — shared for both channels */}
                     <input
@@ -1403,6 +1458,7 @@ export default function ConversationsPage() {
                         <Mic className="h-4 w-4" />
                       </Button>
                     )}
+                  </div>
                   </div>
                 )}
               </div>
