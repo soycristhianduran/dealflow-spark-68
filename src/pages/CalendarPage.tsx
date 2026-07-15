@@ -264,34 +264,45 @@ export default function CalendarPage() {
               )}
             </div>
 
-            <div className="w-full lg:w-80 space-y-3">
+            <div className="w-full lg:w-80 space-y-3 lg:sticky lg:top-0 self-start">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-foreground capitalize">{format(currentDate, "EEEE d 'de' MMMM", { locale: es })}</h3>
-                <Button size="sm" variant="outline" className="gap-1" onClick={() => openCreate(currentDate)}>
-                  <Plus className="h-3.5 w-3.5" /> {t("calendarPage.create")}
-                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedDayMeetings.length > 0 && (
+                    <span className="text-xs text-muted-foreground">{selectedDayMeetings.length} cita{selectedDayMeetings.length === 1 ? "" : "s"}</span>
+                  )}
+                  <Button size="sm" variant="outline" className="gap-1" onClick={() => openCreate(currentDate)}>
+                    <Plus className="h-3.5 w-3.5" /> {t("calendarPage.create")}
+                  </Button>
+                </div>
               </div>
+              {/* Lista con scroll propio y altura acotada: al haber muchas citas
+                  ya no se alarga la página, sino que scrollea internamente. */}
               {selectedDayMeetings.length === 0 ? (
                 <p className="text-sm text-muted-foreground py-8 text-center">{t("calendarPage.noAppointmentsThisDay")}</p>
-              ) : selectedDayMeetings.map(meeting => (
-                <Card key={meeting.id} className="p-3 border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => openEdit(meeting)}>
-                  <div className="flex items-start gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                      {meetingTypeIcons[meeting.meeting_type || "video_call"]}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting, t)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {format(parseISO(meeting.start_at), "HH:mm")} - {format(parseISO(meeting.end_at), "HH:mm")}
-                      </p>
-                      {meeting.location_or_link && <p className="text-xs text-primary mt-1 truncate">{meeting.location_or_link}</p>}
-                      <Badge variant="outline" className="mt-2 text-xs">{meeting.status}</Badge>
-                    </div>
-                    <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
-                  </div>
-                </Card>
-              ))}
+              ) : (
+                <div className="space-y-3 overflow-y-auto scrollbar-thin pr-1 lg:max-h-[calc(100vh-11rem)]">
+                  {selectedDayMeetings.map(meeting => (
+                    <Card key={meeting.id} className="p-3 border shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                      onClick={() => openEdit(meeting)}>
+                      <div className="flex items-start gap-2">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          {meetingTypeIcons[meeting.meeting_type || "video_call"]}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting, t)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {format(parseISO(meeting.start_at), "HH:mm")} - {format(parseISO(meeting.end_at), "HH:mm")}
+                          </p>
+                          {meeting.location_or_link && <p className="text-xs text-primary mt-1 truncate">{meeting.location_or_link}</p>}
+                          <Badge variant="outline" className="mt-2 text-xs">{meeting.status}</Badge>
+                        </div>
+                        <Pencil className="h-3.5 w-3.5 text-muted-foreground shrink-0 mt-1" />
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
