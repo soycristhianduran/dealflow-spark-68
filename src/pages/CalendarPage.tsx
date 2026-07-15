@@ -48,6 +48,19 @@ function getMeetingDisplayTitle(m: MeetingRow, t: TFunction) {
   return m.title;
 }
 
+// Tarjeta de métrica del resumen del mes.
+function StatTile({ label, value, dot }: { label: string; value: number; dot?: string }) {
+  return (
+    <div className="rounded-lg border p-3">
+      <div className="flex items-center gap-1.5">
+        {dot && <span className={cn("h-2 w-2 rounded-full", dot)} />}
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </div>
+      <p className="mt-0.5 text-2xl font-semibold text-foreground tabular-nums">{value}</p>
+    </div>
+  );
+}
+
 export default function CalendarPage() {
   const { isVendor, myUserId } = usePermissions();
   const { organizationId, calendarScope } = useOrganizationContext();
@@ -133,6 +146,27 @@ export default function CalendarPage() {
 
   const selectedDayMeetings = getMeetingsForDay(currentDate);
 
+  // Resumen del mes visible (usa las citas ya cargadas, sin consultas extra).
+  const monthStats = useMemo(() => {
+    const inMonth = meetings.filter((m) => {
+      const d = parseISO(m.start_at);
+      return d >= monthStart && d <= monthEnd;
+    });
+    const by = (s: string) => inMonth.filter((m) => (m.status || "scheduled") === s).length;
+    const perDay: Record<string, number> = {};
+    for (const m of inMonth) {
+      const k = format(parseISO(m.start_at), "yyyy-MM-dd");
+      perDay[k] = (perDay[k] || 0) + 1;
+    }
+    let busiest: { day: string; n: number } | null = null;
+    for (const [day, n] of Object.entries(perDay)) if (!busiest || n > busiest.n) busiest = { day, n };
+    const now = Date.now();
+    const upcoming = [...meetings]
+      .filter((m) => parseISO(m.start_at).getTime() >= now && (m.status || "scheduled") === "scheduled")
+      .sort((a, b) => parseISO(a.start_at).getTime() - parseISO(b.start_at).getTime())[0] || null;
+    return { total: inMonth.length, scheduled: by("scheduled"), completed: by("completed"), cancelled: by("cancelled"), noShow: by("no_show"), busiest, upcoming };
+  }, [meetings, currentDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <AppLayout>
       <AppHeader title={t("calendarPage.title")} actions={
@@ -193,6 +227,45 @@ export default function CalendarPage() {
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              )}
+
+              {/* Resumen del mes — aprovecha el espacio bajo el calendario */}
+              {view === "month" && (
+                <div className="mt-4 rounded-lg border bg-card p-4">
+                  <h3 className="mb-3 text-sm font-semibold capitalize text-foreground">
+                    Resumen de {format(currentDate, "MMMM yyyy", { locale: es })}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    <StatTile label="Citas del mes" value={monthStats.total} />
+                    <StatTile label="Agendadas" value={monthStats.scheduled} dot="bg-amber-400" />
+                    <StatTile label="Completadas" value={monthStats.completed} dot="bg-green-500" />
+                    <StatTile label="Canceladas" value={monthStats.cancelled} dot="bg-red-500" />
+                    <StatTile label="No asistió" value={monthStats.noShow} dot="bg-gray-400" />
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Día más ocupado</p>
+                      <p className="text-sm font-medium capitalize text-foreground">
+                        {monthStats.busiest
+                          ? `${format(parseISO(monthStats.busiest.day), "EEEE d", { locale: es })} · ${monthStats.busiest.n} cita${monthStats.busiest.n === 1 ? "" : "s"}`
+                          : "—"}
+                      </p>
+                    </div>
+                    <div className="rounded-lg border p-3">
+                      <p className="text-xs text-muted-foreground">Próxima cita</p>
+                      {monthStats.upcoming ? (
+                        <button
+                          onClick={() => openEdit(monthStats.upcoming!)}
+                          className="truncate text-left text-sm font-medium text-primary hover:underline"
+                        >
+                          {format(parseISO(monthStats.upcoming.start_at), "d MMM, HH:mm", { locale: es })} · {getMeetingDisplayTitle(monthStats.upcoming, t)}
+                        </button>
+                      ) : (
+                        <p className="text-sm font-medium text-foreground">—</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
