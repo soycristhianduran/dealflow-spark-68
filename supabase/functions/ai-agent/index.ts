@@ -58,7 +58,7 @@ function workingHoursSummary(wh: any): string {
   return parts.length ? parts.join(", ") : "Sin horario configurado";
 }
 
-function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; contactMemory?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any; autoPipeline?: boolean }): string {
+function buildSystemPrompt(cfg: any, opts: { nowBogota: string; upcomingDates: string; canBook: boolean; media: any[]; contactEmail?: string | null; contactMemory?: string | null; orgTags?: string[]; stages?: string[]; upcomingMeeting?: any; autoPipeline?: boolean; tz?: string }): string {
   const tone = cfg.tone === "formal"
     ? "Usa un tono profesional y formal."
     : cfg.tone === "casual"
@@ -112,7 +112,7 @@ ${opts.media.map((m) => `- id: ${m.id} | ${m.name}${m.description ? ` — ${m.de
 
   // Reschedule/cancel (only if the contact has an upcoming appointment)
   const rescheduleBlock = (opts.canBook && opts.upcomingMeeting)
-    ? `\nCITA EXISTENTE DEL CLIENTE: "${opts.upcomingMeeting.title}" el ${new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(new Date(opts.upcomingMeeting.start_at))}.
+    ? `\nCITA EXISTENTE DEL CLIENTE: "${opts.upcomingMeeting.title}" el ${new Intl.DateTimeFormat("es-CO", { timeZone: opts.tz || "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(new Date(opts.upcomingMeeting.start_at))}.
 - Si el cliente quiere CAMBIAR la fecha/hora, usa reschedule_appointment con la nueva fecha (verifica disponibilidad antes).
 - Si el cliente quiere CANCELAR, confirma con él y usa cancel_appointment.\n`
     : "";
@@ -190,6 +190,12 @@ Deno.serve(async (req) => {
       return json({ response: null, reason: "agent_inactive" });
     }
 
+    // Zona horaria de la organización = fuente de verdad para agendar y para
+    // Google (misma zona en todo el sistema). Default Bogotá si no está seteada.
+    const { data: orgTzRow } = await supabase
+      .from("organizations").select("timezone").eq("id", organization_id).maybeSingle();
+    const orgTz: string = orgTzRow?.timezone || "America/Bogota";
+
     // 2. Check if this channel is enabled
     const channels = cfg.channels || {};
     if (!channels[channel]) {
@@ -231,12 +237,7 @@ Deno.serve(async (req) => {
     // (silencio total) — el mensaje queda para atención humana. Se evalúa en la
     // zona horaria de la organización.
     if (cfg.operating_hours_enabled && cfg.operating_hours) {
-      const { data: orgRow } = await supabase
-        .from("organizations")
-        .select("timezone")
-        .eq("id", organization_id)
-        .maybeSingle();
-      const tz = orgRow?.timezone || "America/Bogota";
+      const tz = orgTz;
       // Día de la semana + hora actual (HH:MM) en la zona de la organización.
       const parts = new Intl.DateTimeFormat("en-US", {
         timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
@@ -410,14 +411,14 @@ Deno.serve(async (req) => {
     const orgTags = (orgTagRows || []).map((t: any) => t.name);
 
     const nowBogota = new Intl.DateTimeFormat("es-CO", {
-      timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
+      timeZone: orgTz, dateStyle: "full", timeStyle: "short",
     }).format(new Date());
 
     // Explicit date table (next 14 days) so the model maps weekdays exactly
     // (Haiku otherwise miscounts days). Each line: "miércoles 17 de junio → 2026-06-17".
     const upcomingDates = (() => {
-      const fmt = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", weekday: "long", day: "numeric", month: "long" });
-      const isoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Bogota", year: "numeric", month: "2-digit", day: "2-digit" });
+      const fmt = new Intl.DateTimeFormat("es-CO", { timeZone: orgTz, weekday: "long", day: "numeric", month: "long" });
+      const isoFmt = new Intl.DateTimeFormat("en-CA", { timeZone: orgTz, year: "numeric", month: "2-digit", day: "2-digit" });
       const lines: string[] = [];
       for (let i = 0; i < 14; i++) {
         const d = new Date(Date.now() + i * 86400000);
@@ -527,7 +528,7 @@ Deno.serve(async (req) => {
     }
     history.push({ role: "user", content: userContent });
 
-    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, contactMemory, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting, autoPipeline: !!cfg.agent_auto_pipeline });
+    let system = buildSystemPrompt(cfg, { nowBogota, upcomingDates, canBook, media: mediaList, contactEmail: contactEmailOnFile, contactMemory, orgTags, stages: contactStages.map(s => s.name), upcomingMeeting, autoPipeline: !!cfg.agent_auto_pipeline, tz: orgTz });
     if (cfg.auto_qualify) {
       system += `
 
@@ -597,7 +598,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
         let resultText = "";
         try {
           if (b.name === "check_availability") {
-            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity, cfg.appointment_slot_interval_min || null, { orgId: organization_id, orgWide: calMode === "organization" });
+            resultText = await checkAvailability(supabase, advisorUserId!, b.input?.date_iso, cfg.working_hours, cfg.appointment_duration_min || 30, cfg.appointment_slot_capacity, cfg.appointment_slot_interval_min || null, { orgId: organization_id, orgWide: calMode === "organization", tz: orgTz });
           } else if (b.name === "book_appointment") {
             resultText = await bookAppointment(supabase, {
               organization_id, advisorUserId: advisorUserId!, contact_id,
@@ -609,6 +610,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
               modality: cfg.appointment_modality || "both",
               requiresPayment: !!cfg.appointments_paid,
               input: b.input,
+              tz: orgTz,
             });
             if (resultText.startsWith("Cita agendada correctamente")) bookedThisTurn = true;
           } else if (b.name === "update_lead") {
@@ -617,7 +619,7 @@ Ante la duda usa "medio" o "ninguno". La razon debe ser corta y concreta (ej: "p
             resultText = await rescheduleAppointment(supabase, {
               meeting: upcomingMeeting, advisorUserId: advisorUserId!, workingHours: cfg.working_hours,
               durationMin: cfg.appointment_duration_min || 30, input: b.input,
-              contact_id, attendeeEmail: contactEmailOnFile,
+              contact_id, attendeeEmail: contactEmailOnFile, tz: orgTz,
             });
           } else if (b.name === "cancel_appointment") {
             resultText = await cancelAppointment(supabase, { meeting: upcomingMeeting, advisorUserId: advisorUserId! });
@@ -796,9 +798,30 @@ async function resolveAdvisor(supabase: any, orgId: string, contactId: string | 
 
 const DOW = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-// Bogota is UTC-5 (no DST). Build a UTC Date from a Bogota wall-clock.
-function bogotaToUtc(y: number, mo: number, d: number, hh: number, mm: number): Date {
-  return new Date(Date.UTC(y, mo - 1, d, hh + 5, mm));
+// Convierte una hora de pared (en la zona `tz` de la organización) al instante
+// UTC. Reemplaza el antiguo bogotaToUtc (que asumía UTC-5); para America/Bogota
+// devuelve exactamente lo mismo, y es correcto para cualquier otra zona.
+function wallToUtc(y: number, mo: number, d: number, hh: number, mm: number, tz: string): Date {
+  const asUTC = Date.UTC(y, mo - 1, d, hh, mm);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(asUTC));
+  const g = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  let H = g("hour"); if (H === 24) H = 0;
+  const tzAsUTC = Date.UTC(g("year"), g("month") - 1, g("day"), H, g("minute"));
+  return new Date(asUTC + (asUTC - tzAsUTC)); // offset zona→UTC (=+5h para Bogota)
+}
+
+// Día de la semana (0=Dom..6=Sáb) y hora/minuto de un instante, en la zona `tz`.
+function tzWall(ms: number, tz: string): { dow: number; hh: number; mm: number } {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(new Date(ms));
+  const wd = parts.find((p) => p.type === "weekday")?.value || "Sun";
+  let hh = Number(parts.find((p) => p.type === "hour")?.value); if (hh === 24) hh = 0;
+  const mm = Number(parts.find((p) => p.type === "minute")?.value);
+  return { dow: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].indexOf(wd), hh, mm };
 }
 
 // Ask Google Calendar for busy intervals in a window (via create-calendar-event).
@@ -822,17 +845,14 @@ const overlaps = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && 
 // Per-slot capacity: how many concurrent appointments a slot allows. Default 1;
 // configured peak slots (specific weekdays + start-hours) allow more (e.g. 2).
 // cfg shape: { enabled, capacity, days:[0-6], hours:[9,10,...] } (Bogota time).
-function slotCapacity(slotStartMs: number, cap: any): number {
+function slotCapacity(slotStartMs: number, cap: any, tz: string): number {
   if (!cap?.enabled) return 1;
   // Modo "only": las horas listadas son las ÚNICAS agendables (franjas fijas).
   // Un espacio que no coincide con ninguna regla del día no es reservable (cap 0).
   const onlyMode = cap.mode === "only";
-  // Bogota = UTC-5 (no DST). Derive weekday + start hour in Bogota.
-  const bog = new Date(slotStartMs - 5 * 3600000);
-  const dow = bog.getUTCDay();          // 0=Sun..6=Sat, Bogota
-  const hh = bog.getUTCHours();
-  const mm = bog.getUTCMinutes();
-  const hhmm = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`; // Bogota HH:MM
+  // Día/hora del espacio en la zona horaria de la organización.
+  const { dow, hh, mm } = tzWall(slotStartMs, tz);
+  const hhmm = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
   // Support multiple rules; fall back to a single legacy rule (days/hours/capacity).
   const rules: any[] = Array.isArray(cap.rules) && cap.rules.length
     ? cap.rules
@@ -874,7 +894,8 @@ async function crmBookedCount(
 }
 
 // Compute the real free slots for a day: working hours minus Google-busy minus past.
-async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any, intervalMin?: number | null, capOpts?: { orgId?: string | null; orgWide?: boolean }): Promise<string> {
+async function checkAvailability(supabase: any, advisorUserId: string, dateIso: string, workingHours: any, durationMin: number, slotCap: any, intervalMin?: number | null, capOpts?: { orgId?: string | null; orgWide?: boolean; tz?: string }): Promise<string> {
+  const tz = capOpts?.tz || "America/Bogota";
   const m = (dateIso || "").match(/(\d{4})-(\d{2})-(\d{2})/);
   if (!m) return "Fecha inválida. Usa formato YYYY-MM-DD.";
   const [_, y, mo, d] = m.map(Number) as unknown as number[];
@@ -884,8 +905,8 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
 
   const [sH, sM] = String(wh.start || "09:00").split(":").map(Number);
   const [eH, eM] = String(wh.end || "18:00").split(":").map(Number);
-  const dayStart = bogotaToUtc(y, mo, d, sH, sM).getTime();
-  const dayEnd = bogotaToUtc(y, mo, d, eH, eM).getTime();
+  const dayStart = wallToUtc(y, mo, d, sH, sM, tz).getTime();
+  const dayEnd = wallToUtc(y, mo, d, eH, eM, tz).getTime();
 
   const busy = await fetchBusy(advisorUserId, new Date(dayStart).toISOString(), new Date(dayEnd).toISOString());
   const busyMs = busy.map(b => [new Date(b.start).getTime(), new Date(b.end).getTime()] as [number, number]);
@@ -899,7 +920,7 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
   const free: string[] = [];
   for (let t = dayStart; t + durMs <= dayEnd; t += stepMs) {
     if (t < now) continue;
-    const cap = slotCapacity(t, slotCap);
+    const cap = slotCapacity(t, slotCap, tz);
     const googleBusy = busyMs.some(([bs, be]) => overlaps(t, t + durMs, bs, be));
     // occupied = our own concurrent CRM meetings; if none but Google shows busy,
     // it's an external event taking 1 unit. Free when occupied < capacity.
@@ -907,7 +928,7 @@ async function checkAvailability(supabase: any, advisorUserId: string, dateIso: 
     const occupied = crm > 0 ? crm : (googleBusy ? 1 : 0);
     if (occupied >= cap) continue;
     // Label in Bogota HH:mm
-    const label = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(t));
+    const label = new Intl.DateTimeFormat("es-CO", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true }).format(new Date(t));
     free.push(label);
   }
   if (!free.length) return `No hay horarios libres ese día (todo ocupado o fuera de horario). Ofrece otro día.`;
@@ -920,10 +941,11 @@ async function bookAppointment(
   supabase: any,
   args: {
     organization_id: string; advisorUserId: string; contact_id: string | null; orgWide?: boolean;
-    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any; slotCap?: any;
+    durationMin: number; workingHours: any; defaultAddress?: string | null; modality?: string; requiresPayment?: boolean; input: any; slotCap?: any; tz?: string;
   },
 ): Promise<string> {
   const { organization_id, advisorUserId, contact_id, orgWide, durationMin, workingHours, defaultAddress, modality, requiresPayment, input, slotCap } = args;
+  const tz = args.tz || "America/Bogota";
 
   // Paid appointments: never book until the client confirmed payment.
   if (requiresPayment && !input?.payment_confirmed) {
@@ -936,7 +958,7 @@ async function bookAppointment(
   const m = iso.match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
   if (!m) return "Formato de fecha inválido. Usa ISO 8601, ej: 2026-06-20T15:00:00.";
   const [_, y, mo, d, hh, mm] = m;
-  const startUtc = new Date(Date.UTC(+y, +mo - 1, +d, +hh + 5, +mm)); // Bogota = UTC-5
+  const startUtc = wallToUtc(+y, +mo, +d, +hh, +mm, tz);
   if (isNaN(startUtc.getTime())) return "Fecha inválida.";
   if (startUtc.getTime() <= Date.now()) return "Esa fecha ya pasó. Ofrece una fecha futura.";
 
@@ -955,7 +977,7 @@ async function bookAppointment(
 
   // Capacity-aware availability: a slot may allow >1 concurrent appointment
   // (configured peak hours). Reject only when the slot is at/over capacity.
-  const cap = slotCapacity(startUtc.getTime(), slotCap);
+  const cap = slotCapacity(startUtc.getTime(), slotCap, tz);
   const busy = await fetchBusy(advisorUserId, startUtc.toISOString(), endUtc.toISOString());
   const googleBusy = busy.some(b => overlaps(startUtc.getTime(), endUtc.getTime(), new Date(b.start).getTime(), new Date(b.end).getTime()));
   const crm = await crmBookedCount(supabase, { advisorUserId, orgId: organization_id, orgWide }, startUtc.getTime(), endUtc.getTime());
@@ -994,7 +1016,7 @@ async function bookAppointment(
   const { data: meeting, error: mErr } = await supabase.from("meetings").insert({
     organization_id, contact_id, advisor_id: advisorUserId,
     title, start_at: startUtc.toISOString(), end_at: endUtc.toISOString(),
-    timezone: "America/Bogota", status: "scheduled", meeting_type: meetingType,
+    timezone: tz, status: "scheduled", meeting_type: meetingType,
     location_or_link: address, notes,
     payment_status: requiresPayment ? "paid" : "not_required",
   }).select("id").single();
@@ -1032,14 +1054,14 @@ async function bookAppointment(
   }
 
   const when = new Intl.DateTimeFormat("es-CO", {
-    timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short",
+    timeZone: tz, dateStyle: "full", timeStyle: "short",
   }).format(startUtc);
 
   // Fire "meeting_scheduled" automations (e.g. WhatsApp confirmation template)
   // with ready-to-use {{meeting.*}} variables. Best-effort, never blocks the reply.
   if (contact_id) {
-    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full" }).format(startUtc);
-    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
+    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: tz, dateStyle: "full" }).format(startUtc);
+    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
     fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
       method: "POST",
       headers: {
@@ -1131,15 +1153,16 @@ async function updateLead(
 // Reschedule the contact's upcoming appointment.
 async function rescheduleAppointment(
   supabase: any,
-  args: { meeting: any; advisorUserId: string; workingHours: any; durationMin: number; input: any; contact_id?: string | null; attendeeEmail?: string | null },
+  args: { meeting: any; advisorUserId: string; workingHours: any; durationMin: number; input: any; contact_id?: string | null; attendeeEmail?: string | null; tz?: string },
 ): Promise<string> {
   const { meeting, advisorUserId, workingHours, durationMin, input, contact_id, attendeeEmail } = args;
+  const tz = args.tz || "America/Bogota";
   if (!meeting) return "El cliente no tiene una cita próxima para reagendar.";
   const iso: string = input?.new_datetime_iso;
   const m = (iso || "").match(/(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
   if (!m) return "Formato de fecha inválido.";
   const [_, y, mo, d, hh, mm] = m;
-  const startUtc = new Date(Date.UTC(+y, +mo - 1, +d, +hh + 5, +mm));
+  const startUtc = wallToUtc(+y, +mo, +d, +hh, +mm, tz);
   if (isNaN(startUtc.getTime()) || startUtc.getTime() <= Date.now()) return "Esa fecha ya pasó. Ofrece una futura.";
   const dowKey = DOW[new Date(Date.UTC(+y, +mo - 1, +d)).getUTCDay()];
   const wh = workingHours?.[dowKey];
@@ -1178,12 +1201,12 @@ async function rescheduleAppointment(
       });
     } catch (e) { console.warn("[ai-agent] reschedule gcal failed:", e); }
   }
-  const when = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full", timeStyle: "short" }).format(startUtc);
+  const when = new Intl.DateTimeFormat("es-CO", { timeZone: tz, dateStyle: "full", timeStyle: "short" }).format(startUtc);
 
   // Fire "meeting_rescheduled" automations (e.g. WhatsApp notice with the new time).
   if (contact_id) {
-    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", dateStyle: "full" }).format(startUtc);
-    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: "America/Bogota", hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
+    const fmtDate = new Intl.DateTimeFormat("es-CO", { timeZone: tz, dateStyle: "full" }).format(startUtc);
+    const fmtTime = new Intl.DateTimeFormat("es-CO", { timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: true }).format(startUtc);
     fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/automation-runner`, {
       method: "POST",
       headers: {

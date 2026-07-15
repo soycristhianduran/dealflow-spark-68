@@ -195,6 +195,15 @@ Deno.serve(async (req) => {
 
     const body = bodyRaw;
     const { action = "create", google_event_id, title, description, start_at, end_at, location, attendee_email, create_meet } = body;
+    // Zona horaria de la ORGANIZACIÓN = fuente de verdad para Google (y el CRM),
+    // así el evento en Google queda en la misma zona que usa la org. Default
+    // 'America/Bogota' si no hay org o no está seteada (mismo comportamiento previo).
+    let orgTz = "America/Bogota";
+    if (body.organization_id) {
+      const { data: orgTzRow } = await supabase.from("organizations")
+        .select("timezone").eq("id", body.organization_id).maybeSingle();
+      if (orgTzRow?.timezone) orgTz = orgTzRow.timezone;
+    }
     // When the event has an attendee, ask Google to email invites/updates/cancels.
     const sendUpdates = attendee_email ? "all" : "none";
 
@@ -227,7 +236,7 @@ Deno.serve(async (req) => {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            timeMin: time_min, timeMax: time_max, timeZone: "America/Bogota",
+            timeMin: time_min, timeMax: time_max, timeZone: orgTz,
             items: [{ id: calendarId }],
           }),
         },
@@ -278,8 +287,8 @@ Deno.serve(async (req) => {
     const eventPayload: Record<string, unknown> = {
       summary: title,
       description: description || undefined,
-      start: { dateTime: start_at, timeZone: "America/Bogota" },
-      end:   { dateTime: end_at,   timeZone: "America/Bogota" },
+      start: { dateTime: start_at, timeZone: orgTz },
+      end:   { dateTime: end_at,   timeZone: orgTz },
     };
     if (location) eventPayload.location = location;
     if (attendee_email) eventPayload.attendees = [{ email: attendee_email }];
