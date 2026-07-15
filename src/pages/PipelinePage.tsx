@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -34,6 +35,7 @@ interface Stage {
   order: number;
   color: string;
   probability: number;
+  is_no_show?: boolean;
 }
 
 interface ContactRow {
@@ -146,6 +148,7 @@ export default function PipelinePage() {
   const [stageName, setStageName] = useState("");
   const [stageColor, setStageColor] = useState(stageColorOptions[0].value);
   const [stageProbability, setStageProbability] = useState("50");
+  const [stageIsNoShow, setStageIsNoShow] = useState(false);
   const [savingStage, setSavingStage] = useState(false);
 
   // Manage mode
@@ -653,6 +656,7 @@ export default function PipelinePage() {
     setStageName("");
     setStageColor(stageColorOptions[0].value);
     setStageProbability("50");
+    setStageIsNoShow(false);
     setStageDialogOpen(true);
   };
 
@@ -661,6 +665,7 @@ export default function PipelinePage() {
     setStageName(stage.name);
     setStageColor(stage.color);
     setStageProbability(String(stage.probability));
+    setStageIsNoShow(!!stage.is_no_show);
     setStageDialogOpen(true);
   };
 
@@ -673,6 +678,7 @@ export default function PipelinePage() {
         name: stageName.trim(),
         color: stageColor,
         probability: Number(stageProbability) || 0,
+        is_no_show: stageIsNoShow,
       }).eq("id", editingStage.id);
       if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
       else toast.success(t("pipelinePage.stageUpdated"));
@@ -686,6 +692,7 @@ export default function PipelinePage() {
         color: stageColor,
         probability: Number(stageProbability) || 0,
         order: newOrder,
+        is_no_show: stageIsNoShow,
       });
       if (error) toast.error(t("pipelinePage.errorPrefix") + error.message);
       else toast.success(t("pipelinePage.stageCreated"));
@@ -1206,6 +1213,16 @@ export default function PipelinePage() {
                 ))}
               </div>
             </div>
+            {/* Designa esta etapa como "el cliente no asistió a su cita": al mover un
+                lead aquí, su cita se marca automáticamente como No asistió. Funciona
+                sin importar el nombre de la etapa. */}
+            <label className="flex items-start gap-2 rounded-lg border p-3 cursor-pointer">
+              <Checkbox checked={stageIsNoShow} onCheckedChange={(v) => setStageIsNoShow(!!v)} className="mt-0.5" />
+              <span className="text-sm">
+                Esta etapa = el cliente <span className="font-medium">no asistió</span> a su cita
+                <span className="block text-xs text-muted-foreground">Al mover un lead aquí, su cita pasada se marca sola como “No asistió”.</span>
+              </span>
+            </label>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStageDialogOpen(false)}>{t("pipelinePage.cancel")}</Button>
