@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { CreateMeetingDialog } from "@/components/crm/CreateMeetingDialog";
-import { Plus, ChevronLeft, ChevronRight, Video, MapPin, Phone, Loader2, Pencil } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Video, MapPin, Phone, Loader2, Pencil, CheckCircle2, XCircle, UserX, CalendarClock } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -98,6 +99,17 @@ export default function CalendarPage() {
   }, [isVendor, myUserId, organizationId, calendarScope]);
 
   useEffect(() => { fetchMeetings(); }, [fetchMeetings]);
+
+  // Marcado rápido del estado de la cita (completada / no asistió / cancelada /
+  // agendada) desde la tarjeta, sin abrir el diálogo. Optimista, con reversión.
+  const updateStatus = useCallback(async (id: string, status: string) => {
+    const prev = meetings.find((m) => m.id === id)?.status;
+    setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, status } : m)));
+    const { error } = await supabase.from("meetings").update({ status }).eq("id", id);
+    if (error) {
+      setMeetings((ms) => ms.map((m) => (m.id === id ? { ...m, status: prev ?? "scheduled" } : m)));
+    }
+  }, [meetings]);
 
   const navigate = (dir: number) => {
     if (view === "month") setCurrentDate(prev => dir > 0 ? addMonths(prev, 1) : subMonths(prev, 1));
@@ -370,14 +382,35 @@ export default function CalendarPage() {
                           <p className="truncate text-sm font-medium text-foreground">{getMeetingDisplayTitle(meeting, t)}</p>
                           {meeting.location_or_link && <p className="truncate text-[11px] text-primary">{meeting.location_or_link}</p>}
                         </div>
-                        <span
-                          className={cn("h-2 w-2 shrink-0 rounded-full",
-                            meeting.status === "completed" ? "bg-green-500"
-                            : meeting.status === "cancelled" ? "bg-red-500"
-                            : meeting.status === "no_show" ? "bg-gray-400"
-                            : "bg-amber-400")}
-                          title={meeting.status}
-                        />
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              title="Cambiar estado"
+                              className={cn("h-3 w-3 shrink-0 rounded-full ring-2 ring-transparent transition hover:ring-muted",
+                                meeting.status === "completed" ? "bg-green-500"
+                                : meeting.status === "cancelled" ? "bg-red-500"
+                                : meeting.status === "no_show" ? "bg-gray-400"
+                                : "bg-amber-400")}
+                            />
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            <DropdownMenuLabel className="text-xs">Marcar cita como</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => updateStatus(meeting.id, "completed")}>
+                              <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-green-500" /> Completada
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus(meeting.id, "no_show")}>
+                              <UserX className="mr-2 h-3.5 w-3.5 text-gray-500" /> No asistió
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus(meeting.id, "cancelled")}>
+                              <XCircle className="mr-2 h-3.5 w-3.5 text-red-500" /> Cancelada
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => updateStatus(meeting.id, "scheduled")}>
+                              <CalendarClock className="mr-2 h-3.5 w-3.5 text-amber-500" /> Agendada
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                         <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                       </div>
                     </Card>
