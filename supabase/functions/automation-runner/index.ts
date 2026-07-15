@@ -885,7 +885,22 @@ async function processEnrollment(enr: any, supabase: any, depth = 0, msgTracker?
           });
         }
 
-        if (variables.length > 0) {
+        // Auto-mapeo de variables: se construye el body según las variables reales
+        // {{n}} de la plantilla aprobada (no solo lo que configuró la automatización).
+        // Así, aunque la automatización no defina variables, {{1}} se llena con el
+        // nombre del contacto y nunca sale el "{{1}}" literal al cliente.
+        const tplBody = tplMeta?.body_text || "";
+        const tplVarNums = [...new Set((tplBody.match(/\{\{(\d+)\}\}/g) || []).map((m: string) => parseInt(m.replace(/[^0-9]/g, ""), 10)))].sort((a, b) => a - b);
+        const firstName = (contact.first_name || (contact.full_name || "").split(/\s+/)[0] || "").trim();
+        if (tplVarNums.length > 0) {
+          const bodyParams = tplVarNums.map((n, i) => {
+            const configured = (variables[i] ?? "").trim();
+            if (configured) return configured;      // valor configurado en la automatización
+            if (n === 1 && firstName) return firstName; // {{1}} por defecto = nombre
+            return " ";                              // resto sin dato → vacío (nunca "{{n}}")
+          });
+          components.push({ type: "body", parameters: bodyParams.map((v) => ({ type: "text", text: v || " " })) });
+        } else if (variables.length > 0) {
           components.push({ type: "body", parameters: variables.map((v) => ({ type: "text", text: v || " " })) });
         }
 
