@@ -10,13 +10,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { CalendarIcon, Clock, Loader2, Search, X, CalendarDays, Trash2 } from "lucide-react";
+import { CalendarIcon, Clock, Loader2, Search, X, CalendarDays, Trash2, ArrowUpRight } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
+import { useWorkspace } from "@/hooks/useWorkspace";
 
 // Convierte una hora "de pared" (fecha + hora que escribe el usuario, en la zona
 // horaria de la organización) al instante UTC real, para guardarlo en meetings
@@ -82,6 +84,8 @@ export function CreateMeetingDialog({
 }: CreateMeetingDialogProps) {
   const { t } = useTranslation();
   const { session } = useAuth();
+  const navigate = useNavigate();
+  const { path } = useWorkspace();
   const { organizationId, calendarScope, timezone } = useOrganizationContext();
   const isGlobalCalendar = calendarScope === "organization";
   const gcal = useGoogleCalendar();
@@ -414,11 +418,27 @@ export function CreateMeetingDialog({
             <div className="relative">
               {selectedContact && !contactDropdownOpen ? (
                 <div className="flex items-center h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
-                  <span className="flex-1 truncate">{selectedContact.full_name}</span>
+                  <button
+                    type="button"
+                    onClick={() => { onOpenChange(false); navigate(path(`/contacts/${selectedContact.id}`)); }}
+                    className="flex-1 truncate text-left text-primary hover:underline"
+                    title="Ver perfil del lead"
+                  >
+                    {selectedContact.full_name}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { onOpenChange(false); navigate(path(`/contacts/${selectedContact.id}`)); }}
+                    className="ml-2 text-muted-foreground hover:text-primary"
+                    title="Ver perfil del lead"
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => { setContactId(""); setContactSearch(""); }}
-                    className="ml-2 text-muted-foreground hover:text-foreground"
+                    className="ml-1 text-muted-foreground hover:text-foreground"
+                    title="Quitar contacto"
                   >
                     <X className="h-4 w-4" />
                   </button>
