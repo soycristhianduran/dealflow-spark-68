@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useParams, useNavigate } from "react-router-dom";
 import { useWorkspace } from "@/hooks/useWorkspace";
-import { InstagramIcon, MessengerIcon } from "@/components/icons/BrandIcons";
+import { InstagramIcon, MessengerIcon, WhatsAppIcon } from "@/components/icons/BrandIcons";
 import { ContactSocialThread } from "@/components/crm/ContactSocialThread";
 import { LostReasonDialog, WonBudgetDialog } from "@/components/crm/CloseLeadDialogs";
 import { Phone, Mail, ArrowLeft, MessageCircle, Calendar, MapPin, Megaphone, BarChart3, Loader2, Trash2, Cake, Pencil, Check, X, Plus, Settings2, KanbanSquare, Trophy, XCircle, Copy, Building2, FileText, Globe, Radio, Eye, Package } from "lucide-react";
@@ -992,33 +992,31 @@ export default function ContactDetailPage() {
                         onClick={() => { if (contact.primary_phone) window.location.href = `tel:${contact.primary_phone.replace(/[^+\d]/g, "")}`; }}
                         title={contact.primary_phone ? t("contactDetailPage.callTo", { phone: contact.primary_phone }) : t("contactDetailPage.noPhone")}
                       >
-                        <Phone className="h-4 w-4" />
+                        <Phone className="h-4 w-4 text-sky-500" />
                         {t("contactDetailPage.call")}
                       </Button>
-                      {/* Channel-aware chat: leads born on IG/Messenger open THAT
-                          conversation; phone leads keep the WhatsApp thread tab. */}
-                      {socialChat && !contact.primary_phone ? (
+                      {/* Chat según el CANAL REAL del lead: si tiene conversación de
+                          Instagram/Messenger, muestra el ícono oficial de esa
+                          plataforma; si es de WhatsApp (teléfono), el ícono de WhatsApp. */}
+                      {socialChat ? (
                         <Button
                           variant="outline" size="sm"
                           className="flex-col h-auto py-2 gap-1 text-xs"
                           onClick={() => setActiveTab("social")}
                           title={t("contactDetailPage.openSocialChat")}
                         >
-                          {socialChat.channel === "ig" ? <InstagramIcon size={16} /> : <MessengerIcon size={16} />}
+                          {socialChat.channel === "ig" ? <InstagramIcon size={18} /> : <MessengerIcon size={18} />}
                           {socialChat.channel === "ig" ? "Instagram" : "Messenger"}
                         </Button>
                       ) : (
                         <Button
                           variant="outline" size="sm"
                           className="flex-col h-auto py-2 gap-1 text-xs"
-                          disabled={!contact.primary_phone && !socialChat}
-                          onClick={() => {
-                            if (contact.primary_phone) setActiveTab("whatsapp");
-                            else if (socialChat) setActiveTab("social");
-                          }}
+                          disabled={!contact.primary_phone}
+                          onClick={() => { if (contact.primary_phone) setActiveTab("whatsapp"); }}
                           title={contact.primary_phone ? t("contactDetailPage.openWhatsAppChat") : t("contactDetailPage.noPhone")}
                         >
-                          <MessageCircle className="h-4 w-4" />
+                          <WhatsAppIcon size={18} />
                           WhatsApp
                         </Button>
                       )}
@@ -1029,7 +1027,7 @@ export default function ContactDetailPage() {
                         onClick={() => { if (contact.primary_email) { const s = t("contactDetailPage.emailGreeting", { name: contact.full_name?.split(" ")[0] || "" }).trim(); window.location.href = `mailto:${contact.primary_email}?subject=${encodeURIComponent(s)}`; } }}
                         title={contact.primary_email ? t("contactDetailPage.emailTo", { email: contact.primary_email }) : t("contactDetailPage.noEmail")}
                       >
-                        <Mail className="h-4 w-4" />
+                        <Mail className="h-4 w-4 text-rose-500" />
                         {t("contactDetailPage.email")}
                       </Button>
                       <Button
@@ -1037,7 +1035,7 @@ export default function ContactDetailPage() {
                         className="flex-col h-auto py-2 gap-1 text-xs"
                         onClick={() => setMeetingDialogOpen(true)}
                       >
-                        <Calendar className="h-4 w-4" />
+                        <Calendar className="h-4 w-4 text-primary" />
                         {t("contactDetailPage.schedule")}
                       </Button>
                     </div>
@@ -1077,11 +1075,21 @@ export default function ContactDetailPage() {
 
           <div className="lg:col-span-2">
             <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="timeline">{t("contactDetailPage.tabTimeline")}</TabsTrigger>
-                <TabsTrigger value="info">{t("contactDetailPage.tabInfo")}</TabsTrigger>
-                <TabsTrigger value="tasks">{t("contactDetailPage.tabTasks")} ({tasks.length})</TabsTrigger>
-                <TabsTrigger value="meetings">{t("contactDetailPage.tabMeetings")} ({meetings.length})</TabsTrigger>
+              <TabsList className="h-11 gap-1 bg-muted/60 p-1">
+                {[
+                  { v: "timeline", label: t("contactDetailPage.tabTimeline") },
+                  { v: "info", label: t("contactDetailPage.tabInfo") },
+                  { v: "tasks", label: `${t("contactDetailPage.tabTasks")} (${tasks.length})` },
+                  { v: "meetings", label: `${t("contactDetailPage.tabMeetings")} (${meetings.length})` },
+                ].map((tb) => (
+                  <TabsTrigger
+                    key={tb.v}
+                    value={tb.v}
+                    className="px-4 text-sm font-semibold transition-colors data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm"
+                  >
+                    {tb.label}
+                  </TabsTrigger>
+                ))}
               </TabsList>
 
               <TabsContent value="timeline" className="mt-4">
