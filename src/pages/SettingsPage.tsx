@@ -26,6 +26,7 @@ import { EmailDomainsSettings } from "@/components/settings/EmailDomainsSettings
 import { EmbedFormGenerator } from "@/components/settings/EmbedFormGenerator";
 import { MemberPermissionsDialog } from "@/components/settings/MemberPermissionsDialog";
 import type { MemberPermissions } from "@/lib/permissions";
+import { effectiveLevel } from "@/lib/permissions";
 import { ShieldCheck } from "lucide-react";
 import { validateSlug, toSlug, buildWorkspaceUrl } from "@/lib/subdomain";
 
@@ -693,6 +694,27 @@ export default function SettingsPage() {
                           {nameDisplay}{isMe && <span className="ml-1.5 text-xs text-muted-foreground">{t("settingsPage.youSuffix")}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                        {/* Resumen de permisos efectivos — visible para roles cuyos
+                            permisos varían (vendedor/setter/solo lectura). Así se ve
+                            de un vistazo qué puede hacer cada uno sin abrir el diálogo. */}
+                        {["vendor", "setter", "readonly"].includes(member.role) && (() => {
+                          const lvl = (action: "view" | "edit" | "delete" | "export") =>
+                            effectiveLevel("leads", action, { role: member.role, override: member.permissions ?? null, orgDefaultLeadView: defaultLeadVisibility ?? null });
+                          const short: Record<string, string> = { all: "todos", own: "propios", none: "no" };
+                          const chips = [
+                            `Ve: ${short[lvl("view")]}`,
+                            `Edita: ${short[lvl("edit")]}`,
+                            lvl("delete") !== "none" ? "Elimina" : null,
+                            lvl("export") === "all" ? "Exporta" : null,
+                          ].filter(Boolean) as string[];
+                          return (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {chips.map((c) => (
+                                <span key={c} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">{c}</span>
+                              ))}
+                            </div>
+                          );
+                        })()}
                       </div>
                       {canEdit ? (
                         <Select
