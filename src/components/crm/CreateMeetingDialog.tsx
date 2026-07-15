@@ -18,6 +18,26 @@ import { cn } from "@/lib/utils";
 import { useGoogleCalendar } from "@/hooks/useGoogleCalendar";
 import { useTranslation } from "react-i18next";
 
+// Convierte una hora "de pared" (fecha + hora que escribe el usuario, en la zona
+// horaria de la organización) al instante UTC real, para guardarlo en meetings
+// (columna timestamptz). Sin esto, "12:00" se guardaba como 12:00 UTC (Postgres
+// interpreta el string naive como UTC) y se mostraba 5 h antes; Google sí lo
+// tomaba como hora local. Ahora el DB queda consistente con Google.
+function wallClockToUtcISO(dateStr: string, timeStr: string, tz: string): string {
+  const [Y, M, D] = dateStr.split("-").map(Number);
+  const [h, m] = timeStr.split(":").map(Number);
+  const asUTC = Date.UTC(Y, (M || 1) - 1, D || 1, h || 0, m || 0, 0);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).formatToParts(new Date(asUTC));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  let hh = get("hour"); if (hh === 24) hh = 0;
+  const tzAsUTC = Date.UTC(get("year"), get("month") - 1, get("day"), hh, get("minute"), get("second"));
+  const offset = tzAsUTC - asUTC; // cuánto va adelantada la zona respecto a UTC
+  return new Date(asUTC - offset).toISOString();
+}
+
 interface EditingMeeting {
   id: string;
   title: string;
@@ -62,7 +82,7 @@ export function CreateMeetingDialog({
 }: CreateMeetingDialogProps) {
   const { t } = useTranslation();
   const { session } = useAuth();
-  const { organizationId, calendarScope } = useOrganizationContext();
+  const { organizationId, calendarScope, timezone } = useOrganizationContext();
   const isGlobalCalendar = calendarScope === "organization";
   const gcal = useGoogleCalendar();
   const [saving, setSaving] = useState(false);
@@ -147,10 +167,12 @@ export function CreateMeetingDialog({
     }
     setSaving(true);
     const dateStr = format(date, "yyyy-MM-dd");
+    const tz = timezone || "America/Bogota";
+    // Para el DB (timestamptz) guardamos el instante UTC real de la hora local.
     const payload = {
       title: title.trim(),
-      start_at: `${dateStr}T${startTime}:00`,
-      end_at: `${dateStr}T${endTime}:00`,
+      start_at: wallClockToUtcISO(dateStr, startTime, tz),
+      end_at: wallClockToUtcISO(dateStr, endTime, tz),
       meeting_type: meetingType,
       location_or_link: location.trim() || null,
       notes: notes.trim() || null,
