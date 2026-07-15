@@ -694,10 +694,19 @@ export default function SettingsPage() {
                           {nameDisplay}{isMe && <span className="ml-1.5 text-xs text-muted-foreground">{t("settingsPage.youSuffix")}</span>}
                         </p>
                         <p className="text-xs text-muted-foreground truncate">{member.email}</p>
-                        {/* Resumen de permisos efectivos — visible para roles cuyos
-                            permisos varían (vendedor/setter/solo lectura). Así se ve
-                            de un vistazo qué puede hacer cada uno sin abrir el diálogo. */}
-                        {["vendor", "setter", "readonly"].includes(member.role) && (() => {
+                        {/* Resumen de permisos a la vista. Vendedor/setter/solo-lectura
+                            muestran su permiso efectivo por acción; owner/admin/gestor
+                            son "Acceso total" (no se les configuran permisos → sin escudo). */}
+                        {(() => {
+                          const isFull = isOwner || ["admin", "gestor"].includes(member.role);
+                          if (isFull) {
+                            return (
+                              <div className="mt-1">
+                                <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">Acceso total</span>
+                              </div>
+                            );
+                          }
+                          if (!["vendor", "setter", "readonly"].includes(member.role)) return null;
                           const lvl = (action: "view" | "edit" | "delete" | "export") =>
                             effectiveLevel("leads", action, { role: member.role, override: member.permissions ?? null, orgDefaultLeadView: defaultLeadVisibility ?? null });
                           const short: Record<string, string> = { all: "todos", own: "propios", none: "no" };
