@@ -265,11 +265,23 @@ Deno.serve(async (req) => {
       .maybeSingle();
     const orgName = orgRow?.name || "tu equipo";
 
-    // Create or update invitation
+    // Create or update invitation. IMPORTANTE: al (re)invitar reiniciamos la
+    // invitación a PENDIENTE — nuevo token, nueva expiración y accepted_at=null.
+    // Sin esto, re-invitar a alguien cuya invitación ya estaba "aceptada" (p.ej.
+    // fue removido del equipo) la dejaba pegada como aceptada → invisible en
+    // "pendientes" y sin poder unirse.
     const { data: invitation, error: invErr } = await supabase
       .from("organization_invitations")
       .upsert(
-        { organization_id: orgId, email, role, invited_by: user.id },
+        {
+          organization_id: orgId,
+          email,
+          role,
+          invited_by: user.id,
+          accepted_at: null,
+          token: crypto.randomUUID(),
+          expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+        },
         { onConflict: "organization_id,email" }
       )
       .select()
