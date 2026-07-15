@@ -173,6 +173,7 @@ export function CreateMeetingDialog({
       title: title.trim(),
       start_at: wallClockToUtcISO(dateStr, startTime, tz),
       end_at: wallClockToUtcISO(dateStr, endTime, tz),
+      timezone: tz,
       meeting_type: meetingType,
       location_or_link: location.trim() || null,
       notes: notes.trim() || null,
